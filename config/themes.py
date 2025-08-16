@@ -122,7 +122,7 @@ def get_theme_stylesheet(theme):
         background-color: {theme['button_bg']};
         color: {theme['button_fg']};
         border: none;
-        padding: 8px 16px;
+        padding: 6px 12px;
         border-radius: 4px;
         font-weight: bold;
     }}
