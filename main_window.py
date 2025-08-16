@@ -1078,7 +1078,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 self.iv_file_mapping = iv_file_mapping
 
                 # Show batch results dialog
-                batch_dialog = BatchResultDialog(self, batch_data, batch_fig, iv_data, iv_file_mapping)
+                batch_dialog = BatchResultDialog(self, batch_data, batch_fig, iv_data, iv_file_mapping, x_label, y_label, destination_folder)
                 batch_dialog.exec()
             else:
                 QMessageBox.information(self, "Batch Analysis", "No valid data found in the selected files.")
