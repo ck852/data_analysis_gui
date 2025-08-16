@@ -112,7 +112,7 @@ class ConcentrationResponseDialog(QDialog):
         btn_layout = QHBoxLayout()
         load_btn = QPushButton("📁 Load CSV")
         load_btn.clicked.connect(self.load_file)
-        load_btn.setFixedWidth(110)
+        #load_btn.setFixedWidth(110)
         btn_layout.addWidget(load_btn)
 
         self.file_path_display = QLineEdit("No file loaded")
@@ -154,14 +154,14 @@ class ConcentrationResponseDialog(QDialog):
         bottom_layout = QHBoxLayout()
         add_range_btn = QPushButton("➕ Add Range")
         add_range_btn.clicked.connect(lambda: self.add_range_row(is_background=False))
-        add_range_btn.setFixedHeight(22)
+        #add_range_btn.setFixedHeight(22)
 
         add_bg_range_btn = QPushButton("➕ Add Background Range")
         add_bg_range_btn.clicked.connect(lambda: self.add_range_row(is_background=True))
-        add_bg_range_btn.setFixedHeight(22)
+        #add_bg_range_btn.setFixedHeight(22)
 
         mu_button = QPushButton("Insert μ")
-        mu_button.setFixedSize(60, 22)
+        #mu_button.setFixedSize(60, 22)
         mu_button.clicked.connect(self.insert_mu_char)
 
         bottom_layout.addWidget(add_range_btn)
@@ -211,13 +211,13 @@ class ConcentrationResponseDialog(QDialog):
         self.run_analysis_btn = QPushButton("▶ Run Analysis")
         self.run_analysis_btn.clicked.connect(self.run_analysis)
         self.run_analysis_btn.setStyleSheet("QPushButton { font-weight: bold; }")
-        self.run_analysis_btn.setFixedHeight(24)
+        #self.run_analysis_btn.setFixedHeight(24)
         btn_layout.addWidget(self.run_analysis_btn)
 
         self.export_btn = QPushButton("💾 Export CSV(s)")
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self.export_results)
-        self.export_btn.setFixedHeight(24)
+        #self.export_btn.setFixedHeight(24)
         btn_layout.addWidget(self.export_btn)
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
@@ -348,7 +348,7 @@ class ConcentrationResponseDialog(QDialog):
 
         remove_btn = QPushButton("✖", table_as_parent)
         remove_btn.setFont(table_font)
-        remove_btn.setFixedSize(22, 20)
+        #remove_btn.setFixedSize(22, 20)
         remove_btn.clicked.connect(self.remove_range_row)
 
         if is_background:
