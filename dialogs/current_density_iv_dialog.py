@@ -17,156 +17,163 @@ from utils import export_to_csv, calculate_current_density, calculate_sem
 
 class CurrentDensityIVDialog(QDialog):
     """Dialog for displaying Current Density I-V curves"""
-    def __init__(self, parent, iv_data, iv_file_mapping=None):
+    def __init__(self, parent, iv_data, iv_file_mapping=None, included_files=None):
         super().__init__(parent)
         self.iv_data = iv_data
         self.iv_file_mapping = iv_file_mapping or {}
         self.file_data = {}
         self.checkboxes = {}
         self.cslow_entries = {}
+        self.included_files = included_files # Store the included files dictionary
 
         self.setWindowTitle("Current Density I-V")
         self.setGeometry(200, 200, 1200, 800)
         self.init_ui()
 
     def init_ui(self):
-        layout = QHBoxLayout(self)
+            layout = QHBoxLayout(self)
 
-        # Left panel for file selection and Cslow input
-        left_panel = QWidget()
-        left_panel.setMaximumWidth(400)
-        left_layout = QVBoxLayout(left_panel)
+            # Left panel for file selection and Cslow input
+            left_panel = QWidget()
+            left_panel.setMaximumWidth(400)
+            left_layout = QVBoxLayout(left_panel)
 
-        # File settings group
-        file_group = QGroupBox("File Settings")
-        file_layout = QGridLayout(file_group)
+            # File settings group
+            file_group = QGroupBox("File Settings")
+            file_layout = QGridLayout(file_group)
 
-        # Headers
-        file_layout.addWidget(QLabel("File"), 0, 0)
-        file_layout.addWidget(QLabel("Include"), 0, 1)
-        file_layout.addWidget(QLabel("Cslow (pF)"), 0, 2)
+            # Headers
+            file_layout.addWidget(QLabel("File"), 0, 0)
+            file_layout.addWidget(QLabel("Include"), 0, 1)
+            file_layout.addWidget(QLabel("Cslow (pF)"), 0, 2)
 
-        # Initialize file data
-        num_recordings = len(self.iv_file_mapping) if self.iv_file_mapping else max([len(current_values) for current_values in self.iv_data.values()])
+            # Initialize file data
+            num_recordings = len(self.iv_file_mapping) if self.iv_file_mapping else max([len(current_values) for current_values in self.iv_data.values()])
 
-        for i in range(num_recordings):
-            file_id = f"Recording {i+1}"
-            self.file_data[file_id] = {'data': {}, 'included': True, 'cslow': DEFAULT_SETTINGS['cslow_default']}
+            for i in range(num_recordings):
+                file_id = f"Recording {i+1}"
+                self.file_data[file_id] = {'data': {}, 'included': True, 'cslow': DEFAULT_SETTINGS['cslow_default']}
 
-        # Populate data
-        for voltage in sorted(self.iv_data.keys()):
-            current_values = self.iv_data[voltage]
-            for i, current in enumerate(current_values):
-                if i < num_recordings:
-                    file_id = f"Recording {i+1}"
-                    if file_id in self.file_data:
-                        self.file_data[file_id]['data'][voltage] = current
+            # Populate data
+            for voltage in sorted(self.iv_data.keys()):
+                current_values = self.iv_data[voltage]
+                for i, current in enumerate(current_values):
+                    if i < num_recordings:
+                        file_id = f"Recording {i+1}"
+                        if file_id in self.file_data:
+                            self.file_data[file_id]['data'][voltage] = current
 
-        # Create controls for each file
-        row = 1
-        for file_id in self.file_data:
-            display_name = file_id
-            if file_id in self.iv_file_mapping:
-                display_name = f"{self.iv_file_mapping[file_id]}"
+            # Create controls for each file
+            row = 1
+            for file_id in self.file_data:
+                display_name = file_id
+                base_file_name = None
+                if file_id in self.iv_file_mapping:
+                    base_file_name = self.iv_file_mapping[file_id]
+                    display_name = f"{base_file_name}"
 
-            # File label
-            file_label = QLabel(display_name)
-            file_label.setMaximumWidth(200)
-            file_layout.addWidget(file_label, row, 0)
+                # File label
+                file_label = QLabel(display_name)
+                file_label.setMaximumWidth(200)
+                file_layout.addWidget(file_label, row, 0)
 
-            # Checkbox
-            checkbox = QCheckBox()
-            checkbox.setChecked(True)
-            file_layout.addWidget(checkbox, row, 1)
-            self.checkboxes[file_id] = checkbox
+                # Checkbox
+                checkbox = QCheckBox()
+                # Set the checkbox state based on the passed dictionary
+                if self.included_files and base_file_name in self.included_files:
+                    checkbox.setChecked(self.included_files[base_file_name])
+                else:
+                    checkbox.setChecked(True) # Default to checked if not found
+                file_layout.addWidget(checkbox, row, 1)
+                self.checkboxes[file_id] = checkbox
 
-            # Cslow entry with default value, no arrow buttons
-            cslow_entry = SelectAllSpinBox()
-            cslow_entry.setRange(0.1, 1000.0)
-            cslow_entry.setValue(DEFAULT_SETTINGS['cslow_default'])
-            cslow_entry.setSingleStep(0.1)
-            cslow_entry.setDecimals(2)
-            cslow_entry.setButtonSymbols(QAbstractSpinBox.NoButtons)
-            file_layout.addWidget(cslow_entry, row, 2)
-            self.cslow_entries[file_id] = cslow_entry
+                # Cslow entry with default value, no arrow buttons
+                cslow_entry = SelectAllSpinBox()
+                cslow_entry.setRange(0.1, 1000.0)
+                cslow_entry.setValue(DEFAULT_SETTINGS['cslow_default'])
+                cslow_entry.setSingleStep(0.1)
+                cslow_entry.setDecimals(2)
+                cslow_entry.setButtonSymbols(QAbstractSpinBox.NoButtons)
+                file_layout.addWidget(cslow_entry, row, 2)
+                self.cslow_entries[file_id] = cslow_entry
 
-            row += 1
+                row += 1
 
-        left_layout.addWidget(file_group)
+            left_layout.addWidget(file_group)
 
-        # Apply to all group
-        apply_group = QGroupBox("Apply to All")
-        apply_layout = QHBoxLayout(apply_group)
+            # Apply to all group
+            apply_group = QGroupBox("Apply to All")
+            apply_layout = QHBoxLayout(apply_group)
 
-        apply_layout.addWidget(QLabel("Cslow (pF):"))
-        self.apply_all_spin = SelectAllSpinBox()
-        self.apply_all_spin.setRange(0.1, 1000.0)
-        self.apply_all_spin.setValue(DEFAULT_SETTINGS['cslow_default'])
-        self.apply_all_spin.setDecimals(2)
-        self.apply_all_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
+            apply_layout.addWidget(QLabel("Cslow (pF):"))
+            self.apply_all_spin = SelectAllSpinBox()
+            self.apply_all_spin.setRange(0.1, 1000.0)
+            self.apply_all_spin.setValue(DEFAULT_SETTINGS['cslow_default'])
+            self.apply_all_spin.setDecimals(2)
+            self.apply_all_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
 
-        # Prevent Enter key from triggering apply
-        self.apply_all_spin.setKeyboardTracking(False)
-        apply_layout.addWidget(self.apply_all_spin)
+            # Prevent Enter key from triggering apply
+            self.apply_all_spin.setKeyboardTracking(False)
+            apply_layout.addWidget(self.apply_all_spin)
 
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(self.apply_to_all)
-        apply_btn.setAutoDefault(False)
-        apply_btn.setDefault(False)
-        apply_layout.addWidget(apply_btn)
+            apply_btn = QPushButton("Apply")
+            apply_btn.clicked.connect(self.apply_to_all)
+            apply_btn.setAutoDefault(False)
+            apply_btn.setDefault(False)
+            apply_layout.addWidget(apply_btn)
 
-        left_layout.addWidget(apply_group)
+            left_layout.addWidget(apply_group)
 
-        # Buttons
-        button_layout = QVBoxLayout()
+            # Buttons
+            button_layout = QVBoxLayout()
 
-        update_btn = QPushButton("Generate Current Density IV")
-        update_btn.clicked.connect(self.update_cd_plot)
-        update_btn.setAutoDefault(False)
-        button_layout.addWidget(update_btn)
+            update_btn = QPushButton("Generate Current Density IV")
+            update_btn.clicked.connect(self.update_cd_plot)
+            update_btn.setAutoDefault(False)
+            button_layout.addWidget(update_btn)
 
-        export_img_btn = QPushButton("Export Plot Image")
-        export_img_btn.clicked.connect(self.export_plot_image)
-        export_img_btn.setAutoDefault(False)
-        button_layout.addWidget(export_img_btn)
+            export_img_btn = QPushButton("Export Plot Image")
+            export_img_btn.clicked.connect(self.export_plot_image)
+            export_img_btn.setAutoDefault(False)
+            button_layout.addWidget(export_img_btn)
 
-        export_individual_btn = QPushButton("Export Individual Files")
-        export_individual_btn.clicked.connect(self.export_individual_files)
-        export_individual_btn.setAutoDefault(False)
-        button_layout.addWidget(export_individual_btn)
+            export_individual_btn = QPushButton("Export Individual Files")
+            export_individual_btn.clicked.connect(self.export_individual_files)
+            export_individual_btn.setAutoDefault(False)
+            button_layout.addWidget(export_individual_btn)
 
-        export_avg_btn = QPushButton("Export Average Data")
-        export_avg_btn.clicked.connect(self.export_average_data)
-        export_avg_btn.setAutoDefault(False)
-        button_layout.addWidget(export_avg_btn)
+            export_avg_btn = QPushButton("Export Average Data")
+            export_avg_btn.clicked.connect(self.export_average_data)
+            export_avg_btn.setAutoDefault(False)
+            button_layout.addWidget(export_avg_btn)
 
-        export_all_btn = QPushButton("Export All Data to CSV")
-        export_all_btn.clicked.connect(self.export_all_data)
-        export_all_btn.setAutoDefault(False)
-        button_layout.addWidget(export_all_btn)
+            export_all_btn = QPushButton("Export All Data to CSV")
+            export_all_btn.clicked.connect(self.export_all_data)
+            export_all_btn.setAutoDefault(False)
+            button_layout.addWidget(export_all_btn)
 
-        left_layout.addLayout(button_layout)
-        left_layout.addStretch()
+            left_layout.addLayout(button_layout)
+            left_layout.addStretch()
 
-        layout.addWidget(left_panel)
+            layout.addWidget(left_panel)
 
-        # Right panel for plot
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
+            # Right panel for plot
+            right_panel = QWidget()
+            right_layout = QVBoxLayout(right_panel)
 
-        # Create plot
-        self.figure = Figure(figsize=(8, 6))
-        self.canvas = FigureCanvas(self.figure)
-        self.ax = self.figure.add_subplot(111)
+            # Create plot
+            self.figure = Figure(figsize=(8, 6))
+            self.canvas = FigureCanvas(self.figure)
+            self.ax = self.figure.add_subplot(111)
 
-        toolbar = NavigationToolbar(self.canvas, right_panel)
-        right_layout.addWidget(toolbar)
-        right_layout.addWidget(self.canvas)
+            toolbar = NavigationToolbar(self.canvas, right_panel)
+            right_layout.addWidget(toolbar)
+            right_layout.addWidget(self.canvas)
 
-        layout.addWidget(right_panel)
+            layout.addWidget(right_panel)
 
-        # Initial plot (show raw current data)
-        self.show_initial_plot()
+            # Initial plot (show raw current data)
+            self.show_initial_plot()
 
     def show_initial_plot(self):
         """Show initial plot with raw current data (not density)"""

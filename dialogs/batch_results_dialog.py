@@ -85,7 +85,7 @@ class BatchResultDialog(QDialog):
         button_layout = QVBoxLayout()
 
         if self.iv_data:
-            iv_btn = QPushButton("Current Density I-V Analysis")
+            iv_btn = QPushButton("Current Density I-V")
             iv_btn.clicked.connect(self.generate_current_density_iv)
             button_layout.addWidget(iv_btn)
 
@@ -127,7 +127,10 @@ class BatchResultDialog(QDialog):
 
     def generate_current_density_iv(self):
         """Generate Current Density I-V analysis"""
-        dialog = CurrentDensityIVDialog(self, self.iv_data, self.iv_file_mapping)
+        # Get the current state of included files
+        included_files = {file_name: checkbox.isChecked() for file_name, checkbox in self.batch_checkboxes.items()}
+
+        dialog = CurrentDensityIVDialog(self, self.iv_data, self.iv_file_mapping, included_files=included_files)
         dialog.exec()
 
     def export_plot_image(self):
