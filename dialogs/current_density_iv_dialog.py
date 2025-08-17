@@ -1,5 +1,7 @@
 # ck852/data-analysis-gui/ck852-Data-Analysis-GUI-1c45529b512f622436a8ba3f47b384da73789119/dialogs/current_density_iv_dialog.py
 
+import subprocess
+import sys
 import os
 import numpy as np
 from PyQt5.QtWidgets import (QDialog, QHBoxLayout, QVBoxLayout, QWidget,
@@ -156,6 +158,12 @@ class CurrentDensityIVDialog(QDialog):
             self.export_all_btn.setEnabled(False)
             button_layout.addWidget(self.export_all_btn)
 
+            self.open_dest_folder_btn = QPushButton("Open Destination Folder")
+            self.open_dest_folder_btn.clicked.connect(self.open_destination_folder)
+            self.open_dest_folder_btn.setAutoDefault(False)
+            self.open_dest_folder_btn.setEnabled(False)
+            button_layout.addWidget(self.open_dest_folder_btn)
+
             left_layout.addLayout(button_layout)
             left_layout.addStretch()
 
@@ -180,48 +188,14 @@ class CurrentDensityIVDialog(QDialog):
             self.show_initial_plot()
 
     def show_initial_plot(self):
-        """Show initial plot with raw current data (not density)"""
-        self.ax.clear()
-
-        # Collect data from included files
-        voltage_current_pairs = {}
-
-        for file_id, file_info in self.file_data.items():
-            for voltage, current in file_info['data'].items():
-                if voltage not in voltage_current_pairs:
-                    voltage_current_pairs[voltage] = []
-                voltage_current_pairs[voltage].append(current)
-
-        # Calculate average and SEM
-        voltages = sorted(voltage_current_pairs.keys())
-        current_means = []
-        current_sems = []
-
-        for voltage in voltages:
-            current_values = voltage_current_pairs[voltage]
-            mean_current = np.mean(current_values)
-            sem = calculate_sem(current_values)
-            current_means.append(mean_current)
-            current_sems.append(sem)
-
-        # Plot raw current data
-        self.ax.errorbar(voltages, current_means, yerr=current_sems,
-                        fmt='o-', capsize=5, linewidth=2, markersize=8)
-
-        self.ax.set_xlabel("Voltage (mV)")
-        self.ax.set_ylabel("Current (pA)")
-        self.ax.set_title("Average I-V Relationship")
-        self.ax.grid(True, alpha=0.3)
-
-        # Add count
-        self.ax.text(0.95, 0.05, f"n = {len(self.file_data)} recordings",
-                     transform=self.ax.transAxes,
-                     horizontalalignment='right',
-                     verticalalignment='bottom',
-                     bbox=dict(facecolor='white', alpha=0.7))
-
-        self.figure.tight_layout()
-        self.canvas.draw()
+            """Show an empty plot initially."""
+            self.ax.clear()
+            self.ax.set_xlabel("Voltage (mV)")
+            self.ax.set_ylabel("Current Density (pA/pF)")
+            self.ax.set_title("Current Density I-V Relationship")
+            self.ax.grid(True, alpha=0.3)
+            self.figure.tight_layout()
+            self.canvas.draw()
 
     def apply_to_all(self):
         """Apply Cslow value to all entries - only called when Apply button is clicked"""
@@ -298,6 +272,7 @@ class CurrentDensityIVDialog(QDialog):
         self.export_img_btn.setEnabled(True)
         self.export_individual_btn.setEnabled(True)
         self.export_all_btn.setEnabled(True)
+        self.open_dest_folder_btn.setEnabled(True)
 
     def export_plot_image(self):
         """Export plot as image"""
@@ -430,3 +405,18 @@ class CurrentDensityIVDialog(QDialog):
             QMessageBox.information(self, "Export Successful", f"All data successfully saved to {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"An error occurred while saving the file:\n{e}")
+    
+    def open_destination_folder(self):
+        """Open the destination folder in the file explorer."""
+        if self.cd_analysis_folder and os.path.isdir(self.cd_analysis_folder):
+            try:
+                if sys.platform == "win32":
+                    os.startfile(self.cd_analysis_folder)
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", self.cd_analysis_folder])
+                else:
+                    subprocess.Popen(["xdg-open", self.cd_analysis_folder])
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not open folder: {e}")
+        else:
+            QMessageBox.warning(self, "Warning", "Destination folder not found.")
