@@ -130,7 +130,7 @@ class BatchResultDialog(QDialog):
         # Get the current state of included files
         included_files = {file_name: checkbox.isChecked() for file_name, checkbox in self.batch_checkboxes.items()}
 
-        dialog = CurrentDensityIVDialog(self, self.iv_data, self.iv_file_mapping, included_files=included_files)
+        dialog = CurrentDensityIVDialog(self, self.iv_data, self.iv_file_mapping, included_files=included_files, destination_folder=self.destination_folder)
         dialog.exec()
 
     def export_plot_image(self):
