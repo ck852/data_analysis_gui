@@ -1,3 +1,5 @@
+# ck852/data-analysis-gui/ck852-Data-Analysis-GUI-1c45529b512f622436a8ba3f47b384da73789119/dialogs/current_density_iv_dialog.py
+
 import os
 import numpy as np
 from PyQt5.QtWidgets import (QDialog, QHBoxLayout, QVBoxLayout, QWidget,
@@ -17,7 +19,7 @@ from utils import export_to_csv, calculate_current_density, calculate_sem
 
 class CurrentDensityIVDialog(QDialog):
     """Dialog for displaying Current Density I-V curves"""
-    def __init__(self, parent, iv_data, iv_file_mapping=None, included_files=None):
+    def __init__(self, parent, iv_data, iv_file_mapping=None, included_files=None, destination_folder=None):
         super().__init__(parent)
         self.iv_data = iv_data
         self.iv_file_mapping = iv_file_mapping or {}
@@ -25,6 +27,10 @@ class CurrentDensityIVDialog(QDialog):
         self.checkboxes = {}
         self.cslow_entries = {}
         self.included_files = included_files # Store the included files dictionary
+        self.destination_folder = destination_folder
+        self.cd_analysis_folder = None
+        if self.destination_folder:
+            self.cd_analysis_folder = os.path.join(self.destination_folder, "Current Density Analysis")
 
         self.setWindowTitle("Current Density I-V")
         self.setGeometry(200, 200, 1200, 800)
@@ -132,25 +138,23 @@ class CurrentDensityIVDialog(QDialog):
             update_btn.setAutoDefault(False)
             button_layout.addWidget(update_btn)
 
-            export_img_btn = QPushButton("Export Plot Image")
-            export_img_btn.clicked.connect(self.export_plot_image)
-            export_img_btn.setAutoDefault(False)
-            button_layout.addWidget(export_img_btn)
+            self.export_img_btn = QPushButton("Export Plot Image")
+            self.export_img_btn.clicked.connect(self.export_plot_image)
+            self.export_img_btn.setAutoDefault(False)
+            self.export_img_btn.setEnabled(False)
+            button_layout.addWidget(self.export_img_btn)
 
-            export_individual_btn = QPushButton("Export Individual Files")
-            export_individual_btn.clicked.connect(self.export_individual_files)
-            export_individual_btn.setAutoDefault(False)
-            button_layout.addWidget(export_individual_btn)
+            self.export_individual_btn = QPushButton("Export Individual Files")
+            self.export_individual_btn.clicked.connect(self.export_individual_files)
+            self.export_individual_btn.setAutoDefault(False)
+            self.export_individual_btn.setEnabled(False)
+            button_layout.addWidget(self.export_individual_btn)
 
-            export_avg_btn = QPushButton("Export Average Data")
-            export_avg_btn.clicked.connect(self.export_average_data)
-            export_avg_btn.setAutoDefault(False)
-            button_layout.addWidget(export_avg_btn)
-
-            export_all_btn = QPushButton("Export All Data to CSV")
-            export_all_btn.clicked.connect(self.export_all_data)
-            export_all_btn.setAutoDefault(False)
-            button_layout.addWidget(export_all_btn)
+            self.export_all_btn = QPushButton("Export All Data to CSV")
+            self.export_all_btn.clicked.connect(self.export_all_data)
+            self.export_all_btn.setAutoDefault(False)
+            self.export_all_btn.setEnabled(False)
+            button_layout.addWidget(self.export_all_btn)
 
             left_layout.addLayout(button_layout)
             left_layout.addStretch()
@@ -289,20 +293,35 @@ class CurrentDensityIVDialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+        
+        # Enable export buttons
+        self.export_img_btn.setEnabled(True)
+        self.export_individual_btn.setEnabled(True)
+        self.export_all_btn.setEnabled(True)
 
     def export_plot_image(self):
         """Export plot as image"""
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Plot", "", "PNG files (*.png)")
+        if self.cd_analysis_folder:
+            os.makedirs(self.cd_analysis_folder, exist_ok=True)
+            default_path = os.path.join(self.cd_analysis_folder, "current_density_plot.png")
+        else:
+            default_path = "current_density_plot.png"
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Plot", default_path, "PNG files (*.png)")
         if file_path:
             self.figure.savefig(file_path, dpi=300, bbox_inches='tight')
             QMessageBox.information(self, "Export Successful", f"Plot saved to {file_path}")
 
     def export_individual_files(self):
         """Export individual files"""
-        folder_path = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        if self.cd_analysis_folder:
+            folder_path = self.cd_analysis_folder
+        else:
+            folder_path = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        
         if not folder_path:
             return
-
+            
+        os.makedirs(folder_path, exist_ok=True)
         files_exported = 0
 
         for file_id, file_info in self.file_data.items():
@@ -343,26 +362,19 @@ class CurrentDensityIVDialog(QDialog):
         QMessageBox.information(self, "Export Successful",
                                f"{files_exported} files exported to {folder_path}")
 
-    def export_average_data(self):
-        """Export average data"""
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Average Data", "", "CSV files (*.csv)")
-        if file_path:
-            if hasattr(self, 'export_voltages'):
-                export_data = np.column_stack((self.export_voltages, self.export_currents, self.export_sems))
-                header = "Voltage (mV),Current Density (pA/pF),SEM"
-                export_to_csv(file_path, export_data, header, '%.6f')
-                QMessageBox.information(self, "Export Successful", f"Data saved to {file_path}")
-            else:
-                QMessageBox.warning(self, "Export Warning",
-                                  "Please click 'Generate Current Density IV' first to calculate the data.")
-
     def export_all_data(self):
         """
         Exports the current density data for all included files into a single CSV file.
         The first column contains the voltage, and subsequent columns contain the
         current density for each file.
         """
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export All Data to CSV", "", "CSV files (*.csv)")
+        if self.cd_analysis_folder:
+            os.makedirs(self.cd_analysis_folder, exist_ok=True)
+            default_path = os.path.join(self.cd_analysis_folder, "Current_Density_Summary.csv")
+        else:
+            default_path = "Current_Density_Summary.csv"
+            
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export All Data to CSV", default_path, "CSV files (*.csv)")
         if not file_path:
             return
 
