@@ -67,7 +67,7 @@ else:
 sys.path.insert(0, str(project_root))
 
 # Import the modules to test
-from main_window import ModernMatSweepAnalyzer
+from main_window import ModernMatSweepAnalyzer, ChannelConfiguration
 from dialogs.concentration_response_dialog import ConcentrationResponseDialog
 
 
@@ -85,6 +85,14 @@ def qapp():
 def main_window(qtbot, qapp):
     """Create and show the main window."""
     window = ModernMatSweepAnalyzer()
+    
+    # Ensure channel configuration is in default state for consistent testing
+    window.channel_config = ChannelConfiguration()  # Reset to defaults
+    
+    # Update channel combos if the method exists
+    if hasattr(window, '_update_channel_combos'):
+        window._update_channel_combos()
+    
     window.show()
     qtbot.addWidget(window)
     
@@ -94,6 +102,54 @@ def main_window(qtbot, qapp):
     
     return window
 
+def test_channel_swap_functionality(main_window, qtbot):
+    """
+    Test that channel swapping works correctly and updates all relevant UI elements.
+    """
+    # Initial state - verify default configuration
+    assert main_window.channel_config.get_channel_for_type("Voltage") == 0
+    assert main_window.channel_config.get_channel_for_type("Current") == 1
+    assert not main_window.channel_config.is_swapped()
+    
+    # Get initial combo box items
+    initial_toolbar_items = [main_window.channel_combo.itemText(i) 
+                            for i in range(main_window.channel_combo.count())]
+    assert initial_toolbar_items == ["Voltage", "Current"]
+    
+    # Find and click the swap button
+    swap_button = main_window.swap_channels_btn
+    assert swap_button is not None, "Swap channels button not found"
+    
+    # Click the swap button
+    swap_button.click()
+    qtbot.wait(100)  # Small wait for UI update
+    
+    # Verify channels are swapped
+    assert main_window.channel_config.get_channel_for_type("Voltage") == 1
+    assert main_window.channel_config.get_channel_for_type("Current") == 0
+    assert main_window.channel_config.is_swapped()
+    
+    # Verify button appearance changed
+    assert "Swapped" in swap_button.text()
+    
+    # Verify combo boxes updated
+    swapped_toolbar_items = [main_window.channel_combo.itemText(i) 
+                             for i in range(main_window.channel_combo.count())]
+    assert swapped_toolbar_items == ["Current", "Voltage"]
+    
+    # Click swap again to restore
+    swap_button.click()
+    qtbot.wait(100)
+    
+    # Verify channels are restored
+    assert main_window.channel_config.get_channel_for_type("Voltage") == 0
+    assert main_window.channel_config.get_channel_for_type("Current") == 1
+    assert not main_window.channel_config.is_swapped()
+    
+    # Verify button appearance restored
+    assert "Swapped" not in swap_button.text()
+    
+    print("Channel swap functionality test passed!")
 
 @pytest.fixture
 def test_data_path():

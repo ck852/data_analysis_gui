@@ -5,9 +5,10 @@ import pytest
 from pytestqt.exceptions import TimeoutError
 from PyQt5.QtWidgets import QFileDialog, QInputDialog, QPushButton, QApplication, QMessageBox
 from PyQt5.QtCore import Qt, QTimer
+from pathlib import Path
 
 # Import the specific classes we need to patch
-from main_window import ModernMatSweepAnalyzer
+from main_window import ModernMatSweepAnalyzer, ChannelConfiguration
 from dialogs import BatchResultDialog, CurrentDensityIVDialog
 import pandas as pd
 from pandas.testing import assert_frame_equal
@@ -21,7 +22,7 @@ REFERENCE_CD_DIR = r'C:\Python\250815 for editing modularized anal_suite\patch_c
 
 # Define the name and path for the output directory.
 GENERATED_RESULTS_DIR_NAME = "MAT_analysis"
-GENERATED_RESULTS_PATH = os.path.join(TEST_DATA_DIR, GENERATED_RESULTS_DIR_NAME)
+GENERATED_RESULTS_PATH = Path(TEST_DATA_DIR) / GENERATED_RESULTS_DIR_NAME
 GENERATED_CD_PATH = os.path.join(GENERATED_RESULTS_PATH, "Current Density Analysis")
 
 # Cslow values to input (in order)
@@ -32,17 +33,25 @@ def app(qtbot):
     """
     Pytest fixture to create and tear down the application instance for each test.
     """
-    # Before the test, always remove any old results to ensure a clean run.
-    if os.path.exists(GENERATED_RESULTS_PATH):
+    # Before the test, always remove any old results to ensure a clean run
+    if GENERATED_RESULTS_PATH.exists():
         shutil.rmtree(GENERATED_RESULTS_PATH)
 
     main_app = ModernMatSweepAnalyzer()
+    
+    # IMPORTANT: Ensure channel configuration is in default state for testing
+    # This ensures "Voltage" and "Current" are available in the expected order
+    main_app.channel_config = ChannelConfiguration()  # Reset to defaults
+    
+    # Update the channel combo boxes to reflect the configuration
+    main_app._update_channel_combos() if hasattr(main_app, '_update_channel_combos') else None
+    
     qtbot.addWidget(main_app)
     yield main_app
 
-    # After the test, the results folder will be KEPT for you to inspect.
+    # After the test, the results folder will be KEPT for inspection
     print(f"\n--- Test Finished ---")
-    if os.path.exists(GENERATED_RESULTS_PATH):
+    if GENERATED_RESULTS_PATH.exists():
         print(f"Output folder '{GENERATED_RESULTS_PATH}' was created and has been kept for inspection.")
     else:
         print(f"Output folder was NOT created.")
@@ -135,10 +144,27 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     # 5. Programmatically set the UI controls.
     app.start_spin.setValue(150.1)
     app.end_spin.setValue(649.2)
+
+    # With the new architecture, we need to ensure the channel types are available
+    # The combos should already be populated from channel_config
+    available_types = app.channel_config.get_available_types()
+    
+    # Verify expected channel types are available
+    assert "Voltage" in available_types, f"Voltage not in available types: {available_types}"
+    assert "Current" in available_types, f"Current not in available types: {available_types}"
+    
+    # Set the measurement combos
     app.x_measure_combo.setCurrentText("Average")
-    app.x_channel_combo.setCurrentText("Voltage")
     app.y_measure_combo.setCurrentText("Average")
+    
+    # Set the channel combos - these should match what's available in channel_config
+    app.x_channel_combo.setCurrentText("Voltage")
     app.y_channel_combo.setCurrentText("Current")
+    
+    # Optional: Add verification that channels are correctly mapped
+    voltage_channel = app.channel_config.get_channel_for_type("Voltage")
+    current_channel = app.channel_config.get_channel_for_type("Current")
+    print(f"  Channel mapping: Voltage=Ch{voltage_channel}, Current=Ch{current_channel}")
     
     # Record input MAT files
     all_tested_files['input_mat_files'] = [os.path.basename(f) for f in mat_files_to_test]

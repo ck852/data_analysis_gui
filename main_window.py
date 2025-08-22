@@ -24,6 +24,74 @@ from utils import (load_mat_file, export_to_csv, process_sweep_data,
                    apply_analysis_mode, calculate_average_voltage,
                    extract_file_number, format_voltage_label)
 
+class ChannelConfiguration:
+    """Manages the mapping between physical channels in the data and logical channel types"""
+    
+    def __init__(self):
+        # Define what each physical channel represents
+        self.channel_definitions = {
+            0: "Voltage",  # Default: Channel 0 is Voltage
+            1: "Current"   # Default: Channel 1 is Current
+        }
+        
+    def swap_channels(self):
+        """Swap the channel definitions"""
+        self.channel_definitions = {
+            0: self.channel_definitions[1],
+            1: self.channel_definitions[0]
+        }
+    
+    def get_channel_for_type(self, channel_type):
+        """Get the physical channel number for a given type (Voltage or Current)
+        
+        Args:
+            channel_type: "Voltage" or "Current"
+            
+        Returns:
+            Physical channel number (0 or 1)
+        """
+        for channel_num, ch_type in self.channel_definitions.items():
+            if ch_type == channel_type:
+                return channel_num
+        raise ValueError(f"Channel type '{channel_type}' not found")
+    
+    def get_type_for_channel(self, channel_num):
+        """Get the type for a given physical channel number
+        
+        Args:
+            channel_num: Physical channel number (0 or 1)
+            
+        Returns:
+            Channel type string ("Voltage" or "Current")
+        """
+        return self.channel_definitions.get(channel_num, f"Channel {channel_num}")
+    
+    def get_available_types(self):
+        """Get list of available channel types in order of their physical channels"""
+        return [self.channel_definitions[i] for i in sorted(self.channel_definitions.keys())]
+    
+    def get_channel_label(self, channel_type, include_unit=True):
+        """Get a formatted label for a channel type
+        
+        Args:
+            channel_type: "Voltage" or "Current"
+            include_unit: Whether to include the unit in the label
+            
+        Returns:
+            Formatted label string
+        """
+        if include_unit:
+            unit = "(mV)" if channel_type == "Voltage" else "(pA)"
+            return f"{channel_type} {unit}"
+        return channel_type
+    
+    def get_status_string(self):
+        """Get a string describing the current channel configuration"""
+        return f"Ch0={self.channel_definitions[0]}, Ch1={self.channel_definitions[1]}"
+    
+    def is_swapped(self):
+        """Check if channels are in non-default configuration"""
+        return self.channel_definitions[0] != "Voltage"
 
 class SweepDataProcessor:
     """Handles all data processing and business logic operations"""
@@ -48,7 +116,7 @@ class SweepDataProcessor:
         return np.nan
     
     @staticmethod
-    def process_sweep_ranges(sweeps, range_params, dual_range=False):
+    def process_sweep_ranges(sweeps, range_params, dual_range=False, channel_config=None):
         """Process all sweeps for the given range parameters
         
         Args:
@@ -59,6 +127,14 @@ class SweepDataProcessor:
         Returns:
             Dictionary containing processed data for all sweeps
         """
+
+        # Use default configuration if none provided
+        if channel_config is None:
+            channel_config = ChannelConfiguration()
+        
+        voltage_channel = channel_config.get_channel_for_type("Voltage")
+        current_channel = channel_config.get_channel_for_type("Current")
+
         result = {
             "sweep_indices": [], "time_values": [],
             "peak_current": [], "peak_voltage": [],
@@ -75,9 +151,9 @@ class SweepDataProcessor:
             
             # Process first range
             voltage_data = process_sweep_data(t, y, range_params['t_start'], 
-                                            range_params['t_end'], channel=0)
+                                            range_params['t_end'], channel=voltage_channel)
             current_data = process_sweep_data(t, y, range_params['t_start'], 
-                                            range_params['t_end'], channel=1)
+                                            range_params['t_end'], channel=current_channel)
             
             if current_data.size > 0 and voltage_data.size > 0:
                 result["sweep_indices"].append(int(index))
@@ -93,9 +169,9 @@ class SweepDataProcessor:
                 # Process Range 2 if enabled
                 if dual_range and 't_start2' in range_params:
                     voltage_data2 = process_sweep_data(t, y, range_params['t_start2'], 
-                                                      range_params['t_end2'], channel=0)
+                                                      range_params['t_end2'], channel=voltage_channel)
                     current_data2 = process_sweep_data(t, y, range_params['t_start2'], 
-                                                      range_params['t_end2'], channel=1)
+                                                      range_params['t_end2'], channel=current_channel)
                     
                     if current_data2.size > 0 and voltage_data2.size > 0:
                         result["peak_current2"].append(SweepDataProcessor.calculate_peak_values(current_data2))
@@ -137,17 +213,21 @@ class SweepDataProcessor:
         return data, label
     
     @staticmethod
-    def prepare_export_data(plot_data, axis_config, use_dual_range=False):
-        """Prepare data for CSV export
+    def prepare_export_data(plot_data, axis_config, use_dual_range=False, channel_config=None):
+        """Prepare data for CSV export with proper channel labels
         
         Args:
             plot_data: Processed sweep data
             axis_config: Dict with x/y measure and channel settings
             use_dual_range: Whether dual range is enabled
+            channel_config: ChannelConfiguration object
             
         Returns:
             Tuple of (data_array, header_string)
         """
+        if channel_config is None:
+            channel_config = ChannelConfiguration()
+        
         x_data, x_label = SweepDataProcessor.extract_axis_data(
             plot_data, axis_config['x_measure'], axis_config.get('x_channel')
         )
@@ -156,13 +236,22 @@ class SweepDataProcessor:
             plot_data, axis_config['y_measure'], axis_config.get('y_channel')
         )
         
+        # Build proper labels using channel configuration
+        if axis_config['x_measure'] != "Time":
+            x_channel_type = axis_config['x_channel']
+            x_label = f"{axis_config['x_measure']} {channel_config.get_channel_label(x_channel_type)}"
+        
+        if axis_config['y_measure'] != "Time":
+            y_channel_type = axis_config['y_channel']
+            y_label = f"{axis_config['y_measure']} {channel_config.get_channel_label(y_channel_type)}"
+        
         if use_dual_range:
-            # Get second range data
+            # ... existing dual range logic but with proper labels ...
             measure_key = "peak" if axis_config['y_measure'] == "Peak" else "average"
             channel_key = "current" if axis_config['y_channel'] == "Current" else "voltage"
             y_data2 = plot_data[f"{measure_key}_{channel_key}2"]
             
-            # Create descriptive headers
+            # Create descriptive headers with channel configuration
             y_label_r1 = y_label
             y_label_r2 = y_label
             
@@ -280,18 +369,14 @@ class BatchAnalyzer:
         return x_label, y_label
     
     def process_single_file(self, file_path, params):
-        """Process a single MAT file
-        
-        Returns:
-            Dictionary containing processed data for the file
-        """
+        """Process a single MAT file"""
         base_name = os.path.basename(file_path).split('.mat')[0]
         if '[' in base_name:
             base_name = base_name.split('[')[0]
         
         sweeps = load_mat_file(file_path)
         
-        # Process sweeps using the processor
+        # Process sweeps using the processor with channel configuration
         range_params = {
             't_start': params['t_start'],
             't_end': params['t_end'],
@@ -303,7 +388,8 @@ class BatchAnalyzer:
             range_params['t_end2'] = params['t_end2']
         
         processed_data = self.processor.process_sweep_ranges(
-            sweeps, range_params, params['use_dual_range']
+            sweeps, range_params, params['use_dual_range'],
+            channel_config=self.parent.channel_config  # Pass parent's configuration
         )
         
         # Extract axis data
@@ -384,6 +470,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
         super().__init__()
 
         self.current_theme_name = "Light"  # Set default theme
+        self.channel_config = ChannelConfiguration()
+
         self.data_processor = SweepDataProcessor()
         self.batch_analyzer = BatchAnalyzer(self)
 
@@ -424,6 +512,40 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self._create_toolbar()
         self._create_main_layout()
         self._create_status_bar()
+
+    def _update_channel_combos(self):
+        """Update all channel combo boxes with current configuration"""
+        # Store current selections
+        toolbar_selection = self.channel_combo.currentText() if hasattr(self, 'channel_combo') else None
+        x_selection = self.x_channel_combo.currentText() if hasattr(self, 'x_channel_combo') else None
+        y_selection = self.y_channel_combo.currentText() if hasattr(self, 'y_channel_combo') else None
+        
+        # Get available types from channel configuration
+        available_types = self.channel_config.get_available_types()
+        
+        # Update toolbar channel combo
+        if hasattr(self, 'channel_combo'):
+            self.channel_combo.clear()
+            self.channel_combo.addItems(available_types)
+            
+            # Try to restore selection (it might be swapped now)
+            if toolbar_selection in available_types:
+                self.channel_combo.setCurrentText(toolbar_selection)
+        
+        # Update plot settings combos
+        if hasattr(self, 'x_channel_combo'):
+            self.x_channel_combo.clear()
+            self.x_channel_combo.addItems(available_types)
+            
+            if x_selection in available_types:
+                self.x_channel_combo.setCurrentText(x_selection)
+        
+        if hasattr(self, 'y_channel_combo'):
+            self.y_channel_combo.clear()
+            self.y_channel_combo.addItems(available_types)
+            
+            if y_selection in available_types:
+                self.y_channel_combo.setCurrentText(y_selection)
 
     def _create_main_layout(self):
         """Create the main layout with splitter"""
@@ -564,7 +686,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Add channel selection to toolbar"""
         toolbar.addWidget(QLabel("Channel:"))
         self.channel_combo = QComboBox()
-        self.channel_combo.addItems(["Current", "Voltage"])
+        self.channel_combo.addItems(self.channel_config.get_available_types())
         self.channel_combo.currentTextChanged.connect(self.update_plot)
         toolbar.addWidget(self.channel_combo)
 
@@ -634,6 +756,39 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.period_spin.setSingleStep(100)
         analysis_layout.addWidget(self.period_spin, 5, 1)
 
+        # Add Swap Channels button
+        self.swap_channels_btn = QPushButton("Swap Channels")
+        self.swap_channels_btn.setToolTip("Swap voltage and current channel assignments")
+        self.swap_channels_btn.clicked.connect(self.swap_channels)
+        analysis_layout.addWidget(self.swap_channels_btn, 6, 0, 1, 2)
+
+    # def swap_channels(self):
+    #     """Swap the voltage and current channel assignments"""
+    #     # Swap the channel indices
+    #     self.voltage_channel, self.current_channel = self.current_channel, self.voltage_channel
+    #     self.channels_swapped = not self.channels_swapped
+        
+    #     # Update button appearance to indicate state
+    #     if self.channels_swapped:
+    #         self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
+    #         self.swap_channels_btn.setText("Channels Swapped ⇄")
+    #     else:
+    #         self.swap_channels_btn.setStyleSheet("")  # Reset to default style
+    #         self.swap_channels_btn.setText("Swap Channels")
+        
+    #     # Update status bar
+    #     self.status_bar.showMessage(
+    #         f"Channels {'swapped' if self.channels_swapped else 'reset'}: "
+    #         f"Voltage=Ch{self.voltage_channel}, Current=Ch{self.current_channel}"
+    #     )
+        
+    #     # Refresh the current plot if data is loaded
+    #     if self.sweeps:
+    #         self.update_plot()
+    #         # If analysis data exists, reprocess it
+    #         if hasattr(self, 'plot_data') and self.plot_data:
+    #             self.process_all_sweeps()
+
         # Center Nearest Cursor button
         center_cursor_btn = QPushButton("Center Nearest Cursor")
         center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
@@ -641,6 +796,42 @@ class ModernMatSweepAnalyzer(QMainWindow):
         analysis_layout.addWidget(center_cursor_btn, 6, 0, 1, 2)
 
         return analysis_group
+
+    def swap_channels(self):
+        """Swap the voltage and current channel assignments"""
+        # Validate that we have data with at least 2 channels
+        if self.sweeps:
+            first_key = list(self.sweeps.keys())[0]
+            _, y = self.sweeps[first_key]
+            if y.shape[1] < 2:
+                QMessageBox.warning(self, "Cannot Swap", 
+                                "Data has fewer than 2 channels")
+                return
+        
+        # Perform the swap by calling the channel_config's swap method
+        self.channel_config.swap_channels()
+        
+        # Update button appearance
+        if self.channel_config.is_swapped():
+            self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
+            self.swap_channels_btn.setText("Channels Swapped ⇄")
+        else:
+            self.swap_channels_btn.setStyleSheet("")
+            self.swap_channels_btn.setText("Swap Channels")
+        
+        # Update combo boxes to reflect new channel assignments
+        self._update_channel_combos()
+        
+        # Update status bar
+        self.status_bar.showMessage(
+            f"Channel configuration: {self.channel_config.get_status_string()}"
+        )
+        
+        # Refresh the current plot if data is loaded
+        if self.sweeps:
+            self.update_plot()
+            if hasattr(self, 'plot_data') and self.plot_data:
+                self.process_all_sweeps()
 
     def _add_range1_settings(self, layout):
         """Add Range 1 settings to layout"""
@@ -697,7 +888,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_layout.addWidget(self.x_measure_combo, 0, 1)
 
         self.x_channel_combo = QComboBox()
-        self.x_channel_combo.addItems(["Current", "Voltage"])
+        self.x_channel_combo.addItems(self.channel_config.get_available_types())
         self.x_channel_combo.setCurrentText("Voltage")
         plot_layout.addWidget(self.x_channel_combo, 0, 2)
 
@@ -709,7 +900,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_layout.addWidget(self.y_measure_combo, 1, 1)
 
         self.y_channel_combo = QComboBox()
-        self.y_channel_combo.addItems(["Current", "Voltage"])
+        self.y_channel_combo.addItems(self.channel_config.get_available_types())
         self.y_channel_combo.setCurrentText("Current")
         plot_layout.addWidget(self.y_channel_combo, 1, 2)
 
@@ -886,8 +1077,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 range_params['t_start2'] = self.start_spin2.value()
                 range_params['t_end2'] = self.end_spin2.value()
             
+            # Pass channel configuration to processor
             self.plot_data = self.data_processor.process_sweep_ranges(
-                self.sweeps, range_params, self.use_dual_range
+                self.sweeps, range_params, self.use_dual_range,
+                channel_config=self.channel_config
             )
 
         except Exception as e:
@@ -962,8 +1155,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
         index = selection.split()[-1]
         t, y = self.sweeps[index]
 
-        # Current is channel 1, Voltage is channel 0
-        channel = 1 if self.channel_combo.currentText() == "Current" else 0
+        # Get the physical channel for the selected type
+        selected_type = self.channel_combo.currentText()
+        channel = self.channel_config.get_channel_for_type(selected_type)
 
         self.ax.clear()
 
@@ -971,9 +1165,13 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.ax.plot(t, y[:, channel], linewidth=2)
 
         # Set labels and title
-        self.ax.set_title(f"Sweep {index} - {self.channel_combo.currentText()}")
+        self.ax.set_title(f"Sweep {index} - {selected_type}")
         self.ax.set_xlabel("Time (ms)")
-        self.ax.set_ylabel("Amplitude")
+
+        # Use proper units based on channel type
+        unit = "mV" if selected_type == "Voltage" else "pA"
+        self.ax.set_ylabel(f"{selected_type} ({unit})")
+        
         self.ax.grid(True, alpha=0.3)
 
         # Force autoscaling on the data
@@ -1132,9 +1330,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 'y_channel': self.y_channel_combo.currentText()
             }
 
-            # Prepare export data using processor
+            # Prepare export data with channel configuration
             output_data, header = self.data_processor.prepare_export_data(
-                self.plot_data, axis_config, self.use_dual_range
+                self.plot_data, axis_config, self.use_dual_range,
+                channel_config=self.channel_config  # Pass the configuration
             )
 
             # Get save path
