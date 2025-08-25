@@ -525,27 +525,38 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         # Update toolbar channel combo
         if hasattr(self, 'channel_combo'):
+            # Block signals to prevent update_plot() from being called with empty selection
+            self.channel_combo.blockSignals(True)
             self.channel_combo.clear()
             self.channel_combo.addItems(available_types)
             
             # Try to restore selection (it might be swapped now)
             if toolbar_selection in available_types:
                 self.channel_combo.setCurrentText(toolbar_selection)
+            
+            # Re-enable signals
+            self.channel_combo.blockSignals(False)
         
         # Update plot settings combos
         if hasattr(self, 'x_channel_combo'):
+            self.x_channel_combo.blockSignals(True)
             self.x_channel_combo.clear()
             self.x_channel_combo.addItems(available_types)
             
             if x_selection in available_types:
                 self.x_channel_combo.setCurrentText(x_selection)
+            
+            self.x_channel_combo.blockSignals(False)
         
         if hasattr(self, 'y_channel_combo'):
+            self.y_channel_combo.blockSignals(True)
             self.y_channel_combo.clear()
             self.y_channel_combo.addItems(available_types)
             
             if y_selection in available_types:
                 self.y_channel_combo.setCurrentText(y_selection)
+            
+            self.y_channel_combo.blockSignals(False)
 
     def _create_main_layout(self):
         """Create the main layout with splitter"""
@@ -762,6 +773,14 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.swap_channels_btn.clicked.connect(self.swap_channels)
         analysis_layout.addWidget(self.swap_channels_btn, 6, 0, 1, 2)
 
+        # Center Nearest Cursor button
+        center_cursor_btn = QPushButton("Center Nearest Cursor")
+        center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
+        center_cursor_btn.clicked.connect(self.center_nearest_cursor)
+        analysis_layout.addWidget(center_cursor_btn, 7, 0, 1, 2)
+
+        return analysis_group
+
     # def swap_channels(self):
     #     """Swap the voltage and current channel assignments"""
     #     # Swap the channel indices
@@ -788,14 +807,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
     #         # If analysis data exists, reprocess it
     #         if hasattr(self, 'plot_data') and self.plot_data:
     #             self.process_all_sweeps()
-
-        # Center Nearest Cursor button
-        center_cursor_btn = QPushButton("Center Nearest Cursor")
-        center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
-        center_cursor_btn.clicked.connect(self.center_nearest_cursor)
-        analysis_layout.addWidget(center_cursor_btn, 6, 0, 1, 2)
-
-        return analysis_group
 
     def swap_channels(self):
         """Swap the voltage and current channel assignments"""
