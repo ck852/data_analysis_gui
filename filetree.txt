@@ -1,0 +1,46 @@
+root/
+|-- src/
+|   |-- data_analysis_gui/
+|   |   |-- config/
+|   |   |   |-- __init__.py
+|   |   |   |-- settings.py
+|   |   |   `-- themes.py
+|   |   |-- dialogs/
+|   |   |   |-- __init__.py
+|   |   |   |-- analysis_plot_dialog.py
+|   |   |   |-- batch_results_dialog.py
+|   |   |   |-- concentration_response_dialog.py
+|   |   |   `-- current_density_iv_dialog.py
+|   |   |-- utils/
+|   |   |   |-- __init__.py
+|   |   |   |-- data_processing.py
+|   |   |   |-- file_io.py
+|   |   |   `-- plot_helpers.py
+|   |   |-- widgets/
+|   |   |   |-- __init__.py
+|   |   |   |-- custom_combos.py
+|   |   |   `-- custom_inputs.py
+|   |   |-- __init__.py
+|   |   |-- main.py
+|   |   |-- main_window.py
+|   |   `-- plot_manager.py
+|   `-- data_analysis_gui.egg-info/
+|       `-- PKG-INFO
+|-- tests/
+|   |-- fixtures/
+|   |   |-- golden_data/
+|   |   |   |-- golden_CV/
+|   |   |   |-- golden_DR_data/
+|   |   |   `-- golden_IV/
+|   |   `-- sample_data/
+|   |       |-- DR/
+|   |       `-- IV/
+|   |-- conftest.py
+|   |-- CR_pytest.py
+|   |-- test_analysis_workflow.py
+|   |-- test_concentration_response.py
+|   `-- test_tevc_workflow.py
+|-- filetree.py
+|-- pyproject.toml
+|-- pytest.ini
+`-- README.md
