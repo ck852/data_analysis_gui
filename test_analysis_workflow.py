@@ -14,16 +14,48 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 # --- Configuration ---
-# Use the exact, hardcoded path to the test data directory.
-TEST_DATA_DIR = r'C:\Python\250815 for editing modularized anal_suite\patch_clamp_analyzer\iv_test_data'
-# Reference directories
-REFERENCE_DIR = r'C:\Python\250815 for editing modularized anal_suite\patch_clamp_analyzer\iv_test_data\golden'
-REFERENCE_CD_DIR = r'C:\Python\250815 for editing modularized anal_suite\patch_clamp_analyzer\iv_test_data\golden_CV'
+# Use relative paths instead of hardcoded absolute paths
+def get_test_paths():
+    """Get test data paths relative to the test file location."""
+    current_file = Path(__file__)
+    project_root = current_file.parent
+    
+    # Navigate to iv_test_data directory relative to project root
+    test_data_dir = project_root / 'iv_test_data'
+    
+    # If the test data directory doesn't exist in the current location,
+    # try to find it in parent directories (in case we're in a subdirectory)
+    if not test_data_dir.exists():
+        for parent in current_file.parents:
+            potential_test_dir = parent / 'iv_test_data'
+            if potential_test_dir.exists():
+                test_data_dir = potential_test_dir
+                project_root = parent
+                break
+    
+    # Set up all the paths
+    reference_dir = test_data_dir / 'golden'
+    reference_cd_dir = test_data_dir / 'golden_CV'
+    generated_results_path = test_data_dir / 'MAT_analysis'
+    generated_cd_path = generated_results_path / 'Current Density Analysis'
+    
+    return {
+        'test_data_dir': test_data_dir,
+        'reference_dir': reference_dir,
+        'reference_cd_dir': reference_cd_dir,
+        'generated_results_path': generated_results_path,
+        'generated_cd_path': generated_cd_path,
+        'generated_results_dir_name': 'MAT_analysis'
+    }
 
-# Define the name and path for the output directory.
-GENERATED_RESULTS_DIR_NAME = "MAT_analysis"
-GENERATED_RESULTS_PATH = Path(TEST_DATA_DIR) / GENERATED_RESULTS_DIR_NAME
-GENERATED_CD_PATH = os.path.join(GENERATED_RESULTS_PATH, "Current Density Analysis")
+# Get the paths
+paths = get_test_paths()
+TEST_DATA_DIR = paths['test_data_dir']
+REFERENCE_DIR = paths['reference_dir']
+REFERENCE_CD_DIR = paths['reference_cd_dir']
+GENERATED_RESULTS_PATH = paths['generated_results_path']
+GENERATED_CD_PATH = paths['generated_cd_path']
+GENERATED_RESULTS_DIR_NAME = paths['generated_results_dir_name']
 
 # Cslow values to input (in order)
 CSLOW_VALUES = [34.4, 14.5, 20.5, 16.3, 18.4, 17.3, 14.4, 14.1, 18.4, 21.0, 22.2, 23.2]
@@ -73,11 +105,11 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     print(f"--------------------")
     
     # 1. Verify that the necessary directories and files exist.
-    assert os.path.isdir(TEST_DATA_DIR), f"Test data directory not found at: {TEST_DATA_DIR}"
-    assert os.path.isdir(REFERENCE_DIR), f"Reference (WinWCP) directory not found at: {REFERENCE_DIR}"
-    assert os.path.isdir(REFERENCE_CD_DIR), f"Reference CD directory not found at: {REFERENCE_CD_DIR}"
+    assert TEST_DATA_DIR.is_dir(), f"Test data directory not found at: {TEST_DATA_DIR}"
+    assert REFERENCE_DIR.is_dir(), f"Reference (WinWCP) directory not found at: {REFERENCE_DIR}"
+    assert REFERENCE_CD_DIR.is_dir(), f"Reference CD directory not found at: {REFERENCE_CD_DIR}"
     
-    mat_files_to_test = sorted(glob.glob(os.path.join(TEST_DATA_DIR, '*.mat')))
+    mat_files_to_test = sorted(glob.glob(str(TEST_DATA_DIR / '*.mat')))
     assert len(mat_files_to_test) > 0, "No .mat files found in the test data directory."
 
     # 2. Store references to dialogs that will be opened
@@ -102,13 +134,13 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     def mock_get_save_filename(*args, **kwargs):
         # Check if this is for the CD analysis summary file
         if "Current_Density_Summary.csv" in args[2]:
-            return os.path.join(GENERATED_CD_PATH, "Current_Density_Summary.csv"), ''
+            return str(GENERATED_CD_PATH / "Current_Density_Summary.csv"), ''
         # Default to accepting the suggested filename
         return args[2], ''
     
     def mock_get_existing_directory(*args, **kwargs):
         # Return the CD analysis folder
-        return GENERATED_CD_PATH
+        return str(GENERATED_CD_PATH)
     
     def mock_message_box(*args, **kwargs):
         # Automatically "click OK" on any message box
@@ -182,12 +214,12 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     # 8. --- Initial Batch Analysis Verification ---
     # Wait until the output directory is created.
     try:
-        qtbot.waitUntil(lambda: os.path.isdir(GENERATED_RESULTS_PATH), timeout=10000)
+        qtbot.waitUntil(lambda: GENERATED_RESULTS_PATH.is_dir(), timeout=10000)
     except TimeoutError:
         pytest.fail("The batch analysis did not create the output directory within 10 seconds.", pytrace=False)
 
     # Confirm that the folder was created and contains some CSV files.
-    generated_files = sorted(glob.glob(os.path.join(GENERATED_RESULTS_PATH, '*.csv')))
+    generated_files = sorted(glob.glob(str(GENERATED_RESULTS_PATH / '*.csv')))
     assert len(generated_files) > 0, "Analysis ran, but no CSV files were found in the output directory."
     print(f"\nBatch analysis successful! {len(generated_files)} files were generated in '{GENERATED_RESULTS_PATH}'")
 
@@ -197,11 +229,11 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     for generated_file_path in generated_files:
         file_name = os.path.basename(generated_file_path)
         all_tested_files['batch_analysis_files'].append(file_name)
-        reference_file_path = os.path.join(REFERENCE_DIR, file_name)
+        reference_file_path = REFERENCE_DIR / file_name
 
         print(f"Comparing: {file_name}")
 
-        if not os.path.exists(reference_file_path):
+        if not reference_file_path.exists():
             print(f"  [WARNING] No reference file found at '{reference_file_path}'. Skipping comparison.")
             continue
 
@@ -277,7 +309,7 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     assert export_individual_button is not None, "Could not find 'Export Individual Files' button"
     
     # Create the CD analysis folder if it doesn't exist
-    os.makedirs(GENERATED_CD_PATH, exist_ok=True)
+    GENERATED_CD_PATH.mkdir(parents=True, exist_ok=True)
     
     export_individual_button.click()
     QApplication.processEvents()
@@ -297,11 +329,11 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     
     # 15. --- Verify CD Analysis Output ---
     # Check that CD files were created
-    cd_individual_files = sorted(glob.glob(os.path.join(GENERATED_CD_PATH, '*_CD.csv')))
-    cd_summary_file = os.path.join(GENERATED_CD_PATH, 'Current_Density_Summary.csv')
+    cd_individual_files = sorted(glob.glob(str(GENERATED_CD_PATH / '*_CD.csv')))
+    cd_summary_file = GENERATED_CD_PATH / 'Current_Density_Summary.csv'
     
     assert len(cd_individual_files) > 0, "No individual CD files were generated"
-    assert os.path.exists(cd_summary_file), "Current_Density_Summary.csv was not created"
+    assert cd_summary_file.exists(), "Current_Density_Summary.csv was not created"
     
     print(f"\nCD analysis successful! Generated {len(cd_individual_files)} individual files plus summary")
     
@@ -312,11 +344,11 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     for generated_file_path in cd_individual_files:
         file_name = os.path.basename(generated_file_path)
         all_tested_files['cd_individual_files'].append(file_name)
-        reference_file_path = os.path.join(REFERENCE_CD_DIR, file_name)
+        reference_file_path = REFERENCE_CD_DIR / file_name
         
         print(f"Comparing CD file: {file_name}")
         
-        if not os.path.exists(reference_file_path):
+        if not reference_file_path.exists():
             print(f"  [WARNING] No reference file found at '{reference_file_path}'. Skipping comparison.")
             continue
         
@@ -341,9 +373,9 @@ def test_batch_analysis_workflow(app, qtbot, monkeypatch):
     # Compare summary file
     print(f"Comparing CD summary: Current_Density_Summary.csv")
     all_tested_files['cd_summary_files'].append('Current_Density_Summary.csv')
-    reference_summary_path = os.path.join(REFERENCE_CD_DIR, 'Current_Density_Summary.csv')
+    reference_summary_path = REFERENCE_CD_DIR / 'Current_Density_Summary.csv'
     
-    if os.path.exists(reference_summary_path):
+    if reference_summary_path.exists():
         try:
             # Summary file has multiple columns (Voltage + one column per recording)
             generated_df = pd.read_csv(cd_summary_file, skiprows=0)

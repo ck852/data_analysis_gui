@@ -1,7 +1,0 @@
-Dual analysis range
-Analysis range 1 = 332.75 - 4100.14
-Analysis range 2 = 4308.39 - 10111.53
-Stimulus repeat period = 12150 ms
-
-Write a pytest script to headlessly test outputs of data analysis GUI. In "Analysis Settings", click "Swap Channels" and check "Use Dual Analysis" box. Set "Range 1 Start (ms):" to 332.75 and "Range 1 End (ms):" to 4100.14. Set "Range 2 Start (ms):" to 4308.39 and "Range 2 End (ms):" to 10111.53. In "plot Settings", set X-Axis to Time and Voltage. Set Y-Axis to Average and Current. Then click Batch Analysis > navigate to Data-Analysis-GUI\tevc_test_data\sample_mat_files > select all .mat files > OK
-Note the destination folder of the output CSVs. Compare all output CSVs with the CSVs by the EXACT same name in Data-Analysis-GUI\tevc_test_data\golden_tevc

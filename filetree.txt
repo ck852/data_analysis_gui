@@ -1,0 +1,39 @@
+Data-Analysis-GUI/
+|-- config/
+|   |-- __init__.py
+|   |-- settings.py
+|   `-- themes.py
+|-- cr_test_data/
+|   |-- golden_DR_data/
+|   `-- CR_pytest.bat
+|-- dialogs/
+|   |-- __init__.py
+|   |-- analysis_plot_dialog.py
+|   |-- batch_results_dialog.py
+|   |-- concentration_response_dialog.py
+|   `-- current_density_iv_dialog.py
+|-- iv_test_data/
+|   |-- golden/
+|   |-- golden_CV/
+|   `-- MAT_analysis/
+|-- tevc_test_data/
+|   |-- golden_tevc/
+|   `-- sample_mat_files/
+|       `-- MAT_analysis/
+|-- utils/
+|   |-- __init__.py
+|   |-- data_processing.py
+|   |-- file_io.py
+|   `-- plot_helpers.py
+|-- widgets/
+|   |-- __init__.py
+|   |-- custom_combos.py
+|   `-- custom_inputs.py
+|-- CR_pytest.py
+|-- filetree.py
+|-- main.py
+|-- main_window.py
+|-- plot_manager.py
+|-- README.md
+|-- test_analysis_workflow.py
+`-- test_concentration_response.py

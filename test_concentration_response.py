@@ -2,27 +2,6 @@
 Pytest for validating ConcentrationResponseDialog output against golden files.
 This test simulates the complete user workflow from program launch to export validation.
 
-Directory Structure:
-Data-Analysis-GUI-CR_testing/
-    Data-Analysis-GUI-CR_testing/
-    ├── main.py
-    ├── main_window.py
-    ├── test_concentration_response.py (this file)
-    ├── config/
-    │   ├── settings.py
-    │   └── themes.py
-    ├── dialogs/
-    │   └── concentration_response_dialog.py
-    ├── widgets/
-    │   └── custom_combos.py, custom_inputs.py
-    ├── utils/
-    │   └── various utility modules
-    └── cr_test_data/
-        ├── 250202_007 dual range.csv
-        └── golden_DR_data/
-            ├── 250202_007 dual range_Average_Current_+60mV.csv
-            └── 250202_007 dual range_Average_Current_-60mV.csv
-
 To run:
     python CR_pytest.py         # Run all tests
     python CR_pytest.py -v      # Run with verbose output
