@@ -169,14 +169,25 @@ class BatchResultDialog(QDialog):
         header = [self.x_label] + included_files
 
         data_to_export = [x_values]
+        # Ensure all arrays have the same length
+        max_length = len(x_values)
+        data_to_export = [x_values]
+
         for file_name in included_files:
             y_values = self.batch_data[file_name].get('y_values', [])
-            if len(y_values) < len(x_values):
-                y_values.extend([np.nan] * (len(x_values) - len(y_values)))
-            data_to_export.append(y_values)
+            # Convert to list if it's a numpy array
+            if isinstance(y_values, np.ndarray):
+                y_values = y_values.tolist()
+            
+            # Pad with NaN to match length
+            while len(y_values) < max_length:
+                y_values.append(np.nan)
+            
+            data_to_export.append(y_values[:max_length])  # Trim if longer
 
         try:
-            export_array = np.array(data_to_export).T
+            # Create float array instead of object array
+            export_array = np.array(data_to_export, dtype=float).T
             export_to_csv(file_path, export_array, ','.join(header), '%.6f')
             QMessageBox.information(self, "Export Successful", f"All data successfully saved to {file_path}")
         except Exception as e:

@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 # Default analysis parameters
 DEFAULT_SETTINGS = {
     'range1_start': 0,
-    'range1_end': 1000,
+    'range1_end': 400,
     'range2_start': 100,
     'range2_end': 500,
     'stimulus_period': 1000,

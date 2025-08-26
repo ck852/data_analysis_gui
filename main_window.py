@@ -16,6 +16,8 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
 # Internal imports
+from plot_manager import PlotManager
+
 from config import THEMES, get_theme_stylesheet, DEFAULT_SETTINGS
 from dialogs import (ConcentrationResponseDialog, BatchResultDialog, 
                      AnalysisPlotDialog, CurrentDensityIVDialog)
@@ -475,15 +477,18 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.data_processor = SweepDataProcessor()
         self.batch_analyzer = BatchAnalyzer(self)
 
+        self.plot_manager = PlotManager(self, figure_size=DEFAULT_SETTINGS['plot_figsize'])
+        self.plot_manager.set_drag_callback(self.on_line_dragged)
+
         self.sweeps = {}
         self.plot_data = {}
         self.loaded_file_path = None
         self.hold_timer = QTimer()
         self.hold_timer.timeout.connect(self.continue_hold)
         self.hold_direction = None
-        self.dragging_line = None
-        self.range_lines = []
-        self.line_spinbox_map = {}
+        #self.dragging_line = None
+        #self.range_lines = []
+        #self.line_spinbox_map = {}
         self.conc_analysis_dialog = None  # Attribute to hold the tool window
 
         # Analysis settings
@@ -501,6 +506,18 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
         self.init_ui()
         self.setStyleSheet(get_theme_stylesheet(THEMES[self.current_theme_name]))
+
+    def on_line_dragged(self, line, x_value):
+        """Callback to update spinboxes when range lines are dragged"""
+        if line == self.plot_manager.range_lines[0]:
+            self.start_spin.setValue(x_value)
+        elif line == self.plot_manager.range_lines[1]:
+            self.end_spin.setValue(x_value)
+        elif self.use_dual_range and len(self.plot_manager.range_lines) > 2:
+            if line == self.plot_manager.range_lines[2]:
+                self.start_spin2.setValue(x_value)
+            elif line == self.plot_manager.range_lines[3]:
+                self.end_spin2.setValue(x_value)
 
     def init_ui(self):
         """Initialize the main UI components"""
@@ -762,7 +779,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         # Stimulus period
         analysis_layout.addWidget(QLabel("Stimulus Period (ms):"), 5, 0)
         self.period_spin = SelectAllSpinBox()
-        self.period_spin.setRange(1, 10000)
+        self.period_spin.setRange(1, 100000)
         self.period_spin.setValue(DEFAULT_SETTINGS['stimulus_period'])
         self.period_spin.setSingleStep(100)
         analysis_layout.addWidget(self.period_spin, 5, 1)
@@ -780,33 +797,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         analysis_layout.addWidget(center_cursor_btn, 7, 0, 1, 2)
 
         return analysis_group
-
-    # def swap_channels(self):
-    #     """Swap the voltage and current channel assignments"""
-    #     # Swap the channel indices
-    #     self.voltage_channel, self.current_channel = self.current_channel, self.voltage_channel
-    #     self.channels_swapped = not self.channels_swapped
-        
-    #     # Update button appearance to indicate state
-    #     if self.channels_swapped:
-    #         self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
-    #         self.swap_channels_btn.setText("Channels Swapped ⇄")
-    #     else:
-    #         self.swap_channels_btn.setStyleSheet("")  # Reset to default style
-    #         self.swap_channels_btn.setText("Swap Channels")
-        
-    #     # Update status bar
-    #     self.status_bar.showMessage(
-    #         f"Channels {'swapped' if self.channels_swapped else 'reset'}: "
-    #         f"Voltage=Ch{self.voltage_channel}, Current=Ch{self.current_channel}"
-    #     )
-        
-    #     # Refresh the current plot if data is loaded
-    #     if self.sweeps:
-    #         self.update_plot()
-    #         # If analysis data exists, reprocess it
-    #         if hasattr(self, 'plot_data') and self.plot_data:
-    #             self.process_all_sweeps()
 
     def swap_channels(self):
         """Swap the voltage and current channel assignments"""
@@ -848,7 +838,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Add Range 1 settings to layout"""
         layout.addWidget(QLabel("Range 1 Start (ms):"), 0, 0)
         self.start_spin = SelectAllSpinBox()
-        self.start_spin.setRange(0, 10000)
+        self.start_spin.setRange(0, 100000)
         self.start_spin.setValue(DEFAULT_SETTINGS['range1_start'])
         self.start_spin.setSingleStep(0.05)
         self.start_spin.setDecimals(2)
@@ -857,7 +847,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
         layout.addWidget(QLabel("Range 1 End (ms):"), 1, 0)
         self.end_spin = SelectAllSpinBox()
-        self.end_spin.setRange(0, 10000)
+        self.end_spin.setRange(0, 100000)
         self.end_spin.setValue(DEFAULT_SETTINGS['range1_end'])
         self.end_spin.setSingleStep(0.05)
         self.end_spin.setDecimals(2)
@@ -868,7 +858,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Add Range 2 settings to layout"""
         layout.addWidget(QLabel("Range 2 Start (ms):"), 3, 0)
         self.start_spin2 = SelectAllSpinBox()
-        self.start_spin2.setRange(0, 10000)
+        self.start_spin2.setRange(0, 100000)
         self.start_spin2.setValue(DEFAULT_SETTINGS['range2_start'])
         self.start_spin2.setSingleStep(0.05)
         self.start_spin2.setDecimals(2)
@@ -878,7 +868,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
         layout.addWidget(QLabel("Range 2 End (ms):"), 4, 0)
         self.end_spin2 = SelectAllSpinBox()
-        self.end_spin2.setRange(0, 10000)
+        self.end_spin2.setRange(0, 100000)
         self.end_spin2.setValue(DEFAULT_SETTINGS['range2_end'])
         self.end_spin2.setSingleStep(0.05)
         self.end_spin2.setDecimals(2)
@@ -925,32 +915,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
     def _create_plot_panel(self):
         """Create the plot panel with matplotlib canvas"""
-        plot_widget = QWidget()
-        plot_layout = QVBoxLayout(plot_widget)
-
-        # Create matplotlib figure and canvas
-        self.figure = Figure(figsize=DEFAULT_SETTINGS['plot_figsize'])
-        self.canvas = FigureCanvas(self.figure)
-        self.ax = self.figure.add_subplot(111)
-
-        # Add navigation toolbar
-        self.toolbar = NavigationToolbar(self.canvas, plot_widget)
-
-        plot_layout.addWidget(self.toolbar)
-        plot_layout.addWidget(self.canvas)
-
-        # Connect events
-        self.canvas.mpl_connect("pick_event", self.on_pick)
-        self.canvas.mpl_connect("motion_notify_event", self.on_drag)
-        self.canvas.mpl_connect("button_release_event", self.on_release)
-
-        # Initialize range lines
-        self.range_lines = [
-            self.ax.axvline(150, color='green', linestyle='-', picker=5),
-            self.ax.axvline(500, color='green', linestyle='-', picker=5)
-        ]
-
-        return plot_widget
+        return self.plot_manager.get_plot_widget()
 
     # ========== Theme and Tools Methods ==========
     
@@ -1038,23 +1003,12 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.start_spin2.setEnabled(enabled)
         self.end_spin2.setEnabled(enabled)
 
-        if enabled:
-            # Add second range lines
-            if len(self.range_lines) == 2:
-                self.range_lines.append(
-                    self.ax.axvline(self.start_spin2.value(), color='red', linestyle='-', picker=5)
-                )
-                self.range_lines.append(
-                    self.ax.axvline(self.end_spin2.value(), color='red', linestyle='-', picker=5)
-                )
-                self.canvas.draw()
-        else:
-            # Remove second range lines
-            if len(self.range_lines) == 4:
-                self.range_lines[2].remove()
-                self.range_lines[3].remove()
-                self.range_lines = self.range_lines[:2]
-                self.canvas.draw()
+        # Let PlotManager handle the visual updates
+        self.plot_manager.toggle_dual_range(
+            enabled, 
+            self.start_spin2.value(), 
+            self.end_spin2.value()
+        )
 
     def update_channel_visibility(self):
         """Update channel combobox visibility based on measurement type"""
@@ -1170,156 +1124,48 @@ class ModernMatSweepAnalyzer(QMainWindow):
         selected_type = self.channel_combo.currentText()
         channel = self.channel_config.get_channel_for_type(selected_type)
 
-        self.ax.clear()
-
-        # Plot the data
-        self.ax.plot(t, y[:, channel], linewidth=2)
-
-        # Set labels and title
-        self.ax.set_title(f"Sweep {index} - {selected_type}")
-        self.ax.set_xlabel("Time (ms)")
-
-        # Use proper units based on channel type
-        unit = "mV" if selected_type == "Voltage" else "pA"
-        self.ax.set_ylabel(f"{selected_type} ({unit})")
+        # Update the plot
+        self.plot_manager.update_sweep_plot(t, y, channel, index, selected_type, self.channel_config)
         
-        self.ax.grid(True, alpha=0.3)
-
-        # Force autoscaling on the data
-        self.ax.relim()
-        self.ax.autoscale_view(tight=True)
-
-        # Get the data limits
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-
-        # Add 5% padding to y-axis
-        y_range = ylim[1] - ylim[0]
-        y_padding = y_range * 0.05
-
-        # Set up range lines
-        self._update_range_lines()
-
-        # Restore the y-limits with padding
-        self.ax.set_ylim(ylim[0] - y_padding, ylim[1] + y_padding)
-
-        # Set x-limits to data range with small padding
-        x_range = xlim[1] - xlim[0]
-        x_padding = x_range * 0.02
-        self.ax.set_xlim(xlim[0] - x_padding, xlim[1] + x_padding)
-
-        self.figure.tight_layout()
-        self.canvas.draw()
-
-        self._update_line_spinbox_map()
-
-    def _update_range_lines(self):
-        """Update range lines on the plot"""
-        start = self.start_spin.value()
-        end = self.end_spin.value()
-
-        self.range_lines = [
-            self.ax.axvline(start, color='green', linestyle='-', picker=5, linewidth=2),
-            self.ax.axvline(end, color='green', linestyle='-', picker=5, linewidth=2)
-        ]
-
-        # Add second range lines if enabled
-        if self.use_dual_range:
-            start2 = self.start_spin2.value()
-            end2 = self.end_spin2.value()
-
-            self.range_lines.append(
-                self.ax.axvline(start2, color='red', linestyle='-', picker=5, linewidth=2)
-            )
-            self.range_lines.append(
-                self.ax.axvline(end2, color='red', linestyle='-', picker=5, linewidth=2)
-            )
-
-    def _update_line_spinbox_map(self):
-        """Update the mapping between lines and spinboxes"""
-        self.line_spinbox_map = {
-            self.range_lines[0]: self.start_spin,
-            self.range_lines[1]: self.end_spin
+        # Update range lines
+        self.plot_manager.update_range_lines(
+            self.start_spin.value(),
+            self.end_spin.value(),
+            self.use_dual_range,
+            self.start_spin2.value() if self.use_dual_range else None,
+            self.end_spin2.value() if self.use_dual_range else None
+        )
+        
+        # Update spinbox mapping
+        spinboxes = {
+            'start1': self.start_spin,
+            'end1': self.end_spin
         }
-        if self.use_dual_range and len(self.range_lines) == 4:
-            self.line_spinbox_map[self.range_lines[2]] = self.start_spin2
-            self.line_spinbox_map[self.range_lines[3]] = self.end_spin2
+        if self.use_dual_range:
+            spinboxes['start2'] = self.start_spin2
+            spinboxes['end2'] = self.end_spin2
+        
+        self.plot_manager.update_line_spinbox_map(spinboxes)
 
     def center_nearest_cursor(self):
         """Finds the horizontal center of the plot view and moves the nearest cursor line to it."""
-        if not self.range_lines or not self.ax.has_data():
-            return
-
-        # Get the center of the current x-axis view
-        x_min, x_max = self.ax.get_xlim()
-        center_x = (x_min + x_max) / 2
-
-        # Find the cursor line nearest to the center
-        nearest_line = None
-        min_distance = float('inf')
-
-        for line in self.range_lines:
-            line_pos_x = line.get_xdata()[0]
-            distance = abs(line_pos_x - center_x)
-            if distance < min_distance:
-                min_distance = distance
-                nearest_line = line
-
-        # Move the nearest line and update its corresponding spinbox
-        if nearest_line:
-            nearest_line.set_xdata([center_x, center_x])
-            if nearest_line in self.line_spinbox_map:
-                spinbox_to_update = self.line_spinbox_map[nearest_line]
-                spinbox_to_update.setValue(center_x)
-
-            self.canvas.draw()
+        line_moved, new_position = self.plot_manager.center_nearest_cursor()
+        
+        if line_moved and new_position is not None:
+            # Update the corresponding spinbox
+            if line_moved in self.plot_manager.line_spinbox_map:
+                spinbox_to_update = self.plot_manager.line_spinbox_map[line_moved]
+                spinbox_to_update.setValue(new_position)
 
     def update_lines_from_entries(self):
         """Update range lines based on spinbox values"""
-        if not self.range_lines:
-            return
-
-        start = self.start_spin.value()
-        end = self.end_spin.value()
-
-        self.range_lines[0].set_xdata([start, start])
-        self.range_lines[1].set_xdata([end, end])
-
-        if self.use_dual_range and len(self.range_lines) == 4:
-            start2 = self.start_spin2.value()
-            end2 = self.end_spin2.value()
-
-            self.range_lines[2].set_xdata([start2, start2])
-            self.range_lines[3].set_xdata([end2, end2])
-
-        self.canvas.draw()
-
-    # ========== Mouse Interaction Methods ==========
-    
-    def on_pick(self, event):
-        if event.artist in self.range_lines:
-            self.dragging_line = event.artist
-
-    def on_drag(self, event):
-        if self.dragging_line and event.xdata is not None:
-            x = event.xdata
-            self.dragging_line.set_xdata([x, x])
-
-            # Update corresponding spinbox
-            if self.dragging_line == self.range_lines[0]:
-                self.start_spin.setValue(x)
-            elif self.dragging_line == self.range_lines[1]:
-                self.end_spin.setValue(x)
-            elif self.use_dual_range and len(self.range_lines) > 2:
-                if self.dragging_line == self.range_lines[2]:
-                    self.start_spin2.setValue(x)
-                elif self.dragging_line == self.range_lines[3]:
-                    self.end_spin2.setValue(x)
-
-            self.canvas.draw()
-
-    def on_release(self, event):
-        self.dragging_line = None
+        self.plot_manager.update_lines_from_values(
+            self.start_spin.value(),
+            self.end_spin.value(),
+            self.use_dual_range,
+            self.start_spin2.value() if self.use_dual_range else None,
+            self.end_spin2.value() if self.use_dual_range else None
+        )
 
     # ========== Export Methods ==========
     
@@ -1425,13 +1271,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
     def _create_batch_figure(self, x_label, y_label):
         """Create figure for batch plotting"""
-        batch_fig = plt.figure(figsize=(10, 6))
-        batch_ax = batch_fig.add_subplot(111)
-        batch_ax.set_xlabel(x_label)
-        batch_ax.set_ylabel(y_label)
-        batch_ax.set_title(f"{y_label} vs {x_label}")
-        batch_ax.grid(True, alpha=0.3)
-        return batch_fig, batch_ax
+        return self.plot_manager.create_batch_figure(x_label, y_label)
 
     def _process_batch_files(self, file_paths, params, destination_folder, 
                            batch_ax, progress, x_label, y_label):
@@ -1477,23 +1317,24 @@ class ModernMatSweepAnalyzer(QMainWindow):
     def _plot_batch_file_data(self, batch_ax, file_data, use_dual_range):
         """Plot data for a single file in batch"""
         base_name = file_data['base_name']
-        x_data = file_data['x_data']
-        y_data = file_data['y_data']
         
-        if len(x_data) > 0 and len(y_data) > 0:
-            batch_ax.plot(x_data, y_data, 'o-', label=f"{base_name} (Range 1)")
-            
-            if use_dual_range and 'y_data2' in file_data and len(file_data['y_data2']) > 0:
-                batch_ax.plot(x_data, file_data['y_data2'], 's--', 
-                            label=f"{base_name} (Range 2)")
+        self.plot_manager.plot_batch_data(
+            batch_ax,
+            file_data['x_data'],
+            file_data['y_data'],
+            f"{base_name} (Range 1)",
+            'o-',
+            file_data.get('y_data2') if use_dual_range else None,
+            f"{base_name} (Range 2)" if use_dual_range else None,
+            's--'
+        )
 
     def _finalize_batch_results(self, batch_fig, batch_ax, batch_data, 
-                               params, x_label, y_label, destination_folder):
+                            params, x_label, y_label, destination_folder):
         """Finalize batch analysis and show results"""
+        self.plot_manager.finalize_batch_plot(batch_fig, batch_ax)
+        
         if batch_ax.get_legend_handles_labels()[0]:
-            batch_ax.legend()
-            batch_fig.tight_layout()
-            
             # Prepare IV data if applicable
             iv_data, iv_file_mapping = self.batch_analyzer.prepare_iv_data(
                 batch_data, params
