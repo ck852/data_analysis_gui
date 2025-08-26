@@ -18,24 +18,14 @@ from pandas.testing import assert_frame_equal
 def get_test_paths():
     """Get test data paths relative to the test file location."""
     current_file = Path(__file__)
-    project_root = current_file.parent
+    tests_dir = current_file.parent  # This is the 'tests' directory
     
-    # Navigate to iv_test_data directory relative to project root
-    test_data_dir = project_root / 'iv_test_data'
+    # Point to your actual directory structure
+    test_data_dir = tests_dir / 'fixtures' / 'sample_data' / 'IV'
+    reference_dir = tests_dir / 'fixtures' / 'golden_data' / 'golden_IV'
+    reference_cd_dir = tests_dir / 'fixtures' / 'golden_data' / 'golden_CV'
     
-    # If the test data directory doesn't exist in the current location,
-    # try to find it in parent directories (in case we're in a subdirectory)
-    if not test_data_dir.exists():
-        for parent in current_file.parents:
-            potential_test_dir = parent / 'iv_test_data'
-            if potential_test_dir.exists():
-                test_data_dir = potential_test_dir
-                project_root = parent
-                break
-    
-    # Set up all the paths
-    reference_dir = test_data_dir / 'golden'
-    reference_cd_dir = test_data_dir / 'golden_CV'
+    # Generated results will go in the sample_data/IV folder
     generated_results_path = test_data_dir / 'MAT_analysis'
     generated_cd_path = generated_results_path / 'Current Density Analysis'
     
@@ -56,6 +46,8 @@ REFERENCE_CD_DIR = paths['reference_cd_dir']
 GENERATED_RESULTS_PATH = paths['generated_results_path']
 GENERATED_CD_PATH = paths['generated_cd_path']
 GENERATED_RESULTS_DIR_NAME = paths['generated_results_dir_name']
+
+
 
 # Cslow values to input (in order)
 CSLOW_VALUES = [34.4, 14.5, 20.5, 16.3, 18.4, 17.3, 14.4, 14.1, 18.4, 21.0, 22.2, 23.2]

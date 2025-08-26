@@ -26,12 +26,16 @@ os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from data_analysis_gui.main_window import ModernMatSweepAnalyzer, ChannelConfiguration
 from data_analysis_gui.dialogs import BatchResultDialog
 
+from pathlib import Path
+
+# Get the tests directory
+TESTS_DIR = Path(__file__).parent
 
 # --- Configuration ---
 # Define test data paths (relative to current directory which is Data-Analysis-GUI)
-TEST_DATA_DIR = Path("tevc_test_data")
-SAMPLE_MAT_DIR = TEST_DATA_DIR / "sample_mat_files"
-GOLDEN_DIR = TEST_DATA_DIR / "golden_tevc"
+TEST_DATA_DIR = TESTS_DIR / "fixtures" / "sample_data" / "swapped" / "MAT analysis"
+SAMPLE_MAT_DIR = TESTS_DIR / "fixtures" / "sample_data" / "swapped"
+GOLDEN_DIR = TESTS_DIR / "fixtures" / "golden_data" / "golden_swapped"
 
 # Define expected output directory name
 OUTPUT_DIR_NAME = "MAT_analysis"

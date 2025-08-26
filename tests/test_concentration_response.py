@@ -12,8 +12,8 @@ from data_analysis_gui.dialogs.concentration_response_dialog import Concentratio
 class TestConcentrationResponse:
     
     @pytest.mark.parametrize("input_file,expected_outputs", [
-        ("sample_1.csv", ["output_1_Average.csv", "output_1_Current.csv"]),
-        ("sample_2.csv", ["output_2_Average.csv", "output_2_Current.csv"]),
+        ("DR/sample_1.csv", ["output_1_Average.csv", "output_1_Current.csv"]),
+        ("DR/sample_2.csv", ["output_2_Average.csv", "output_2_Current.csv"]),
     ])
     def test_analysis_workflow(self, qtbot, qapp, temp_test_dir, test_data_dir, 
                                golden_data_dir, mock_gui_interactions,
@@ -22,7 +22,14 @@ class TestConcentrationResponse:
         
         # Setup
         input_path = test_data_dir / input_file
-        assert input_path.exists(), f"Test file {input_file} not found"
+        for expected_file in expected_outputs:
+            output_path = temp_test_dir / expected_file
+            assert output_path.exists(), f"Expected output {expected_file} not created"
+            
+            # Look for golden files in the golden_DR_data subdirectory
+            golden_path = golden_data_dir / 'golden_DR_data' / expected_file
+            if golden_path.exists():
+                self._compare_csv_files(output_path, golden_path)
         
         # Copy input to temp directory
         temp_input = temp_test_dir / input_file
