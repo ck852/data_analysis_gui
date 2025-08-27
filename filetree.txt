@@ -5,6 +5,10 @@ root/
 |       |   |-- __init__.py
 |       |   |-- settings.py
 |       |   `-- themes.py
+|       |-- core/
+|       |   |-- __init__.py
+|       |   |-- channel_definitions.py
+|       |   `-- dataset.py
 |       |-- dialogs/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
@@ -113,13 +117,12 @@ root/
 |   |           |-- 250518_008[1-63].mat
 |   |           |-- 250518_009[1-86].mat
 |   |           `-- 250518_010[1-62].mat
-|   |-- conftest.py
-|   |-- CR_pytest.py
-|   |-- test_analysis_workflow.py
-|   |-- test_concentration_response.py
-|   `-- test_tevc_workflow.py
+|   |-- test_channel_definitions.py
+|   |-- test_channel_definitions_demo.py
+|   `-- test_working.py
 |-- filetree.txt
 |-- filetree_full.py
+|-- fix_everything.py
 |-- pyproject.toml
 |-- pytest.ini
 |-- README.md

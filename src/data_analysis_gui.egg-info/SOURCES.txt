@@ -1,5 +1,6 @@
 README.md
 pyproject.toml
+src/data_analysis_gui/__init__.py
 src/data_analysis_gui/main.py
 src/data_analysis_gui/main_window.py
 src/data_analysis_gui/plot_manager.py
@@ -12,6 +13,8 @@ src/data_analysis_gui.egg-info/top_level.txt
 src/data_analysis_gui/config/__init__.py
 src/data_analysis_gui/config/settings.py
 src/data_analysis_gui/config/themes.py
+src/data_analysis_gui/core/__init__.py
+src/data_analysis_gui/core/channel_definitions.py
 src/data_analysis_gui/dialogs/__init__.py
 src/data_analysis_gui/dialogs/analysis_plot_dialog.py
 src/data_analysis_gui/dialogs/batch_results_dialog.py
@@ -24,6 +27,6 @@ src/data_analysis_gui/utils/plot_helpers.py
 src/data_analysis_gui/widgets/__init__.py
 src/data_analysis_gui/widgets/custom_combos.py
 src/data_analysis_gui/widgets/custom_inputs.py
-tests/test_analysis_workflow.py
-tests/test_concentration_response.py
-tests/test_tevc_workflow.py
+tests/test_channel_definitions.py
+tests/test_channel_definitions_demo.py
+tests/test_working.py
