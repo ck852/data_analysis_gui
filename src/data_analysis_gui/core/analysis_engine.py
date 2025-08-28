@@ -352,3 +352,50 @@ class AnalysisEngine:
         """Clear all caches when dataset or channel definitions change."""
         self._metrics_cache.clear()
         self._series_cache.clear()
+
+    def get_sweep_plot_data(self, sweep_index: str, channel_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Get and prepare time series data for plotting a single sweep.
+
+        This method fetches the data for the specified channel type, packages it
+        into the 2D matrix format expected by the PlotManager, and returns
+        all necessary components for plotting.
+
+        Args:
+            sweep_index: The identifier for the sweep.
+            channel_type: The type of channel to plot ("Voltage" or "Current").
+
+        Returns:
+            A dictionary containing 'time_ms', 'data_matrix', 'channel_id',
+            'sweep_index', and 'channel_type', or None if data is invalid.
+        """
+        if self.dataset is None or self.channel_definitions is None:
+            return None
+
+        # 1. Translate channel type to physical channel ID
+        if channel_type == "Voltage":
+            channel_id = self.channel_definitions.get_voltage_channel()
+        else:  # "Current"
+            channel_id = self.channel_definitions.get_current_channel()
+
+        # 2. Get the raw channel data from the dataset
+        time_ms, channel_data = self.dataset.get_channel_vector(sweep_index, channel_id)
+
+        if time_ms is None or channel_data is None:
+            return None
+
+        # 3. Create the 2D data_matrix required by the PlotManager
+        # This ensures compatibility even if the dataset has 1 or more channels.
+        num_channels = self.dataset.channel_count()
+        data_matrix = np.zeros((len(time_ms), num_channels))
+        if channel_id < num_channels:
+            data_matrix[:, channel_id] = channel_data
+
+        # 4. Package everything needed for the plot manager
+        return {
+            'time_ms': time_ms,
+            'data_matrix': data_matrix,
+            'channel_id': channel_id,
+            'sweep_index': sweep_index,
+            'channel_type': channel_type
+        }

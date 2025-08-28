@@ -394,38 +394,45 @@ class ModernMatSweepAnalyzer(QMainWindow):
         return analysis_group
 
     def swap_channels(self):
-        """Swap the voltage and current channel assignments"""
-        # Validate that we have data with at least 2 channels
-        if self.current_dataset is not None and not self.current_dataset.is_empty():
-            # Check channel count directly from dataset
-            if self.current_dataset.channel_count() < 2:
-                QMessageBox.warning(self, "Cannot Swap", 
-                                    "Data has fewer than 2 channels")
-                return
+        """
+        Swaps the voltage and current channel assignments and updates the GUI
+        to reflect the change.
+        """
+        if self.current_dataset is None or self.current_dataset.is_empty():
+            return
         
-        # Perform the swap using the channel definitions
+        if self.current_dataset.channel_count() < 2:
+            QMessageBox.warning(self, "Cannot Swap", "Data has fewer than 2 channels.")
+            return
+
+        # 1. Get the currently displayed channel type BEFORE the swap
+        current_type_on_display = self.channel_combo.currentText()
+
+        # 2. Perform the underlying channel mapping swap
         self.channel_definitions.swap_channels()
-        
-        # Update button appearance based on swap state
+
+        # 3. Update button appearance to show swap state
         if self.channel_definitions.is_swapped():
             self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
             self.swap_channels_btn.setText("Channels Swapped ⇄")
         else:
             self.swap_channels_btn.setStyleSheet("")
             self.swap_channels_btn.setText("Swap Channels")
-        
-        # Update combo boxes to reflect new channel assignments
-        self._update_channel_combos()
-        
-        # Update status bar with current configuration
+
+        # 4. Update status bar with the new configuration
         config = self.channel_definitions.get_configuration()
         self.status_bar.showMessage(
             f"Channel configuration: Voltage=Ch{config['voltage']}, Current=Ch{config['current']}"
         )
+
+        # 5. Determine the opposite channel type to display
+        new_type_to_display = "Current" if current_type_on_display == "Voltage" else "Voltage"
         
-        # Refresh the current plot if data is loaded
-        if self.current_dataset is not None and not self.current_dataset.is_empty():
-            self.update_plot()
+        # 6. Set the combobox to the new type. This is the crucial step.
+        # Changing the text will automatically trigger the `self.update_plot`
+        # method via the `currentTextChanged` signal connection.
+        self.channel_combo.setCurrentText(new_type_to_display)
+
 
     def _add_range1_settings(self, layout):
         """Add Range 1 settings to layout"""
@@ -653,7 +660,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
     # ========== Plot Update Methods ==========
     
     def update_plot(self):
-        """Update the plot to show current sweep data"""
+        """Update the plot to show current sweep data."""
         if self.current_dataset is None or self.current_dataset.is_empty():
             return
 
@@ -661,34 +668,28 @@ class ModernMatSweepAnalyzer(QMainWindow):
         if not selection:
             return
 
-        index = selection.split()[-1]
+        sweep_idx = selection.split()[-1]
+        channel_type = self.channel_combo.currentText()
         
-        # Get the selected channel type from the UI
-        selected_type = self.channel_combo.currentText()
+        # 1. Delegate data fetching and preparation to the analysis engine
+        plot_data = self.analysis_engine.get_sweep_plot_data(sweep_idx, channel_type)
         
-        # Get the physical channel ID based on the selected type
-        if selected_type == "Voltage":
-            channel_id = self.channel_definitions.get_voltage_channel()
-        else:  # Current
-            channel_id = self.channel_definitions.get_current_channel()
-        
-        # Get channel data from dataset
-        time_ms, channel_data = self.current_dataset.get_channel_vector(index, channel_id)
-        
-        if time_ms is None or channel_data is None:
+        if plot_data is None:
+            # Engine couldn't get data, so we can't plot.
+            self.plot_manager.clear_plot() # Optional: clear plot if data is bad
             return
-        
-        # Create a compatible data matrix for plot_manager
-        # Reshape channel_data to be 2D for compatibility
-        data_matrix = np.zeros((len(time_ms), max(2, self.current_dataset.channel_count())))
-        data_matrix[:, channel_id] = channel_data
-
-        # Update the plot using the channel ID and proper labeling
+            
+        # 2. Pass the prepared data directly to the plot manager
         self.plot_manager.update_sweep_plot(
-            time_ms, data_matrix, channel_id, index, selected_type, self.channel_definitions
+            t=plot_data['time_ms'],
+            y=plot_data['data_matrix'],
+            channel=plot_data['channel_id'],
+            sweep_index=plot_data['sweep_index'],
+            channel_type=plot_data['channel_type'],
+            channel_config=self.channel_definitions
         )
         
-        # Update range lines
+        # 3. Update range lines and spinbox mapping (GUI logic remains here)
         self.plot_manager.update_range_lines(
             self.start_spin.value(),
             self.end_spin.value(),
@@ -697,7 +698,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             self.end_spin2.value() if self.dual_range_cb.isChecked() else None
         )
         
-        # Update spinbox mapping
         spinboxes = {
             'start1': self.start_spin,
             'end1': self.end_spin
