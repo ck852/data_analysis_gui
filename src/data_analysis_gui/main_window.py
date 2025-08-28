@@ -1,7 +1,6 @@
 import sys
 import os
 import numpy as np
-import scipy.io
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QComboBox, QCheckBox, QFileDialog,
                              QMessageBox, QGroupBox, QLabel, QSplitter,
@@ -22,115 +21,17 @@ from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTI
 from data_analysis_gui.dialogs import (ConcentrationResponseDialog, BatchResultDialog, 
                      AnalysisPlotDialog, CurrentDensityIVDialog)
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
-from data_analysis_gui.utils import (load_mat_file, export_to_csv, process_sweep_data,
-                   apply_analysis_mode, calculate_average_voltage,
-                   extract_file_number, format_voltage_label)
-from data_analysis_gui.utils.data_processing import (
-    process_sweep_data, format_voltage_label, calculate_average
-)
+from data_analysis_gui.utils import (export_to_csv, extract_file_number)
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
 from data_analysis_gui.core.analysis_engine import AnalysisEngine
 
-# Add these imports at the top of main_window.py
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
 from data_analysis_gui.utils import get_next_available_filename
+from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 
-class BatchAnalyzer:
-    """Handles UI helpers for batch analysis operations"""
-    
-    def __init__(self, parent):
-        self.parent = parent
-    
-    def get_output_folder(self, file_paths):
-        """Prompt user for output folder and create it if necessary
-        
-        Returns:
-            str: Path to output folder or None if cancelled
-        """
-        base_dir = os.path.dirname(file_paths[0])
-        
-        # Calculate unique default folder name
-        default_folder_name = "MAT_analysis"
-        temp_path = os.path.join(base_dir, default_folder_name)
-        counter = 1
-        while os.path.exists(temp_path):
-            default_folder_name = f"MAT_analysis_{counter}"
-            temp_path = os.path.join(base_dir, default_folder_name)
-            counter += 1
-        
-        # Prompt user for folder name
-        folder_name, ok = QInputDialog.getText(
-            self.parent, "Name Output Folder",
-            "Enter a name for the new results folder:",
-            text=default_folder_name
-        )
-        
-        if not ok or not folder_name:
-            return None
-        
-        destination_folder = os.path.join(base_dir, folder_name)
-        
-        # Check if folder exists
-        if os.path.exists(destination_folder):
-            reply = QMessageBox.question(
-                self.parent, 'Folder Exists',
-                f"The folder '{folder_name}' already exists.\n\n"
-                "Do you want to save files into this existing folder?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if reply == QMessageBox.No:
-                return None
-        else:
-            os.makedirs(destination_folder)
-        
-        return destination_folder
-    
-    def get_analysis_parameters(self):
-        """Get current analysis parameters from UI
-        
-        Returns:
-            Dictionary containing all analysis parameters
-        """
-        params = {
-            't_start': self.parent.start_spin.value(),
-            't_end': self.parent.end_spin.value(),
-            'period_ms': self.parent.period_spin.value(),
-            'use_dual_range': self.parent.dual_range_cb.isChecked(),
-            'x_measure': self.parent.x_measure_combo.currentText(),
-            'y_measure': self.parent.y_measure_combo.currentText(),
-            'x_channel': self.parent.x_channel_combo.currentText(),
-            'y_channel': self.parent.y_channel_combo.currentText(),
-        }
-        
-        if params['use_dual_range']:
-            params['t_start2'] = self.parent.start_spin2.value()
-            params['t_end2'] = self.parent.end_spin2.value()
-        
-        return params
-    
-    def create_axis_labels(self, params):
-        """Create axis labels based on parameters
-        
-        Returns:
-            Tuple of (x_label, y_label)
-        """
-        # X-axis label
-        if params['x_measure'] == "Time":
-            x_label = "Time (s)"
-        else:
-            unit = "(pA)" if params['x_channel'] == "Current" else "(mV)"
-            x_label = f"{params['x_measure']} {params['x_channel']} {unit}"
-        
-        # Y-axis label
-        if params['y_measure'] == "Time":
-            y_label = "Time (s)"
-        else:
-            unit = "(pA)" if params['y_channel'] == "Current" else "(mV)"
-            y_label = f"{params['y_measure']} {params['y_channel']} {unit}"
-        
-        return x_label, y_label
-
+from data_analysis_gui.core.batch_processor import BatchProcessor, FileResult
+from data_analysis_gui.utils import export_to_csv, get_next_available_filename
 
 class ModernMatSweepAnalyzer(QMainWindow):
     def __init__(self):
@@ -143,16 +44,13 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.channel_definitions = ChannelDefinitions()
         self.channel_config = self.channel_definitions 
 
-        self.analysis_engine = AnalysisEngine(None, self.channel_definitions)
+        self.analysis_engine = AnalysisEngine(self.channel_definitions)
 
         self.current_dataset = None
-
-        self.batch_analyzer = BatchAnalyzer(self)
 
         self.plot_manager = PlotManager(self, figure_size=DEFAULT_SETTINGS['plot_figsize'])
         self.plot_manager.set_drag_callback(self.on_line_dragged)
 
-        self.plot_data = {}
         self.loaded_file_path = None
         self.hold_timer = QTimer()
         self.hold_timer.timeout.connect(self.continue_hold)
@@ -190,45 +88,36 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self._create_main_layout()
         self._create_status_bar()
 
-    def _sync_engine_parameters(self):
-        """Synchronize all UI parameters with the AnalysisEngine"""
-        # Sync range 1
-        self.analysis_engine.set_range1(
-            self.start_spin.value(),
-            self.end_spin.value()
+    def _build_analysis_parameters(self) -> AnalysisParameters:
+        """
+        Reads all relevant widgets once and builds the AnalysisParameters DTO.
+        This is the single point of contact between the GUI state and the
+        analysis engine's required inputs.
+        """
+        use_dual = self.dual_range_cb.isChecked()
+        
+        x_axis_config = AxisConfig(
+            measure=self.x_measure_combo.currentText(),
+            channel=self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None
         )
-        
-        # Sync dual range state
-        use_dual_range = self.dual_range_cb.isChecked()
-        self.analysis_engine.set_dual_range_enabled(use_dual_range)
-        
-        # Sync range 2 if dual range is enabled
-        if use_dual_range:
-            self.analysis_engine.set_range2(
-                self.start_spin2.value(),
-                self.end_spin2.value()
-            )
-        
-        # Sync stimulus period
-        self.analysis_engine.set_stimulus_period(self.period_spin.value())
-        
-        # Sync X-axis configuration
-        x_measure = self.x_measure_combo.currentText()
-        x_channel = self.x_channel_combo.currentText() if x_measure != "Time" else None
-        self.analysis_engine.set_x_axis(
-            x_measure,
-            x_channel,
-            "Max"  # Default peak type - could be made configurable in UI later
+
+        y_axis_config = AxisConfig(
+            measure=self.y_measure_combo.currentText(),
+            channel=self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None
         )
-        
-        # Sync Y-axis configuration
-        y_measure = self.y_measure_combo.currentText()
-        y_channel = self.y_channel_combo.currentText() if y_measure != "Time" else None
-        self.analysis_engine.set_y_axis(
-            y_measure,
-            y_channel,
-            "Max"  # Default peak type - could be made configurable in UI later
+
+        params = AnalysisParameters(
+            range1_start=self.start_spin.value(),
+            range1_end=self.end_spin.value(),
+            use_dual_range=use_dual,
+            range2_start=self.start_spin2.value() if use_dual else None,
+            range2_end=self.end_spin2.value() if use_dual else None,
+            stimulus_period=self.period_spin.value(),
+            x_axis=x_axis_config,
+            y_axis=y_axis_config,
+            channel_config=self.channel_definitions.get_configuration()
         )
+        return params
 
     def _update_channel_combos(self):
         """Update all channel combo boxes with current configuration"""
@@ -435,7 +324,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
         layout = QVBoxLayout(control_widget)
 
-        # Add control groups
         layout.addWidget(self._create_file_info_group())
         layout.addWidget(self._create_analysis_settings_group())
         layout.addWidget(self._create_plot_settings_group())
@@ -446,7 +334,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.export_plot_btn.setEnabled(False)
         layout.addWidget(self.export_plot_btn)
 
-        # Add stretch
         layout.addStretch()
 
         return scroll_area
@@ -536,8 +423,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         # Refresh the current plot if data is loaded
         if self.current_dataset is not None and not self.current_dataset.is_empty():
             self.update_plot()
-            if hasattr(self, 'plot_data') and self.plot_data:
-                self.process_all_sweeps()
 
     def _add_range1_settings(self, layout):
         """Add Range 1 settings to layout"""
@@ -663,7 +548,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             if sweep_names:
                 self.sweep_combo.setCurrentIndex(0)
                 self.update_plot()
-                self.process_all_sweeps()
 
             # Update file info
             self.file_label.setText(f"File: {os.path.basename(file_path)}")
@@ -710,8 +594,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
     def toggle_dual_range(self):
         enabled = self.dual_range_cb.isChecked()
 
-        self.analysis_engine.set_dual_range_enabled(enabled)
-
         self.start_spin2.setEnabled(enabled)
         self.end_spin2.setEnabled(enabled)
 
@@ -727,57 +609,35 @@ class ModernMatSweepAnalyzer(QMainWindow):
         x_measure = self.x_measure_combo.currentText()
         y_measure = self.y_measure_combo.currentText()
 
-        self.analysis_engine.set_x_axis(
-            x_measure,
-            self.x_channel_combo.currentText() if x_measure != "Time" else None,
-            "Max"  # You'll need to add peak type selection to your GUI later
-        )
-        self.analysis_engine.set_y_axis(
-            y_measure,
-            self.y_channel_combo.currentText() if y_measure != "Time" else None,
-            "Max"
-        )
-
         self.x_channel_combo.setEnabled(x_measure in ["Peak", "Average"])
         self.y_channel_combo.setEnabled(y_measure in ["Peak", "Average"])
 
     # ========== Data Processing Methods ==========
     
-    def process_all_sweeps(self):
-        """Process all sweeps to prepare data for different plotting modes"""
-        if self.current_dataset is None or self.current_dataset.is_empty():
-            return
-        
-        # Sync all parameters to engine first
-        self._sync_engine_parameters()
-        
-        # Get the processed data from the engine
-        self.plot_data = self.analysis_engine.get_plot_data()
-
     def update_plot_with_axis_selection(self):
         """Generate and display the analysis plot in a new window"""
         if self.current_dataset is None or self.current_dataset.is_empty():
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
             return
 
-        # Sync all parameters to engine
-        self._sync_engine_parameters()
+        # 1. Build parameters from the GUI
+        params = self._build_analysis_parameters()
         
-        # Get plot data from engine
-        plot_data_from_engine = self.analysis_engine.get_plot_data()
+        # 2. Pass parameters to the engine
+        self.analysis_engine.set_dataset(self.current_dataset) # Engine still needs the data context
+        plot_data_from_engine = self.analysis_engine.get_plot_data(params)
         
-        # Create the plot data dictionary for the dialog
+        # 3. Use the results (no changes needed here)
         plot_data_dict = {
             'x_data': plot_data_from_engine['x_data'],
             'y_data': plot_data_from_engine['y_data'],
             'y_data2': plot_data_from_engine.get('y_data2', []),
             'sweep_indices': plot_data_from_engine['sweep_indices'],
-            'use_dual_range': self.dual_range_cb.isChecked(),
+            'use_dual_range': params.use_dual_range,
             'y_label_r1': plot_data_from_engine.get('y_label_r1', plot_data_from_engine['y_label']),
             'y_label_r2': plot_data_from_engine.get('y_label_r2', plot_data_from_engine['y_label'])
         }
         
-        # Show the dialog
         dialog = AnalysisPlotDialog(
             self, 
             plot_data_dict, 
@@ -857,17 +717,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
     def update_lines_from_entries(self):
         """Update range lines based on spinbox values"""
-        self.analysis_engine.set_range1(
-            self.start_spin.value(),
-            self.end_spin.value()
-        )
-        
-        if self.dual_range_cb.isChecked():
-            self.analysis_engine.set_range2(
-                self.start_spin2.value(),
-                self.end_spin2.value()
-            )
-
         self.plot_manager.update_lines_from_values(
             self.start_spin.value(),
             self.end_spin.value(),
@@ -885,13 +734,14 @@ class ModernMatSweepAnalyzer(QMainWindow):
             return
         
         try:
-            # Sync all parameters to engine
-            self._sync_engine_parameters()
+            # 1. Build parameters from the GUI
+            params = self._build_analysis_parameters()
             
-            # Get export-ready data from the engine
-            table_data = self.analysis_engine.get_export_table()
+            # 2. Pass parameters to the engine
+            self.analysis_engine.set_dataset(self.current_dataset)
+            table_data = self.analysis_engine.get_export_table(params)
             
-            # Get save path (your existing code)
+            # 3. Save the results (no changes needed here)
             base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
             if '[' in base_name:
                 base_name = base_name.split('[')[0]
@@ -903,7 +753,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             )
             
             if save_path:
-                # Export using the table data
                 export_to_csv(
                     save_path, 
                     table_data['data'],
@@ -916,164 +765,192 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Export Error", f"Error exporting data: {str(e)}")
 
     # ========== Batch Analysis Methods ==========
+
+    def _get_batch_output_folder(self, file_paths):
+        """Prompt user for output folder and create it if necessary
+        
+        Returns:
+            str: Path to output folder or None if cancelled
+        """
+        base_dir = os.path.dirname(file_paths[0])
+        
+        # Calculate unique default folder name
+        default_folder_name = "MAT_analysis"
+        temp_path = os.path.join(base_dir, default_folder_name)
+        counter = 1
+        while os.path.exists(temp_path):
+            default_folder_name = f"MAT_analysis_{counter}"
+            temp_path = os.path.join(base_dir, default_folder_name)
+            counter += 1
+        
+        # Prompt user for folder name
+        folder_name, ok = QInputDialog.getText(
+            self, "Name Output Folder",
+            "Enter a name for the new results folder:",
+            text=default_folder_name
+        )
+        
+        if not ok or not folder_name:
+            return None
+        
+        destination_folder = os.path.join(base_dir, folder_name)
+        
+        # Check if folder exists
+        if os.path.exists(destination_folder):
+            reply = QMessageBox.question(
+                self, 'Folder Exists',
+                f"The folder '{folder_name}' already exists.\n\n"
+                "Do you want to save files into this existing folder?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return None
+        else:
+            os.makedirs(destination_folder)
+        
+        return destination_folder
+
+    # def _get_batch_analysis_parameters(self):
+    #     """Get current analysis parameters from UI
+        
+    #     Returns:
+    #         Dictionary containing all analysis parameters
+    #     """
+    #     params = {
+    #         't_start': self.start_spin.value(),
+    #         't_end': self.end_spin.value(),
+    #         'period_ms': self.period_spin.value(),
+    #         'use_dual_range': self.dual_range_cb.isChecked(),
+    #         'x_measure': self.x_measure_combo.currentText(),
+    #         'y_measure': self.y_measure_combo.currentText(),
+    #         'x_channel': self.x_channel_combo.currentText(),
+    #         'y_channel': self.y_channel_combo.currentText(),
+    #     }
+        
+    #     if params['use_dual_range']:
+    #         params['t_start2'] = self.start_spin2.value()
+    #         params['t_end2'] = self.end_spin2.value()
+        
+    #     return params
+
+    def _create_batch_axis_labels(self, params: AnalysisParameters):
+        """Create axis labels based on the AnalysisParameters DTO"""
+        # X-axis label
+        if params.x_axis.measure == "Time":
+            x_label = "Time (s)"
+        else:
+            unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
+            x_label = f"{params.x_axis.measure} {params.x_axis.channel} {unit}"
+        
+        # Y-axis label
+        if params.y_axis.measure == "Time":
+            y_label = "Time (s)"
+        else:
+            unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
+            y_label = f"{params.y_axis.measure} {params.y_axis.channel} {unit}"
+        
+        return x_label, y_label
     
+# Replace the entire batch_analyze method in ModernMatSweepAnalyzer class
+
     def batch_analyze(self):
-        """Analyze multiple files and plot results for each"""
+        """Analyze multiple files using the BatchProcessor service."""
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Select MAT Files for Batch Analysis", "", "MAT files (*.mat)"
         )
-
         if not file_paths:
             return
 
-        # Get output folder
-        destination_folder = self.batch_analyzer.get_output_folder(file_paths)
+        destination_folder = self._get_batch_output_folder(file_paths)
         if not destination_folder:
             return
 
-        # Sort files numerically
-        file_paths = sorted(file_paths, key=extract_file_number)
+        # 1. Build parameters from the GUI once for the whole batch
+        params = self._build_analysis_parameters()
+        x_label, y_label = self._create_batch_axis_labels(params)
 
-        # Get analysis parameters
-        params = self.batch_analyzer.get_analysis_parameters()
-        x_label, y_label = self.batch_analyzer.create_axis_labels(params)
-
-        # Create progress dialog
+        # 2. Prepare for plotting and progress updates
         progress = self._create_progress_dialog(len(file_paths))
+        batch_fig, batch_ax = self._create_batch_figure(x_label, y_label)
+
+        # 3. Define callbacks for the batch processor to hook into the GUI
+        def update_progress(current, total):
+            progress.setValue(current)
+            QApplication.processEvents()
+
+        def handle_file_complete(result: FileResult):
+            if result.success:
+                # Plot successful data
+                self._plot_batch_file_data(
+                    batch_ax,
+                    {
+                        'base_name': result.base_name,
+                        'x_data': result.x_data,
+                        'y_data': result.y_data,
+                        'y_data2': result.y_data2
+                    },
+                    params.use_dual_range
+                )
+                # Export successful data
+                self._export_single_file_data(result, destination_folder)
+            else:
+                # Log or display the error for the failed file
+                print(f"Failed to process {result.base_name}: {result.error_message}")
+                self.status_bar.showMessage(f"Error on {result.base_name}: {result.error_message}", 5000)
 
         try:
-            # Create batch figure
-            batch_fig, batch_ax = self._create_batch_figure(x_label, y_label)
-            
-            # Process files and collect data
-            batch_data = {}
-            
-            for file_idx, file_path in enumerate(file_paths):
-                progress.setValue(file_idx)
-                QApplication.processEvents()
-
-                try:
-                    # Process single file using AnalysisEngine
-                    file_data = self._process_single_file(file_path, params)
-                    
-                    # Store batch data
-                    batch_data[file_data['base_name']] = {
-                        'x_values': file_data['x_data'],
-                        'y_values': file_data['y_data']
-                    }
-                    
-                    if params['use_dual_range'] and 'y_data2' in file_data:
-                        batch_data[file_data['base_name']]['y_values2'] = file_data['y_data2']
-                    
-                    # Plot data
-                    self._plot_batch_file_data(
-                        batch_ax, file_data, params['use_dual_range']
-                    )
-                    
-                    # Export CSV
-                    self._export_file_data(
-                        file_data, params, destination_folder, x_label, y_label
-                    )
-
-                except Exception as e:
-                    QMessageBox.critical(
-                        self, "Error", 
-                        f"Error processing {os.path.basename(file_path)}: {str(e)}"
-                    )
-                    continue
-            
-            progress.setValue(len(file_paths))
-
-            # Finalize and show results
-            self._finalize_batch_results(
-                batch_fig, batch_ax, batch_data, params, 
-                x_label, y_label, destination_folder
+            # 4. Instantiate and run the core batch processor
+            processor = BatchProcessor(self.channel_definitions)
+            batch_result = processor.run(
+                file_paths,
+                params,
+                on_progress=update_progress,
+                on_file_done=handle_file_complete
             )
 
+            # 5. Process the final aggregated result
+            if any(res.success for res in batch_result.results):
+                # Convert results to the format expected by the dialog
+                batch_data_for_dialog = {
+                    res.base_name: {
+                        'x_values': res.x_data,
+                        'y_values': res.y_data,
+                        'y_values2': res.y_data2
+                    } for res in batch_result.successful_results
+                }
+                
+                self._finalize_batch_results(
+                    batch_fig, batch_ax, batch_data_for_dialog, params,
+                    x_label, y_label, destination_folder
+                )
+            else:
+                QMessageBox.warning(self, "Batch Analysis Failed", "No files could be processed successfully.")
+
         except Exception as e:
-            QMessageBox.critical(self, "Batch Analysis Error", f"Error: {str(e)}")
+            QMessageBox.critical(self, "Batch Analysis Error", f"A critical error occurred: {str(e)}")
         finally:
             progress.close()
 
-    def _process_single_file(self, file_path, params):
-        """Process a single MAT file using the analysis engine"""
-        # Extract base name and sanitize
-        base_name = os.path.basename(file_path).split('.mat')[0]
-        if '[' in base_name:
-            base_name = base_name.split('[')[0]
-        
-        # Load file using DatasetLoader
+    def _export_single_file_data(self, result: FileResult, destination_folder: str):
+        """Exports the data from a single successful FileResult."""
         try:
-            dataset = DatasetLoader.load(file_path, self.channel_definitions)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load {file_path}: {str(e)}")
-        
-        # Create a temporary analysis engine for this file
-        temp_engine = AnalysisEngine(dataset, self.channel_definitions)
-        
-        # Configure the engine with current parameters
-        temp_engine.set_range1(params['t_start'], params['t_end'])
-        temp_engine.set_dual_range_enabled(params['use_dual_range'])
-        if params['use_dual_range']:
-            temp_engine.set_range2(params['t_start2'], params['t_end2'])
-        temp_engine.set_stimulus_period(params['period_ms'])
-        
-        # Configure axis settings
-        temp_engine.set_x_axis(
-            params['x_measure'],
-            params['x_channel'] if params['x_measure'] != "Time" else None,
-            "Max"  # Default peak type
-        )
-        temp_engine.set_y_axis(
-            params['y_measure'],
-            params['y_channel'] if params['y_measure'] != "Time" else None,
-            "Max"  # Default peak type
-        )
-        
-        # Get the plot data
-        plot_data = temp_engine.get_plot_data()
-        
-        result = {
-            'base_name': base_name,
-            'x_data': plot_data['x_data'],
-            'y_data': plot_data['y_data'],
-            'engine': temp_engine  # Keep reference for export
-        }
-        
-        if params['use_dual_range'] and len(plot_data['y_data2']) > 0:
-            result['y_data2'] = plot_data['y_data2']
-        
-        return result
-
-    def _export_file_data(self, file_data, params, destination_folder, x_label, y_label):
-        """Export processed data for a single file to CSV with collision handling"""
-        # Ensure destination folder exists
-        os.makedirs(destination_folder, exist_ok=True)
-        
-        # Sanitize base name and ensure .csv extension
-        base_name = file_data['base_name']
-        base_name = base_name.replace('[', '').replace(']', '')  # Remove brackets
-        if not base_name.endswith('.csv'):
+            base_name = result.base_name.replace('[', '').replace(']', '')
             export_filename = f"{base_name}.csv"
-        else:
-            export_filename = base_name
-        
-        export_path = os.path.join(destination_folder, export_filename)
-        
-        # Handle filename collisions
-        if os.path.exists(export_path):
-            export_path = get_next_available_filename(export_path)
-        
-        # Get export table from the temporary engine
-        export_data = file_data['engine'].get_export_table()
-        
-        # Export with error handling
-        try:
-            export_to_csv(export_path, export_data['data'], 
-                         ','.join(export_data['headers']), 
-                         export_data['format_spec'])
-        except Exception as e:
-            raise IOError(f"Failed to export {export_filename}: {str(e)}")
+            export_path = os.path.join(destination_folder, export_filename)
+            
+            final_path = get_next_available_filename(export_path)
+            
+            export_table = result.export_table
+            export_to_csv(
+                final_path,
+                export_table['data'],
+                ','.join(export_table['headers']),
+                export_table['format_spec']
+            )
+        except IOError as e:
+            error_msg = f"Failed to export {result.base_name}: {str(e)}"
+            print(error_msg)
+            self.status_bar.showMessage(error_msg, 5000)
 
     def _prepare_iv_data(self, batch_data, params):
         """Prepare data for IV analysis if applicable"""

@@ -8,8 +8,10 @@ root/
 |       |-- core/
 |       |   |-- __init__.py
 |       |   |-- analysis_engine.py
+|       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
-|       |   `-- dataset.py
+|       |   |-- dataset.py
+|       |   `-- params.py
 |       |-- dialogs/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
