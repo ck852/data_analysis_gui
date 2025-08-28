@@ -284,6 +284,10 @@ class SweepDataProcessor:
         channel_id = channel_definitions.get_channel_for_type(data_type)
         return process_sweep_data(t, y, t_start, t_end, channel_id)
 
+# Add these imports at the top of main_window.py
+from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
+from data_analysis_gui.utils import get_next_available_filename
+
 class BatchAnalyzer:
     """Handles batch analysis operations"""
     
@@ -381,51 +385,108 @@ class BatchAnalyzer:
         return x_label, y_label
     
     def process_single_file(self, file_path, params):
-        """Process a single MAT file"""
+        """Process a single MAT file using the dataset layer"""
+        # Extract base name and sanitize
         base_name = os.path.basename(file_path).split('.mat')[0]
         if '[' in base_name:
             base_name = base_name.split('[')[0]
         
         # Load file using DatasetLoader
-        dataset = DatasetLoader.load(file_path, self.parent.channel_definitions)
+        try:
+            dataset = DatasetLoader.load(file_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load {file_path}: {str(e)}")
         
-        # Convert dataset to legacy format for processor
-        sweeps_dict = {}
-        for sweep_idx in dataset.sweeps():
-            time_ms, data_matrix = dataset.get_sweep(sweep_idx)
-            sweeps_dict[sweep_idx] = (time_ms, data_matrix)
+        # Get channel IDs from channel configuration
+        voltage_channel_id = self.parent.channel_config.get_channel_for_type("Voltage")
+        current_channel_id = self.parent.channel_config.get_channel_for_type("Current")
         
-        # Process sweeps using the processor with channel definitions
-        range_params = {
-            't_start': params['t_start'],
-            't_end': params['t_end'],
-            'period_ms': params['period_ms']
+        # Initialize result structures
+        sweep_indices = []
+        time_values = []
+        peak_current = []
+        peak_voltage = []
+        average_current = []
+        average_voltage = []
+        peak_current2 = []
+        peak_voltage2 = []
+        average_current2 = []
+        average_voltage2 = []
+        avg_voltages_r1 = []
+        avg_voltages_r2 = []
+        
+        period_sec = params['period_ms'] / 1000.0
+        
+        # Process each sweep in the dataset
+        sweep_list = sorted(dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
+        
+        for i, sweep_idx in enumerate(sweep_list):
+            # Get voltage and current data for this sweep
+            time_ms, voltage_data = dataset.get_channel_vector(sweep_idx, voltage_channel_id)
+            _, current_data = dataset.get_channel_vector(sweep_idx, current_channel_id)
+            
+            if time_ms is None or voltage_data is None or current_data is None:
+                continue
+            
+            # Process Range 1
+            mask1 = (time_ms >= params['t_start']) & (time_ms <= params['t_end'])
+            v_range1 = voltage_data[mask1] if np.any(mask1) else np.array([])
+            i_range1 = current_data[mask1] if np.any(mask1) else np.array([])
+            
+            if v_range1.size > 0 and i_range1.size > 0:
+                sweep_indices.append(int(sweep_idx))
+                time_values.append(i * period_sec)
+                
+                # Calculate values for Range 1
+                peak_current.append(np.max(np.abs(i_range1)) if i_range1.size > 0 else np.nan)
+                peak_voltage.append(np.max(np.abs(v_range1)) if v_range1.size > 0 else np.nan)
+                average_current.append(np.mean(i_range1) if i_range1.size > 0 else np.nan)
+                average_voltage.append(np.mean(v_range1) if v_range1.size > 0 else np.nan)
+                avg_voltages_r1.append(np.mean(v_range1) if v_range1.size > 0 else np.nan)
+                
+                # Process Range 2 if enabled
+                if params['use_dual_range']:
+                    mask2 = (time_ms >= params['t_start2']) & (time_ms <= params['t_end2'])
+                    v_range2 = voltage_data[mask2] if np.any(mask2) else np.array([])
+                    i_range2 = current_data[mask2] if np.any(mask2) else np.array([])
+                    
+                    if v_range2.size > 0 and i_range2.size > 0:
+                        peak_current2.append(np.max(np.abs(i_range2)))
+                        peak_voltage2.append(np.max(np.abs(v_range2)))
+                        average_current2.append(np.mean(i_range2))
+                        average_voltage2.append(np.mean(v_range2))
+                        avg_voltages_r2.append(np.mean(v_range2))
+                    else:
+                        peak_current2.append(np.nan)
+                        peak_voltage2.append(np.nan)
+                        average_current2.append(np.nan)
+                        average_voltage2.append(np.nan)
+                        avg_voltages_r2.append(np.nan)
+        
+        # Build processed_data structure compatible with existing code
+        processed_data = {
+            "sweep_indices": sweep_indices,
+            "time_values": time_values,
+            "peak_current": peak_current,
+            "peak_voltage": peak_voltage,
+            "average_current": average_current,
+            "average_voltage": average_voltage,
+            "avg_voltages_r1": avg_voltages_r1,
+            "avg_voltages_r2": avg_voltages_r2 if params['use_dual_range'] else [],
         }
         
         if params['use_dual_range']:
-            range_params['t_start2'] = params['t_start2']
-            range_params['t_end2'] = params['t_end2']
+            processed_data["peak_current2"] = peak_current2
+            processed_data["peak_voltage2"] = peak_voltage2
+            processed_data["average_current2"] = average_current2
+            processed_data["average_voltage2"] = average_voltage2
         
-        # Pass parent's channel definitions
-        processed_data = self.processor.process_sweep_ranges(
-            sweeps_dict, 
-            range_params, 
-            params['use_dual_range'],
-            channel_definitions=self.parent.channel_definitions
-        )
-        
-        # Extract axis data with channel definitions
+        # Extract axis data using existing processor
         x_data, _ = self.processor.extract_axis_data(
-            processed_data, 
-            params['x_measure'], 
-            params.get('x_channel'),
-            self.parent.channel_definitions
+            processed_data, params['x_measure'], params.get('x_channel')
         )
         y_data, _ = self.processor.extract_axis_data(
-            processed_data, 
-            params['y_measure'], 
-            params.get('y_channel'),
-            self.parent.channel_definitions
+            processed_data, params['y_measure'], params.get('y_channel')
         )
         
         result = {
@@ -438,13 +499,28 @@ class BatchAnalyzer:
         if params['use_dual_range']:
             measure_key = "peak" if params['y_measure'] == "Peak" else "average"
             channel_key = "current" if params['y_channel'] == "Current" else "voltage"
-            result['y_data2'] = processed_data[f"{measure_key}_{channel_key}2"]
+            result['y_data2'] = processed_data.get(f"{measure_key}_{channel_key}2", [])
         
         return result
     
     def export_file_data(self, file_data, params, destination_folder, x_label, y_label):
-        """Export processed data for a single file to CSV"""
-        export_path = os.path.join(destination_folder, f"{file_data['base_name']}.csv")
+        """Export processed data for a single file to CSV with collision handling"""
+        # Ensure destination folder exists
+        os.makedirs(destination_folder, exist_ok=True)
+        
+        # Sanitize base name and ensure .csv extension
+        base_name = file_data['base_name']
+        base_name = base_name.replace('[', '').replace(']', '')  # Remove brackets
+        if not base_name.endswith('.csv'):
+            export_filename = f"{base_name}.csv"
+        else:
+            export_filename = base_name
+        
+        export_path = os.path.join(destination_folder, export_filename)
+        
+        # Handle filename collisions
+        if os.path.exists(export_path):
+            export_path = get_next_available_filename(export_path)
         
         axis_config = {
             'x_measure': params['x_measure'],
@@ -453,15 +529,19 @@ class BatchAnalyzer:
             'y_channel': params['y_channel']
         }
         
-        # Pass channel definitions for proper labeling
+        # Prepare export data with channel configuration
         output_data, header = self.processor.prepare_export_data(
             file_data['processed_data'], 
             axis_config, 
             params['use_dual_range'],
-            self.parent.channel_definitions
+            #channel_config=self.parent.channel_config
         )
         
-        export_to_csv(export_path, output_data, header, '%.5f')
+        # Export with error handling
+        try:
+            export_to_csv(export_path, output_data, header, '%.5f')
+        except Exception as e:
+            raise IOError(f"Failed to export {export_filename}: {str(e)}")
     
     def prepare_iv_data(self, batch_data, params):
         """Prepare data for IV analysis if applicable"""
@@ -1250,7 +1330,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
             # Prepare export data with channel configuration
             output_data, header = self.data_processor.prepare_export_data(
                 self.plot_data, axis_config, self.use_dual_range,
-                channel_config=self.channel_config  # Pass the configuration
+                #channel_config=self.channel_config  # Pass the configuration
             )
 
             # Get save path
