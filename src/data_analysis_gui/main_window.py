@@ -22,12 +22,13 @@ from data_analysis_gui.dialogs import (ConcentrationResponseDialog, BatchResultD
                      AnalysisPlotDialog, CurrentDensityIVDialog)
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
 from data_analysis_gui.utils import (export_to_csv, extract_file_number)
+
+from data_analysis_gui.core import exporter
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
 from data_analysis_gui.core.analysis_engine import AnalysisEngine
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
-from data_analysis_gui.utils import get_next_available_filename
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 
 from data_analysis_gui.core.batch_processor import BatchProcessor, FileResult
@@ -728,41 +729,48 @@ class ModernMatSweepAnalyzer(QMainWindow):
     # ========== Export Methods ==========
     
     def export_plot_data(self):
-        """Export current plot X and Y data to a CSV file"""
+        """Export current plot X and Y data to a user-selected folder."""
         if not self.loaded_file_path:
             QMessageBox.information(self, "Export Error", "No data to export.")
             return
         
         try:
-            # 1. Build parameters from the GUI
+            # 1. Build parameters and get analysis data from the engine
             params = self._build_analysis_parameters()
-            
-            # 2. Pass parameters to the engine
             self.analysis_engine.set_dataset(self.current_dataset)
             table_data = self.analysis_engine.get_export_table(params)
-            
-            # 3. Save the results (no changes needed here)
+
+            if not table_data or len(table_data.get('data', [])) == 0:
+                QMessageBox.information(self, "Export Error", "No data to export.")
+                return
+
+            # 2. Get the base name for the output file
             base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
-            if '[' in base_name:
-                base_name = base_name.split('[')[0]
             
-            save_path, _ = QFileDialog.getSaveFileName(
-                self, "Export Plot Data",
-                os.path.join(os.path.dirname(self.loaded_file_path), f"{base_name}_analyzed.csv"),
-                "CSV files (*.csv)"
+            # 3. Prompt user for a destination FOLDER
+            destination_folder = QFileDialog.getExistingDirectory(
+                self, "Select Destination Folder",
+                os.path.dirname(self.loaded_file_path)
             )
             
-            if save_path:
-                export_to_csv(
-                    save_path, 
-                    table_data['data'],
-                    ','.join(table_data['headers']),
-                    table_data['format_spec']
-                )
-                QMessageBox.information(self, "Export Successful", f"Data exported to:\n{save_path}")
+            if not destination_folder:
+                return  # User cancelled
+
+            # 4. Delegate the entire export process to the core exporter
+            outcome = exporter.write_single_table(
+                table=table_data,
+                base_name=f"{base_name}_analyzed",
+                destination_folder=destination_folder
+            )
+            
+            # 5. Report the outcome to the user
+            if outcome.success:
+                QMessageBox.information(self, "Export Successful", f"Data exported to:\n{outcome.path}")
+            else:
+                QMessageBox.critical(self, "Export Error", f"Error exporting data: {outcome.error_message}")
                 
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Error exporting data: {str(e)}")
+            QMessageBox.critical(self, "Export Error", f"An unexpected error occurred: {str(e)}")
 
     # ========== Batch Analysis Methods ==========
 
@@ -851,8 +859,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         return x_label, y_label
     
-# Replace the entire batch_analyze method in ModernMatSweepAnalyzer class
-
     def batch_analyze(self):
         """Analyze multiple files using the BatchProcessor service."""
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -865,22 +871,18 @@ class ModernMatSweepAnalyzer(QMainWindow):
         if not destination_folder:
             return
 
-        # 1. Build parameters from the GUI once for the whole batch
         params = self._build_analysis_parameters()
         x_label, y_label = self._create_batch_axis_labels(params)
 
-        # 2. Prepare for plotting and progress updates
         progress = self._create_progress_dialog(len(file_paths))
         batch_fig, batch_ax = self._create_batch_figure(x_label, y_label)
 
-        # 3. Define callbacks for the batch processor to hook into the GUI
         def update_progress(current, total):
             progress.setValue(current)
             QApplication.processEvents()
 
         def handle_file_complete(result: FileResult):
             if result.success:
-                # Plot successful data
                 self._plot_batch_file_data(
                     batch_ax,
                     {
@@ -891,15 +893,11 @@ class ModernMatSweepAnalyzer(QMainWindow):
                     },
                     params.use_dual_range
                 )
-                # Export successful data
-                self._export_single_file_data(result, destination_folder)
             else:
-                # Log or display the error for the failed file
                 print(f"Failed to process {result.base_name}: {result.error_message}")
                 self.status_bar.showMessage(f"Error on {result.base_name}: {result.error_message}", 5000)
 
         try:
-            # 4. Instantiate and run the core batch processor
             processor = BatchProcessor(self.channel_definitions)
             batch_result = processor.run(
                 file_paths,
@@ -908,9 +906,18 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 on_file_done=handle_file_complete
             )
 
-            # 5. Process the final aggregated result
+            # --- DELEGATE EXPORTING TO CORE ---
+            # All successful results are now written to CSV in one go.
+            if batch_result.successful_results:
+                export_outcomes = exporter.write_tables(batch_result, destination_folder)
+                success_count = sum(1 for o in export_outcomes if o.success)
+                self.status_bar.showMessage(f"Batch complete. Exported {success_count} files to {os.path.basename(destination_folder)}.")
+                for outcome in export_outcomes:
+                    if not outcome.success:
+                        print(f"Failed to export to {outcome.path}: {outcome.error_message}")
+            # --- END OF EXPORT ---
+
             if any(res.success for res in batch_result.results):
-                # Convert results to the format expected by the dialog
                 batch_data_for_dialog = {
                     res.base_name: {
                         'x_values': res.x_data,
@@ -930,27 +937,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Batch Analysis Error", f"A critical error occurred: {str(e)}")
         finally:
             progress.close()
-
-    def _export_single_file_data(self, result: FileResult, destination_folder: str):
-        """Exports the data from a single successful FileResult."""
-        try:
-            base_name = result.base_name.replace('[', '').replace(']', '')
-            export_filename = f"{base_name}.csv"
-            export_path = os.path.join(destination_folder, export_filename)
-            
-            final_path = get_next_available_filename(export_path)
-            
-            export_table = result.export_table
-            export_to_csv(
-                final_path,
-                export_table['data'],
-                ','.join(export_table['headers']),
-                export_table['format_spec']
-            )
-        except IOError as e:
-            error_msg = f"Failed to export {result.base_name}: {str(e)}"
-            print(error_msg)
-            self.status_bar.showMessage(error_msg, 5000)
 
     def _prepare_iv_data(self, batch_data, params):
         """Prepare data for IV analysis if applicable"""
