@@ -534,7 +534,6 @@ class BatchAnalyzer:
             file_data['processed_data'], 
             axis_config, 
             params['use_dual_range'],
-            #channel_config=self.parent.channel_config
         )
         
         # Export with error handling
@@ -1330,7 +1329,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             # Prepare export data with channel configuration
             output_data, header = self.data_processor.prepare_export_data(
                 self.plot_data, axis_config, self.use_dual_range,
-                #channel_config=self.channel_config  # Pass the configuration
             )
 
             # Get save path
