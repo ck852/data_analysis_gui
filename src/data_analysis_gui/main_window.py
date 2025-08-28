@@ -34,6 +34,8 @@ from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 from data_analysis_gui.core.batch_processor import BatchProcessor, FileResult
 from data_analysis_gui.utils import export_to_csv, get_next_available_filename
 
+from data_analysis_gui.core.iv_analysis import IVAnalysisService
+
 class ModernMatSweepAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -938,32 +940,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         finally:
             progress.close()
 
-    def _prepare_iv_data(self, batch_data, params):
-        """Prepare data for IV analysis if applicable"""
-        iv_data = {}
-        iv_file_mapping = {}
-        
-        # Check if we should prepare for IV
-        prepare_for_iv = (params['x_measure'] == "Average" and
-                         params['x_channel'] == "Voltage" and
-                         params['y_measure'] == "Average" and
-                         params['y_channel'] == "Current")
-        
-        if not prepare_for_iv:
-            return iv_data, iv_file_mapping
-        
-        for idx, (base_name, data) in enumerate(batch_data.items()):
-            for x_val, y_val in zip(data['x_values'], data['y_values']):
-                rounded_voltage = round(x_val, 1)
-                if rounded_voltage not in iv_data:
-                    iv_data[rounded_voltage] = []
-                iv_data[rounded_voltage].append(y_val)
-            
-            recording_id = f"Recording {idx + 1}"
-            iv_file_mapping[recording_id] = base_name
-        
-        return iv_data, iv_file_mapping
-
     def _create_progress_dialog(self, max_value):
         """Create and configure progress dialog"""
         progress = QProgressBar()
@@ -998,7 +974,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         if batch_ax.get_legend_handles_labels()[0]:
             # Prepare IV data if applicable
-            iv_data, iv_file_mapping = self._prepare_iv_data(
+            iv_data, iv_file_mapping = IVAnalysisService.prepare_iv_data(
                 batch_data, params
             )
             

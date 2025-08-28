@@ -11,6 +11,8 @@ root/
 |       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
 |       |   |-- dataset.py
+|       |   |-- exporter.py
+|       |   |-- iv_analysis.py
 |       |   `-- params.py
 |       |-- dialogs/
 |       |   |-- __init__.py
