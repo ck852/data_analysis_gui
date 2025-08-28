@@ -30,270 +30,17 @@ from data_analysis_gui.utils.data_processing import (
 )
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
-
-class SweepDataProcessor:
-    """Handles all data processing and business logic operations"""
-    
-    @staticmethod
-    def process_single_sweep(t, y, t_start, t_end, channel_id=0):
-        """Process a single sweep for the given time range and channel
-        
-        Args:
-            t: Time array
-            y: Data array
-            t_start: Start time in milliseconds
-            t_end: End time in milliseconds
-            channel_id: The channel index to process
-            
-        Returns:
-            Processed data array for the specified channel and time range
-        """
-        return process_sweep_data(t, y, t_start, t_end, channel_id)
-    
-    @staticmethod
-    def calculate_peak_values(data):
-        """Calculate peak values from data array
-        
-        Args:
-            data: Data array
-            
-        Returns:
-            Maximum absolute value or NaN if empty
-        """
-        if data.size > 0:
-            return np.max(np.abs(data))
-        return np.nan
-    
-    @staticmethod
-    def calculate_average_values(data):
-        """Calculate average values from data array
-        
-        Args:
-            data: Data array
-            
-        Returns:
-            Mean value or NaN if empty
-        """
-        if data.size > 0:
-            return np.mean(data)
-        return np.nan
-    
-    @staticmethod
-    def process_sweep_ranges(sweeps, range_params, dual_range=False, channel_definitions=None):
-        """Process all sweeps for the given range parameters
-        
-        Args:
-            sweeps: Dictionary of sweep data
-            range_params: Dict with keys 't_start', 't_end', and optionally 't_start2', 't_end2'
-            dual_range: Whether to process dual ranges
-            channel_definitions: ChannelDefinitions object for channel mapping
-            
-        Returns:
-            Dictionary containing processed data for all sweeps
-        """
-        # Use default channel definitions if none provided
-        if channel_definitions is None:
-            channel_definitions = ChannelDefinitions()
-        
-        # Get the actual channel IDs from the definitions
-        voltage_channel_id = channel_definitions.get_voltage_channel()
-        current_channel_id = channel_definitions.get_current_channel()
-        
-        result = {
-            "sweep_indices": [], "time_values": [],
-            "peak_current": [], "peak_voltage": [],
-            "average_current": [], "average_voltage": [],
-            "peak_current2": [], "peak_voltage2": [],
-            "average_current2": [], "average_voltage2": [],
-            "avg_voltages_r1": [], "avg_voltages_r2": [],
-        }
-        
-        period_sec = range_params.get('period_ms', 1000) / 1000.0
-        
-        for i, index in enumerate(sorted(sweeps.keys(), key=lambda x: int(x))):
-            t, y = sweeps[index]
-            
-            # Process first range using explicit channel IDs
-            voltage_data = process_sweep_data(
-                t, y, range_params['t_start'], 
-                range_params['t_end'], 
-                channel_id=voltage_channel_id
-            )
-            current_data = process_sweep_data(
-                t, y, range_params['t_start'], 
-                range_params['t_end'], 
-                channel_id=current_channel_id
-            )
-            
-            if current_data.size > 0 and voltage_data.size > 0:
-                result["sweep_indices"].append(int(index))
-                result["time_values"].append(i * period_sec)
-                
-                # Calculate values for Range 1
-                result["peak_current"].append(SweepDataProcessor.calculate_peak_values(current_data))
-                result["peak_voltage"].append(SweepDataProcessor.calculate_peak_values(voltage_data))
-                result["average_current"].append(SweepDataProcessor.calculate_average_values(current_data))
-                result["average_voltage"].append(SweepDataProcessor.calculate_average_values(voltage_data))
-                result["avg_voltages_r1"].append(SweepDataProcessor.calculate_average_values(voltage_data))
-                
-                # Process Range 2 if enabled
-                if dual_range and 't_start2' in range_params:
-                    voltage_data2 = process_sweep_data(
-                        t, y, range_params['t_start2'], 
-                        range_params['t_end2'], 
-                        channel_id=voltage_channel_id
-                    )
-                    current_data2 = process_sweep_data(
-                        t, y, range_params['t_start2'], 
-                        range_params['t_end2'], 
-                        channel_id=current_channel_id
-                    )
-                    
-                    if current_data2.size > 0 and voltage_data2.size > 0:
-                        result["peak_current2"].append(SweepDataProcessor.calculate_peak_values(current_data2))
-                        result["peak_voltage2"].append(SweepDataProcessor.calculate_peak_values(voltage_data2))
-                        result["average_current2"].append(SweepDataProcessor.calculate_average_values(current_data2))
-                        result["average_voltage2"].append(SweepDataProcessor.calculate_average_values(voltage_data2))
-                        result["avg_voltages_r2"].append(SweepDataProcessor.calculate_average_values(voltage_data2))
-                    else:
-                        result["peak_current2"].append(np.nan)
-                        result["peak_voltage2"].append(np.nan)
-                        result["average_current2"].append(np.nan)
-                        result["average_voltage2"].append(np.nan)
-                        result["avg_voltages_r2"].append(np.nan)
-        
-        return result
-    
-    @staticmethod
-    def extract_axis_data(plot_data, measure, channel_type=None, channel_definitions=None):
-        """Extract data for a specific axis configuration
-        
-        Args:
-            plot_data: Dictionary containing processed sweep data
-            measure: Type of measurement ('Time', 'Peak', 'Average')
-            channel_type: Data type ('Current' or 'Voltage'), None for Time
-            channel_definitions: ChannelDefinitions object for proper labeling
-            
-        Returns:
-            Tuple of (data_array, label_string)
-        """
-        if measure == "Time":
-            return plot_data["time_values"], "Time (s)"
-        
-        # Use default channel definitions if none provided
-        if channel_definitions is None:
-            channel_definitions = ChannelDefinitions()
-        
-        # Determine the data key based on measure and channel type
-        measure_key = "peak" if measure == "Peak" else "average"
-        channel_key = "current" if channel_type == "Current" else "voltage"
-        
-        # Get data from plot_data
-        data = plot_data[f"{measure_key}_{channel_key}"]
-        
-        # Create label using channel definitions for proper units
-        if channel_type == "Current":
-            label = f"{measure} {channel_definitions.get_channel_label(
-                channel_definitions.get_current_channel(), include_units=True
-            )}"
-        else:  # Voltage
-            label = f"{measure} {channel_definitions.get_channel_label(
-                channel_definitions.get_voltage_channel(), include_units=True
-            )}"
-        
-        return data, label
-    
-    @staticmethod
-    def prepare_export_data(plot_data, axis_config, use_dual_range=False, channel_definitions=None):
-        """Prepare data for CSV export with proper channel labels
-        
-        Args:
-            plot_data: Processed sweep data
-            axis_config: Dict with x/y measure and channel settings
-            use_dual_range: Whether dual range is enabled
-            channel_definitions: ChannelDefinitions object for proper labeling
-            
-        Returns:
-            Tuple of (data_array, header_string)
-        """
-        # Use default channel definitions if none provided
-        if channel_definitions is None:
-            channel_definitions = ChannelDefinitions()
-        
-        # Extract X-axis data
-        x_data, x_label = SweepDataProcessor.extract_axis_data(
-            plot_data, 
-            axis_config['x_measure'], 
-            axis_config.get('x_channel'),
-            channel_definitions
-        )
-        
-        # Extract Y-axis data
-        y_data, y_label = SweepDataProcessor.extract_axis_data(
-            plot_data, 
-            axis_config['y_measure'], 
-            axis_config.get('y_channel'),
-            channel_definitions
-        )
-        
-        # Handle dual range if enabled
-        if use_dual_range:
-            # Get data for second range
-            measure_key = "peak" if axis_config['y_measure'] == "Peak" else "average"
-            channel_key = "current" if axis_config['y_channel'] == "Current" else "voltage"
-            y_data2 = plot_data[f"{measure_key}_{channel_key}2"]
-            
-            # Create descriptive headers with proper voltage labels
-            y_label_r1 = y_label
-            y_label_r2 = y_label
-            
-            # Add voltage information to labels if available
-            if plot_data.get("avg_voltages_r1"):
-                mean_v1 = np.nanmean(plot_data["avg_voltages_r1"])
-                y_label_r1 = f"{y_label} ({format_voltage_label(mean_v1)}mV)"
-            
-            if plot_data.get("avg_voltages_r2"):
-                mean_v2 = np.nanmean(plot_data["avg_voltages_r2"])
-                y_label_r2 = f"{y_label} ({format_voltage_label(mean_v2)}mV)"
-            
-            # Create header and data array
-            header = f"{x_label},{y_label_r1},{y_label_r2}"
-            output_data = np.column_stack((x_data, y_data, y_data2))
-        else:
-            # Single range export
-            header = f"{x_label},{y_label}"
-            output_data = np.column_stack((x_data, y_data))
-        
-        return output_data, header
-    
-    @staticmethod
-    def get_channel_data_for_type(t, y, t_start, t_end, data_type, channel_definitions):
-        """Helper method to get data for a specific type (voltage or current)
-        
-        Args:
-            t: Time array
-            y: Data array
-            t_start: Start time in milliseconds
-            t_end: End time in milliseconds
-            data_type: 'voltage' or 'current'
-            channel_definitions: ChannelDefinitions object
-            
-        Returns:
-            Processed data array for the specified data type
-        """
-        channel_id = channel_definitions.get_channel_for_type(data_type)
-        return process_sweep_data(t, y, t_start, t_end, channel_id)
+from data_analysis_gui.core.analysis_engine import AnalysisEngine
 
 # Add these imports at the top of main_window.py
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
 from data_analysis_gui.utils import get_next_available_filename
 
 class BatchAnalyzer:
-    """Handles batch analysis operations"""
+    """Handles UI helpers for batch analysis operations"""
     
     def __init__(self, parent):
         self.parent = parent
-        self.processor = SweepDataProcessor()
     
     def get_output_folder(self, file_paths):
         """Prompt user for output folder and create it if necessary
@@ -349,7 +96,7 @@ class BatchAnalyzer:
             't_start': self.parent.start_spin.value(),
             't_end': self.parent.end_spin.value(),
             'period_ms': self.parent.period_spin.value(),
-            'use_dual_range': self.parent.use_dual_range,
+            'use_dual_range': self.parent.dual_range_cb.isChecked(),
             'x_measure': self.parent.x_measure_combo.currentText(),
             'y_measure': self.parent.y_measure_combo.currentText(),
             'x_channel': self.parent.x_channel_combo.currentText(),
@@ -383,190 +130,6 @@ class BatchAnalyzer:
             y_label = f"{params['y_measure']} {params['y_channel']} {unit}"
         
         return x_label, y_label
-    
-    def process_single_file(self, file_path, params):
-        """Process a single MAT file using the dataset layer"""
-        # Extract base name and sanitize
-        base_name = os.path.basename(file_path).split('.mat')[0]
-        if '[' in base_name:
-            base_name = base_name.split('[')[0]
-        
-        # Load file using DatasetLoader
-        try:
-            dataset = DatasetLoader.load(file_path)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load {file_path}: {str(e)}")
-        
-        # Get channel IDs from channel configuration
-        voltage_channel_id = self.parent.channel_config.get_channel_for_type("Voltage")
-        current_channel_id = self.parent.channel_config.get_channel_for_type("Current")
-        
-        # Initialize result structures
-        sweep_indices = []
-        time_values = []
-        peak_current = []
-        peak_voltage = []
-        average_current = []
-        average_voltage = []
-        peak_current2 = []
-        peak_voltage2 = []
-        average_current2 = []
-        average_voltage2 = []
-        avg_voltages_r1 = []
-        avg_voltages_r2 = []
-        
-        period_sec = params['period_ms'] / 1000.0
-        
-        # Process each sweep in the dataset
-        sweep_list = sorted(dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
-        
-        for i, sweep_idx in enumerate(sweep_list):
-            # Get voltage and current data for this sweep
-            time_ms, voltage_data = dataset.get_channel_vector(sweep_idx, voltage_channel_id)
-            _, current_data = dataset.get_channel_vector(sweep_idx, current_channel_id)
-            
-            if time_ms is None or voltage_data is None or current_data is None:
-                continue
-            
-            # Process Range 1
-            mask1 = (time_ms >= params['t_start']) & (time_ms <= params['t_end'])
-            v_range1 = voltage_data[mask1] if np.any(mask1) else np.array([])
-            i_range1 = current_data[mask1] if np.any(mask1) else np.array([])
-            
-            if v_range1.size > 0 and i_range1.size > 0:
-                sweep_indices.append(int(sweep_idx))
-                time_values.append(i * period_sec)
-                
-                # Calculate values for Range 1
-                peak_current.append(np.max(np.abs(i_range1)) if i_range1.size > 0 else np.nan)
-                peak_voltage.append(np.max(np.abs(v_range1)) if v_range1.size > 0 else np.nan)
-                average_current.append(np.mean(i_range1) if i_range1.size > 0 else np.nan)
-                average_voltage.append(np.mean(v_range1) if v_range1.size > 0 else np.nan)
-                avg_voltages_r1.append(np.mean(v_range1) if v_range1.size > 0 else np.nan)
-                
-                # Process Range 2 if enabled
-                if params['use_dual_range']:
-                    mask2 = (time_ms >= params['t_start2']) & (time_ms <= params['t_end2'])
-                    v_range2 = voltage_data[mask2] if np.any(mask2) else np.array([])
-                    i_range2 = current_data[mask2] if np.any(mask2) else np.array([])
-                    
-                    if v_range2.size > 0 and i_range2.size > 0:
-                        peak_current2.append(np.max(np.abs(i_range2)))
-                        peak_voltage2.append(np.max(np.abs(v_range2)))
-                        average_current2.append(np.mean(i_range2))
-                        average_voltage2.append(np.mean(v_range2))
-                        avg_voltages_r2.append(np.mean(v_range2))
-                    else:
-                        peak_current2.append(np.nan)
-                        peak_voltage2.append(np.nan)
-                        average_current2.append(np.nan)
-                        average_voltage2.append(np.nan)
-                        avg_voltages_r2.append(np.nan)
-        
-        # Build processed_data structure compatible with existing code
-        processed_data = {
-            "sweep_indices": sweep_indices,
-            "time_values": time_values,
-            "peak_current": peak_current,
-            "peak_voltage": peak_voltage,
-            "average_current": average_current,
-            "average_voltage": average_voltage,
-            "avg_voltages_r1": avg_voltages_r1,
-            "avg_voltages_r2": avg_voltages_r2 if params['use_dual_range'] else [],
-        }
-        
-        if params['use_dual_range']:
-            processed_data["peak_current2"] = peak_current2
-            processed_data["peak_voltage2"] = peak_voltage2
-            processed_data["average_current2"] = average_current2
-            processed_data["average_voltage2"] = average_voltage2
-        
-        # Extract axis data using existing processor
-        x_data, _ = self.processor.extract_axis_data(
-            processed_data, params['x_measure'], params.get('x_channel')
-        )
-        y_data, _ = self.processor.extract_axis_data(
-            processed_data, params['y_measure'], params.get('y_channel')
-        )
-        
-        result = {
-            'base_name': base_name,
-            'x_data': x_data,
-            'y_data': y_data,
-            'processed_data': processed_data
-        }
-        
-        if params['use_dual_range']:
-            measure_key = "peak" if params['y_measure'] == "Peak" else "average"
-            channel_key = "current" if params['y_channel'] == "Current" else "voltage"
-            result['y_data2'] = processed_data.get(f"{measure_key}_{channel_key}2", [])
-        
-        return result
-    
-    def export_file_data(self, file_data, params, destination_folder, x_label, y_label):
-        """Export processed data for a single file to CSV with collision handling"""
-        # Ensure destination folder exists
-        os.makedirs(destination_folder, exist_ok=True)
-        
-        # Sanitize base name and ensure .csv extension
-        base_name = file_data['base_name']
-        base_name = base_name.replace('[', '').replace(']', '')  # Remove brackets
-        if not base_name.endswith('.csv'):
-            export_filename = f"{base_name}.csv"
-        else:
-            export_filename = base_name
-        
-        export_path = os.path.join(destination_folder, export_filename)
-        
-        # Handle filename collisions
-        if os.path.exists(export_path):
-            export_path = get_next_available_filename(export_path)
-        
-        axis_config = {
-            'x_measure': params['x_measure'],
-            'y_measure': params['y_measure'],
-            'x_channel': params['x_channel'],
-            'y_channel': params['y_channel']
-        }
-        
-        # Prepare export data with channel configuration
-        output_data, header = self.processor.prepare_export_data(
-            file_data['processed_data'], 
-            axis_config, 
-            params['use_dual_range'],
-        )
-        
-        # Export with error handling
-        try:
-            export_to_csv(export_path, output_data, header, '%.5f')
-        except Exception as e:
-            raise IOError(f"Failed to export {export_filename}: {str(e)}")
-    
-    def prepare_iv_data(self, batch_data, params):
-        """Prepare data for IV analysis if applicable"""
-        iv_data = {}
-        iv_file_mapping = {}
-        
-        # Check if we should prepare for IV
-        prepare_for_iv = (params['x_measure'] == "Average" and
-                         params['x_channel'] == "Voltage" and
-                         params['y_measure'] == "Average" and
-                         params['y_channel'] == "Current")
-        
-        if not prepare_for_iv:
-            return iv_data, iv_file_mapping
-        
-        for idx, (base_name, data) in enumerate(batch_data.items()):
-            for x_val, y_val in zip(data['x_values'], data['y_values']):
-                rounded_voltage = round(x_val, 1)
-                if rounded_voltage not in iv_data:
-                    iv_data[rounded_voltage] = []
-                iv_data[rounded_voltage].append(y_val)
-            
-            recording_id = f"Recording {idx + 1}"
-            iv_file_mapping[recording_id] = base_name
-        
-        return iv_data, iv_file_mapping
 
 
 class ModernMatSweepAnalyzer(QMainWindow):
@@ -580,9 +143,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.channel_definitions = ChannelDefinitions()
         self.channel_config = self.channel_definitions 
 
+        self.analysis_engine = AnalysisEngine(None, self.channel_definitions)
+
         self.current_dataset = None
 
-        self.data_processor = SweepDataProcessor()
         self.batch_analyzer = BatchAnalyzer(self)
 
         self.plot_manager = PlotManager(self, figure_size=DEFAULT_SETTINGS['plot_figsize'])
@@ -594,14 +158,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.hold_timer.timeout.connect(self.continue_hold)
         self.hold_direction = None
         self.conc_analysis_dialog = None  # Attribute to hold the tool window
-
-        # Analysis settings
-        self.analysis_mode = "Average"
-        self.use_dual_range = False
-        self.x_measure = "Average"
-        self.y_measure = "Average"
-        self.x_channel = "Voltage"
-        self.y_channel = "Current"
 
         # Batch analysis data
         self.batch_plot_lines = {}
@@ -617,7 +173,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
             self.start_spin.setValue(x_value)
         elif line == self.plot_manager.range_lines[1]:
             self.end_spin.setValue(x_value)
-        elif self.use_dual_range and len(self.plot_manager.range_lines) > 2:
+        elif self.dual_range_cb.isChecked() and len(self.plot_manager.range_lines) > 2:
             if line == self.plot_manager.range_lines[2]:
                 self.start_spin2.setValue(x_value)
             elif line == self.plot_manager.range_lines[3]:
@@ -633,6 +189,46 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self._create_toolbar()
         self._create_main_layout()
         self._create_status_bar()
+
+    def _sync_engine_parameters(self):
+        """Synchronize all UI parameters with the AnalysisEngine"""
+        # Sync range 1
+        self.analysis_engine.set_range1(
+            self.start_spin.value(),
+            self.end_spin.value()
+        )
+        
+        # Sync dual range state
+        use_dual_range = self.dual_range_cb.isChecked()
+        self.analysis_engine.set_dual_range_enabled(use_dual_range)
+        
+        # Sync range 2 if dual range is enabled
+        if use_dual_range:
+            self.analysis_engine.set_range2(
+                self.start_spin2.value(),
+                self.end_spin2.value()
+            )
+        
+        # Sync stimulus period
+        self.analysis_engine.set_stimulus_period(self.period_spin.value())
+        
+        # Sync X-axis configuration
+        x_measure = self.x_measure_combo.currentText()
+        x_channel = self.x_channel_combo.currentText() if x_measure != "Time" else None
+        self.analysis_engine.set_x_axis(
+            x_measure,
+            x_channel,
+            "Max"  # Default peak type - could be made configurable in UI later
+        )
+        
+        # Sync Y-axis configuration
+        y_measure = self.y_measure_combo.currentText()
+        y_channel = self.y_channel_combo.currentText() if y_measure != "Time" else None
+        self.analysis_engine.set_y_axis(
+            y_measure,
+            y_channel,
+            "Max"  # Default peak type - could be made configurable in UI later
+        )
 
     def _update_channel_combos(self):
         """Update all channel combo boxes with current configuration"""
@@ -1057,6 +653,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
             self.sweep_combo.clear()
             sweep_names = []
 
+            self.analysis_engine.set_dataset(self.current_dataset)
+
             # Iterate through sweeps using dataset methods
             for index in sorted(self.current_dataset.sweeps(), key=lambda x: int(x)):
                 sweep_names.append(f"Sweep {index}")
@@ -1111,7 +709,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
     
     def toggle_dual_range(self):
         enabled = self.dual_range_cb.isChecked()
-        self.use_dual_range = enabled
+
+        self.analysis_engine.set_dual_range_enabled(enabled)
 
         self.start_spin2.setEnabled(enabled)
         self.end_spin2.setEnabled(enabled)
@@ -1128,14 +727,19 @@ class ModernMatSweepAnalyzer(QMainWindow):
         x_measure = self.x_measure_combo.currentText()
         y_measure = self.y_measure_combo.currentText()
 
+        self.analysis_engine.set_x_axis(
+            x_measure,
+            self.x_channel_combo.currentText() if x_measure != "Time" else None,
+            "Max"  # You'll need to add peak type selection to your GUI later
+        )
+        self.analysis_engine.set_y_axis(
+            y_measure,
+            self.y_channel_combo.currentText() if y_measure != "Time" else None,
+            "Max"
+        )
+
         self.x_channel_combo.setEnabled(x_measure in ["Peak", "Average"])
         self.y_channel_combo.setEnabled(y_measure in ["Peak", "Average"])
-
-        # Update measurements
-        self.x_measure = x_measure
-        self.y_measure = y_measure
-        self.x_channel = self.x_channel_combo.currentText()
-        self.y_channel = self.y_channel_combo.currentText()
 
     # ========== Data Processing Methods ==========
     
@@ -1143,35 +747,12 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Process all sweeps to prepare data for different plotting modes"""
         if self.current_dataset is None or self.current_dataset.is_empty():
             return
-
-        try:
-            range_params = {
-                't_start': self.start_spin.value(),
-                't_end': self.end_spin.value(),
-                'period_ms': self.period_spin.value()
-            }
-            
-            if self.use_dual_range:
-                range_params['t_start2'] = self.start_spin2.value()
-                range_params['t_end2'] = self.end_spin2.value()
-            
-            # Convert dataset to legacy format for processor
-            # TODO: Eventually refactor processor to use dataset directly
-            sweeps_dict = {}
-            for sweep_idx in self.current_dataset.sweeps():
-                time_ms, data_matrix = self.current_dataset.get_sweep(sweep_idx)
-                sweeps_dict[sweep_idx] = (time_ms, data_matrix)
-            
-            # Pass to processor with channel definitions
-            self.plot_data = self.data_processor.process_sweep_ranges(
-                sweeps_dict, 
-                range_params, 
-                self.use_dual_range,
-                channel_definitions=self.channel_definitions
-            )
-
-        except Exception as e:
-            self.status_bar.showMessage(f"Error processing sweeps: {e}")
+        
+        # Sync all parameters to engine first
+        self._sync_engine_parameters()
+        
+        # Get the processed data from the engine
+        self.plot_data = self.analysis_engine.get_plot_data()
 
     def update_plot_with_axis_selection(self):
         """Generate and display the analysis plot in a new window"""
@@ -1179,53 +760,31 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
             return
 
-        self.update_channel_visibility()
-        self.process_all_sweeps()
-
-        # Get axis configuration
-        axis_config = {
-            'x_measure': self.x_measure_combo.currentText(),
-            'y_measure': self.y_measure_combo.currentText(),
-            'x_channel': self.x_channel_combo.currentText(),
-            'y_channel': self.y_channel_combo.currentText()
-        }
-
-        # Extract data using processor
-        x_data, x_label = self.data_processor.extract_axis_data(
-            self.plot_data, axis_config['x_measure'], axis_config.get('x_channel')
-        )
-        y_data, y_label = self.data_processor.extract_axis_data(
-            self.plot_data, axis_config['y_measure'], axis_config.get('y_channel')
-        )
-
-        # Get second range data if needed
-        y_data2 = []
-        if self.use_dual_range and axis_config['y_measure'] != "Time":
-            measure_key = "peak" if axis_config['y_measure'] == "Peak" else "average"
-            channel_key = "current" if axis_config['y_channel'] == "Current" else "voltage"
-            y_data2 = self.plot_data[f"{measure_key}_{channel_key}2"]
-
-        # Create descriptive labels for dual range
-        y_label_r1 = y_label
-        y_label_r2 = y_label
-        if self.use_dual_range:
-            if self.plot_data["avg_voltages_r1"]:
-                mean_v1 = np.nanmean(self.plot_data["avg_voltages_r1"])
-                y_label_r1 = f"{y_label} ({format_voltage_label(mean_v1)}mV)"
-            if self.plot_data["avg_voltages_r2"]:
-                mean_v2 = np.nanmean(self.plot_data["avg_voltages_r2"])
-                y_label_r2 = f"{y_label} ({format_voltage_label(mean_v2)}mV)"
-
-        plot_title = f"{y_label} vs {x_label}"
-
+        # Sync all parameters to engine
+        self._sync_engine_parameters()
+        
+        # Get plot data from engine
+        plot_data_from_engine = self.analysis_engine.get_plot_data()
+        
+        # Create the plot data dictionary for the dialog
         plot_data_dict = {
-            'x_data': x_data, 'y_data': y_data, 'y_data2': y_data2,
-            'sweep_indices': self.plot_data["sweep_indices"],
-            'use_dual_range': self.use_dual_range,
-            'y_label_r1': y_label_r1, 'y_label_r2': y_label_r2
+            'x_data': plot_data_from_engine['x_data'],
+            'y_data': plot_data_from_engine['y_data'],
+            'y_data2': plot_data_from_engine.get('y_data2', []),
+            'sweep_indices': plot_data_from_engine['sweep_indices'],
+            'use_dual_range': self.dual_range_cb.isChecked(),
+            'y_label_r1': plot_data_from_engine.get('y_label_r1', plot_data_from_engine['y_label']),
+            'y_label_r2': plot_data_from_engine.get('y_label_r2', plot_data_from_engine['y_label'])
         }
-
-        dialog = AnalysisPlotDialog(self, plot_data_dict, x_label, y_label, plot_title)
+        
+        # Show the dialog
+        dialog = AnalysisPlotDialog(
+            self, 
+            plot_data_dict, 
+            plot_data_from_engine['x_label'], 
+            plot_data_from_engine['y_label'], 
+            f"{plot_data_from_engine['y_label']} vs {plot_data_from_engine['x_label']}"
+        )
         dialog.exec()
 
     # ========== Plot Update Methods ==========
@@ -1270,9 +829,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.plot_manager.update_range_lines(
             self.start_spin.value(),
             self.end_spin.value(),
-            self.use_dual_range,
-            self.start_spin2.value() if self.use_dual_range else None,
-            self.end_spin2.value() if self.use_dual_range else None
+            self.dual_range_cb.isChecked(),
+            self.start_spin2.value() if self.dual_range_cb.isChecked() else None,
+            self.end_spin2.value() if self.dual_range_cb.isChecked() else None
         )
         
         # Update spinbox mapping
@@ -1280,7 +839,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
             'start1': self.start_spin,
             'end1': self.end_spin
         }
-        if self.use_dual_range:
+        if self.dual_range_cb.isChecked():
             spinboxes['start2'] = self.start_spin2
             spinboxes['end2'] = self.end_spin2
         
@@ -1298,55 +857,61 @@ class ModernMatSweepAnalyzer(QMainWindow):
 
     def update_lines_from_entries(self):
         """Update range lines based on spinbox values"""
+        self.analysis_engine.set_range1(
+            self.start_spin.value(),
+            self.end_spin.value()
+        )
+        
+        if self.dual_range_cb.isChecked():
+            self.analysis_engine.set_range2(
+                self.start_spin2.value(),
+                self.end_spin2.value()
+            )
+
         self.plot_manager.update_lines_from_values(
             self.start_spin.value(),
             self.end_spin.value(),
-            self.use_dual_range,
-            self.start_spin2.value() if self.use_dual_range else None,
-            self.end_spin2.value() if self.use_dual_range else None
+            self.dual_range_cb.isChecked(),
+            self.start_spin2.value() if self.dual_range_cb.isChecked() else None,
+            self.end_spin2.value() if self.dual_range_cb.isChecked() else None
         )
 
     # ========== Export Methods ==========
     
     def export_plot_data(self):
-        """Export current plot X and Y data to a CSV file, supporting dual analysis."""
+        """Export current plot X and Y data to a CSV file"""
         if not self.loaded_file_path:
-            QMessageBox.information(self, "Export Error", "No data to export. Please load a file first.")
+            QMessageBox.information(self, "Export Error", "No data to export.")
             return
-
+        
         try:
-            # Ensure data is current
-            self.process_all_sweeps()
-
-            # Get axis configuration
-            axis_config = {
-                'x_measure': self.x_measure_combo.currentText(),
-                'y_measure': self.y_measure_combo.currentText(),
-                'x_channel': self.x_channel_combo.currentText(),
-                'y_channel': self.y_channel_combo.currentText()
-            }
-
-            # Prepare export data with channel configuration
-            output_data, header = self.data_processor.prepare_export_data(
-                self.plot_data, axis_config, self.use_dual_range,
-            )
-
-            # Get save path
+            # Sync all parameters to engine
+            self._sync_engine_parameters()
+            
+            # Get export-ready data from the engine
+            table_data = self.analysis_engine.get_export_table()
+            
+            # Get save path (your existing code)
             base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
             if '[' in base_name:
                 base_name = base_name.split('[')[0]
-
+            
             save_path, _ = QFileDialog.getSaveFileName(
                 self, "Export Plot Data",
                 os.path.join(os.path.dirname(self.loaded_file_path), f"{base_name}_analyzed.csv"),
                 "CSV files (*.csv)"
             )
-
+            
             if save_path:
-                export_to_csv(save_path, output_data, header, '%.6f')
-                QMessageBox.information(self, "Export Successful",
-                                      f"Data exported to:\n{save_path}")
-
+                # Export using the table data
+                export_to_csv(
+                    save_path, 
+                    table_data['data'],
+                    ','.join(table_data['headers']),
+                    table_data['format_spec']
+                )
+                QMessageBox.information(self, "Export Successful", f"Data exported to:\n{save_path}")
+                
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Error exporting data: {str(e)}")
 
@@ -1381,10 +946,41 @@ class ModernMatSweepAnalyzer(QMainWindow):
             batch_fig, batch_ax = self._create_batch_figure(x_label, y_label)
             
             # Process files and collect data
-            batch_data = self._process_batch_files(
-                file_paths, params, destination_folder, 
-                batch_ax, progress, x_label, y_label
-            )
+            batch_data = {}
+            
+            for file_idx, file_path in enumerate(file_paths):
+                progress.setValue(file_idx)
+                QApplication.processEvents()
+
+                try:
+                    # Process single file using AnalysisEngine
+                    file_data = self._process_single_file(file_path, params)
+                    
+                    # Store batch data
+                    batch_data[file_data['base_name']] = {
+                        'x_values': file_data['x_data'],
+                        'y_values': file_data['y_data']
+                    }
+                    
+                    if params['use_dual_range'] and 'y_data2' in file_data:
+                        batch_data[file_data['base_name']]['y_values2'] = file_data['y_data2']
+                    
+                    # Plot data
+                    self._plot_batch_file_data(
+                        batch_ax, file_data, params['use_dual_range']
+                    )
+                    
+                    # Export CSV
+                    self._export_file_data(
+                        file_data, params, destination_folder, x_label, y_label
+                    )
+
+                except Exception as e:
+                    QMessageBox.critical(
+                        self, "Error", 
+                        f"Error processing {os.path.basename(file_path)}: {str(e)}"
+                    )
+                    continue
             
             progress.setValue(len(file_paths))
 
@@ -1399,6 +995,112 @@ class ModernMatSweepAnalyzer(QMainWindow):
         finally:
             progress.close()
 
+    def _process_single_file(self, file_path, params):
+        """Process a single MAT file using the analysis engine"""
+        # Extract base name and sanitize
+        base_name = os.path.basename(file_path).split('.mat')[0]
+        if '[' in base_name:
+            base_name = base_name.split('[')[0]
+        
+        # Load file using DatasetLoader
+        try:
+            dataset = DatasetLoader.load(file_path, self.channel_definitions)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load {file_path}: {str(e)}")
+        
+        # Create a temporary analysis engine for this file
+        temp_engine = AnalysisEngine(dataset, self.channel_definitions)
+        
+        # Configure the engine with current parameters
+        temp_engine.set_range1(params['t_start'], params['t_end'])
+        temp_engine.set_dual_range_enabled(params['use_dual_range'])
+        if params['use_dual_range']:
+            temp_engine.set_range2(params['t_start2'], params['t_end2'])
+        temp_engine.set_stimulus_period(params['period_ms'])
+        
+        # Configure axis settings
+        temp_engine.set_x_axis(
+            params['x_measure'],
+            params['x_channel'] if params['x_measure'] != "Time" else None,
+            "Max"  # Default peak type
+        )
+        temp_engine.set_y_axis(
+            params['y_measure'],
+            params['y_channel'] if params['y_measure'] != "Time" else None,
+            "Max"  # Default peak type
+        )
+        
+        # Get the plot data
+        plot_data = temp_engine.get_plot_data()
+        
+        result = {
+            'base_name': base_name,
+            'x_data': plot_data['x_data'],
+            'y_data': plot_data['y_data'],
+            'engine': temp_engine  # Keep reference for export
+        }
+        
+        if params['use_dual_range'] and len(plot_data['y_data2']) > 0:
+            result['y_data2'] = plot_data['y_data2']
+        
+        return result
+
+    def _export_file_data(self, file_data, params, destination_folder, x_label, y_label):
+        """Export processed data for a single file to CSV with collision handling"""
+        # Ensure destination folder exists
+        os.makedirs(destination_folder, exist_ok=True)
+        
+        # Sanitize base name and ensure .csv extension
+        base_name = file_data['base_name']
+        base_name = base_name.replace('[', '').replace(']', '')  # Remove brackets
+        if not base_name.endswith('.csv'):
+            export_filename = f"{base_name}.csv"
+        else:
+            export_filename = base_name
+        
+        export_path = os.path.join(destination_folder, export_filename)
+        
+        # Handle filename collisions
+        if os.path.exists(export_path):
+            export_path = get_next_available_filename(export_path)
+        
+        # Get export table from the temporary engine
+        export_data = file_data['engine'].get_export_table()
+        
+        # Export with error handling
+        try:
+            export_to_csv(export_path, export_data['data'], 
+                         ','.join(export_data['headers']), 
+                         export_data['format_spec'])
+        except Exception as e:
+            raise IOError(f"Failed to export {export_filename}: {str(e)}")
+
+    def _prepare_iv_data(self, batch_data, params):
+        """Prepare data for IV analysis if applicable"""
+        iv_data = {}
+        iv_file_mapping = {}
+        
+        # Check if we should prepare for IV
+        prepare_for_iv = (params['x_measure'] == "Average" and
+                         params['x_channel'] == "Voltage" and
+                         params['y_measure'] == "Average" and
+                         params['y_channel'] == "Current")
+        
+        if not prepare_for_iv:
+            return iv_data, iv_file_mapping
+        
+        for idx, (base_name, data) in enumerate(batch_data.items()):
+            for x_val, y_val in zip(data['x_values'], data['y_values']):
+                rounded_voltage = round(x_val, 1)
+                if rounded_voltage not in iv_data:
+                    iv_data[rounded_voltage] = []
+                iv_data[rounded_voltage].append(y_val)
+            
+            recording_id = f"Recording {idx + 1}"
+            iv_file_mapping[recording_id] = base_name
+        
+        return iv_data, iv_file_mapping
+
     def _create_progress_dialog(self, max_value):
         """Create and configure progress dialog"""
         progress = QProgressBar()
@@ -1410,47 +1112,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
     def _create_batch_figure(self, x_label, y_label):
         """Create figure for batch plotting"""
         return self.plot_manager.create_batch_figure(x_label, y_label)
-
-    def _process_batch_files(self, file_paths, params, destination_folder, 
-                           batch_ax, progress, x_label, y_label):
-        """Process all files in batch"""
-        batch_data = {}
-        
-        for file_idx, file_path in enumerate(file_paths):
-            progress.setValue(file_idx)
-            QApplication.processEvents()
-
-            try:
-                # Process single file
-                file_data = self.batch_analyzer.process_single_file(file_path, params)
-                
-                # Store batch data
-                batch_data[file_data['base_name']] = {
-                    'x_values': file_data['x_data'],
-                    'y_values': file_data['y_data']
-                }
-                
-                if params['use_dual_range'] and 'y_data2' in file_data:
-                    batch_data[file_data['base_name']]['y_values2'] = file_data['y_data2']
-                
-                # Plot data
-                self._plot_batch_file_data(
-                    batch_ax, file_data, params['use_dual_range']
-                )
-                
-                # Export CSV
-                self.batch_analyzer.export_file_data(
-                    file_data, params, destination_folder, x_label, y_label
-                )
-
-            except Exception as e:
-                QMessageBox.critical(
-                    self, "Error", 
-                    f"Error processing {os.path.basename(file_path)}: {str(e)}"
-                )
-                continue
-        
-        return batch_data
 
     def _plot_batch_file_data(self, batch_ax, file_data, use_dual_range):
         """Plot data for a single file in batch"""
@@ -1474,7 +1135,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         if batch_ax.get_legend_handles_labels()[0]:
             # Prepare IV data if applicable
-            iv_data, iv_file_mapping = self.batch_analyzer.prepare_iv_data(
+            iv_data, iv_file_mapping = self._prepare_iv_data(
                 batch_data, params
             )
             
