@@ -8,6 +8,7 @@ root/
 |       |-- core/
 |       |   |-- __init__.py
 |       |   |-- analysis_engine.py
+|       |   |-- app_controller.py
 |       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
 |       |   |-- dataset.py
