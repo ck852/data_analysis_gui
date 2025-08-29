@@ -12,6 +12,7 @@ root/
 |       |   |   `-- qt_backend.py
 |       |   |-- __init__.py
 |       |   |-- analysis_engine.py
+|       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
 |       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
@@ -133,6 +134,7 @@ root/
 |   |           |-- 250518_008[1-63].mat
 |   |           |-- 250518_009[1-86].mat
 |   |           `-- 250518_010[1-62].mat
+|   |-- test_analysis_plot.py
 |   |-- test_channel_definitions.py
 |   |-- test_channel_definitions_demo.py
 |   `-- test_working.py
