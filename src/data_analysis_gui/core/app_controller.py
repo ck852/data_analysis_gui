@@ -6,10 +6,6 @@ This is the ONLY class the GUI should interact with for business operations.
 import os
 from typing import Optional, Dict, Any, List, Tuple, Callable
 from dataclasses import dataclass
-from io import BytesIO
-import base64
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 # Business logic imports (no GUI dependencies)
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
@@ -52,6 +48,21 @@ class AnalysisPlotData:
     use_dual_range: bool
 
 
+@dataclass
+class BatchAnalysisResult:
+    """Result from batch analysis operation"""
+    success: bool
+    batch_result: Any  # BatchResult object
+    batch_data: Dict[str, Dict[str, Any]]
+    iv_data: Any
+    iv_file_mapping: Any
+    successful_count: int
+    failed_count: int
+    export_outcomes: List[Any]
+    x_label: str
+    y_label: str
+
+
 class ApplicationController:
     """
     Central controller that manages all business logic.
@@ -90,52 +101,31 @@ class ApplicationController:
             channel_config=self.get_channel_configuration()
         )
     
-    def perform_batch_analysis_with_plot(
+    def perform_batch_analysis(
         self,
         file_paths: List[str],
         params: AnalysisParameters,
         destination_folder: str,
         progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> Dict[str, Any]:
+    ) -> BatchAnalysisResult:
         """
-        Perform batch analysis and generate the plot internally.
-        Returns the plot as serialized figure data.
+        Perform batch analysis and return data only (no plotting).
+        
+        Args:
+            file_paths: List of file paths to analyze
+            params: Analysis parameters
+            destination_folder: Where to save results
+            progress_callback: Optional progress callback
+            
+        Returns:
+            BatchAnalysisResult containing all data needed for visualization
         """
-        # Create figure internally
-        fig = Figure(figsize=(12, 8))
-        ax = fig.add_subplot(111)
-        
-        x_label, y_label = self.create_axis_labels(params)
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        ax.grid(True, alpha=0.3)
-        
-        # Process files and plot
-        successful_files = []
-        failed_files = []
-        
-        def handle_file_result(result: FileResult):
-            if result.success:
-                successful_files.append(result)
-                # Plot the data internally
-                ax.plot(result.x_data, result.y_data, 
-                       'o-', label=f"{result.base_name} (Range 1)",
-                       markersize=4, alpha=0.7)
-                
-                if params.use_dual_range and len(result.y_data2) > 0:
-                    ax.plot(result.x_data, result.y_data2,
-                           's--', label=f"{result.base_name} (Range 2)",
-                           markersize=4, alpha=0.7)
-            else:
-                failed_files.append(result)
-        
-        # Run the batch processor
+        # Process files
         processor = BatchProcessor(self.channel_definitions)
         batch_result = processor.run(
             file_paths,
             params,
-            on_progress=progress_callback,
-            on_file_done=handle_file_result
+            on_progress=progress_callback
         )
         
         # Export results
@@ -143,45 +133,34 @@ class ApplicationController:
         if batch_result.successful_results:
             export_outcomes = exporter.write_tables(batch_result, destination_folder)
         
-        # Finalize plot
-        if successful_files:
-            ax.legend(loc='best', fontsize=8)
-            fig.tight_layout()
-        
-        # Serialize figure to bytes
-        buf = BytesIO()
-        canvas = FigureCanvasAgg(fig)
-        canvas.print_figure(buf, format='png')
-        buf.seek(0)
-        figure_data = base64.b64encode(buf.read()).decode('utf-8')
-        buf.close()
-        
         # Prepare batch data for dialog
         batch_data = {
             res.base_name: {
-                'x_values': res.x_data.tolist(),
-                'y_values': res.y_data.tolist(),
-                'y_values2': res.y_data2.tolist() if res.y_data2 is not None else []
+                'x_values': res.x_data.tolist() if hasattr(res.x_data, 'tolist') else res.x_data,
+                'y_values': res.y_data.tolist() if hasattr(res.y_data, 'tolist') else res.y_data,
+                'y_values2': res.y_data2.tolist() if res.y_data2 is not None and hasattr(res.y_data2, 'tolist') else []
             } for res in batch_result.successful_results
         }
         
         # Prepare IV data
         iv_data, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
         
-        return {
-            'success': len(successful_files) > 0,
-            'figure_data': figure_data,  # Base64 encoded PNG
-            'figure_size': (12, 8),
-            'batch_data': batch_data,
-            'iv_data': iv_data,
-            'iv_file_mapping': iv_file_mapping,
-            'successful_count': len(successful_files),
-            'failed_count': len(failed_files),
-            'export_outcomes': export_outcomes,
-            'x_label': x_label,
-            'y_label': y_label
-        }
+        # Create axis labels
+        x_label, y_label = self.create_axis_labels(params)
         
+        return BatchAnalysisResult(
+            success=len(batch_result.successful_results) > 0,
+            batch_result=batch_result,
+            batch_data=batch_data,
+            iv_data=iv_data,
+            iv_file_mapping=iv_file_mapping,
+            successful_count=len(batch_result.successful_results),
+            failed_count=len(batch_result.failed_results),
+            export_outcomes=export_outcomes,
+            x_label=x_label,
+            y_label=y_label
+        )
+    
     # ============ File Operations ============
     
     def load_file(self, file_path: str) -> Optional[FileInfo]:
@@ -362,74 +341,6 @@ class ApplicationController:
             if self.on_error:
                 self.on_error(f"Export error: {str(e)}")
             return False
-    
-    # ============ Batch Operations ============
-    
-    def perform_batch_analysis(
-        self,
-        file_paths: List[str],
-        params: AnalysisParameters,
-        destination_folder: str,
-        on_progress: Optional[Callable[[int, int], None]] = None,
-        on_file_complete: Optional[Callable[[FileResult], None]] = None
-    ) -> Dict[str, Any]:
-        """
-        Perform batch analysis on multiple files.
-        
-        Args:
-            file_paths: List of file paths to analyze
-            params: Analysis parameters
-            destination_folder: Where to save results
-            on_progress: Progress callback (current, total)
-            on_file_complete: Callback for each file completion
-            
-        Returns:
-            Dictionary with results and statistics
-        """
-        try:
-            processor = BatchProcessor(self.channel_definitions)
-            batch_result = processor.run(
-                file_paths,
-                params,
-                on_progress=on_progress,
-                on_file_done=on_file_complete
-            )
-            
-            # Export results
-            export_outcomes = []
-            if batch_result.successful_results:
-                export_outcomes = exporter.write_tables(batch_result, destination_folder)
-                success_count = sum(1 for o in export_outcomes if o.success)
-                
-                if self.on_status_update:
-                    self.on_status_update(
-                        f"Batch complete. Exported {success_count} files to {os.path.basename(destination_folder)}"
-                    )
-            
-            # Prepare IV data if applicable
-            batch_data = {
-                res.base_name: {
-                    'x_values': res.x_data,
-                    'y_values': res.y_data,
-                    'y_values2': res.y_data2
-                } for res in batch_result.successful_results
-            }
-            
-            iv_data, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
-            
-            return {
-                'success': True,
-                'batch_data': batch_data,
-                'iv_data': iv_data,
-                'iv_file_mapping': iv_file_mapping,
-                'export_outcomes': export_outcomes,
-                'results': batch_result.results
-            }
-            
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Batch analysis error: {str(e)}")
-            return {'success': False, 'error': str(e)}
     
     # ============ Parameter Building ============
     

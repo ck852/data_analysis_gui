@@ -3,9 +3,13 @@ root/
 |   `-- data_analysis_gui/
 |       |-- config/
 |       |   |-- __init__.py
+|       |   |-- environment.py
 |       |   |-- settings.py
 |       |   `-- themes.py
 |       |-- core/
+|       |   |-- backends/
+|       |   |   |-- headless_backend.py
+|       |   |   `-- qt_backend.py
 |       |   |-- __init__.py
 |       |   |-- analysis_engine.py
 |       |   |-- app_controller.py
@@ -14,13 +18,17 @@ root/
 |       |   |-- dataset.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
-|       |   `-- params.py
+|       |   |-- params.py
+|       |   `-- plotting_interface.py
 |       |-- dialogs/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
 |       |   |-- batch_results_dialog.py
 |       |   |-- concentration_response_dialog.py
 |       |   `-- current_density_iv_dialog.py
+|       |-- services/
+|       |   |-- __init__.py
+|       |   `-- plot_service.py
 |       |-- utils/
 |       |   |-- __init__.py
 |       |   |-- data_processing.py

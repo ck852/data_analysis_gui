@@ -495,7 +495,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 QMessageBox.critical(self, "Export Error", "Failed to export data.")
     
     def _batch_analyze(self):
-        """Perform batch analysis - completely decoupled version"""
+        """Perform batch analysis - using the new architecture"""
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Select MAT Files for Batch Analysis", "", "MAT files (*.mat)"
         )
@@ -517,42 +517,53 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QApplication.processEvents()
         
         try:
-            # Let controller handle EVERYTHING including plotting
-            result = self.controller.perform_batch_analysis_with_plot(
+            # Get data from controller (no plotting)
+            result = self.controller.perform_batch_analysis(
                 file_paths,
                 params,
                 destination_folder,
                 progress_callback=update_progress
             )
             
-            if result['success']:
-                # Reconstruct figure from the serialized data
-                figure = self._deserialize_figure(
-                    result['figure_data'],
-                    result['figure_size']
+            if result.success:
+                # Create the plot using PlotService
+                from data_analysis_gui.services.plot_service import PlotService
+                plot_service = PlotService()
+                
+                plot_data = plot_service.create_batch_plot(
+                    result.batch_result,
+                    params,
+                    result.x_label,
+                    result.y_label
                 )
                 
-                # Show batch results dialog with the pre-made figure
+                # Reconstruct figure for the dialog
+                figure = self._deserialize_figure(
+                    plot_data['figure_data'],
+                    plot_data['figure_size']
+                )
+                
+                # Show batch results dialog
                 batch_dialog = BatchResultDialog(
                     self, 
-                    result['batch_data'], 
+                    result.batch_data, 
                     figure,
-                    result['iv_data'], 
-                    result['iv_file_mapping'],
-                    result['x_label'], 
-                    result['y_label'], 
+                    result.iv_data, 
+                    result.iv_file_mapping,
+                    result.x_label, 
+                    result.y_label, 
                     destination_folder=destination_folder
                 )
                 batch_dialog.exec()
                 
                 # Update status
                 self.status_bar.showMessage(
-                    f"Batch complete. Processed {result['successful_count']} files, "
-                    f"{result['failed_count']} failed."
+                    f"Batch complete. Processed {result.successful_count} files, "
+                    f"{result.failed_count} failed."
                 )
             else:
                 QMessageBox.warning(self, "Batch Analysis Failed", 
-                                   "No files could be processed successfully.")
+                                "No files could be processed successfully.")
         
         except Exception as e:
             QMessageBox.critical(self, "Batch Analysis Error", str(e))
