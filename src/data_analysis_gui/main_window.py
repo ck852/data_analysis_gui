@@ -346,7 +346,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_layout.addWidget(self.x_measure_combo, 0, 1)
         
         self.x_channel_combo = QComboBox()
-        self.channel_combo.addItems(["Voltage", "Current"])
+        self.x_channel_combo.addItems(["Voltage", "Current"])
         self.x_channel_combo.setCurrentText("Voltage")
         plot_layout.addWidget(self.x_channel_combo, 0, 2)
         
