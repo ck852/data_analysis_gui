@@ -15,6 +15,7 @@ root/
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
 |       |   |-- batch_processor.py
+|       |   |-- batch_results.py
 |       |   |-- channel_definitions.py
 |       |   |-- concentration_response_engine.py
 |       |   |-- dataset.py
