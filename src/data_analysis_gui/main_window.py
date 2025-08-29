@@ -12,6 +12,11 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QAction, QActionGroup, QInputDialog, QApplication)
 from PyQt5.QtCore import Qt, QTimer
 
+import base64
+from io import BytesIO
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+
 # GUI-only imports
 from data_analysis_gui.plot_manager import PlotManager
 from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTINGS
@@ -183,8 +188,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Add channel selection to toolbar"""
         toolbar.addWidget(QLabel("Channel:"))
         self.channel_combo = QComboBox()
-        channel_types = self.controller.get_channel_types()
-        self.channel_combo.addItems(channel_types)
+        self.channel_combo.addItems(["Voltage", "Current"])
         self.channel_combo.currentTextChanged.connect(self._update_plot)
         toolbar.addWidget(self.channel_combo)
     
@@ -342,8 +346,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_layout.addWidget(self.x_measure_combo, 0, 1)
         
         self.x_channel_combo = QComboBox()
-        channel_types = self.controller.get_channel_types()
-        self.x_channel_combo.addItems(channel_types)
+        self.channel_combo.addItems(["Voltage", "Current"])
         self.x_channel_combo.setCurrentText("Voltage")
         plot_layout.addWidget(self.x_channel_combo, 0, 2)
         
@@ -355,7 +358,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_layout.addWidget(self.y_measure_combo, 1, 1)
         
         self.y_channel_combo = QComboBox()
-        self.y_channel_combo.addItems(channel_types)
+        self.y_channel_combo.addItems(["Voltage", "Current"])
         self.y_channel_combo.setCurrentText("Current")
         plot_layout.addWidget(self.y_channel_combo, 1, 2)
         
@@ -418,6 +421,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
         plot_data = self.controller.get_sweep_plot_data(selection, channel_type)
         
         if plot_data:
+            # Get channel config through controller method
+            channel_config = self.controller.get_channel_configuration()
+            
             # Pass to plot manager for visualization
             self.plot_manager.update_sweep_plot(
                 t=plot_data.time_ms,
@@ -425,7 +431,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 channel=plot_data.channel_id,
                 sweep_index=plot_data.sweep_index,
                 channel_type=plot_data.channel_type,
-                channel_config=self.controller.channel_definitions
+                channel_config=channel_config  # Use the returned config
             )
             
             # Update range lines
@@ -489,7 +495,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 QMessageBox.critical(self, "Export Error", "Failed to export data.")
     
     def _batch_analyze(self):
-        """Perform batch analysis"""
+        """Perform batch analysis - completely decoupled version"""
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Select MAT Files for Batch Analysis", "", "MAT files (*.mat)"
         )
@@ -502,50 +508,48 @@ class ModernMatSweepAnalyzer(QMainWindow):
             return
         
         params = self._collect_parameters()
-        x_label, y_label = self.controller.create_axis_labels(params)
         
         # Create progress dialog
         progress = self._create_progress_dialog(len(file_paths))
-        
-        # Create batch figure
-        batch_fig, batch_ax = self.plot_manager.create_batch_figure(x_label, y_label)
         
         def update_progress(current, total):
             progress.setValue(current)
             QApplication.processEvents()
         
-        def handle_file_complete(result):
-            if result.success:
-                self.plot_manager.plot_batch_data(
-                    batch_ax,
-                    result.x_data,
-                    result.y_data,
-                    f"{result.base_name} (Range 1)",
-                    'o-',
-                    result.y_data2 if params.use_dual_range else None,
-                    f"{result.base_name} (Range 2)" if params.use_dual_range else None,
-                    's--'
-                )
-        
         try:
-            result = self.controller.perform_batch_analysis(
+            # Let controller handle EVERYTHING including plotting
+            result = self.controller.perform_batch_analysis_with_plot(
                 file_paths,
                 params,
                 destination_folder,
-                on_progress=update_progress,
-                on_file_complete=handle_file_complete
+                progress_callback=update_progress
             )
             
-            if result['success'] and result['batch_data']:
-                self.plot_manager.finalize_batch_plot(batch_fig, batch_ax)
+            if result['success']:
+                # Reconstruct figure from the serialized data
+                figure = self._deserialize_figure(
+                    result['figure_data'],
+                    result['figure_size']
+                )
                 
-                # Show batch results dialog
+                # Show batch results dialog with the pre-made figure
                 batch_dialog = BatchResultDialog(
-                    self, result['batch_data'], batch_fig,
-                    result['iv_data'], result['iv_file_mapping'],
-                    x_label, y_label, destination_folder=destination_folder
+                    self, 
+                    result['batch_data'], 
+                    figure,
+                    result['iv_data'], 
+                    result['iv_file_mapping'],
+                    result['x_label'], 
+                    result['y_label'], 
+                    destination_folder=destination_folder
                 )
                 batch_dialog.exec()
+                
+                # Update status
+                self.status_bar.showMessage(
+                    f"Batch complete. Processed {result['successful_count']} files, "
+                    f"{result['failed_count']} failed."
+                )
             else:
                 QMessageBox.warning(self, "Batch Analysis Failed", 
                                    "No files could be processed successfully.")
@@ -554,6 +558,29 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Batch Analysis Error", str(e))
         finally:
             progress.close()
+    
+    def _deserialize_figure(self, figure_data: str, figure_size: tuple) -> Figure:
+        """Reconstruct a matplotlib figure from serialized data"""
+        # Decode the base64 PNG data
+        img_data = base64.b64decode(figure_data)
+        
+        # Create a new figure with the original size
+        fig = Figure(figsize=figure_size)
+        
+        # Create a canvas for the figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+        canvas = FigureCanvasQTAgg(fig)
+        
+        # Load the image into the figure
+        from PIL import Image
+        import numpy as np
+        
+        img = Image.open(BytesIO(img_data))
+        ax = fig.add_subplot(111)
+        ax.imshow(np.array(img))
+        ax.axis('off')  # Hide axes since we're showing a rendered image
+        
+        return fig
     
     def _swap_channels(self):
         """Handle channel swapping"""
@@ -586,20 +613,20 @@ class ModernMatSweepAnalyzer(QMainWindow):
     # ============ Helper Methods (GUI-only logic) ============
     
     def _collect_parameters(self):
-        """Collect parameters from GUI widgets"""
-        return self.controller.build_parameters(
-            range1_start=self.start_spin.value(),
-            range1_end=self.end_spin.value(),
-            use_dual_range=self.dual_range_cb.isChecked(),
-            range2_start=self.start_spin2.value(),
-            range2_end=self.end_spin2.value(),
-            stimulus_period=self.period_spin.value(),
-            x_measure=self.x_measure_combo.currentText(),
-            x_channel=self.x_channel_combo.currentText(),
-            y_measure=self.y_measure_combo.currentText(),
-            y_channel=self.y_channel_combo.currentText(),
-            channel_config=self.controller.channel_definitions.get_configuration()
-        )
+        """Collect parameters from GUI widgets as a simple dictionary"""
+        gui_state = {
+            'range1_start': self.start_spin.value(),
+            'range1_end': self.end_spin.value(),
+            'use_dual_range': self.dual_range_cb.isChecked(),
+            'range2_start': self.start_spin2.value(),
+            'range2_end': self.end_spin2.value(),
+            'stimulus_period': self.period_spin.value(),
+            'x_measure': self.x_measure_combo.currentText(),
+            'x_channel': self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
+            'y_measure': self.y_measure_combo.currentText(),
+            'y_channel': self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
+        }
+        return self.controller.create_parameters_from_dict(gui_state)
     
     def _get_batch_output_folder(self, file_paths):
         """Prompt user for output folder"""

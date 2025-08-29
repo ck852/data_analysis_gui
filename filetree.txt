@@ -31,6 +31,7 @@ root/
 |       |   |-- custom_combos.py
 |       |   `-- custom_inputs.py
 |       |-- __init__.py
+|       |-- cli.py
 |       |-- main.py
 |       |-- main_window.py
 |       `-- plot_manager.py

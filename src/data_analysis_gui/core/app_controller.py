@@ -6,6 +6,10 @@ This is the ONLY class the GUI should interact with for business operations.
 import os
 from typing import Optional, Dict, Any, List, Tuple, Callable
 from dataclasses import dataclass
+from io import BytesIO
+import base64
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 # Business logic imports (no GUI dependencies)
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
@@ -65,6 +69,118 @@ class ApplicationController:
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
         self.on_status_update: Optional[Callable[[str], None]] = None
+    
+    def get_channel_configuration(self) -> Dict[str, Any]:
+        """Get channel configuration without exposing the internal object"""
+        return self.channel_definitions.get_configuration()
+
+    def create_parameters_from_dict(self, gui_state: Dict[str, Any]) -> AnalysisParameters:
+        """Create parameters from a simple dictionary of GUI values"""
+        return self.build_parameters(
+            range1_start=gui_state['range1_start'],
+            range1_end=gui_state['range1_end'],
+            use_dual_range=gui_state['use_dual_range'],
+            range2_start=gui_state.get('range2_start'),
+            range2_end=gui_state.get('range2_end'),
+            stimulus_period=gui_state['stimulus_period'],
+            x_measure=gui_state['x_measure'],
+            x_channel=gui_state.get('x_channel'),
+            y_measure=gui_state['y_measure'],
+            y_channel=gui_state.get('y_channel'),
+            channel_config=self.get_channel_configuration()
+        )
+    
+    def perform_batch_analysis_with_plot(
+        self,
+        file_paths: List[str],
+        params: AnalysisParameters,
+        destination_folder: str,
+        progress_callback: Optional[Callable[[int, int], None]] = None
+    ) -> Dict[str, Any]:
+        """
+        Perform batch analysis and generate the plot internally.
+        Returns the plot as serialized figure data.
+        """
+        # Create figure internally
+        fig = Figure(figsize=(12, 8))
+        ax = fig.add_subplot(111)
+        
+        x_label, y_label = self.create_axis_labels(params)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.grid(True, alpha=0.3)
+        
+        # Process files and plot
+        successful_files = []
+        failed_files = []
+        
+        def handle_file_result(result: FileResult):
+            if result.success:
+                successful_files.append(result)
+                # Plot the data internally
+                ax.plot(result.x_data, result.y_data, 
+                       'o-', label=f"{result.base_name} (Range 1)",
+                       markersize=4, alpha=0.7)
+                
+                if params.use_dual_range and len(result.y_data2) > 0:
+                    ax.plot(result.x_data, result.y_data2,
+                           's--', label=f"{result.base_name} (Range 2)",
+                           markersize=4, alpha=0.7)
+            else:
+                failed_files.append(result)
+        
+        # Run the batch processor
+        processor = BatchProcessor(self.channel_definitions)
+        batch_result = processor.run(
+            file_paths,
+            params,
+            on_progress=progress_callback,
+            on_file_done=handle_file_result
+        )
+        
+        # Export results
+        export_outcomes = []
+        if batch_result.successful_results:
+            export_outcomes = exporter.write_tables(batch_result, destination_folder)
+        
+        # Finalize plot
+        if successful_files:
+            ax.legend(loc='best', fontsize=8)
+            fig.tight_layout()
+        
+        # Serialize figure to bytes
+        buf = BytesIO()
+        canvas = FigureCanvasAgg(fig)
+        canvas.print_figure(buf, format='png')
+        buf.seek(0)
+        figure_data = base64.b64encode(buf.read()).decode('utf-8')
+        buf.close()
+        
+        # Prepare batch data for dialog
+        batch_data = {
+            res.base_name: {
+                'x_values': res.x_data.tolist(),
+                'y_values': res.y_data.tolist(),
+                'y_values2': res.y_data2.tolist() if res.y_data2 is not None else []
+            } for res in batch_result.successful_results
+        }
+        
+        # Prepare IV data
+        iv_data, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
+        
+        return {
+            'success': len(successful_files) > 0,
+            'figure_data': figure_data,  # Base64 encoded PNG
+            'figure_size': (12, 8),
+            'batch_data': batch_data,
+            'iv_data': iv_data,
+            'iv_file_mapping': iv_file_mapping,
+            'successful_count': len(successful_files),
+            'failed_count': len(failed_files),
+            'export_outcomes': export_outcomes,
+            'x_label': x_label,
+            'y_label': y_label
+        }
         
     # ============ File Operations ============
     
@@ -132,12 +248,6 @@ class ApplicationController:
             'is_swapped': self.channel_definitions.is_swapped(),
             'configuration': self.channel_definitions.get_configuration()
         }
-    
-    def get_channel_types(self) -> List[str]:
-        """Get available channel types"""
-        if hasattr(self.channel_definitions, "get_available_types"):
-            return self.channel_definitions.get_available_types()
-        return ["Voltage", "Current"]
     
     # ============ Sweep Data Operations ============
     
