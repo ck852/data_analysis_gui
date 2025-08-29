@@ -49,7 +49,7 @@ root/
 |-- tests/
 |   |-- fixtures/
 |   |   |-- golden_data/
-|   |   |   |-- golden_CV/
+|   |   |   |-- golden_CD/
 |   |   |   |   |-- 250514_001_CD.csv
 |   |   |   |   |-- 250514_002_CD.csv
 |   |   |   |   |-- 250514_003_CD.csv
@@ -87,7 +87,7 @@ root/
 |   |       |-- DR/
 |   |       |   |-- 250202_007 dual range.csv
 |   |       |   `-- 250202_007[1-234].mat
-|   |       |-- IV/
+|   |       |-- IV+CD/
 |   |       |   |-- MAT_analysis/
 |   |       |   |   |-- Current Density Analysis/
 |   |       |   |   |   |-- 250514_001_CD.csv
