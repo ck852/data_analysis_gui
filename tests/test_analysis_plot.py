@@ -231,7 +231,7 @@ class TestCLIFunctions(unittest.TestCase):
                 lines = f.readlines()
             
             # Check header
-            self.assertEqual(lines[0].strip(), "# Time,Current")
+            self.assertEqual(lines[0].strip(), "Time,Current")
             
             # Check first data line
             self.assertEqual(lines[1].strip(), "1.00,2.00")

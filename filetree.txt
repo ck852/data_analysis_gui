@@ -64,8 +64,9 @@ root/
 |   |   |   |   |-- 250514_012_CD.csv
 |   |   |   |   `-- Current_Density_Summary.csv
 |   |   |   |-- golden_DR_data/
-|   |   |   |   |-- 250202_007 dual range_Average_Current_+60mV.csv
-|   |   |   |   `-- 250202_007 dual range_Average_Current_-60mV.csv
+|   |   |   |   |-- 250202_0071-234_analyzed.csv
+|   |   |   |   |-- 250202_0071-234_analyzed_Average_Current_+60mV.csv
+|   |   |   |   `-- 250202_0071-234_analyzed_Average_Current_-60mV.csv
 |   |   |   |-- golden_IV/
 |   |   |   |   |-- 250514_001.csv
 |   |   |   |   |-- 250514_002.csv
@@ -78,7 +79,8 @@ root/
 |   |   |   |   |-- 250514_009.csv
 |   |   |   |   |-- 250514_010.csv
 |   |   |   |   |-- 250514_011.csv
-|   |   |   |   `-- 250514_012.csv
+|   |   |   |   |-- 250514_012.csv
+|   |   |   |   `-- Summary IV.csv
 |   |   |   `-- golden_swapped/
 |   |   |       |-- 250518_008.csv
 |   |   |       |-- 250518_009.csv
@@ -114,7 +116,8 @@ root/
 |   |       |   |   |-- 250514_009.csv
 |   |       |   |   |-- 250514_010.csv
 |   |       |   |   |-- 250514_011.csv
-|   |       |   |   `-- 250514_012.csv
+|   |       |   |   |-- 250514_012.csv
+|   |       |   |   `-- Summary IV.csv
 |   |       |   |-- 250514_001[1-11].mat
 |   |       |   |-- 250514_002[1-11].mat
 |   |       |   |-- 250514_003[1-11].mat
@@ -132,12 +135,22 @@ root/
 |   |           |   |-- 250518_008.csv
 |   |           |   |-- 250518_009.csv
 |   |           |   `-- 250518_010.csv
+|   |           |-- MAT_analysis_1/
+|   |           |   |-- 250518_008.csv
+|   |           |   |-- 250518_009.csv
+|   |           |   `-- 250518_010.csv
 |   |           |-- 250518_008[1-63].mat
 |   |           |-- 250518_009[1-86].mat
 |   |           `-- 250518_010[1-62].mat
+|   |-- conftest.py
+|   |-- pytest.ini
 |   |-- test_analysis_plot.py
+|   |-- test_batch_analysis.py
 |   |-- test_channel_definitions.py
 |   |-- test_channel_definitions_demo.py
+|   |-- test_current_density.py
+|   |-- test_integration.py
+|   |-- test_single_analysis.py
 |   `-- test_working.py
 |-- filetree.txt
 |-- filetree_full.py
