@@ -133,10 +133,6 @@ root/
 |   |       |   |-- 250514_011[1-11].mat
 |   |       |   `-- 250514_012[1-11].mat
 |   |       `-- swapped/
-|   |           |-- MAT_analysis/
-|   |           |   |-- 240809_001.csv
-|   |           |   |-- 240809_002.csv
-|   |           |   `-- 240809_003.csv
 |   |           |-- 240809_001[1-12].mat
 |   |           |-- 240809_002[1-12].mat
 |   |           `-- 240809_003[1-12].mat
@@ -149,6 +145,7 @@ root/
 |   |-- test_current_density.py
 |   |-- test_integration.py
 |   |-- test_single_analysis.py
+|   |-- test_swapped_channels.py
 |   `-- test_working.py
 |-- check_test_files.py
 |-- filetree.txt
