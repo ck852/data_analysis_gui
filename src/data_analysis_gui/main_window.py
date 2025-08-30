@@ -472,35 +472,40 @@ class ModernMatSweepAnalyzer(QMainWindow):
             
             dialog = AnalysisPlotDialog(
                 self, plot_data_dict, result.x_label, result.y_label,
-                f"{result.y_label} vs {result.x_label}"
+                f"{result.y_label} vs {result.x_label}",
+                controller=self.controller,  # Pass controller
+                params=params  # Pass parameters
             )
             dialog.exec()
         else:
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
     
-    def _export_data(self):
-        """Export analysis data"""
-        if not self.controller.has_data():
-            QMessageBox.information(self, "Export Error", "No data to export.")
-            return
-        
-        # Get the base filename from the loaded file
+   
+    def _get_export_file_path(self, dialog_title="Export Plot Data"):
+        """Common method to get export file path with smart defaults"""
         if self.controller.loaded_file_path:
             base_name = os.path.basename(self.controller.loaded_file_path).split('.mat')[0]
-            # Remove brackets and their content
             if '[' in base_name:
                 base_name = base_name.split('[')[0]
             suggested_filename = f"{base_name}_analyzed.csv"
         else:
             suggested_filename = "analyzed.csv"
         
-        # Use getSaveFileName instead of getExistingDirectory
         file_path, _ = QFileDialog.getSaveFileName(
             self, 
-            "Export Plot Data",
-            suggested_filename,  # This pre-fills the filename field
+            dialog_title,
+            suggested_filename,
             "CSV files (*.csv)"
         )
+        return file_path
+
+    def _export_data(self):
+        """Export analysis data"""
+        if not self.controller.has_data():
+            QMessageBox.information(self, "Export Error", "No data to export.")
+            return
+        
+        file_path = self._get_export_file_path()
         
         if file_path:
             params = self._collect_parameters()
