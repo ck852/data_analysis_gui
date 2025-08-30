@@ -72,7 +72,7 @@ class ApplicationController:
     def __init__(self):
         # Core business objects
         self.channel_definitions = ChannelDefinitions()
-        self.analysis_engine = AnalysisEngine(self.channel_definitions)
+        self.analysis_engine = AnalysisEngine(channel_definitions=self.channel_definitions)
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
         
@@ -200,6 +200,54 @@ class ApplicationController:
             if self.on_error:
                 self.on_error(f"Error loading file: {str(e)}")
             return None
+        
+    def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
+        """
+        Export analysis data to a specific CSV file.
+        
+        Args:
+            params: Analysis parameters
+            file_path: Full path to the output file (including filename)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.has_data() or not self.loaded_file_path:
+            return False
+        
+        try:
+            self.analysis_engine.set_dataset(self.current_dataset)
+            table_data = self.analysis_engine.get_export_table(params)
+            
+            if not table_data or len(table_data.get('data', [])) == 0:
+                if self.on_error:
+                    self.on_error("No data to export")
+                return False
+            
+            # Extract the directory and filename from the full path
+            destination_folder = os.path.dirname(file_path)
+            filename_with_ext = os.path.basename(file_path)
+            
+            # Remove .csv extension if present (write_single_table adds it)
+            base_name = filename_with_ext.replace('.csv', '')
+            
+            outcome = exporter.write_single_table(
+                table=table_data,
+                base_name=base_name,
+                destination_folder=destination_folder
+            )
+            
+            if outcome.success and self.on_status_update:
+                self.on_status_update(f"Data exported to: {outcome.path}")
+            elif not outcome.success and self.on_error:
+                self.on_error(f"Export failed: {outcome.error_message}")
+            
+            return outcome.success
+            
+        except Exception as e:
+            if self.on_error:
+                self.on_error(f"Export error: {str(e)}")
+            return False
     
     def has_data(self) -> bool:
         """Check if data is loaded"""

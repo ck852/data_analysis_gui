@@ -484,13 +484,27 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.information(self, "Export Error", "No data to export.")
             return
         
-        destination_folder = QFileDialog.getExistingDirectory(
-            self, "Select Destination Folder"
+        # Get the base filename from the loaded file
+        if self.controller.loaded_file_path:
+            base_name = os.path.basename(self.controller.loaded_file_path).split('.mat')[0]
+            # Remove brackets and their content
+            if '[' in base_name:
+                base_name = base_name.split('[')[0]
+            suggested_filename = f"{base_name}_analyzed.csv"
+        else:
+            suggested_filename = "analyzed.csv"
+        
+        # Use getSaveFileName instead of getExistingDirectory
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Export Plot Data",
+            suggested_filename,  # This pre-fills the filename field
+            "CSV files (*.csv)"
         )
         
-        if destination_folder:
+        if file_path:
             params = self._collect_parameters()
-            success = self.controller.export_analysis_data(params, destination_folder)
+            success = self.controller.export_analysis_data_to_file(params, file_path)
             if not success:
                 QMessageBox.critical(self, "Export Error", "Failed to export data.")
     

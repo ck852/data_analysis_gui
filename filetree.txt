@@ -82,9 +82,11 @@ root/
 |   |   |   |   |-- 250514_012.csv
 |   |   |   |   `-- Summary IV.csv
 |   |   |   `-- golden_swapped/
-|   |   |       |-- 250518_008.csv
-|   |   |       |-- 250518_009.csv
-|   |   |       `-- 250518_010.csv
+|   |   |       |-- 240809_001.csv
+|   |   |       |-- 240809_001_analyzed.csv
+|   |   |       |-- 240809_001_single_analysis_window.csv
+|   |   |       |-- 240809_002.csv
+|   |   |       `-- 240809_003.csv
 |   |   `-- sample_data/
 |   |       |-- DR/
 |   |       |   |-- 250202_007 dual range.csv
@@ -132,16 +134,12 @@ root/
 |   |       |   `-- 250514_012[1-11].mat
 |   |       `-- swapped/
 |   |           |-- MAT_analysis/
-|   |           |   |-- 250518_008.csv
-|   |           |   |-- 250518_009.csv
-|   |           |   `-- 250518_010.csv
-|   |           |-- MAT_analysis_1/
-|   |           |   |-- 250518_008.csv
-|   |           |   |-- 250518_009.csv
-|   |           |   `-- 250518_010.csv
-|   |           |-- 250518_008[1-63].mat
-|   |           |-- 250518_009[1-86].mat
-|   |           `-- 250518_010[1-62].mat
+|   |           |   |-- 240809_001.csv
+|   |           |   |-- 240809_002.csv
+|   |           |   `-- 240809_003.csv
+|   |           |-- 240809_001[1-12].mat
+|   |           |-- 240809_002[1-12].mat
+|   |           `-- 240809_003[1-12].mat
 |   |-- conftest.py
 |   |-- pytest.ini
 |   |-- test_analysis_plot.py
@@ -152,6 +150,7 @@ root/
 |   |-- test_integration.py
 |   |-- test_single_analysis.py
 |   `-- test_working.py
+|-- check_test_files.py
 |-- filetree.txt
 |-- filetree_full.py
 |-- pyproject.toml
