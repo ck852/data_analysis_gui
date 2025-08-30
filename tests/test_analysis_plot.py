@@ -15,8 +15,7 @@ from pathlib import Path
 from data_analysis_gui.core.analysis_plot import (
     AnalysisPlotData,
     AnalysisPlotter,
-    create_analysis_plot,
-    export_analysis_data
+    create_analysis_plot
 )
 
 
@@ -117,42 +116,6 @@ class TestAnalysisPlotter(unittest.TestCase):
         lines = ax.get_lines()
         self.assertEqual(len(lines), 1)  # One line for single range
     
-    def test_get_export_data_single_range(self):
-        """Test export data preparation for single range"""
-        export_data, header = self.plotter.get_export_data()
-        
-        self.assertEqual(header, "Time (s),Current (nA)")
-        self.assertEqual(export_data.shape, (5, 2))
-        np.testing.assert_array_equal(export_data[:, 0], [1, 2, 3, 4, 5])
-        np.testing.assert_array_equal(export_data[:, 1], [2, 4, 6, 8, 10])
-    
-    def test_get_export_data_dual_range(self):
-        """Test export data preparation for dual range"""
-        plot_data = AnalysisPlotData(
-            x_data=np.array([1, 2, 3]),
-            y_data=np.array([2, 4, 6]),
-            y_data2=np.array([3, 5, 7]),
-            sweep_indices=[1, 2, 3],
-            use_dual_range=True,
-            y_label_r1="Current R1",
-            y_label_r2="Current R2"
-        )
-        
-        plotter = AnalysisPlotter(
-            plot_data,
-            x_label="Time (s)",
-            y_label="Current (nA)",
-            title="Dual Range Plot"
-        )
-        
-        export_data, header = plotter.get_export_data()
-        
-        self.assertEqual(header, "Time (s),Current R1,Current R2")
-        self.assertEqual(export_data.shape, (3, 3))
-        np.testing.assert_array_equal(export_data[:, 0], [1, 2, 3])
-        np.testing.assert_array_equal(export_data[:, 1], [2, 4, 6])
-        np.testing.assert_array_equal(export_data[:, 2], [3, 5, 7])
-    
     def test_save_figure(self):
         """Test saving figure to file"""
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
@@ -208,36 +171,6 @@ class TestCLIFunctions(unittest.TestCase):
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
-    
-    def test_export_analysis_data(self):
-        """Test exporting data via CLI function"""
-        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp:
-            tmp_path = tmp.name
-        
-        try:
-            export_analysis_data(
-                self.plot_data_dict,
-                x_label="Time",
-                y_label="Current",
-                output_path=tmp_path,
-                format_spec='%.2f'
-            )
-            
-            # Check that file was created
-            self.assertTrue(os.path.exists(tmp_path))
-            
-            # Read and verify content
-            with open(tmp_path, 'r') as f:
-                lines = f.readlines()
-            
-            # Check header
-            self.assertEqual(lines[0].strip(), "Time,Current")
-            
-            # Check first data line
-            self.assertEqual(lines[1].strip(), "1.00,2.00")
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
 
 
 class TestBackwardCompatibility(unittest.TestCase):
@@ -260,8 +193,9 @@ class TestBackwardCompatibility(unittest.TestCase):
         plotter = AnalysisPlotter(plot_data, "X", "Y", "Title")
         
         # Should work without errors
-        export_data, header = plotter.get_export_data()
-        self.assertEqual(export_data.shape, (3, 2))
+        fig, ax = plotter.create_figure()
+        self.assertIsNotNone(fig)
+        self.assertEqual(len(ax.get_lines()), 1)
     
     def test_missing_optional_fields(self):
         """Test handling of missing optional fields"""
@@ -275,9 +209,15 @@ class TestBackwardCompatibility(unittest.TestCase):
         plotter = AnalysisPlotter(plot_data, "X", "Y", "Title")
         
         # Should handle missing fields gracefully
-        export_data, header = plotter.get_export_data()
-        self.assertEqual(header, "X,Y")
-        self.assertEqual(export_data.shape, (2, 2))
+        fig, ax = plotter.create_figure()
+        self.assertIsNotNone(fig)
+        lines = ax.get_lines()
+        self.assertEqual(len(lines), 1)
+        
+        # Verify data was plotted correctly
+        line_data = lines[0].get_data()
+        np.testing.assert_array_equal(line_data[0], [1, 2])
+        np.testing.assert_array_equal(line_data[1], [2, 4])
 
 
 if __name__ == '__main__':

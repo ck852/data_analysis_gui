@@ -254,13 +254,14 @@ class TestSwappedChannels:
         assert len(plot_data.x_data) > 0, "Should have x data"
         assert len(plot_data.y_data) > 0, "Should have y data"
         
-        # Export data
-        success = controller.export_analysis_data(params, str(tmp_path))
+        # Export data - using the correct method name
+        # Based on the git diff, we need to construct a file path and use export_analysis_data_to_file
+        export_path = tmp_path / controller.get_suggested_export_filename()
+        success = controller.export_analysis_data_to_file(params, str(export_path))
         assert success, "Export should succeed"
         
         # Verify file was created
-        exported_files = list(tmp_path.glob("*.csv"))
-        assert len(exported_files) > 0, "Should have exported at least one CSV file"
+        assert export_path.exists(), f"Export file should exist at {export_path}"
     
     def test_batch_through_controller(self, tmp_path, analysis_params):
         """Test batch analysis through ApplicationController.

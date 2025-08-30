@@ -505,13 +505,17 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QMessageBox.information(self, "Export Error", "No data to export.")
             return
         
-        file_path = self._get_export_file_path()
+        # Use the new method for suggested filename
+        suggested = self.controller.get_suggested_export_filename()
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Plot Data", suggested, "CSV files (*.csv)"
+        )
         
         if file_path:
             params = self._collect_parameters()
             success = self.controller.export_analysis_data_to_file(params, file_path)
-            if not success:
-                QMessageBox.critical(self, "Export Error", "Failed to export data.")
+            # Success/error messages handled by controller callbacks
     
     def _batch_analyze(self):
         """Perform batch analysis - using the new architecture"""

@@ -122,31 +122,6 @@ class AnalysisPlotter:
         """Save figure to file"""
         figure.tight_layout()
         figure.savefig(filepath, dpi=dpi, bbox_inches='tight')
-    
-    def get_export_data(self) -> Tuple[np.ndarray, str]:
-        """
-        Prepare data for CSV export.
-        
-        Returns:
-            Tuple of (data array, header string)
-        """
-        x_data = self.plot_data.x_data
-        y_data = self.plot_data.y_data
-        
-        if self.plot_data.use_dual_range and self.plot_data.y_data2 is not None:
-            y_data2 = self.plot_data.y_data2
-            export_data = np.column_stack((x_data, y_data, y_data2))
-            
-            # Use descriptive labels if available
-            y_label_r1 = self.plot_data.y_label_r1 or f"{self.y_label} (Range 1)"
-            y_label_r2 = self.plot_data.y_label_r2 or f"{self.y_label} (Range 2)"
-            header = f"{self.x_label},{y_label_r1},{y_label_r2}"
-        else:
-            export_data = np.column_stack((x_data, y_data))
-            header = f"{self.x_label},{self.y_label}"
-        
-        return export_data, header
-
 
 # CLI-friendly functions
 def create_analysis_plot(plot_data_dict: Dict[str, Any], 
@@ -184,28 +159,3 @@ def create_analysis_plot(plot_data_dict: Dict[str, Any],
         plt.show()
     
     return fig
-
-
-def export_analysis_data(plot_data_dict: Dict[str, Any],
-                         x_label: str,
-                         y_label: str,
-                         output_path: str,
-                         format_spec: str = '%.6f') -> None:
-    """
-    Export analysis data to CSV file.
-    
-    Args:
-        plot_data_dict: Dictionary containing plot data
-        x_label: Label for x column
-        y_label: Label for y column(s)
-        output_path: Path to save CSV file
-        format_spec: Format specification for numpy.savetxt
-    """
-    plot_data = AnalysisPlotData.from_dict(plot_data_dict)
-    plotter = AnalysisPlotter(plot_data, x_label, y_label, "")
-    
-    export_data, header = plotter.get_export_data()
-    
-    # Direct export without GUI dependencies
-    np.savetxt(output_path, export_data, delimiter=',', 
-               header=header, fmt=format_spec, comments='')

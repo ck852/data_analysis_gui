@@ -13,7 +13,6 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 # Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
-from data_analysis_gui.utils import export_to_csv
 
 class AnalysisPlotDialog(QDialog):
     """Dialog for displaying analysis plot in a separate window"""
@@ -97,48 +96,21 @@ class AnalysisPlotDialog(QDialog):
                     f"Failed to save plot: {str(e)}"
                 )
     
-    # analysis_plot_dialog.py
     def export_data(self):
         """Export data as CSV using controller's unified method"""
-        # If we have controller and params, use the unified export
-        if self.controller and self.params:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export Data", "", "CSV files (*.csv)"
-            )
-            if file_path:
-                success = self.controller.export_analysis_data_to_file(
-                    self.params, file_path
-                )
-                if success:
-                    QMessageBox.information(
-                        self, "Export Successful",
-                        f"Data saved to {file_path}"
-                    )
-                else:
-                    QMessageBox.critical(
-                        self, "Export Failed",
-                        "Failed to save data. Check the console for details."
-                    )
-        else:
-            # Fallback to original method if no controller/params
-            # (for backward compatibility or standalone usage)
-            self._export_data_fallback()
-
-    def _export_data_fallback(self):
-        """Original export method as fallback"""
+        if not self.controller or not self.params:
+            QMessageBox.warning(self, "Export Error", 
+                               "Export functionality not available")
+            return
+            
+        # Use controller's method to get suggested filename
+        suggested = self.controller.get_suggested_export_filename()
+        
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Data", "", "CSV files (*.csv)"
+            self, "Export Data", suggested, "CSV files (*.csv)"
         )
+        
         if file_path:
-            try:
-                export_data, header = self.plotter.get_export_data()
-                export_to_csv(file_path, export_data, header, '%.6f')
-                QMessageBox.information(
-                    self, "Export Successful",
-                    f"Data saved to {file_path}"
-                )
-            except Exception as e:
-                QMessageBox.critical(
-                    self, "Export Failed",
-                    f"Failed to save data: {str(e)}"
-                )
+            success = self.controller.export_analysis_data_to_file(
+                self.params, file_path
+            )
