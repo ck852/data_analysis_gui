@@ -1,4 +1,4 @@
-# ck852/data-analysis-gui/ck852-Data-Analysis-GUI-1c45529b512f622436a8ba3f47b384da73789119/dialogs/current_density_iv_dialog.py
+# src/data_analysis_gui/dialogs/current_density_iv_dialog.py
 
 import subprocess
 import sys
@@ -16,8 +16,9 @@ from matplotlib.figure import Figure
 # Internal imports
 from data_analysis_gui.widgets import SelectAllSpinBox
 from data_analysis_gui.config import DEFAULT_SETTINGS
-from data_analysis_gui.utils import export_to_csv, calculate_current_density, calculate_sem
+from data_analysis_gui.utils import calculate_current_density, calculate_sem
 from data_analysis_gui.services.export_service import ExportService
+from data_analysis_gui.core.current_density_exporter import CurrentDensityExporter
 
 
 class CurrentDensityIVDialog(QDialog):
@@ -275,6 +276,10 @@ class CurrentDensityIVDialog(QDialog):
         self.export_all_btn.setEnabled(True)
         self.open_dest_folder_btn.setEnabled(True)
 
+    def _get_included_files(self):
+        """Returns a list of file_id for all checked files."""
+        return [file_id for file_id, checkbox in self.checkboxes.items() if checkbox.isChecked()]
+
     def export_plot_image(self):
         """Export plot as image using centralized service"""
         default_path = ExportService.get_suggested_filename(
@@ -299,40 +304,14 @@ class CurrentDensityIVDialog(QDialog):
         
         if not folder_path:
             return
-        
-        # Prepare file data
-        files_data = []
-        for file_id, file_info in self.file_data.items():
-            if not self.checkboxes[file_id].isChecked():
-                continue
-            
-            cslow = file_info['cslow']
-            if cslow <= 0:
-                continue
-            
-            # Get filename
-            file_basename = self.iv_file_mapping.get(
-                file_id, 
-                file_id.replace(" ", "_")
-            )
-            
-            # Collect and sort data
-            voltages = []
-            current_densities = []
-            for voltage, current in file_info['data'].items():
-                voltages.append(voltage)
-                current_densities.append(calculate_current_density(current, cslow))
-            
-            sorted_indices = np.argsort(voltages)
-            sorted_voltages = np.array(voltages)[sorted_indices]
-            sorted_currents = np.array(current_densities)[sorted_indices]
-            
-            files_data.append({
-                'filename': f"{file_basename}_CD.csv",
-                'data': np.column_stack((sorted_voltages, sorted_currents)),
-                'headers': ['Voltage (mV)', 'Current Density (pA/pF)', f'Cslow = {cslow:.2f} pF']
-            })
-        
+
+        exporter = CurrentDensityExporter(self.file_data, self.iv_file_mapping, self._get_included_files())
+        files_data = exporter.prepare_individual_files_data()
+
+        if not files_data:
+            QMessageBox.warning(self, "Export Error", "No files are included for export.")
+            return
+
         # Use centralized service
         results = ExportService.export_multiple_files(
             files_data=files_data,
@@ -348,45 +327,17 @@ class CurrentDensityIVDialog(QDialog):
             destination_folder=self.cd_analysis_folder
         )
         
-        # Prepare combined data (existing logic)
-        included_files = []
-        for file_id, checkbox in self.checkboxes.items():
-            if checkbox.isChecked():
-                cslow = self.cslow_entries[file_id].value()
-                if cslow > 0:
-                    file_name = self.iv_file_mapping.get(file_id, file_id)
-                    included_files.append({
-                        'id': file_id,
-                        'name': file_name,
-                        'cslow': cslow
-                    })
-        
-        if not included_files:
+        exporter = CurrentDensityExporter(self.file_data, self.iv_file_mapping, self._get_included_files())
+        summary_data = exporter.prepare_summary_data()
+
+        if not summary_data:
             QMessageBox.warning(self, "Export Error", "No files are included for export.")
             return
         
-        # Get voltages and prepare data
-        first_file_id = included_files[0]['id']
-        voltages = sorted(self.file_data[first_file_id]['data'].keys())
-        
-        # Create header and data
-        headers = ["Voltage (mV)"] + [f['name'] for f in included_files]
-        data_to_export = [voltages]
-        
-        for file_info in included_files:
-            file_id = file_info['id']
-            cslow = file_info['cslow']
-            raw_data = self.file_data[file_id]['data']
-            current_densities = [
-                calculate_current_density(raw_data.get(v, np.nan), cslow) 
-                for v in voltages
-            ]
-            data_to_export.append(current_densities)
-        
         # Use centralized service
         result = ExportService.export_data_to_csv(
-            data=np.array(data_to_export).T,
-            headers=headers,
+            data=summary_data['data'],
+            headers=summary_data['headers'],
             parent=self,
             default_path=default_path,
             title="Export All Data to CSV"

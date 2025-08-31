@@ -18,6 +18,7 @@ root/
 |       |   |-- batch_results.py
 |       |   |-- channel_definitions.py
 |       |   |-- concentration_response_engine.py
+|       |   |-- current_density_exporter.py
 |       |   |-- dataset.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
@@ -31,6 +32,7 @@ root/
 |       |   `-- current_density_iv_dialog.py
 |       |-- services/
 |       |   |-- __init__.py
+|       |   |-- export_service.py
 |       |   `-- plot_service.py
 |       |-- utils/
 |       |   |-- __init__.py
