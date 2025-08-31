@@ -19,6 +19,7 @@ from data_analysis_gui.core.batch_results import (
     BatchResultsExporter,
     BatchResultsAnalyzer
 )
+from data_analysis_gui.core.exporter import ExportService
 
 # Dialog imports
 from .current_density_iv_dialog import CurrentDensityIVDialog
@@ -261,83 +262,56 @@ Median: {stats['y_median']:.4f}"""
         dialog.exec()
     
     def _export_plot_image(self):
-        """Export plot as image"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Plot", "", "PNG files (*.png)"
+        """Export plot as image using centralized service"""
+        result = ExportService.export_plot_image(
+            figure=self.batch_fig,
+            parent=self,
+            default_path="batch_plot.png",
+            title="Export Batch Plot"
         )
-        
-        if file_path:
-            try:
-                self.batch_fig.savefig(file_path, dpi=300, bbox_inches='tight')
-                QMessageBox.information(
-                    self, "Export Successful", 
-                    f"Plot saved to {file_path}"
-                )
-            except Exception as e:
-                QMessageBox.critical(
-                    self, "Export Failed",
-                    f"Failed to save plot: {str(e)}"
-                )
     
     def _export_all_data(self):
         """Export all included data to a single CSV file"""
         # Get default path
-        if self.results_data.destination_folder:
-            default_path = os.path.join(
-                self.results_data.destination_folder, 
-                "Summary IV.csv"
-            )
-        else:
-            default_path = "Summary IV.csv"
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export All Data to CSV", 
-            default_path, 
-            "CSV files (*.csv)"
+        default_path = ExportService.get_suggested_filename(
+            base_name="Summary IV",
+            destination_folder=self.results_data.destination_folder
         )
         
-        if not file_path:
+        # Prepare data using core exporter
+        export_data = self.exporter.prepare_combined_export_data()
+        
+        if not export_data:
+            QMessageBox.warning(self, "Export Error", "No data to export")
             return
         
-        try:
-            # Use core exporter
-            self.exporter.export_all_data_to_csv(file_path)
-            QMessageBox.information(
-                self, "Export Successful",
-                f"All data successfully saved to {file_path}"
-            )
-        except ValueError as e:
-            QMessageBox.warning(self, "Export Error", str(e))
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Export Error",
-                f"An error occurred while saving the file:\n{e}"
-            )
+        # Use centralized service
+        result = ExportService.export_data_to_csv(
+            data=export_data['data'],
+            headers=export_data['headers'],
+            parent=self,
+            default_path=default_path,
+            title="Export All Data to CSV"
+        )
     
     def _export_individual_files(self):
         """Export each included file to a separate CSV"""
-        folder = QFileDialog.getExistingDirectory(
-            self, "Select Output Folder",
-            self.results_data.destination_folder or ""
+        folder = ExportService.select_export_folder(
+            parent=self,
+            title="Select Output Folder",
+            default_folder=self.results_data.destination_folder or ""
         )
         
         if not folder:
             return
         
-        try:
-            results = self.exporter.export_individual_files(folder)
-            
-            successful = sum(1 for _, success, _ in results if success)
-            failed = len(results) - successful
-            
-            message = f"Exported {successful} files successfully."
-            if failed > 0:
-                message += f"\n{failed} files failed to export."
-            
-            QMessageBox.information(self, "Export Complete", message)
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Export Error",
-                f"An error occurred during export:\n{e}"
-            )
+        # Prepare file data using core exporter
+        files_data = self.exporter.prepare_individual_files_data()
+        
+        # Use centralized service for batch export
+        results = ExportService.export_multiple_files(
+            files_data=files_data,
+            output_folder=folder,
+            parent=self,
+            show_summary=True
+        )

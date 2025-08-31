@@ -17,6 +17,7 @@ from matplotlib.figure import Figure
 from data_analysis_gui.widgets import SelectAllSpinBox
 from data_analysis_gui.config import DEFAULT_SETTINGS
 from data_analysis_gui.utils import export_to_csv, calculate_current_density, calculate_sem
+from data_analysis_gui.services.export_service import ExportService
 
 
 class CurrentDensityIVDialog(QDialog):
@@ -275,136 +276,121 @@ class CurrentDensityIVDialog(QDialog):
         self.open_dest_folder_btn.setEnabled(True)
 
     def export_plot_image(self):
-        """Export plot as image"""
-        if self.cd_analysis_folder:
-            os.makedirs(self.cd_analysis_folder, exist_ok=True)
-            default_path = os.path.join(self.cd_analysis_folder, "current_density_plot.png")
-        else:
-            default_path = "current_density_plot.png"
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Plot", default_path, "PNG files (*.png)")
-        if file_path:
-            self.figure.savefig(file_path, dpi=300, bbox_inches='tight')
-            QMessageBox.information(self, "Export Successful", f"Plot saved to {file_path}")
-
+        """Export plot as image using centralized service"""
+        default_path = ExportService.get_suggested_filename(
+            base_name="current_density_plot",
+            extension="png",
+            destination_folder=self.cd_analysis_folder
+        )
+        
+        result = ExportService.export_plot_image(
+            figure=self.figure,
+            parent=self,
+            default_path=default_path,
+            title="Export Current Density Plot"
+        )
+    
     def export_individual_files(self):
-        """Export individual files"""
-        if self.cd_analysis_folder:
-            folder_path = self.cd_analysis_folder
-        else:
-            folder_path = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        """Export individual files using centralized service"""
+        folder_path = self.cd_analysis_folder or ExportService.select_export_folder(
+            parent=self,
+            title="Select Destination Folder"
+        )
         
         if not folder_path:
             return
-            
-        os.makedirs(folder_path, exist_ok=True)
-        files_exported = 0
-
+        
+        # Prepare file data
+        files_data = []
         for file_id, file_info in self.file_data.items():
             if not self.checkboxes[file_id].isChecked():
                 continue
-
+            
             cslow = file_info['cslow']
             if cslow <= 0:
                 continue
-
+            
             # Get filename
-            if file_id in self.iv_file_mapping:
-                file_basename = self.iv_file_mapping[file_id]
-            else:
-                file_basename = file_id.replace(" ", "_")
-
-            export_path = os.path.join(folder_path, f"{file_basename}_CD.csv")
-
-            # Collect data
+            file_basename = self.iv_file_mapping.get(
+                file_id, 
+                file_id.replace(" ", "_")
+            )
+            
+            # Collect and sort data
             voltages = []
             current_densities = []
-
             for voltage, current in file_info['data'].items():
                 voltages.append(voltage)
                 current_densities.append(calculate_current_density(current, cslow))
-
-            # Sort and export
+            
             sorted_indices = np.argsort(voltages)
             sorted_voltages = np.array(voltages)[sorted_indices]
             sorted_currents = np.array(current_densities)[sorted_indices]
-
-            header = f"Voltage (mV),Current Density (pA/pF),Cslow = {cslow:.2f} pF"
-            export_data = np.column_stack((sorted_voltages, sorted_currents))
-            export_to_csv(export_path, export_data, header, '%.6f')
-
-            files_exported += 1
-
-        QMessageBox.information(self, "Export Successful",
-                               f"{files_exported} files exported to {folder_path}")
-
-    def export_all_data(self):
-        """
-        Exports the current density data for all included files into a single CSV file.
-        The first column contains the voltage, and subsequent columns contain the
-        current density for each file.
-        """
-        if self.cd_analysis_folder:
-            os.makedirs(self.cd_analysis_folder, exist_ok=True)
-            default_path = os.path.join(self.cd_analysis_folder, "Current_Density_Summary.csv")
-        else:
-            default_path = "Current_Density_Summary.csv"
             
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export All Data to CSV", default_path, "CSV files (*.csv)")
-        if not file_path:
-            return
-
-        # 1. Identify which files are included for the export
+            files_data.append({
+                'filename': f"{file_basename}_CD.csv",
+                'data': np.column_stack((sorted_voltages, sorted_currents)),
+                'headers': ['Voltage (mV)', 'Current Density (pA/pF)', f'Cslow = {cslow:.2f} pF']
+            })
+        
+        # Use centralized service
+        results = ExportService.export_multiple_files(
+            files_data=files_data,
+            output_folder=folder_path,
+            parent=self,
+            show_summary=True
+        )
+    
+    def export_all_data(self):
+        """Export all data to a single CSV using centralized service"""
+        default_path = ExportService.get_suggested_filename(
+            base_name="Current_Density_Summary",
+            destination_folder=self.cd_analysis_folder
+        )
+        
+        # Prepare combined data (existing logic)
         included_files = []
         for file_id, checkbox in self.checkboxes.items():
             if checkbox.isChecked():
                 cslow = self.cslow_entries[file_id].value()
                 if cslow > 0:
-                    # Use the descriptive filename from the mapping, or the recording ID as a fallback
                     file_name = self.iv_file_mapping.get(file_id, file_id)
                     included_files.append({
                         'id': file_id,
                         'name': file_name,
                         'cslow': cslow
                     })
-
+        
         if not included_files:
             QMessageBox.warning(self, "Export Error", "No files are included for export.")
             return
-
-        # 2. Assume voltages are consistent and get them from the first included file
-        try:
-            first_file_id = included_files[0]['id']
-            voltages = sorted(self.file_data[first_file_id]['data'].keys())
-        except IndexError:
-            QMessageBox.warning(self, "Export Error", "Could not retrieve voltage data.")
-            return
-
-        # 3. Create the header row for the CSV file
-        header = ["Voltage (mV)"] + [f['name'] for f in included_files]
-
-        # 4. Prepare the data for export, starting with the voltage column
+        
+        # Get voltages and prepare data
+        first_file_id = included_files[0]['id']
+        voltages = sorted(self.file_data[first_file_id]['data'].keys())
+        
+        # Create header and data
+        headers = ["Voltage (mV)"] + [f['name'] for f in included_files]
         data_to_export = [voltages]
-
-        # 5. Calculate and add a current density column for each file
+        
         for file_info in included_files:
             file_id = file_info['id']
             cslow = file_info['cslow']
             raw_data = self.file_data[file_id]['data']
-
-            # Ensure current densities align with the sorted voltages
-            current_densities = [calculate_current_density(raw_data.get(v, np.nan), cslow) for v in voltages]
+            current_densities = [
+                calculate_current_density(raw_data.get(v, np.nan), cslow) 
+                for v in voltages
+            ]
             data_to_export.append(current_densities)
-
-        # 6. Transpose the data so that each list becomes a column, and save to CSV
-        try:
-            # Convert list of lists to a NumPy array and transpose it
-            export_array = np.array(data_to_export).T
-
-            # Save the transposed array to a CSV file
-            export_to_csv(file_path, export_array, ','.join(header), '%.6f')
-            QMessageBox.information(self, "Export Successful", f"All data successfully saved to {file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"An error occurred while saving the file:\n{e}")
+        
+        # Use centralized service
+        result = ExportService.export_data_to_csv(
+            data=np.array(data_to_export).T,
+            headers=headers,
+            parent=self,
+            default_path=default_path,
+            title="Export All Data to CSV"
+        )
     
     def open_destination_folder(self):
         """Open the destination folder in the file explorer."""
