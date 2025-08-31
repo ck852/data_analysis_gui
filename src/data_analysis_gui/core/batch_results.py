@@ -57,41 +57,15 @@ class BatchResultsExporter:
         Prepare data for current density analysis.
         
         Returns:
-            Dictionary containing filtered IV data and file mappings for included files.
+            Dictionary containing IV data and file mappings (all files, not just included).
         """
         if not self.results_data.iv_data:
             return {}
         
-        # Create a mapping from recording ID to original index
-        recording_to_index = {}
-        for recording_id in self.results_data.iv_file_mapping.keys():
-            # Extract index from "Recording X" format
-            idx = int(recording_id.split()[-1]) - 1  # "Recording 1" -> index 0
-            recording_to_index[recording_id] = idx
-        
-        # Filter to only include data from included files
-        filtered_iv_data = {}
-        filtered_file_mapping = {}
-        included_indices = []
-        
-        for recording_id, file_name in self.results_data.iv_file_mapping.items():
-            if file_name in self.results_data.included_files:
-                idx = recording_to_index[recording_id]
-                included_indices.append(idx)
-                filtered_file_mapping[recording_id] = file_name
-        
-        # Build filtered IV data maintaining the correct order
-        for voltage, current_list in self.results_data.iv_data.items():
-            filtered_currents = []
-            for idx in sorted(included_indices):  # Keep order consistent
-                if idx < len(current_list):
-                    filtered_currents.append(current_list[idx])
-            if filtered_currents:
-                filtered_iv_data[voltage] = filtered_currents
-        
+        # Return ALL data, not filtered - let the dialog handle inclusion state
         return {
-            'iv_data': filtered_iv_data,
-            'iv_file_mapping': filtered_file_mapping,
+            'iv_data': self.results_data.iv_data,
+            'iv_file_mapping': self.results_data.iv_file_mapping,
             'destination_folder': self.results_data.destination_folder
         }
     

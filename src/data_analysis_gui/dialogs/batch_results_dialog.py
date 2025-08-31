@@ -238,15 +238,15 @@ Median: {stats['y_median']:.4f}"""
     
     def _generate_current_density_iv(self):
         """Generate Current Density I-V analysis"""
-        # Get filtered data from core
+        # Get all data (not filtered)
         cd_data = self.exporter.prepare_current_density_data()
         
         if not cd_data or not cd_data.get('iv_data'):
             QMessageBox.warning(self, "No Data", 
-                               "No IV data available for included files.")
+                            "No IV data available.")
             return
         
-        # Create included files dict for dialog
+        # Create included files dict with actual inclusion state
         included_files = {
             file_name: file_name in self.results_data.included_files
             for file_name in self.results_data.batch_data.keys()
