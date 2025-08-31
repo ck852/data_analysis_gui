@@ -86,14 +86,14 @@ def test_comprehensive_gui_smoke(qtbot, monkeypatch, tmp_path, caplog):
     
     try:
         # === PHASE 1: Load Data First ===
-        print("\n=== Loading MAT file ===")
+        print("\n=== Loading file ===")
         load_action = None
         all_actions = win.findChildren(QAction)
         for action in all_actions:
-            if action.text() == "Load MAT File":
+            if action.text() == "Load File":
                 load_action = action
                 break
-        assert load_action is not None, "Could not find 'Load MAT File' action"
+        assert load_action is not None, "Could not find 'Load File' action"
         load_action.trigger()
         
         # Wait for data to load and controls to be enabled

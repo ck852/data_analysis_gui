@@ -89,7 +89,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
     
     def _init_ui(self):
         """Initialize the main UI components"""
-        self.setWindowTitle("MAT File Sweep Analyzer - Modern Edition")
+        self.setWindowTitle("PatchBatch v1.0")
         self.setGeometry(100, 100, 1400, 900)
         
         self._create_menu_bar()
@@ -109,7 +109,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Create the File menu"""
         file_menu = menubar.addMenu('File')
         
-        load_action = QAction('Load MAT File', self)
+        load_action = QAction('Load File', self)
         load_action.setShortcut('Ctrl+O')
         load_action.triggered.connect(self._load_file)
         file_menu.addAction(load_action)
@@ -162,7 +162,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.addToolBar(toolbar)
         
         # Load file button
-        load_btn = QPushButton("Load MAT File")
+        load_btn = QPushButton("Load File")
         load_btn.clicked.connect(self._load_file)
         toolbar.addWidget(load_btn)
         
@@ -257,7 +257,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
     def _load_file(self):
         """Handle file loading"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Load MAT File", "", "MAT files (*.mat)"
+            self, "Load Data File", "", 
+            "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
         )
         
         if file_path:
@@ -366,7 +367,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
     def _batch_analyze(self):
         """Perform batch analysis"""
         file_paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select MAT Files for Batch Analysis", "", "MAT files (*.mat)"
+            self, "Select Files for Batch Analysis", "", 
+            "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
         )
         
         if not file_paths:

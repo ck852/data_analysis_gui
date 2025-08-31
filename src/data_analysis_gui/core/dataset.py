@@ -277,7 +277,7 @@ class DatasetLoader:
     
     @staticmethod
     def load(file_path: Union[str, Path], 
-             channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
+            channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
         """
         Load a dataset from file with automatic format detection.
         
@@ -303,12 +303,11 @@ class DatasetLoader:
         
         if format_type == 'matlab':
             return DatasetLoader.load_mat(file_path, channel_map)
+        elif format_type == 'axon':
+            return DatasetLoader.load_abf(file_path, channel_map)
         elif format_type == 'csv':
             # Future implementation
             raise NotImplementedError("CSV loading not yet implemented")
-        elif format_type == 'axon':
-            # Future implementation
-            raise NotImplementedError("ABF loading not yet implemented")
         elif format_type == 'hdf5':
             # Future implementation
             raise NotImplementedError("HDF5 loading not yet implemented")
@@ -317,6 +316,19 @@ class DatasetLoader:
                 f"Unsupported file format: {file_path.suffix}. "
                 f"Supported formats: {list(DatasetLoader.FORMAT_EXTENSIONS.keys())}"
             )
+
+    @staticmethod
+    def load_abf(file_path: Union[str, Path], 
+                channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
+        """Load an ABF file."""
+        try:
+            from data_analysis_gui.core.loaders.abf_loader import load_abf
+        except ImportError as e:
+            raise ImportError(
+                "ABF support requires pyabf. Install with: pip install pyabf"
+            ) from e
+        
+        return load_abf(file_path, channel_map)
     
     @staticmethod
     def load_mat(file_path: Union[str, Path], 
