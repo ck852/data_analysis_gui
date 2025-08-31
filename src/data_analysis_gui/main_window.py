@@ -406,10 +406,15 @@ class ModernMatSweepAnalyzer(QMainWindow):
                     result.y_label
                 )
                 
-                # Reconstruct figure for the dialog
-                figure = self._deserialize_figure(
-                    plot_data['figure_data'],
-                    plot_data['figure_size']
+                # Create the plot using PlotService
+                from data_analysis_gui.services.plot_service import PlotService
+                plot_service = PlotService()
+
+                figure, plot_count = plot_service.build_batch_figure(
+                    result.batch_result,
+                    params,
+                    result.x_label,
+                    result.y_label
                 )
                 
                 # Show batch results dialog
@@ -468,24 +473,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Collect parameters from control panel"""
         gui_state = self.control_panel.collect_parameters()
         return self.controller.create_parameters_from_dict(gui_state)
-    
-    def _deserialize_figure(self, figure_data: str, figure_size: tuple) -> Figure:
-        """Reconstruct a matplotlib figure from serialized data"""
-        img_data = base64.b64decode(figure_data)
-        
-        fig = Figure(figsize=figure_size)
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-        canvas = FigureCanvasQTAgg(fig)
-        
-        from PIL import Image
-        import numpy as np
-        
-        img = Image.open(BytesIO(img_data))
-        ax = fig.add_subplot(111)
-        ax.imshow(np.array(img))
-        ax.axis('off')
-        
-        return fig
     
     def _get_batch_output_folder(self, file_paths):
         """Prompt user for output folder"""

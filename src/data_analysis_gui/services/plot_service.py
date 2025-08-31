@@ -11,7 +11,7 @@ import base64
 from data_analysis_gui.core.plotting_interface import PlotBackend, PlotBackendFactory
 from data_analysis_gui.core.batch_processor import BatchResult
 from data_analysis_gui.core.params import AnalysisParameters
-
+from matplotlib.figure import Figure
 
 class PlotService:
     """
@@ -209,6 +209,50 @@ class PlotService:
             'sweep_index': sweep_index,
             'channel_type': channel_type
         }
+    
+    def build_batch_figure(
+        self,
+        batch_result: BatchResult,
+        params: AnalysisParameters,
+        x_label: str,
+        y_label: str,
+        figsize: Tuple[float, float] = (12, 8)
+    ) -> Tuple[Figure, int]:
+        """
+        Build and return the actual matplotlib Figure for batch results.
+        
+        Returns:
+            Tuple of (Figure object, plot_count)
+        """
+        # Create figure using backend
+        fig = self.backend.create_figure(figsize)
+        ax = self._add_axes_to_figure(fig)
+        
+        # Set up axes
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.grid(True, alpha=0.3)
+        
+        # Plot each successful file result
+        plot_count = 0
+        for result in batch_result.successful_results:
+            if len(result.x_data) > 0 and len(result.y_data) > 0:
+                ax.plot(result.x_data, result.y_data,
+                    'o-', label=f"{result.base_name} (Range 1)",
+                    markersize=4, alpha=0.7)
+                plot_count += 1
+                
+                if params.use_dual_range and len(result.y_data2) > 0:
+                    ax.plot(result.x_data, result.y_data2,
+                        's--', label=f"{result.base_name} (Range 2)",
+                        markersize=4, alpha=0.7)
+        
+        if plot_count > 0:
+            ax.legend(loc='best', fontsize=8)
+        
+        self._tight_layout(fig)
+        
+        return fig, plot_count
     
     # ============ Helper Methods ============
     

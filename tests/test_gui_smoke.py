@@ -337,7 +337,45 @@ def test_comprehensive_gui_smoke(qtbot, monkeypatch, tmp_path, caplog):
                     dialog.close()
             except:
                 pass
-        
+
+        # --- CSV / batch-folder cleanup ---
+        try:
+            # Remove single-file export if present
+            if out_csv.exists():
+                out_csv.unlink()
+
+            # Candidate batch folders that may have been created by the app
+            # 1) Under the test's tmp_path (your original assumption)
+            # 2) Next to the MAT file (common app behavior)
+            # 3) Under the declared IV_CD_DATA_DIR
+            # 4) In the current working directory (defensive)
+            from pathlib import Path
+            import shutil
+
+            candidate_batch_folders = [
+                batch_folder,
+                sample_mat.parent / "test_batch_folder",
+                IV_CD_DATA_DIR / "test_batch_folder",
+                Path.cwd() / "test_batch_folder",
+            ]
+
+            for bf in candidate_batch_folders:
+                if bf.exists() and bf.is_dir():
+                    # First remove CSVs (if you only want CSVs gone)
+                    for csv_path in bf.rglob("*.csv"):
+                        try:
+                            csv_path.unlink()
+                        except Exception as e:
+                            print(f"Warning: could not delete {csv_path}: {e}")
+
+                    # Then remove the *entire* test_batch_folder tree; it's test-only
+                    try:
+                        shutil.rmtree(bf, ignore_errors=True)
+                    except Exception as e:
+                        print(f"Warning: could not remove folder {bf}: {e}")
+        except Exception as e:
+            print(f"Cleanup failed: {e}")
+
         # Close main window
         win.close()
         qtbot.wait(200)
