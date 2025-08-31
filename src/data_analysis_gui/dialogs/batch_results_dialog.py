@@ -19,7 +19,7 @@ from data_analysis_gui.core.batch_results import (
     BatchResultsExporter,
     BatchResultsAnalyzer
 )
-from data_analysis_gui.core.exporter import ExportService
+from data_analysis_gui.services.export_service import ExportService
 
 # Dialog imports
 from .current_density_iv_dialog import CurrentDensityIVDialog

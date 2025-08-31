@@ -69,7 +69,7 @@ class ApplicationController:
     GUI interacts only with this controller, never directly with business logic.
     """
     
-    def __init__(self):
+    def __init__(self, get_save_path_callback=None):
         # Core business objects
         self.channel_definitions = ChannelDefinitions()
         self.analysis_engine = AnalysisEngine(channel_definitions=self.channel_definitions)
@@ -77,10 +77,31 @@ class ApplicationController:
         self.loaded_file_path: Optional[str] = None
         
         # Callbacks for GUI updates (dependency injection)
-        self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
-        self.on_error: Optional[Callable[[str], None]] = None
-        self.on_status_update: Optional[Callable[[str], None]] = None
+        self.get_save_path_callback = get_save_path_callback
+        self.on_file_loaded = None
+        self.on_error = None
+        self.on_status_update = None
     
+    def trigger_export_dialog(self, params):
+        """
+        Triggers the UI to show a save dialog via the callback,
+        then proceeds with the export if a path is returned.
+        """
+        if not self.get_save_path_callback:
+            print("Error: No callback available to show a save dialog.")
+            return False
+
+        # CORRECTED: Call this method without arguments.
+        suggested_path = self.get_suggested_export_filename()
+
+        # The rest of the function remains the same.
+        file_path = self.get_save_path_callback(suggested_path)
+
+        if file_path:
+            return self.export_analysis_data_to_file(params, file_path)
+
+        return False
+
     def get_channel_configuration(self) -> Dict[str, Any]:
         """Get channel configuration without exposing the internal object"""
         return self.channel_definitions.get_configuration()

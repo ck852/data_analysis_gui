@@ -41,6 +41,7 @@ root/
 |       |   `-- plot_helpers.py
 |       |-- widgets/
 |       |   |-- __init__.py
+|       |   |-- control_panel.py
 |       |   |-- custom_combos.py
 |       |   `-- custom_inputs.py
 |       |-- __init__.py

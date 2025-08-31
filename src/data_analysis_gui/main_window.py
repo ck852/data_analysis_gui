@@ -1,5 +1,5 @@
 """
-Refactored Main Window - Pure GUI implementation with no business logic.
+Refactored Main Window - Simplified by delegating control panel to separate widget.
 All business operations are delegated to the ApplicationController.
 """
 
@@ -23,6 +23,7 @@ from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTI
 from data_analysis_gui.dialogs import (ConcentrationResponseDialog, BatchResultDialog, 
                      AnalysisPlotDialog, CurrentDensityIVDialog)
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
+from data_analysis_gui.widgets.control_panel import ControlPanel  # Import the new widget
 
 # Import the controller
 from data_analysis_gui.core.app_controller import ApplicationController, FileInfo, PlotData
@@ -30,18 +31,17 @@ from data_analysis_gui.core.app_controller import ApplicationController, FileInf
 
 class ModernMatSweepAnalyzer(QMainWindow):
     """
-    Pure GUI implementation. This class only handles:
-    - Widget creation and layout
-    - User input collection
-    - Display of results
-    - Event handling that delegates to the controller
+    Simplified main window implementation using the extracted ControlPanel widget.
+    This class focuses on high-level application coordination.
     """
     
     def __init__(self, controller: ApplicationController = None):
         super().__init__()
         
-        # Use provided controller or create one
-        self.controller = controller or ApplicationController()
+        # Create the controller and PASS IN the callback method
+        self.controller = controller or ApplicationController(
+            get_save_path_callback=self._show_save_file_dialog
+        )
         
         # Set up controller callbacks
         self.controller.on_file_loaded = self._handle_file_loaded
@@ -66,6 +66,24 @@ class ModernMatSweepAnalyzer(QMainWindow):
         # Initialize UI
         self._init_ui()
         self.setStyleSheet(get_theme_stylesheet(THEMES[self.current_theme_name]))
+
+    def _show_save_file_dialog(self, suggested_path: str) -> str:
+        """This is the callback function. It handles showing the GUI dialog."""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Analysis Data", suggested_path, "CSV files (*.csv)"
+        )
+        return file_path  # Returns the path or an empty string if cancelled
+
+    def _export_data(self):
+        """Delegates the entire export process to the controller."""
+        if not self.controller.has_data():
+            QMessageBox.information(self, "Export Error", "No data to export.")
+            return
+            
+        params = self._collect_parameters()
+        
+        # This one line now handles everything!
+        self.controller.trigger_export_dialog(params)
     
     # ============ UI Initialization ============
     
@@ -193,7 +211,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         toolbar.addWidget(self.channel_combo)
     
     def _create_main_layout(self):
-        """Create the main layout with splitter"""
+        """Create the main layout with splitter - SIMPLIFIED VERSION"""
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         
@@ -201,9 +219,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
         main_widget_layout = QVBoxLayout(main_widget)
         main_widget_layout.addWidget(main_splitter)
         
-        # Left panel for controls
-        left_panel = self._create_control_panel()
-        main_splitter.addWidget(left_panel)
+        # Left panel - Now using the extracted ControlPanel widget
+        self.control_panel = ControlPanel()
+        self._connect_control_panel_signals()
+        main_splitter.addWidget(self.control_panel)
         
         # Right panel for plot
         right_panel = self._create_plot_panel()
@@ -214,161 +233,14 @@ class ModernMatSweepAnalyzer(QMainWindow):
         main_splitter.setStretchFactor(1, 1)
         main_splitter.setSizes([400, 1000])
     
-    def _create_control_panel(self):
-        """Create the control panel with all settings groups"""
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setMaximumWidth(400)
-        
-        control_widget = QWidget()
-        scroll_area.setWidget(control_widget)
-        
-        layout = QVBoxLayout(control_widget)
-        
-        layout.addWidget(self._create_file_info_group())
-        layout.addWidget(self._create_analysis_settings_group())
-        layout.addWidget(self._create_plot_settings_group())
-        
-        # Export Plot Data button
-        self.export_plot_btn = QPushButton("Export Plot Data")
-        self.export_plot_btn.clicked.connect(self._export_data)
-        self.export_plot_btn.setEnabled(False)
-        layout.addWidget(self.export_plot_btn)
-        
-        layout.addStretch()
-        
-        return scroll_area
-    
-    def _create_file_info_group(self):
-        """Create the file information group"""
-        file_group = QGroupBox("File Information")
-        file_layout = QVBoxLayout(file_group)
-        
-        self.file_label = QLabel("No file loaded")
-        self.file_label.setWordWrap(True)
-        file_layout.addWidget(self.file_label)
-        
-        self.sweep_count_label = QLabel("Sweeps: 0")
-        file_layout.addWidget(self.sweep_count_label)
-        
-        return file_group
-    
-    def _create_analysis_settings_group(self):
-        """Create the analysis settings group"""
-        analysis_group = QGroupBox("Analysis Settings")
-        analysis_layout = QGridLayout(analysis_group)
-        
-        # Range 1 settings
-        self._add_range1_settings(analysis_layout)
-        
-        # Dual range checkbox
-        self.dual_range_cb = QCheckBox("Use Dual Analysis")
-        self.dual_range_cb.stateChanged.connect(self._toggle_dual_range)
-        analysis_layout.addWidget(self.dual_range_cb, 2, 0, 1, 2)
-        
-        # Range 2 settings
-        self._add_range2_settings(analysis_layout)
-        
-        # Stimulus period
-        analysis_layout.addWidget(QLabel("Stimulus Period (ms):"), 5, 0)
-        self.period_spin = SelectAllSpinBox()
-        self.period_spin.setRange(1, 100000)
-        self.period_spin.setValue(DEFAULT_SETTINGS['stimulus_period'])
-        self.period_spin.setSingleStep(100)
-        analysis_layout.addWidget(self.period_spin, 5, 1)
-        
-        # Add Swap Channels button
-        self.swap_channels_btn = QPushButton("Swap Channels")
-        self.swap_channels_btn.setToolTip("Swap voltage and current channel assignments")
-        self.swap_channels_btn.clicked.connect(self._swap_channels)
-        analysis_layout.addWidget(self.swap_channels_btn, 6, 0, 1, 2)
-        
-        # Center Nearest Cursor button
-        center_cursor_btn = QPushButton("Center Nearest Cursor")
-        center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
-        center_cursor_btn.clicked.connect(self._center_nearest_cursor)
-        analysis_layout.addWidget(center_cursor_btn, 7, 0, 1, 2)
-        
-        return analysis_group
-    
-    def _add_range1_settings(self, layout):
-        """Add Range 1 settings to layout"""
-        layout.addWidget(QLabel("Range 1 Start (ms):"), 0, 0)
-        self.start_spin = SelectAllSpinBox()
-        self.start_spin.setRange(0, 100000)
-        self.start_spin.setValue(DEFAULT_SETTINGS['range1_start'])
-        self.start_spin.setSingleStep(0.05)
-        self.start_spin.setDecimals(2)
-        self.start_spin.valueChanged.connect(self._update_lines_from_entries)
-        layout.addWidget(self.start_spin, 0, 1)
-        
-        layout.addWidget(QLabel("Range 1 End (ms):"), 1, 0)
-        self.end_spin = SelectAllSpinBox()
-        self.end_spin.setRange(0, 100000)
-        self.end_spin.setValue(DEFAULT_SETTINGS['range1_end'])
-        self.end_spin.setSingleStep(0.05)
-        self.end_spin.setDecimals(2)
-        self.end_spin.valueChanged.connect(self._update_lines_from_entries)
-        layout.addWidget(self.end_spin, 1, 1)
-    
-    def _add_range2_settings(self, layout):
-        """Add Range 2 settings to layout"""
-        layout.addWidget(QLabel("Range 2 Start (ms):"), 3, 0)
-        self.start_spin2 = SelectAllSpinBox()
-        self.start_spin2.setRange(0, 100000)
-        self.start_spin2.setValue(DEFAULT_SETTINGS['range2_start'])
-        self.start_spin2.setSingleStep(0.05)
-        self.start_spin2.setDecimals(2)
-        self.start_spin2.setEnabled(False)
-        self.start_spin2.valueChanged.connect(self._update_lines_from_entries)
-        layout.addWidget(self.start_spin2, 3, 1)
-        
-        layout.addWidget(QLabel("Range 2 End (ms):"), 4, 0)
-        self.end_spin2 = SelectAllSpinBox()
-        self.end_spin2.setRange(0, 100000)
-        self.end_spin2.setValue(DEFAULT_SETTINGS['range2_end'])
-        self.end_spin2.setSingleStep(0.05)
-        self.end_spin2.setDecimals(2)
-        self.end_spin2.setEnabled(False)
-        self.end_spin2.valueChanged.connect(self._update_lines_from_entries)
-        layout.addWidget(self.end_spin2, 4, 1)
-    
-    def _create_plot_settings_group(self):
-        """Create the plot settings group"""
-        plot_group = QGroupBox("Plot Settings")
-        plot_layout = QGridLayout(plot_group)
-        
-        # X-axis settings
-        plot_layout.addWidget(QLabel("X-Axis:"), 0, 0)
-        self.x_measure_combo = QComboBox()
-        self.x_measure_combo.addItems(["Time", "Peak", "Average"])
-        self.x_measure_combo.setCurrentText("Average")
-        plot_layout.addWidget(self.x_measure_combo, 0, 1)
-        
-        self.x_channel_combo = QComboBox()
-        self.x_channel_combo.addItems(["Voltage", "Current"])
-        self.x_channel_combo.setCurrentText("Voltage")
-        plot_layout.addWidget(self.x_channel_combo, 0, 2)
-        
-        # Y-axis settings
-        plot_layout.addWidget(QLabel("Y-Axis:"), 1, 0)
-        self.y_measure_combo = QComboBox()
-        self.y_measure_combo.addItems(["Peak", "Average", "Time"])
-        self.y_measure_combo.setCurrentText("Average")
-        plot_layout.addWidget(self.y_measure_combo, 1, 1)
-        
-        self.y_channel_combo = QComboBox()
-        self.y_channel_combo.addItems(["Voltage", "Current"])
-        self.y_channel_combo.setCurrentText("Current")
-        plot_layout.addWidget(self.y_channel_combo, 1, 2)
-        
-        # Update plot button
-        self.update_plot_btn = QPushButton("Generate Analysis Plot")
-        self.update_plot_btn.clicked.connect(self._generate_analysis_plot)
-        self.update_plot_btn.setEnabled(False)
-        plot_layout.addWidget(self.update_plot_btn, 2, 0, 1, 3)
-        
-        return plot_group
+    def _connect_control_panel_signals(self):
+        """Connect signals from the control panel to handlers"""
+        self.control_panel.analysis_requested.connect(self._generate_analysis_plot)
+        self.control_panel.export_requested.connect(self._export_data)
+        self.control_panel.swap_channels_requested.connect(self._swap_channels)
+        self.control_panel.center_cursor_requested.connect(self._center_nearest_cursor)
+        self.control_panel.dual_range_toggled.connect(self._toggle_dual_range)
+        self.control_panel.range_values_changed.connect(self._update_lines_from_entries)
     
     def _create_plot_panel(self):
         """Create the plot panel with matplotlib canvas"""
@@ -393,9 +265,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
     
     def _handle_file_loaded(self, file_info: FileInfo):
         """Handle successful file load (callback from controller)"""
-        # Update file info display
-        self.file_label.setText(f"File: {file_info.name}")
-        self.sweep_count_label.setText(f"Sweeps: {file_info.sweep_count}")
+        # Update control panel file info
+        self.control_panel.update_file_info(file_info.name, file_info.sweep_count)
         
         # Populate sweep combo
         self.sweep_combo.clear()
@@ -406,8 +277,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         # Enable controls
         self.batch_btn.setEnabled(True)
-        self.update_plot_btn.setEnabled(True)
-        self.export_plot_btn.setEnabled(True)
+        self.control_panel.set_controls_enabled(True)
         
         self.status_bar.showMessage(f"Loaded {file_info.sweep_count} sweeps from {file_info.name}")
     
@@ -431,28 +301,23 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 channel=plot_data.channel_id,
                 sweep_index=plot_data.sweep_index,
                 channel_type=plot_data.channel_type,
-                channel_config=channel_config  # Use the returned config
+                channel_config=channel_config
             )
             
-            # Update range lines
+            # Update range lines using values from control panel
+            range_values = self.control_panel.get_range_values()
             self.plot_manager.update_range_lines(
-                self.start_spin.value(),
-                self.end_spin.value(),
-                self.dual_range_cb.isChecked(),
-                self.start_spin2.value() if self.dual_range_cb.isChecked() else None,
-                self.end_spin2.value() if self.dual_range_cb.isChecked() else None
+                range_values['range1_start'],
+                range_values['range1_end'],
+                range_values['use_dual_range'],
+                range_values['range2_start'],
+                range_values['range2_end']
             )
             
-            # Update spinbox mapping
-            spinboxes = {
-                'start1': self.start_spin,
-                'end1': self.end_spin
-            }
-            if self.dual_range_cb.isChecked():
-                spinboxes['start2'] = self.start_spin2
-                spinboxes['end2'] = self.end_spin2
-            
-            self.plot_manager.update_line_spinbox_map(spinboxes)
+            # Update spinbox mapping for dragging
+            self.plot_manager.update_line_spinbox_map(
+                self.control_panel.get_range_spinboxes()
+            )
     
     def _generate_analysis_plot(self):
         """Generate and display analysis plot"""
@@ -473,39 +338,20 @@ class ModernMatSweepAnalyzer(QMainWindow):
             dialog = AnalysisPlotDialog(
                 self, plot_data_dict, result.x_label, result.y_label,
                 f"{result.y_label} vs {result.x_label}",
-                controller=self.controller,  # Pass controller
-                params=params  # Pass parameters
+                controller=self.controller,
+                params=params
             )
             dialog.exec()
         else:
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
     
-   
-    def _get_export_file_path(self, dialog_title="Export Plot Data"):
-        """Common method to get export file path with smart defaults"""
-        if self.controller.loaded_file_path:
-            base_name = os.path.basename(self.controller.loaded_file_path).split('.mat')[0]
-            if '[' in base_name:
-                base_name = base_name.split('[')[0]
-            suggested_filename = f"{base_name}_analyzed.csv"
-        else:
-            suggested_filename = "analyzed.csv"
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            dialog_title,
-            suggested_filename,
-            "CSV files (*.csv)"
-        )
-        return file_path
-
     def _export_data(self):
         """Export analysis data"""
         if not self.controller.has_data():
             QMessageBox.information(self, "Export Error", "No data to export.")
             return
         
-        # Use the new method for suggested filename
+        # Use the controller's suggested filename
         suggested = self.controller.get_suggested_export_filename()
         
         file_path, _ = QFileDialog.getSaveFileName(
@@ -518,7 +364,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
             # Success/error messages handled by controller callbacks
     
     def _batch_analyze(self):
-        """Perform batch analysis - using the new architecture"""
+        """Perform batch analysis"""
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Select MAT Files for Batch Analysis", "", "MAT files (*.mat)"
         )
@@ -540,7 +386,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
             QApplication.processEvents()
         
         try:
-            # Get data from controller (no plotting)
+            # Get data from controller
             result = self.controller.perform_batch_analysis(
                 file_paths,
                 params,
@@ -593,29 +439,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         finally:
             progress.close()
     
-    def _deserialize_figure(self, figure_data: str, figure_size: tuple) -> Figure:
-        """Reconstruct a matplotlib figure from serialized data"""
-        # Decode the base64 PNG data
-        img_data = base64.b64decode(figure_data)
-        
-        # Create a new figure with the original size
-        fig = Figure(figsize=figure_size)
-        
-        # Create a canvas for the figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-        canvas = FigureCanvasQTAgg(fig)
-        
-        # Load the image into the figure
-        from PIL import Image
-        import numpy as np
-        
-        img = Image.open(BytesIO(img_data))
-        ax = fig.add_subplot(111)
-        ax.imshow(np.array(img))
-        ax.axis('off')  # Hide axes since we're showing a rendered image
-        
-        return fig
-    
     def _swap_channels(self):
         """Handle channel swapping"""
         result = self.controller.swap_channels()
@@ -625,13 +448,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 QMessageBox.warning(self, "Cannot Swap", result['reason'])
             return
         
-        # Update button appearance
-        if result['is_swapped']:
-            self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
-            self.swap_channels_btn.setText("Channels Swapped ⇄")
-        else:
-            self.swap_channels_btn.setStyleSheet("")
-            self.swap_channels_btn.setText("Swap Channels")
+        # Update control panel button appearance
+        self.control_panel.update_swap_button_state(result['is_swapped'])
         
         # Update status bar
         config = result['configuration']
@@ -644,23 +462,30 @@ class ModernMatSweepAnalyzer(QMainWindow):
         new_type = "Current" if current_type == "Voltage" else "Voltage"
         self.channel_combo.setCurrentText(new_type)
     
-    # ============ Helper Methods (GUI-only logic) ============
+    # ============ Helper Methods ============
     
     def _collect_parameters(self):
-        """Collect parameters from GUI widgets as a simple dictionary"""
-        gui_state = {
-            'range1_start': self.start_spin.value(),
-            'range1_end': self.end_spin.value(),
-            'use_dual_range': self.dual_range_cb.isChecked(),
-            'range2_start': self.start_spin2.value(),
-            'range2_end': self.end_spin2.value(),
-            'stimulus_period': self.period_spin.value(),
-            'x_measure': self.x_measure_combo.currentText(),
-            'x_channel': self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
-            'y_measure': self.y_measure_combo.currentText(),
-            'y_channel': self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
-        }
+        """Collect parameters from control panel"""
+        gui_state = self.control_panel.collect_parameters()
         return self.controller.create_parameters_from_dict(gui_state)
+    
+    def _deserialize_figure(self, figure_data: str, figure_size: tuple) -> Figure:
+        """Reconstruct a matplotlib figure from serialized data"""
+        img_data = base64.b64decode(figure_data)
+        
+        fig = Figure(figsize=figure_size)
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+        canvas = FigureCanvasQTAgg(fig)
+        
+        from PIL import Image
+        import numpy as np
+        
+        img = Image.open(BytesIO(img_data))
+        ax = fig.add_subplot(111)
+        ax.imshow(np.array(img))
+        ax.axis('off')
+        
+        return fig
     
     def _get_batch_output_folder(self, file_paths):
         """Prompt user for output folder"""
@@ -710,42 +535,41 @@ class ModernMatSweepAnalyzer(QMainWindow):
         progress.show()
         return progress
     
-    # ============ Pure GUI Methods (no business logic) ============
+    # ============ Pure GUI Methods ============
     
-    def _toggle_dual_range(self):
-        """Toggle dual range UI elements"""
-        enabled = self.dual_range_cb.isChecked()
-        
-        self.start_spin2.setEnabled(enabled)
-        self.end_spin2.setEnabled(enabled)
-        
-        # Let PlotManager handle the visual updates
+    def _toggle_dual_range(self, enabled):
+        """Handle dual range toggle from control panel"""
+        range_values = self.control_panel.get_range_values()
         self.plot_manager.toggle_dual_range(
             enabled, 
-            self.start_spin2.value(), 
-            self.end_spin2.value()
+            range_values['range2_start'], 
+            range_values['range2_end']
         )
     
     def _on_line_dragged(self, line, x_value):
         """Callback when range lines are dragged"""
+        # Determine which spinbox to update based on the line
+        spinboxes = self.control_panel.get_range_spinboxes()
+        
         if line == self.plot_manager.range_lines[0]:
-            self.start_spin.setValue(x_value)
+            self.control_panel.update_range_value('start1', x_value)
         elif line == self.plot_manager.range_lines[1]:
-            self.end_spin.setValue(x_value)
-        elif self.dual_range_cb.isChecked() and len(self.plot_manager.range_lines) > 2:
+            self.control_panel.update_range_value('end1', x_value)
+        elif self.control_panel.dual_range_cb.isChecked() and len(self.plot_manager.range_lines) > 2:
             if line == self.plot_manager.range_lines[2]:
-                self.start_spin2.setValue(x_value)
+                self.control_panel.update_range_value('start2', x_value)
             elif line == self.plot_manager.range_lines[3]:
-                self.end_spin2.setValue(x_value)
+                self.control_panel.update_range_value('end2', x_value)
     
     def _update_lines_from_entries(self):
-        """Update range lines based on spinbox values"""
+        """Update range lines based on control panel values"""
+        range_values = self.control_panel.get_range_values()
         self.plot_manager.update_lines_from_values(
-            self.start_spin.value(),
-            self.end_spin.value(),
-            self.dual_range_cb.isChecked(),
-            self.start_spin2.value() if self.dual_range_cb.isChecked() else None,
-            self.end_spin2.value() if self.dual_range_cb.isChecked() else None
+            range_values['range1_start'],
+            range_values['range1_end'],
+            range_values['use_dual_range'],
+            range_values['range2_start'],
+            range_values['range2_end']
         )
     
     def _center_nearest_cursor(self):
@@ -755,8 +579,13 @@ class ModernMatSweepAnalyzer(QMainWindow):
         if line_moved and new_position is not None:
             # Update the corresponding spinbox
             if line_moved in self.plot_manager.line_spinbox_map:
-                spinbox_to_update = self.plot_manager.line_spinbox_map[line_moved]
-                spinbox_to_update.setValue(new_position)
+                spinbox = self.plot_manager.line_spinbox_map[line_moved]
+                # Find which spinbox and update through control panel
+                spinboxes = self.control_panel.get_range_spinboxes()
+                for key, sb in spinboxes.items():
+                    if sb == spinbox:
+                        self.control_panel.update_range_value(key, new_position)
+                        break
     
     def _start_hold(self, direction_func):
         """Start continuous navigation"""

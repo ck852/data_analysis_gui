@@ -13,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 # Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
-from data_analysis_gui.core.exporter import ExportService
+from data_analysis_gui.services.export_service import ExportService
 
 class AnalysisPlotDialog(QDialog):
     """Dialog for displaying analysis plot in a separate window"""
@@ -89,22 +89,7 @@ class AnalysisPlotDialog(QDialog):
         )
     
     def export_data(self):
-        """Export data as CSV using controller's unified method"""
-        if not self.controller or not self.params:
-            QMessageBox.warning(self, "Export Error", 
-                               "Export functionality not available")
-            return
-            
-        # Use controller's method to get suggested filename
-        suggested = self.controller.get_suggested_export_filename()
-        
-        # Prepare data using controller
-        export_table = self.controller.prepare_export_data(self.params)
-        
-        # Use centralized service
-        result = ExportService.export_dict_to_csv(
-            data_dict=export_table,
-            parent=self,
-            default_path=suggested,
-            title="Export Data"
-        )
+        """
+        Calls the controller's trigger method. It's clean and simple.
+        """
+        self.controller.trigger_export_dialog(self.params)
