@@ -39,6 +39,7 @@ class CurrentDensityIVDialog(QDialog):
         self.setWindowTitle("Current Density I-V")
         self.setGeometry(200, 200, 1200, 800)
         self.init_ui()
+        self.ask_confirm_apply_all = True
 
     def init_ui(self):
         layout = QHBoxLayout(self)
@@ -224,10 +225,32 @@ class CurrentDensityIVDialog(QDialog):
             self.canvas.draw()
 
     def apply_to_all(self):
-        """Apply Cslow value to all entries - only called when Apply button is clicked"""
+        """Apply Cslow value to all entries (with confirmation)"""
         value = self.apply_all_spin.value()
-        for file_id in self.file_data:
-            self.cslow_entries[file_id].setValue(value)
+
+        if self.ask_confirm_apply_all:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle("Apply to all?")
+            box.setText(
+                f"Apply {value:.2f} pF to ALL {len(self.cslow_entries)} recordings?\n"
+                "This will overwrite each file's Cslow."
+            )
+            box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            box.setDefaultButton(QMessageBox.No)
+
+            #Implement the following after establishing save between sessions
+            # dont_ask = QCheckBox("Don't ask me again")
+            # box.setCheckBox(dont_ask)
+
+            # if box.exec_() != QMessageBox.Yes:
+            #     return
+            # if dont_ask.isChecked():
+            #     self.ask_confirm_apply_all = False
+
+        # proceed with the update
+        for file_id, spin in self.cslow_entries.items():
+            spin.setValue(value)
             self.file_data[file_id]['cslow'] = value
 
     def update_cd_plot(self):
