@@ -422,7 +422,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 # Show batch results dialog
                 batch_dialog = BatchResultDialog(
                     self, 
-                    result.batch_data, 
+                    result.batch_result, 
                     figure,
                     result.iv_data, 
                     result.iv_file_mapping,

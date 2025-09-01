@@ -38,19 +38,6 @@ class PlotService:
     ) -> Dict[str, Any]:
         """
         Create a batch analysis plot and return it as serialized data.
-        
-        Args:
-            batch_result: The BatchResult containing all file results
-            params: Analysis parameters used
-            x_label: Label for x-axis
-            y_label: Label for y-axis
-            figsize: Figure size tuple
-            
-        Returns:
-            Dictionary containing:
-                - figure_data: Base64 encoded PNG image
-                - figure_size: Original figure size
-                - plot_count: Number of files plotted
         """
         # Create figure using backend
         fig = self.backend.create_figure(figsize)
@@ -61,21 +48,34 @@ class PlotService:
         ax.set_ylabel(y_label)
         ax.grid(True, alpha=0.3)
         
+        # Get default color cycle
+        import matplotlib.pyplot as plt
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        colors = prop_cycle.by_key()['color']
+        
         # Plot each successful file result
         plot_count = 0
+        color_idx = 0
+        
         for result in batch_result.successful_results:
             if len(result.x_data) > 0 and len(result.y_data) > 0:
+                # Get color for this file
+                file_color = colors[color_idx % len(colors)]
+                
                 # Plot Range 1 data
                 ax.plot(result.x_data, result.y_data,
-                       'o-', label=f"{result.base_name} (Range 1)",
-                       markersize=4, alpha=0.7)
+                    'o-', label=f"{result.base_name} (Range 1)",
+                    markersize=4, alpha=0.7, color=file_color)
                 plot_count += 1
                 
-                # Plot Range 2 data if dual range is enabled
+                # Plot Range 2 data with SAME color
                 if params.use_dual_range and len(result.y_data2) > 0:
                     ax.plot(result.x_data, result.y_data2,
-                           's--', label=f"{result.base_name} (Range 2)",
-                           markersize=4, alpha=0.7)
+                        's--', label=f"{result.base_name} (Range 2)",
+                        markersize=4, alpha=0.7, color=file_color)
+                
+                # Only increment color after both ranges
+                color_idx += 1
         
         # Add legend if there's data
         if plot_count > 0:
@@ -233,19 +233,34 @@ class PlotService:
         ax.set_ylabel(y_label)
         ax.grid(True, alpha=0.3)
         
+        # Get default color cycle
+        import matplotlib.pyplot as plt
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        colors = prop_cycle.by_key()['color']
+        
         # Plot each successful file result
         plot_count = 0
+        color_idx = 0
+        
         for result in batch_result.successful_results:
             if len(result.x_data) > 0 and len(result.y_data) > 0:
+                # Get color for this file (both ranges use the same color)
+                file_color = colors[color_idx % len(colors)]
+                
+                # Plot Range 1 data
                 ax.plot(result.x_data, result.y_data,
                     'o-', label=f"{result.base_name} (Range 1)",
-                    markersize=4, alpha=0.7)
+                    markersize=4, alpha=0.7, color=file_color)
                 plot_count += 1
                 
+                # Plot Range 2 data with SAME color but different style
                 if params.use_dual_range and len(result.y_data2) > 0:
                     ax.plot(result.x_data, result.y_data2,
                         's--', label=f"{result.base_name} (Range 2)",
-                        markersize=4, alpha=0.7)
+                        markersize=4, alpha=0.7, color=file_color)  # Same color!
+                
+                # Only increment color index after both ranges are plotted
+                color_idx += 1
         
         if plot_count > 0:
             ax.legend(loc='best', fontsize=8)

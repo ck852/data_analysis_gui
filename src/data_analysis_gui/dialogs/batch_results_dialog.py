@@ -19,6 +19,9 @@ from data_analysis_gui.core.batch_results import (
     BatchResultsExporter,
     BatchResultsAnalyzer
 )
+
+# CRITICAL: Use the SAME export functions that tests validate
+from data_analysis_gui.core.exporter import write_tables, write_single_table
 from data_analysis_gui.services.export_service import ExportService
 
 # Dialog imports
@@ -28,12 +31,18 @@ from .current_density_iv_dialog import CurrentDensityIVDialog
 class BatchResultDialog(QDialog):
     """Dialog for displaying batch analysis results"""
     
-    def __init__(self, parent, batch_data, batch_fig, iv_data=None, 
+    def __init__(self, parent, batch_result, batch_fig, iv_data=None, 
                  iv_file_mapping=None, x_label=None, y_label=None, 
                  destination_folder=None):
         super().__init__(parent)
         
-        # Create core data structure
+        # Store the batch_result object - this is what gets exported
+        self.batch_result = batch_result
+        
+        # Extract batch_data from batch_result for display purposes
+        batch_data = self._extract_batch_data_from_result(batch_result)
+        
+        # Create core data structure for UI state management
         self.results_data = BatchResultsData(
             batch_data=batch_data,
             iv_data=iv_data,
@@ -55,6 +64,25 @@ class BatchResultDialog(QDialog):
         self.setWindowTitle("Batch Analysis Results")
         self.setGeometry(200, 200, 1200, 800)
         self.init_ui()
+    
+    def _extract_batch_data_from_result(self, batch_result):
+        """Extract display data from BatchResult object"""
+        batch_data = {}
+        
+        if batch_result and hasattr(batch_result, 'successful_results'):
+            for result in batch_result.successful_results:
+                base_name = result.base_name
+                
+                # Extract data for display
+                if hasattr(result, 'export_table'):
+                    # Assuming export_table has the x and y values
+                    batch_data[base_name] = {
+                        'x_values': result.export_table.get('x_values', []),
+                        'y_values': result.export_table.get('y_values', []),
+                        'y_values2': result.export_table.get('y_values2', [])
+                    }
+        
+        return batch_data
     
     def init_ui(self):
         """Initialize the user interface"""
@@ -100,18 +128,78 @@ class BatchResultDialog(QDialog):
         # Get plot lines from the figure
         ax = self.batch_fig.get_axes()[0]
         all_plot_lines = ax.get_lines()
-        line_idx_counter = 0
         
-        # Create checkbox for each file
-        for file_name in self.results_data.batch_data.keys():
+        # Create a mapping of files to their lines based on line labels
+        file_to_lines = {}
+        for line in all_plot_lines:
+            label = line.get_label()
+            if label and not label.startswith('_'):  # Skip matplotlib internal labels
+                # Extract base_name from label like "250514_001 (Range 1)" or "250514_001 (Range 2)"
+                base_name = label.split(' (Range')[0].strip() if ' (Range' in label else label
+                
+                # Add this line to the appropriate file's list
+                if base_name in self.results_data.batch_data:
+                    if base_name not in file_to_lines:
+                        file_to_lines[base_name] = []
+                    file_to_lines[base_name].append(line)
+        
+        # Fallback: if no labels matched, distribute lines sequentially
+        if not file_to_lines:
+            sorted_files = sorted(self.results_data.batch_data.keys())
+            line_idx = 0
+            
+            for file_name in sorted_files:
+                file_data = self.results_data.batch_data[file_name]
+                lines_for_file = []
+                
+                # Single range: 1 line per file
+                # Dual range: 2 lines per file
+                if 'y_values' in file_data and len(file_data['y_values']) > 0:
+                    if line_idx < len(all_plot_lines):
+                        lines_for_file.append(all_plot_lines[line_idx])
+                        line_idx += 1
+                    
+                    # Check for dual range
+                    if 'y_values2' in file_data and len(file_data.get('y_values2', [])) > 0:
+                        if line_idx < len(all_plot_lines):
+                            lines_for_file.append(all_plot_lines[line_idx])
+                            line_idx += 1
+                
+                if lines_for_file:
+                    file_to_lines[file_name] = lines_for_file
+        
+        # Create checkbox for each file with color swatch
+        for file_name in sorted(self.results_data.batch_data.keys()):
             entry_layout = QHBoxLayout()
+            entry_layout.setSpacing(5)
             
-            # Color swatch
+            # Get the primary color from the first line for this file
+            lines_for_file = file_to_lines.get(file_name, [])
+            color = None
+            
+            if lines_for_file:
+                # Use the color from the first line (Range 1)
+                color = lines_for_file[0].get_color()
+            
+            # Create color swatch
             color_swatch = QLabel()
-            color_swatch.setMinimumSize(20, 20)
-            color_swatch.setMaximumSize(20, 20)
+            color_swatch.setMinimumSize(15, 15)
+            color_swatch.setMaximumSize(15, 15)
             
-            # Checkbox
+            if color:
+                # Matplotlib colors are already in a format Qt can use
+                color_str = str(color)
+            else:
+                # Fallback color if something went wrong
+                color_str = '#808080'
+            
+            color_swatch.setStyleSheet(
+                f"background-color: {color_str}; "
+                f"border: 1px solid #333; "
+                f"border-radius: 2px;"
+            )
+            
+            # Create checkbox
             checkbox = QCheckBox(file_name)
             checkbox.setChecked(file_name in self.results_data.included_files)
             checkbox.stateChanged.connect(
@@ -119,30 +207,15 @@ class BatchResultDialog(QDialog):
             )
             self.batch_checkboxes[file_name] = checkbox
             
-            # Map to plot lines
-            lines_for_file = []
-            file_data = self.results_data.batch_data[file_name]
+            # Store the lines for this file (for show/hide functionality)
+            self.batch_plot_lines[file_name] = lines_for_file
             
-            if 'y_values' in file_data and len(file_data['y_values']) > 0:
-                if line_idx_counter < len(all_plot_lines):
-                    line = all_plot_lines[line_idx_counter]
-                    lines_for_file.append(line)
-                    color = line.get_color()
-                    color_swatch.setStyleSheet(
-                        f"background-color: {color}; border: 1px solid black;"
-                    )
-                    line_idx_counter += 1
-            
-            if 'y_values2' in file_data and len(file_data.get('y_values2', [])) > 0:
-                if line_idx_counter < len(all_plot_lines):
-                    lines_for_file.append(all_plot_lines[line_idx_counter])
-                    line_idx_counter += 1
-            
+            # Add widgets to layout
             entry_layout.addWidget(color_swatch)
             entry_layout.addWidget(checkbox)
-            file_layout.addLayout(entry_layout)
+            entry_layout.addStretch()
             
-            self.batch_plot_lines[file_name] = lines_for_file
+            file_layout.addLayout(entry_layout)
         
         return file_group
     
@@ -272,20 +345,19 @@ Median: {stats['y_median']:.4f}"""
     
     def _export_all_data(self):
         """Export all included data to a single CSV file"""
-        # Get default path
+        # This should also potentially use a core function
+        # But keeping existing implementation for now
         default_path = ExportService.get_suggested_filename(
             base_name="Summary IV",
             destination_folder=self.results_data.destination_folder
         )
         
-        # Prepare data using core exporter
         export_data = self.exporter.prepare_combined_export_data()
         
         if not export_data:
             QMessageBox.warning(self, "Export Error", "No data to export")
             return
         
-        # Use centralized service
         result = ExportService.export_data_to_csv(
             data=export_data['data'],
             headers=export_data['headers'],
@@ -295,23 +367,52 @@ Median: {stats['y_median']:.4f}"""
         )
     
     def _export_individual_files(self):
-        """Export each included file to a separate CSV"""
-        folder = ExportService.select_export_folder(
-            parent=self,
-            title="Select Output Folder",
-            default_folder=self.results_data.destination_folder or ""
+        """
+        Export individual files using the SAME function that tests validate.
+        This calls write_tables() directly from core.exporter.
+        """
+        # Get output folder from user
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Folder",
+            self.results_data.destination_folder or ""
         )
         
         if not folder:
             return
         
-        # Prepare file data using core exporter
-        files_data = self.exporter.prepare_individual_files_data()
-        
-        # Use centralized service for batch export
-        results = ExportService.export_multiple_files(
-            files_data=files_data,
-            output_folder=folder,
-            parent=self,
-            show_summary=True
-        )
+        # CRITICAL: Call the SAME function that tests use
+        # This is write_tables() from data_analysis_gui.core.exporter
+        try:
+            export_outcomes = write_tables(self.batch_result, folder)
+            
+            # Count successes and failures
+            successful = sum(1 for outcome in export_outcomes if outcome.success)
+            failed = sum(1 for outcome in export_outcomes if not outcome.success)
+            
+            # Show results to user
+            if failed == 0:
+                QMessageBox.information(
+                    self,
+                    "Export Complete",
+                    f"Successfully exported {successful} file(s) to:\n{folder}"
+                )
+            elif successful > 0:
+                QMessageBox.warning(
+                    self,
+                    "Export Partially Complete",
+                    f"Exported {successful} file(s), {failed} failed.\nLocation: {folder}"
+                )
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Export Failed",
+                    f"Failed to export all {failed} file(s)."
+                )
+                
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"An error occurred during export:\n{str(e)}"
+            )
