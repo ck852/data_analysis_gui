@@ -6,6 +6,9 @@ handling only GUI-specific interactions.
 """
 
 import os
+import subprocess
+import sys
+
 from PyQt5.QtWidgets import (QDialog, QHBoxLayout, QVBoxLayout, QWidget,
                              QPushButton, QCheckBox, QFileDialog, QMessageBox,
                              QGroupBox, QLabel)
@@ -111,10 +114,6 @@ class BatchResultDialog(QDialog):
         # Buttons
         button_layout = self._create_button_layout()
         left_layout.addLayout(button_layout)
-        
-        # Statistics display
-        stats_group = self._create_statistics_group()
-        left_layout.addWidget(stats_group)
         
         left_layout.addStretch()
         
@@ -234,31 +233,20 @@ class BatchResultDialog(QDialog):
         export_img_btn.clicked.connect(self._export_plot_image)
         button_layout.addWidget(export_img_btn)
         
-        # Export all data button
-        export_all_btn = QPushButton("Export All Data to CSV")
-        export_all_btn.clicked.connect(self._export_all_data)
-        button_layout.addWidget(export_all_btn)
-        
         # Export individual files button
         export_individual_btn = QPushButton("Export Individual Files")
         export_individual_btn.clicked.connect(self._export_individual_files)
         button_layout.addWidget(export_individual_btn)
         
+        # Open Destination Folder button
+        open_dest_folder_btn = QPushButton("Open Destination Folder")
+        open_dest_folder_btn.clicked.connect(self._open_destination_folder)
+        open_dest_folder_btn.setAutoDefault(False)
+        if not self.results_data.destination_folder:
+            open_dest_folder_btn.setEnabled(False)
+        button_layout.addWidget(open_dest_folder_btn)
+        
         return button_layout
-    
-    def _create_statistics_group(self):
-        """Create statistics display group"""
-        stats_group = QGroupBox("Statistics")
-        stats_layout = QVBoxLayout(stats_group)
-        
-        self.stats_label = QLabel("Calculating...")
-        self.stats_label.setWordWrap(True)
-        stats_layout.addWidget(self.stats_label)
-        
-        # Update statistics
-        self._update_statistics()
-        
-        return stats_group
     
     def _create_right_panel(self):
         """Create the right panel for plot display"""
@@ -286,28 +274,6 @@ class BatchResultDialog(QDialog):
             for line in self.batch_plot_lines[file_name]:
                 line.set_visible(is_visible)
             self.canvas.draw()
-        
-        # Update statistics
-        self._update_statistics()
-    
-    def _update_statistics(self):
-        """Update the statistics display"""
-        stats = self.analyzer.calculate_statistics(self.results_data)
-        
-        if stats:
-            stats_text = f"""Files: {stats['num_files']}
-Mean: {stats['y_mean']:.4f}
-Std: {stats['y_std']:.4f}
-Min: {stats['y_min']:.4f}
-Max: {stats['y_max']:.4f}
-Median: {stats['y_median']:.4f}"""
-            
-            if 'x_range' in stats:
-                stats_text += f"\nX Range: {stats['x_range']:.4f}"
-        else:
-            stats_text = "No data available"
-        
-        self.stats_label.setText(stats_text)
     
     def _generate_current_density_iv(self):
         """Generate Current Density I-V analysis"""
@@ -342,30 +308,7 @@ Median: {stats['y_median']:.4f}"""
             default_path="batch_plot.png",
             title="Export Batch Plot"
         )
-    
-    def _export_all_data(self):
-        """Export all included data to a single CSV file"""
-        # This should also potentially use a core function
-        # But keeping existing implementation for now
-        default_path = ExportService.get_suggested_filename(
-            base_name="Summary IV",
-            destination_folder=self.results_data.destination_folder
-        )
-        
-        export_data = self.exporter.prepare_combined_export_data()
-        
-        if not export_data:
-            QMessageBox.warning(self, "Export Error", "No data to export")
-            return
-        
-        result = ExportService.export_data_to_csv(
-            data=export_data['data'],
-            headers=export_data['headers'],
-            parent=self,
-            default_path=default_path,
-            title="Export All Data to CSV"
-        )
-    
+
     def _export_individual_files(self):
         """
         Export individual files using the SAME function that tests validate.
@@ -416,3 +359,18 @@ Median: {stats['y_median']:.4f}"""
                 "Export Error",
                 f"An error occurred during export:\n{str(e)}"
             )
+    
+    def _open_destination_folder(self):
+        """Open the destination folder in the file explorer."""
+        if self.results_data.destination_folder and os.path.isdir(self.results_data.destination_folder):
+            try:
+                if sys.platform == "win32":
+                    os.startfile(self.results_data.destination_folder)
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", self.results_data.destination_folder])
+                else:
+                    subprocess.Popen(["xdg-open", self.results_data.destination_folder])
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not open folder: {e}")
+        else:
+            QMessageBox.warning(self, "Warning", "Destination folder not found.")

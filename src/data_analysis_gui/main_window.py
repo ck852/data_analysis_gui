@@ -481,11 +481,11 @@ class ModernMatSweepAnalyzer(QMainWindow):
         base_dir = os.path.dirname(file_paths[0])
         
         # Calculate unique default folder name
-        default_folder_name = "MAT_analysis"
+        default_folder_name = "PB_analysis"
         temp_path = os.path.join(base_dir, default_folder_name)
         counter = 1
         while os.path.exists(temp_path):
-            default_folder_name = f"MAT_analysis_{counter}"
+            default_folder_name = f"PB_analysis_{counter}"
             temp_path = os.path.join(base_dir, default_folder_name)
             counter += 1
         
