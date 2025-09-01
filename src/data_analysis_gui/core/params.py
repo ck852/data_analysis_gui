@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, Tuple, Iterable
 class AxisConfig:
     measure: str
     channel: Optional[str]
+    peak_type: Optional[str] = "Absolute"  # Options: "Absolute", "Positive", "Negative", "Peak-Peak"
 
 @dataclass(frozen=True)
 class AnalysisParameters:
@@ -24,7 +25,6 @@ class AnalysisParameters:
         def r(x):
             return round(x, 9) if isinstance(x, (float, int)) else x
 
-        # If channel_config ever contains lists/tuples, freeze them:
         def freeze(v):
             if isinstance(v, dict):
                 return tuple(sorted((k, freeze(vv)) for k, vv in v.items()))
@@ -39,18 +39,10 @@ class AnalysisParameters:
             r(self.range2_start) if self.range2_start is not None else None,
             r(self.range2_end) if self.range2_end is not None else None,
             r(self.stimulus_period),
-            (self.x_axis.measure, self.x_axis.channel),
-            (self.y_axis.measure, self.y_axis.channel),
-            # order-invariant, hashable representation of channel_config
+            (self.x_axis.measure, self.x_axis.channel, self.x_axis.peak_type),  # Added peak_type
+            (self.y_axis.measure, self.y_axis.channel, self.y_axis.peak_type),  # Added peak_type
             freeze(self.channel_config),
         )
-
-    # ---------- universal compat shim (dict-like) ----------
-    _legacy_aliases = {
-        "dual_range": "use_dual_range",
-        "stim_period": "stimulus_period",
-        # add more aliases if you encounter them
-    }
 
     def _flatten(self) -> Dict[str, Any]:
         """Flatten to a legacy-friendly dict once; cheap and predictable."""
@@ -61,14 +53,16 @@ class AnalysisParameters:
             "range2_start": self.range2_start,
             "range2_end": self.range2_end,
             "stimulus_period": self.stimulus_period,
-            "x_axis": self.x_axis,   # keep nested objects available
+            "x_axis": self.x_axis,
             "y_axis": self.y_axis,
             "channel_config": self.channel_config,
             # legacy flattened keys expected by older code:
             "x_measure": self.x_axis.measure,
             "x_channel": self.x_axis.channel,
+            "x_peak_type": self.x_axis.peak_type,  # Added
             "y_measure": self.y_axis.measure,
             "y_channel": self.y_axis.channel,
+            "y_peak_type": self.y_axis.peak_type,  # Added
         }
         # add alias keys mirroring the canonical ones
         for alias, canon in self._legacy_aliases.items():

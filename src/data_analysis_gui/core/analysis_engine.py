@@ -29,23 +29,39 @@ class SweepMetrics:
 
     # Range 1 metrics
     voltage_mean_r1: float
-    voltage_peak_r1: float  # Absolute max
+    voltage_peak_r1: float  # Absolute max (deprecated, use voltage_absolute_r1)
+    voltage_absolute_r1: float  # Absolute peak
+    voltage_positive_r1: float  # Positive peak (max)
+    voltage_negative_r1: float  # Negative peak (min)
+    voltage_peakpeak_r1: float  # Peak-to-peak
     voltage_min_r1: float
     voltage_max_r1: float
 
     current_mean_r1: float
-    current_peak_r1: float  # Absolute max
+    current_peak_r1: float  # Absolute max (deprecated, use current_absolute_r1)
+    current_absolute_r1: float  # Absolute peak
+    current_positive_r1: float  # Positive peak (max)
+    current_negative_r1: float  # Negative peak (min)
+    current_peakpeak_r1: float  # Peak-to-peak
     current_min_r1: float
     current_max_r1: float
 
     # Range 2 metrics (if dual range enabled)
     voltage_mean_r2: Optional[float] = None
-    voltage_peak_r2: Optional[float] = None
+    voltage_peak_r2: Optional[float] = None  # Absolute max (deprecated)
+    voltage_absolute_r2: Optional[float] = None
+    voltage_positive_r2: Optional[float] = None
+    voltage_negative_r2: Optional[float] = None
+    voltage_peakpeak_r2: Optional[float] = None
     voltage_min_r2: Optional[float] = None
     voltage_max_r2: Optional[float] = None
 
     current_mean_r2: Optional[float] = None
-    current_peak_r2: Optional[float] = None
+    current_peak_r2: Optional[float] = None  # Absolute max (deprecated)
+    current_absolute_r2: Optional[float] = None
+    current_positive_r2: Optional[float] = None
+    current_negative_r2: Optional[float] = None
+    current_peakpeak_r2: Optional[float] = None
     current_min_r2: Optional[float] = None
     current_max_r2: Optional[float] = None
 
@@ -270,8 +286,8 @@ class AnalysisEngine:
     # =========================================================================
 
     def _compute_sweep_metrics(self, sweep_index: str,
-                              sweep_number: int,
-                              params: AnalysisParameters) -> Optional[SweepMetrics]:
+                            sweep_number: int,
+                            params: AnalysisParameters) -> Optional[SweepMetrics]:
         """Compute all metrics for a single sweep using specified parameters."""
         series = self.get_sweep_series(sweep_index)
         if series is None:
@@ -285,42 +301,70 @@ class AnalysisEngine:
 
         v1, i1 = voltage[mask1], current[mask1]
 
+        # Helper function to compute all peak types
+        def compute_all_peaks(data):
+            if len(data) == 0:
+                return np.nan, np.nan, np.nan, np.nan
+            absolute = data[np.abs(data).argmax()] if len(data) > 0 else np.nan
+            positive = np.max(data) if len(data) > 0 else np.nan
+            negative = np.min(data) if len(data) > 0 else np.nan
+            peakpeak = positive - negative if len(data) > 0 else np.nan
+            return absolute, positive, negative, peakpeak
+
+        v_abs1, v_pos1, v_neg1, v_pp1 = compute_all_peaks(v1)
+        i_abs1, i_pos1, i_neg1, i_pp1 = compute_all_peaks(i1)
+
         metric = SweepMetrics(
             sweep_index=sweep_index,
             time_s=sweep_number * (params.stimulus_period / 1000.0),
             voltage_mean_r1=np.mean(v1) if len(v1) > 0 else np.nan,
-            voltage_peak_r1=np.max(np.abs(v1)) if len(v1) > 0 else np.nan,
-            voltage_min_r1=np.min(v1) if len(v1) > 0 else np.nan,
-            voltage_max_r1=np.max(v1) if len(v1) > 0 else np.nan,
+            voltage_peak_r1=v_abs1,  # Keep for backward compatibility
+            voltage_absolute_r1=v_abs1,
+            voltage_positive_r1=v_pos1,
+            voltage_negative_r1=v_neg1,
+            voltage_peakpeak_r1=v_pp1,
+            voltage_min_r1=v_neg1,  # Same as negative
+            voltage_max_r1=v_pos1,  # Same as positive
             current_mean_r1=np.mean(i1) if len(i1) > 0 else np.nan,
-            current_peak_r1=np.max(np.abs(i1)) if len(i1) > 0 else np.nan,
-            current_min_r1=np.min(i1) if len(i1) > 0 else np.nan,
-            current_max_r1=np.max(i1) if len(i1) > 0 else np.nan
+            current_peak_r1=i_abs1,  # Keep for backward compatibility
+            current_absolute_r1=i_abs1,
+            current_positive_r1=i_pos1,
+            current_negative_r1=i_neg1,
+            current_peakpeak_r1=i_pp1,
+            current_min_r1=i_neg1,  # Same as negative
+            current_max_r1=i_pos1   # Same as positive
         )
 
         if params.use_dual_range and params.range2_start is not None and params.range2_end is not None:
             mask2 = (time_ms >= params.range2_start) & (time_ms <= params.range2_end)
             if np.any(mask2):
                 v2, i2 = voltage[mask2], current[mask2]
+                v_abs2, v_pos2, v_neg2, v_pp2 = compute_all_peaks(v2)
+                i_abs2, i_pos2, i_neg2, i_pp2 = compute_all_peaks(i2)
+                
                 metric.voltage_mean_r2 = np.mean(v2) if len(v2) > 0 else np.nan
-                metric.voltage_peak_r2 = np.max(np.abs(v2)) if len(v2) > 0 else np.nan
-                metric.voltage_min_r2 = np.min(v2) if len(v2) > 0 else np.nan
-                metric.voltage_max_r2 = np.max(v2) if len(v2) > 0 else np.nan
+                metric.voltage_peak_r2 = v_abs2  # Keep for backward compatibility
+                metric.voltage_absolute_r2 = v_abs2
+                metric.voltage_positive_r2 = v_pos2
+                metric.voltage_negative_r2 = v_neg2
+                metric.voltage_peakpeak_r2 = v_pp2
+                metric.voltage_min_r2 = v_neg2
+                metric.voltage_max_r2 = v_pos2
                 metric.current_mean_r2 = np.mean(i2) if len(i2) > 0 else np.nan
-                metric.current_peak_r2 = np.max(np.abs(i2)) if len(i2) > 0 else np.nan
-                metric.current_min_r2 = np.min(i2) if len(i2) > 0 else np.nan
-                metric.current_max_r2 = np.max(i2) if len(i2) > 0 else np.nan
+                metric.current_peak_r2 = i_abs2  # Keep for backward compatibility
+                metric.current_absolute_r2 = i_abs2
+                metric.current_positive_r2 = i_pos2
+                metric.current_negative_r2 = i_neg2
+                metric.current_peakpeak_r2 = i_pp2
+                metric.current_min_r2 = i_neg2
+                metric.current_max_r2 = i_pos2
 
         return metric
 
     def _extract_axis_data(self, metrics: List[SweepMetrics], axis_config: AxisConfig,
-                          range_num: int = 1) -> Tuple[List[float], str]:
+                        range_num: int = 1) -> Tuple[List[float], str]:
         """
         Extract data for a specific axis configuration from computed metrics.
-        
-        Note: The provided AxisConfig DTO does not specify a peak_type (e.g., Min, Max).
-        Therefore, a 'Peak' measure defaults to using the absolute max value, and
-        Min/Max peak options are no longer available with this DTO structure.
         """
         measure, channel_type = axis_config.measure, axis_config.channel
 
@@ -332,19 +376,37 @@ class AnalysisEngine:
 
         if measure == "Average":
             metric_base = "mean"
+            label = f"Average {channel_type} ({unit})"
         elif measure == "Peak":
-            # The AxisConfig DTO doesn't specify Min/Max, so "Peak" defaults
-            # to the absolute max value calculated in SweepMetrics.
-            metric_base = "peak"
+            # Use the peak_type from axis_config
+            peak_type = getattr(axis_config, 'peak_type', 'Absolute')
+            
+            # Map peak type to metric suffix
+            peak_map = {
+                "Absolute": "absolute",
+                "Positive": "positive", 
+                "Negative": "negative",
+                "Peak-Peak": "peakpeak"
+            }
+            
+            metric_base = peak_map.get(peak_type, "absolute")
+            
+            # Create descriptive label
+            peak_label_map = {
+                "Absolute": "Peak",
+                "Positive": "Peak (+)",
+                "Negative": "Peak (-)",
+                "Peak-Peak": "Peak-Peak"
+            }
+            label = f"{peak_label_map.get(peak_type, 'Peak')} {channel_type} ({unit})"
         else:
-            # Fallback for an unknown measure.
+            # Fallback for an unknown measure
             return [np.nan] * len(metrics), f"Unknown Measure '{measure}'"
 
         channel_prefix = "voltage" if channel_type == "Voltage" else "current"
         metric_name = f"{channel_prefix}_{metric_base}{range_suffix}"
 
         data = [getattr(m, metric_name, np.nan) for m in metrics]
-        label = f"{measure} {channel_type} ({unit})"
 
         return data, label
 
@@ -399,3 +461,50 @@ class AnalysisEngine:
             'sweep_index': sweep_index,
             'channel_type': channel_type
         }
+    
+    def get_peak_analysis_data(self, params: AnalysisParameters, peak_types: List[str] = None) -> Dict[str, Any]:
+        """
+        Get data for multiple peak types for comprehensive peak analysis.
+        
+        Args:
+            params: Analysis parameters
+            peak_types: List of peak types to analyze. 
+                    Defaults to ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        Returns:
+            Dictionary with peak analysis data for each type
+        """
+        if peak_types is None:
+            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        metrics = self.get_all_metrics(params)
+        if not metrics:
+            return {}
+        
+        result = {}
+        for peak_type in peak_types:
+            # Create modified axis config with the peak type
+            modified_y_axis = AxisConfig(
+                measure="Peak",
+                channel=params.y_axis.channel,
+                peak_type=peak_type
+            )
+            
+            y_data, y_label = self._extract_axis_data(metrics, modified_y_axis, range_num=1)
+            
+            result[peak_type.lower().replace("-", "_")] = {
+                'data': np.array(y_data),
+                'label': y_label
+            }
+            
+            if params.use_dual_range:
+                y_data2, _ = self._extract_axis_data(metrics, modified_y_axis, range_num=2)
+                result[peak_type.lower().replace("-", "_")]['data_r2'] = np.array(y_data2)
+        
+        # Add x-axis data (common for all peak types)
+        x_data, x_label = self._extract_axis_data(metrics, params.x_axis, range_num=1)
+        result['x_data'] = np.array(x_data)
+        result['x_label'] = x_label
+        result['sweep_indices'] = [m.sweep_index for m in metrics]
+        
+        return result

@@ -117,8 +117,10 @@ class ApplicationController:
             stimulus_period=gui_state['stimulus_period'],
             x_measure=gui_state['x_measure'],
             x_channel=gui_state.get('x_channel'),
+            x_peak_type=gui_state.get('x_peak_type', 'Absolute'),  # Added
             y_measure=gui_state['y_measure'],
             y_channel=gui_state.get('y_channel'),
+            y_peak_type=gui_state.get('y_peak_type', 'Absolute'),  # Added
             channel_config=self.get_channel_configuration()
         )
     
@@ -390,8 +392,10 @@ class ApplicationController:
         stimulus_period: float,
         x_measure: str,
         x_channel: Optional[str],
+        x_peak_type: Optional[str],  # Added parameter
         y_measure: str,
         y_channel: Optional[str],
+        y_peak_type: Optional[str],  # Added parameter
         channel_config: Dict[str, int]
     ) -> AnalysisParameters:
         """
@@ -400,12 +404,14 @@ class ApplicationController:
         """
         x_axis_config = AxisConfig(
             measure=x_measure,
-            channel=x_channel if x_measure != "Time" else None
+            channel=x_channel if x_measure != "Time" else None,
+            peak_type=x_peak_type if x_measure == "Peak" else None  # Added
         )
         
         y_axis_config = AxisConfig(
             measure=y_measure,
-            channel=y_channel if y_measure != "Time" else None
+            channel=y_channel if y_measure != "Time" else None,
+            peak_type=y_peak_type if y_measure == "Peak" else None  # Added
         )
         
         return AnalysisParameters(
@@ -426,6 +432,16 @@ class ApplicationController:
         # X-axis label
         if params.x_axis.measure == "Time":
             x_label = "Time (s)"
+        elif params.x_axis.measure == "Peak":
+            unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
+            peak_type = params.x_axis.peak_type or "Absolute"
+            peak_label_map = {
+                "Absolute": "Peak",
+                "Positive": "Peak (+)",
+                "Negative": "Peak (-)",
+                "Peak-Peak": "Peak-Peak"
+            }
+            x_label = f"{peak_label_map.get(peak_type, 'Peak')} {params.x_axis.channel} {unit}"
         else:
             unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
             x_label = f"{params.x_axis.measure} {params.x_axis.channel} {unit}"
@@ -433,8 +449,131 @@ class ApplicationController:
         # Y-axis label
         if params.y_axis.measure == "Time":
             y_label = "Time (s)"
+        elif params.y_axis.measure == "Peak":
+            unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
+            peak_type = params.y_axis.peak_type or "Absolute"
+            peak_label_map = {
+                "Absolute": "Peak",
+                "Positive": "Peak (+)",
+                "Negative": "Peak (-)",
+                "Peak-Peak": "Peak-Peak"
+            }
+            y_label = f"{peak_label_map.get(peak_type, 'Peak')} {params.y_axis.channel} {unit}"
         else:
             unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
             y_label = f"{params.y_axis.measure} {params.y_axis.channel} {unit}"
         
         return x_label, y_label
+
+    def perform_peak_analysis(self, base_params: AnalysisParameters, 
+                            peak_types: List[str] = None) -> Dict[str, AnalysisPlotData]:
+        """
+        Perform analysis for multiple peak types.
+        
+        Args:
+            base_params: Base analysis parameters
+            peak_types: List of peak types to analyze
+            
+        Returns:
+            Dictionary mapping peak type to AnalysisPlotData
+        """
+        if not self.has_data():
+            return {}
+        
+        if peak_types is None:
+            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        results = {}
+        
+        for peak_type in peak_types:
+            # Create modified parameters with specific peak type
+            modified_params = AnalysisParameters(
+                range1_start=base_params.range1_start,
+                range1_end=base_params.range1_end,
+                use_dual_range=base_params.use_dual_range,
+                range2_start=base_params.range2_start,
+                range2_end=base_params.range2_end,
+                stimulus_period=base_params.stimulus_period,
+                x_axis=AxisConfig(
+                    measure=base_params.x_axis.measure,
+                    channel=base_params.x_axis.channel,
+                    peak_type=peak_type if base_params.x_axis.measure == "Peak" else None
+                ),
+                y_axis=AxisConfig(
+                    measure=base_params.y_axis.measure,
+                    channel=base_params.y_axis.channel,
+                    peak_type=peak_type if base_params.y_axis.measure == "Peak" else None
+                ),
+                channel_config=base_params.channel_config
+            )
+            
+            # Perform analysis with modified parameters
+            plot_data = self.perform_analysis(modified_params)
+            if plot_data:
+                results[peak_type] = plot_data
+        
+        return results
+
+    def export_peak_analysis(self, base_params: AnalysisParameters, 
+                            destination_folder: str,
+                            peak_types: List[str] = None) -> Dict[str, bool]:
+        """
+        Export analysis data for multiple peak types.
+        
+        Args:
+            base_params: Base analysis parameters
+            destination_folder: Where to save the files
+            peak_types: List of peak types to export
+            
+        Returns:
+            Dictionary mapping peak type to export success status
+        """
+        if not self.has_data() or not self.loaded_file_path:
+            return {}
+        
+        if peak_types is None:
+            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        results = {}
+        base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
+        if '[' in base_name:
+            base_name = base_name.split('[')[0]
+        
+        for peak_type in peak_types:
+            # Create filename with peak type suffix
+            peak_suffix_map = {
+                "Absolute": "_absolute",
+                "Positive": "_positive",
+                "Negative": "_negative",
+                "Peak-Peak": "_peak-peak"
+            }
+            suffix = peak_suffix_map.get(peak_type, "")
+            filename = f"{base_name}{suffix}.csv"
+            file_path = os.path.join(destination_folder, filename)
+            
+            # Create modified parameters
+            modified_params = AnalysisParameters(
+                range1_start=base_params.range1_start,
+                range1_end=base_params.range1_end,
+                use_dual_range=base_params.use_dual_range,
+                range2_start=base_params.range2_start,
+                range2_end=base_params.range2_end,
+                stimulus_period=base_params.stimulus_period,
+                x_axis=AxisConfig(
+                    measure=base_params.x_axis.measure,
+                    channel=base_params.x_axis.channel,
+                    peak_type=peak_type if base_params.x_axis.measure == "Peak" else None
+                ),
+                y_axis=AxisConfig(
+                    measure=base_params.y_axis.measure,
+                    channel=base_params.y_axis.channel,
+                    peak_type=peak_type if base_params.y_axis.measure == "Peak" else None
+                ),
+                channel_config=base_params.channel_config
+            )
+            
+            # Export with modified parameters
+            success = self.export_analysis_data_to_file(modified_params, file_path)
+            results[peak_type] = success
+        
+        return results

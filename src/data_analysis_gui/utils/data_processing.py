@@ -18,12 +18,12 @@ def process_sweep_data(time, data, start_ms, end_ms, channel_id):
     return data[:, channel_id][mask]
 
 
-def calculate_peak(data, peak_type="Max"):
+def calculate_peak(data, peak_type="Absolute"):
     """Calculate peak value based on type.
     
     Args:
         data: Array of data values
-        peak_type: Type of peak - "Max", "Min", or "Absolute Max"
+        peak_type: Type of peak - "Absolute", "Positive", "Negative", or "Peak-Peak"
     
     Returns:
         Peak value according to the specified type
@@ -31,11 +31,13 @@ def calculate_peak(data, peak_type="Max"):
     if len(data) == 0:
         return np.nan
     
-    if peak_type == "Max":
+    if peak_type == "Positive" or peak_type == "Max":
         return np.max(data)
-    elif peak_type == "Min":
+    elif peak_type == "Negative" or peak_type == "Min":
         return np.min(data)
-    else:  # Absolute Max
+    elif peak_type == "Peak-Peak":
+        return np.max(data) - np.min(data)
+    else:  # "Absolute" or "Absolute Max"
         return data[np.abs(data).argmax()]
 
 
@@ -57,7 +59,8 @@ def apply_analysis_mode(data, mode="Average", peak_type=None):
     Args:
         data: Array of data values
         mode: Analysis mode - "Average" or "Peak"
-        peak_type: If mode is "Peak", the type of peak to find
+        peak_type: If mode is "Peak", the type of peak to find 
+                  ("Absolute", "Positive", "Negative", "Peak-Peak")
     
     Returns:
         Analyzed value according to the specified mode
@@ -65,7 +68,7 @@ def apply_analysis_mode(data, mode="Average", peak_type=None):
     if mode == "Average":
         return calculate_average(data)
     elif mode == "Peak":
-        return calculate_peak(data, peak_type)
+        return calculate_peak(data, peak_type or "Absolute")
     else:
         return 0
 
