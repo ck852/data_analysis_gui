@@ -21,6 +21,7 @@ class BatchResultsData:
     x_label: Optional[str] = None
     y_label: Optional[str] = None
     destination_folder: Optional[str] = None
+    peak_type: Optional[str] = None
     
     # Track which files are included/visible
     included_files: Set[str] = field(default_factory=set)
@@ -72,20 +73,13 @@ class BatchResultsExporter:
     def export_all_data_to_csv(self, output_path: str, format_spec: str = '%.6f') -> None:
         """
         Export all included batch data to a single CSV file.
-        
-        Args:
-            output_path: Path for the output CSV file
-            format_spec: Format specification for numbers
-            
-        Raises:
-            ValueError: If no data to export or data inconsistency
         """
         included_data = self.results_data.get_included_data()
         
         if not included_data:
             raise ValueError("No data to export")
         
-        # Determine common x values (assuming all files have same x values)
+        # Determine common x values
         first_file = next(iter(included_data.values()))
         x_values = np.array(first_file['x_values'])
         
@@ -96,21 +90,25 @@ class BatchResultsExporter:
             data = included_data[file_name]
             y_values = np.array(data['y_values'])
             
-            # Validate that x values match
             if not np.array_equal(np.array(data['x_values']), x_values):
                 raise ValueError(f"X values mismatch for file {file_name}")
             
             output_columns.append(y_values)
             
-            # Add second y values if present (dual range)
             if 'y_values2' in data and len(data['y_values2']) > 0:
                 output_columns.append(np.array(data['y_values2']))
         
-        # Stack columns
         output_data = np.column_stack(output_columns)
         
-        # Create header
-        header_parts = [self.results_data.x_label or "X"]
+        # Create header with peak type info if available
+        x_label = self.results_data.x_label or "X"
+        if self.results_data.peak_type:
+            # Add peak type to label if not already there
+            if self.results_data.peak_type not in x_label:
+                peak_suffix = f" ({self.results_data.peak_type})"
+                x_label = x_label + peak_suffix
+        
+        header_parts = [x_label]
         for file_name in sorted(included_data.keys()):
             header_parts.append(file_name)
             data = included_data[file_name]
@@ -119,16 +117,17 @@ class BatchResultsExporter:
         
         header = ",".join(header_parts)
         
-        # Export
         np.savetxt(output_path, output_data, delimiter=',', fmt=format_spec,
                    header=header, comments='')
     
-    def export_individual_files(self, output_folder: str) -> List[Tuple[str, bool, str]]:
+    def export_individual_files(self, output_folder: str, 
+                               include_peak_suffix: bool = True) -> List[Tuple[str, bool, str]]:
         """
         Export each included file to a separate CSV.
         
         Args:
             output_folder: Folder to save individual files
+            include_peak_suffix: Whether to add peak type suffix to filenames
             
         Returns:
             List of tuples (filename, success, message)
@@ -139,31 +138,79 @@ class BatchResultsExporter:
         for file_name in sorted(included_data.keys()):
             try:
                 data = included_data[file_name]
-                output_path = os.path.join(output_folder, f"{file_name}.csv")
+                
+                # Determine output filename
+                output_name = file_name
+                if include_peak_suffix and self.results_data.peak_type:
+                    peak_suffix_map = {
+                        "Absolute": "_absolute",
+                        "Positive": "_positive",
+                        "Negative": "_negative",
+                        "Peak-Peak": "_peak-peak"
+                    }
+                    suffix = peak_suffix_map.get(self.results_data.peak_type, "")
+                    output_name = f"{file_name}{suffix}"
+                
+                output_path = os.path.join(output_folder, f"{output_name}.csv")
                 
                 # Prepare data
                 x_values = np.array(data['x_values'])
                 y_values = np.array(data['y_values'])
                 
+                # Create appropriate labels
+                x_label = self.results_data.x_label or "X"
+                y_label = self.results_data.y_label or "Y"
+                
                 if 'y_values2' in data and len(data['y_values2']) > 0:
                     y_values2 = np.array(data['y_values2'])
                     output_data = np.column_stack((x_values, y_values, y_values2))
-                    header = f"{self.results_data.x_label},{self.results_data.y_label},Range2"
+                    header = f"{x_label},{y_label},Range2"
                 else:
                     output_data = np.column_stack((x_values, y_values))
-                    header = f"{self.results_data.x_label},{self.results_data.y_label}"
+                    header = f"{x_label},{y_label}"
                 
-                # Export
                 np.savetxt(output_path, output_data, delimiter=',', fmt='%.6f',
                            header=header, comments='')
                 
-                results.append((file_name, True, f"Saved to {output_path}"))
+                results.append((output_name, True, f"Saved to {output_path}"))
                 
             except Exception as e:
                 results.append((file_name, False, str(e)))
         
         return results
-
+    
+    def export_peak_analysis_results(peak_results: Dict[str, BatchResultsData],
+                                    output_folder: str) -> Dict[str, List[Tuple[str, bool, str]]]:
+        """
+        Export results for multiple peak analysis types.
+        
+        Args:
+            peak_results: Dictionary mapping peak type to BatchResultsData
+            output_folder: Output folder for all exports
+            
+        Returns:
+            Dictionary mapping peak type to export results
+        """
+        all_export_results = {}
+        
+        for peak_type, results_data in peak_results.items():
+            # Create subfolder for this peak type
+            peak_folder = os.path.join(output_folder, peak_type.lower().replace("-", "_"))
+            os.makedirs(peak_folder, exist_ok=True)
+            
+            # Export individual files for this peak type
+            exporter = BatchResultsExporter(results_data)
+            export_results = exporter.export_individual_files(peak_folder, include_peak_suffix=False)
+            all_export_results[peak_type] = export_results
+            
+            # Also export combined data for this peak type
+            combined_path = os.path.join(peak_folder, f"combined_{peak_type.lower()}.csv")
+            try:
+                exporter.export_all_data_to_csv(combined_path)
+            except Exception as e:
+                print(f"Failed to export combined data for {peak_type}: {e}")
+        
+        return all_export_results
 
 class BatchResultsAnalyzer:
     """Analyzes batch results for statistics and insights"""

@@ -188,7 +188,24 @@ class ControlPanel(QWidget):
         self.update_plot_btn.setEnabled(False)
         plot_layout.addWidget(self.update_plot_btn, 2, 0, 1, 3)
         
+        plot_layout.addWidget(QLabel("Peak Mode:"), 3, 0)
+        self.peak_mode_combo = QComboBox()
+        self.peak_mode_combo.addItems(["Absolute", "Positive", "Negative", "Peak-Peak"])
+        self.peak_mode_combo.setCurrentText("Absolute")
+        self.peak_mode_combo.setToolTip("Peak calculation mode (applies when X or Y axis is set to Peak)")
+        plot_layout.addWidget(self.peak_mode_combo, 3, 1, 1, 2)
+        
+        # Connect signal to enable/disable peak mode based on axis selection
+        self.x_measure_combo.currentTextChanged.connect(self._update_peak_mode_visibility)
+        self.y_measure_combo.currentTextChanged.connect(self._update_peak_mode_visibility)
+
         return plot_group
+    
+    def _update_peak_mode_visibility(self):
+        """Enable/disable peak mode combo based on whether Peak is selected"""
+        is_peak_selected = (self.x_measure_combo.currentText() == "Peak" or 
+                        self.y_measure_combo.currentText() == "Peak")
+        self.peak_mode_combo.setEnabled(is_peak_selected)
     
     def _connect_signals(self):
         """Connect internal widget signals"""
@@ -212,6 +229,8 @@ class ControlPanel(QWidget):
         Collect all parameters from the control panel.
         Returns a dictionary with all settings.
         """
+        peak_mode = self.peak_mode_combo.currentText()
+        
         return {
             'range1_start': self.start_spin.value(),
             'range1_end': self.end_spin.value(),
@@ -221,8 +240,10 @@ class ControlPanel(QWidget):
             'stimulus_period': self.period_spin.value(),
             'x_measure': self.x_measure_combo.currentText(),
             'x_channel': self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
+            'x_peak_type': peak_mode if self.x_measure_combo.currentText() == "Peak" else None,  # NEW
             'y_measure': self.y_measure_combo.currentText(),
             'y_channel': self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
+            'y_peak_type': peak_mode if self.y_measure_combo.currentText() == "Peak" else None,  # NEW
         }
     
     def update_file_info(self, file_name: str, sweep_count: int):

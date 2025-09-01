@@ -177,6 +177,7 @@ root/
 |   |-- test_current_density.py
 |   |-- test_gui_smoke.py
 |   |-- test_integration.py
+|   |-- test_peak_modes.py
 |   |-- test_single_analysis.py
 |   |-- test_swapped_channels.py
 |   `-- test_working.py

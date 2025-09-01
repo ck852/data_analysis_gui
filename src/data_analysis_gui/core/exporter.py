@@ -101,3 +101,72 @@ def write_tables(result: BatchResult, destination_folder: str) -> List[ExportOut
         outcomes.append(outcome)
             
     return outcomes
+
+def write_single_table(
+    table: Dict[str, Any],
+    base_name: str,
+    destination_folder: str,
+    peak_type: Optional[str] = None  # NEW parameter
+) -> ExportOutcome:
+    """
+    Writes a single analysis table to a CSV file in the given folder.
+    Handles filename sanitization and collision.
+    
+    Args:
+        table: Table data dictionary
+        base_name: Base filename
+        destination_folder: Output folder
+        peak_type: Optional peak type to append to filename
+    """
+    sanitized_name = _sanitize_filename(base_name)
+    
+    # Add peak type suffix if provided
+    if peak_type and peak_type != "Absolute":  # Only add suffix for non-default peak types
+        peak_suffix_map = {
+            "Positive": "_positive",
+            "Negative": "_negative", 
+            "Peak-Peak": "_peak-peak"
+        }
+        suffix = peak_suffix_map.get(peak_type, "")
+        sanitized_name = f"{sanitized_name}{suffix}"
+    
+    target_path = os.path.join(destination_folder, f"{sanitized_name}.csv")
+    
+    try:
+        if not os.path.isdir(destination_folder):
+            raise FileNotFoundError(f"Destination folder does not exist: {destination_folder}")
+
+        final_path = _get_next_available_path(target_path)
+        _write_csv(final_path, table)
+        
+        return ExportOutcome(path=final_path, success=True)
+    except Exception as e:
+        return ExportOutcome(path=target_path, success=False, error_message=str(e))
+
+def write_tables(result: BatchResult, destination_folder: str) -> List[ExportOutcome]:
+    """
+    Writes all successful file results from a BatchResult to a destination folder.
+    """
+    outcomes: List[ExportOutcome] = []
+    
+    try:
+        if not os.path.isdir(destination_folder):
+            os.makedirs(destination_folder, exist_ok=True)
+    except OSError as e:
+        error_msg = f"Could not create destination folder '{destination_folder}': {e}"
+        return [ExportOutcome(path=res.file_path, success=False, error_message=error_msg) 
+                for res in result.successful_results]
+
+    for file_result in result.successful_results:
+        # Extract peak type from the result if available
+        peak_type = getattr(file_result, 'peak_type', None)
+        
+        outcome = write_single_table(
+            table=file_result.export_table,
+            base_name=file_result.base_name,
+            destination_folder=destination_folder,
+            peak_type=peak_type  # Pass peak type
+        )
+        outcomes.append(outcome)
+            
+    return outcomes

@@ -227,13 +227,6 @@ class ApplicationController:
     def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
         """
         Export analysis data to a specific CSV file.
-        
-        Args:
-            params: Analysis parameters
-            file_path: Full path to the output file (including filename)
-            
-        Returns:
-            True if successful, False otherwise
         """
         if not self.has_data() or not self.loaded_file_path:
             return False
@@ -247,6 +240,13 @@ class ApplicationController:
                     self.on_error("No data to export")
                 return False
             
+            # Extract peak type from parameters
+            peak_type = None
+            if params.y_axis.measure == "Peak":
+                peak_type = getattr(params.y_axis, 'peak_type', None)
+            elif params.x_axis.measure == "Peak":
+                peak_type = getattr(params.x_axis, 'peak_type', None)
+            
             # Extract the directory and filename from the full path
             destination_folder = os.path.dirname(file_path)
             filename_with_ext = os.path.basename(file_path)
@@ -257,7 +257,8 @@ class ApplicationController:
             outcome = exporter.write_single_table(
                 table=table_data,
                 base_name=base_name,
-                destination_folder=destination_folder
+                destination_folder=destination_folder,
+                peak_type=peak_type  # Pass peak type
             )
             
             if outcome.success and self.on_status_update:
@@ -271,6 +272,19 @@ class ApplicationController:
             if self.on_error:
                 self.on_error(f"Export error: {str(e)}")
             return False
+        
+    def get_suggested_export_filename(self, suffix="_analyzed") -> str:
+        """Generate suggested filename for exports"""
+        if self.loaded_file_path:
+            base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
+            if '[' in base_name:
+                base_name = base_name.split('[')[0]
+            
+            # Get current parameters to check peak type
+            # This would need the current params passed in, or stored
+            # For now, just return the basic name
+            return f"{base_name}{suffix}.csv"
+        return f"analyzed.csv"
     
     def has_data(self) -> bool:
         """Check if data is loaded"""
