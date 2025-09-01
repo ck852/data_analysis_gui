@@ -12,9 +12,13 @@ from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.exporter import write_single_table
 
 from conftest import (
-    IV_CD_DATA_DIR, GOLDEN_IV_DIR, 
+    IV_CD_DATA_DIR, GOLDEN_DATA_DIR,
     compare_csv_files
 )
+
+# ABF-specific paths
+ABF_DATA_DIR = IV_CD_DATA_DIR / "ABF"
+GOLDEN_ABF_IV_DIR = GOLDEN_DATA_DIR / "golden_abf_IV"
 
 
 class TestSingleFileAnalysis:
@@ -30,8 +34,8 @@ class TestSingleFileAnalysis:
         """
         # Construct file pattern - will load first sweep file
         base_name = f"250514_{file_num:03d}"
-        # The only difference from MAT test: .abf extension
-        abf_file = IV_CD_DATA_DIR / f"{base_name}[1-11].abf"
+        # ABF files are in the ABF subdirectory
+        abf_file = ABF_DATA_DIR / f"{base_name}[1-11].abf"
         
         assert abf_file.exists(), f"Test file not found: {abf_file}"
         
@@ -53,8 +57,8 @@ class TestSingleFileAnalysis:
             str(temp_output_dir)
         )
         
-        # Compare with golden data (same golden data as MAT files)
-        golden_path = GOLDEN_IV_DIR / f"{base_name}.csv"
+        # Compare with golden data (ABF-specific golden data)
+        golden_path = GOLDEN_ABF_IV_DIR / f"{base_name}.csv"
         assert golden_path.exists(), f"Golden file not found: {golden_path}"
         
         assert compare_csv_files(output_path, golden_path), \
@@ -62,8 +66,8 @@ class TestSingleFileAnalysis:
     
     def test_sweep_data_extraction(self, channel_definitions):
         """Test that sweep data is correctly extracted from ABF files."""
-        # Load a sample file
-        abf_file = IV_CD_DATA_DIR / "250514_001[1-11].abf"
+        # Load a sample file from ABF subdirectory
+        abf_file = ABF_DATA_DIR / "250514_001[1-11].abf"
         dataset = DatasetLoader.load(str(abf_file), channel_definitions)
         
         # Check sweep count
@@ -82,8 +86,8 @@ class TestSingleFileAnalysis:
     def test_analysis_parameters_applied(self, analysis_params, 
                                         channel_definitions):
         """Verify analysis parameters are correctly applied."""
-        # Load test file
-        abf_file = IV_CD_DATA_DIR / "250514_001[1-11].abf"
+        # Load test file from ABF subdirectory
+        abf_file = ABF_DATA_DIR / "250514_001[1-11].abf"
         dataset = DatasetLoader.load(str(abf_file), channel_definitions)
         engine = AnalysisEngine(dataset, channel_definitions)
         
