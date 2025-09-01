@@ -14,22 +14,7 @@ class IVAnalysisService:
     ) -> Tuple[Dict[float, list], Dict[str, str]]:
         """
         Transforms raw batch results into a format suitable for I-V curve analysis.
-
-        This method checks if the analysis parameters correspond to a standard
-        I-V plot (Average Voltage vs. Average Current). If they do, it aggregates
-        current data by voltage level.
-
-        Args:
-            batch_results: A dictionary where keys are base filenames and values
-                           are dictionaries containing 'x_values', 'y_values', etc.
-            params: The AnalysisParameters used to generate the batch results.
-
-        Returns:
-            A tuple containing:
-            - iv_data (Dict): A dictionary mapping rounded voltage levels to a
-              list of corresponding current values.
-            - iv_file_mapping (Dict): A dictionary mapping a generic "Recording X"
-              ID to the original base filename.
+        ...
         """
         iv_data: Dict[float, list] = {}
         iv_file_mapping: Dict[str, str] = {}
@@ -45,8 +30,8 @@ class IVAnalysisService:
         if not is_iv_analysis:
             return iv_data, iv_file_mapping
 
-        # Data transformation logic, now independent of the GUI.
-        for idx, (base_name, data) in enumerate(batch_results.items()):
+        # SORT the batch_results to ensure consistent ordering
+        for idx, (base_name, data) in enumerate(sorted(batch_results.items())):
             for x_val, y_val in zip(data['x_values'], data['y_values']):
                 rounded_voltage = round(x_val, 1)
                 if rounded_voltage not in iv_data:

@@ -56,6 +56,7 @@ root/
 |   |-- fixtures/
 |   |   |-- golden_data/
 |   |   |   |-- golden_abf_CD/
+|   |   |   |   |-- 250514_001_CD.csv
 |   |   |   |   |-- 250514_002_CD.csv
 |   |   |   |   |-- 250514_003_CD.csv
 |   |   |   |   |-- 250514_004_CD.csv
@@ -67,7 +68,7 @@ root/
 |   |   |   |   |-- 250514_010_CD.csv
 |   |   |   |   |-- 250514_011_CD.csv
 |   |   |   |   |-- 250514_012_CD.csv
-|   |   |   |   `-- ABF_Current_Density_Summary.csv
+|   |   |   |   `-- Current_Density_Summary.csv
 |   |   |   |-- golden_abf_IV/
 |   |   |   |   |-- 250514_001.csv
 |   |   |   |   |-- 250514_002.csv
@@ -155,6 +156,8 @@ root/
 |   |       |   |-- 250514_011[1-11].mat
 |   |       |   `-- 250514_012[1-11].mat
 |   |       |-- peak modes/
+|   |       |   |-- 250514_012[1-11].abf
+|   |       |   `-- 250514_012[1-11].mat
 |   |       `-- swapped/
 |   |           |-- 240809_001[1-12].abf
 |   |           |-- 240809_001[1-12].mat
@@ -164,6 +167,8 @@ root/
 |   |           `-- 240809_003[1-12].mat
 |   |-- conftest.py
 |   |-- pytest.ini
+|   |-- test_abf_batch_analysis.py
+|   |-- test_abf_current_density.py
 |   |-- test_abf_single_analysis.py
 |   |-- test_analysis_plot.py
 |   |-- test_batch_analysis.py
