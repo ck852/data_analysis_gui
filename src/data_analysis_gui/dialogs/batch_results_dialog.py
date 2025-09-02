@@ -232,15 +232,15 @@ class BatchResultDialog(QDialog):
             iv_btn.clicked.connect(self._generate_current_density_iv)
             button_layout.addWidget(iv_btn)
         
+            # NEW: Export All Data to CSV button
+            export_summary_btn = QPushButton("Export All Data to CSV")
+            export_summary_btn.clicked.connect(self._export_summary_data)
+            button_layout.addWidget(export_summary_btn)
+            
         # Export plot image button
         export_img_btn = QPushButton("Export Plot Image")
         export_img_btn.clicked.connect(self._export_plot_image)
         button_layout.addWidget(export_img_btn)
-        
-        # Export individual files button
-        export_individual_btn = QPushButton("Export Individual Files")
-        export_individual_btn.clicked.connect(self._export_individual_files)
-        button_layout.addWidget(export_individual_btn)
         
         # Open Destination Folder button
         open_dest_folder_btn = QPushButton("Open Destination Folder")
@@ -380,3 +380,54 @@ class BatchResultDialog(QDialog):
                 QMessageBox.critical(self, "Error", f"Could not open folder: {e}")
         else:
             QMessageBox.warning(self, "Warning", "Destination folder not found.")
+
+    def _export_summary_data(self):
+        """Export IV summary using the core IV exporter."""
+        if not self.results_data.iv_data:
+            QMessageBox.warning(self, "No Data", "No I-V data available to export.")
+            return
+        
+        from data_analysis_gui.core.iv_analysis import IVSummaryExporter
+        from data_analysis_gui.core import exporter
+        
+        # Get save path
+        suggested_filename = "Summary IV.csv"
+        if self.results_data.destination_folder:
+            suggested_path = os.path.join(self.results_data.destination_folder, suggested_filename)
+        else:
+            suggested_path = suggested_filename
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Summary I-V Data", suggested_path, "CSV files (*.csv)"
+        )
+        
+        if not file_path:
+            return
+        
+        # Prepare the table data
+        table_data = IVSummaryExporter.prepare_summary_table(
+            self.results_data.iv_data,
+            self.results_data.iv_file_mapping,
+            self.results_data.included_files
+        )
+        
+        # Write using core exporter
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        destination_folder = os.path.dirname(file_path)
+        
+        outcome = exporter.write_single_table(
+            table=table_data,
+            base_name=base_name,
+            destination_folder=destination_folder
+        )
+        
+        if outcome.success:
+            QMessageBox.information(
+                self, "Export Complete",
+                f"Successfully exported I-V summary to:\n{outcome.path}"
+            )
+        else:
+            QMessageBox.critical(
+                self, "Export Error",
+                f"Failed to export: {outcome.error_message}"
+            )

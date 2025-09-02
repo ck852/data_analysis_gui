@@ -68,3 +68,58 @@ class IVAnalysisService:
             iv_file_mapping[recording_id] = base_name
 
         return iv_data_range1, iv_file_mapping, iv_data_range2
+    
+class IVSummaryExporter:
+    """Handles exporting IV summary data without current density calculations."""
+    
+    @staticmethod
+    def prepare_summary_table(iv_data: Dict[float, list], 
+                             iv_file_mapping: Dict[str, str],
+                             included_files: set = None) -> Dict[str, Any]:
+        """
+        Prepare IV summary data for export.
+        
+        Returns:
+            Dictionary with 'headers', 'data', and 'format_spec' for CSV export.
+        """
+        import numpy as np
+        
+        # Get sorted voltages
+        voltages = sorted(iv_data.keys())
+        
+        # Build headers
+        headers = ["Voltage (mV)"]
+        data_columns = [voltages]
+        
+        # Sort recordings
+        sorted_recordings = sorted(iv_file_mapping.keys(), 
+                                 key=lambda x: int(x.split()[-1]))
+        
+        for recording_id in sorted_recordings:
+            base_name = iv_file_mapping.get(recording_id, recording_id)
+            
+            # Skip if not included
+            if included_files and base_name not in included_files:
+                continue
+            
+            headers.append(base_name)
+            recording_index = int(recording_id.split()[-1]) - 1
+            
+            # Extract current values
+            current_values = []
+            for voltage in voltages:
+                if recording_index < len(iv_data[voltage]):
+                    current_values.append(iv_data[voltage][recording_index])
+                else:
+                    current_values.append(np.nan)
+            
+            data_columns.append(current_values)
+        
+        # Convert to array format expected by exporter
+        data_array = np.column_stack(data_columns)
+        
+        return {
+            'headers': headers,
+            'data': data_array,
+            'format_spec': '%.6f'
+        }
