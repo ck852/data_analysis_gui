@@ -30,6 +30,7 @@ class FileResult:
     base_name: str
     success: bool
     x_data: np.ndarray = field(default_factory=lambda: np.array([]))
+    x_data2: np.ndarray = field(default_factory=lambda: np.array([]))
     y_data: np.ndarray = field(default_factory=lambda: np.array([]))
     y_data2: np.ndarray = field(default_factory=lambda: np.array([]))
     export_table: Dict[str, Any] = field(default_factory=dict)
@@ -112,10 +113,11 @@ class BatchProcessor:
                     success=True,
                     x_data=plot_data['x_data'],
                     y_data=plot_data['y_data'],
+                    x_data2=plot_data.get('x_data2', np.array([])),  # Add x_data2
                     y_data2=plot_data.get('y_data2', np.array([])),
                     export_table=export_table,
-                    peak_type=peak_type,  # Add peak type
-                    x_label=plot_data.get('x_label'),  # Add labels
+                    peak_type=peak_type,
+                    x_label=plot_data.get('x_label'),
                     y_label=plot_data.get('y_label')
                 )
 

@@ -428,7 +428,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
                     result.iv_file_mapping,
                     result.x_label, 
                     result.y_label, 
-                    destination_folder=destination_folder
+                    destination_folder=destination_folder,
+                    iv_data_range2=result.iv_data_range2,
+                    use_dual_range=result.use_dual_range  
                 )
                 batch_dialog.exec()
                 

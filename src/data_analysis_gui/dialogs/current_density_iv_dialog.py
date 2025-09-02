@@ -23,11 +23,15 @@ from data_analysis_gui.core.current_density_exporter import CurrentDensityExport
 
 class CurrentDensityIVDialog(QDialog):
     """Dialog for displaying Current Density I-V curves"""
-    def __init__(self, parent, iv_data, iv_file_mapping=None, included_files=None, destination_folder=None):
+    def __init__(self, parent, iv_data, iv_file_mapping=None, included_files=None, 
+                 destination_folder=None, iv_data_range2=None, use_dual_range=False):
         super().__init__(parent)
         self.iv_data = iv_data
+        self.iv_data_range2 = iv_data_range2
+        self.use_dual_range = use_dual_range
         self.iv_file_mapping = iv_file_mapping or {}
         self.file_data = {}
+        self.file_data_range2 = {} if use_dual_range else None
         self.checkboxes = {}
         self.cslow_entries = {}
         self.included_files = included_files # Store the included files dictionary
@@ -72,13 +76,31 @@ class CurrentDensityIVDialog(QDialog):
                     'cslow': DEFAULT_SETTINGS['cslow_default']
                 }
                 
-            # Populate data - using the actual indices from the mapping
+                # Initialize range 2 data if dual range
+                if self.use_dual_range:
+                    self.file_data_range2[recording_id] = {
+                        'data': {},
+                        'included': self.included_files.get(file_name, True) if self.included_files else True,
+                        'cslow': DEFAULT_SETTINGS['cslow_default']
+                    }
+
+            # Populate data for range 1
             for voltage in sorted(self.iv_data.keys()):
                 current_values = self.iv_data[voltage]
                 for recording_id in self.file_data.keys():
                     idx = int(recording_id.split()[-1]) - 1
                     if idx < len(current_values):
                         self.file_data[recording_id]['data'][voltage] = current_values[idx]
+
+            # Populate data for range 2 if dual range
+            if self.use_dual_range and self.iv_data_range2:
+                for voltage in sorted(self.iv_data_range2.keys()):
+                    current_values = self.iv_data_range2[voltage]
+                    for recording_id in self.file_data_range2.keys():
+                        idx = int(recording_id.split()[-1]) - 1
+                        if idx < len(current_values):
+                            self.file_data_range2[recording_id]['data'][voltage] = current_values[idx]
+        
         else:
             # Fallback for when no mapping is provided
             num_recordings = max([len(current_values) for current_values in self.iv_data.values()])
@@ -239,6 +261,15 @@ class CurrentDensityIVDialog(QDialog):
             box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             box.setDefaultButton(QMessageBox.No)
 
+        # Apply to range 1
+        for file_id, spin in self.cslow_entries.items():
+            spin.setValue(value)
+            self.file_data[file_id]['cslow'] = value
+            
+            # Also apply to range 2 if dual range
+            if self.use_dual_range:
+                self.file_data_range2[file_id]['cslow'] = value
+
             #Implement the following after establishing save between sessions
             # dont_ask = QCheckBox("Don't ask me again")
             # box.setCheckBox(dont_ask)
@@ -343,52 +374,214 @@ class CurrentDensityIVDialog(QDialog):
         )
     
     def export_individual_files(self):
-        """Export individual files using centralized service"""
-        folder_path = self.cd_analysis_folder or ExportService.select_export_folder(
+        """Export individual files to separate folders for each range"""
+        base_folder = self.cd_analysis_folder or ExportService.select_export_folder(
             parent=self,
-            title="Select Destination Folder"
+            title="Select Output Folder"
         )
         
-        if not folder_path:
+        if not base_folder:
             return
 
-        exporter = CurrentDensityExporter(self.file_data, self.iv_file_mapping, self._get_included_files())
-        files_data = exporter.prepare_individual_files_data()
+        if self.use_dual_range:
+            # Create separate folders for each range
+            range1_folder = os.path.join(base_folder, "Range1_CD")
+            range2_folder = os.path.join(base_folder, "Range2_CD")
+            
+            # Ensure folders exist
+            os.makedirs(range1_folder, exist_ok=True)
+            os.makedirs(range2_folder, exist_ok=True)
+            
+            # Update cslow values in both range data from the UI
+            for file_id in self.file_data:
+                self.file_data[file_id]['cslow'] = self.cslow_entries[file_id].value()
+            for file_id in self.file_data_range2:
+                self.file_data_range2[file_id]['cslow'] = self.cslow_entries[file_id].value()
+            
+            # Export Range 1 files
+            exporter_r1 = CurrentDensityExporter(
+                self.file_data, 
+                self.iv_file_mapping, 
+                self._get_included_files()
+                # No suffix needed since they're in separate folders
+            )
+            files_data_r1 = exporter_r1.prepare_individual_files_data()
 
-        if not files_data:
-            QMessageBox.warning(self, "Export Error", "No files are included for export.")
-            return
+            # Export Range 2 files
+            exporter_r2 = CurrentDensityExporter(
+                self.file_data_range2,
+                self.iv_file_mapping,
+                self._get_included_files()
+                # No suffix needed since they're in separate folders
+            )
+            files_data_r2 = exporter_r2.prepare_individual_files_data()
 
-        # Use centralized service
-        results = ExportService.export_multiple_files(
-            files_data=files_data,
-            output_folder=folder_path,
-            parent=self,
-            show_summary=True
-        )
+            if not files_data_r1 and not files_data_r2:
+                QMessageBox.warning(self, "Export Error", "No files are included for export.")
+                return
+
+            # Export Range 1 to its folder
+            results_r1 = []
+            if files_data_r1:
+                results_r1 = ExportService.export_multiple_files(
+                    files_data=files_data_r1,
+                    output_folder=range1_folder,
+                    parent=self,
+                    show_summary=False
+                )
+            
+            # Export Range 2 to its folder
+            results_r2 = []
+            if files_data_r2:
+                results_r2 = ExportService.export_multiple_files(
+                    files_data=files_data_r2,
+                    output_folder=range2_folder,
+                    parent=self,
+                    show_summary=False
+                )
+            
+            # Count successes
+            r1_success = sum(1 for r in results_r1 if r.success)
+            r2_success = sum(1 for r in results_r2 if r.success)
+            r1_failed = len(files_data_r1) - r1_success if files_data_r1 else 0
+            r2_failed = len(files_data_r2) - r2_success if files_data_r2 else 0
+            
+            # Show custom summary
+            message = f"Export Complete:\n"
+            message += f"Range 1: {r1_success} files exported to {range1_folder}"
+            if r1_failed > 0:
+                message += f", {r1_failed} failed"
+            message += f"\nRange 2: {r2_success} files exported to {range2_folder}"
+            if r2_failed > 0:
+                message += f", {r2_failed} failed"
+            
+            QMessageBox.information(self, "Export Complete", message)
+        else:
+            # Single range export (existing code)
+            exporter = CurrentDensityExporter(
+                self.file_data, 
+                self.iv_file_mapping, 
+                self._get_included_files()
+            )
+            files_data = exporter.prepare_individual_files_data()
+
+            if not files_data:
+                QMessageBox.warning(self, "Export Error", "No files are included for export.")
+                return
+
+            # Use centralized service
+            results = ExportService.export_multiple_files(
+                files_data=files_data,
+                output_folder=base_folder,
+                parent=self,
+                show_summary=True
+            )
+
+
+    def update_file_inclusion(self, file_id, state):
+        """Update file inclusion state when checkbox is toggled"""
+        is_included = (state == 2)  # Qt.Checked
+        self.file_data[file_id]['included'] = is_included
+        
+        # Also update range 2 if dual range
+        if self.use_dual_range and file_id in self.file_data_range2:
+            self.file_data_range2[file_id]['included'] = is_included
     
     def export_all_data(self):
-        """Export all data to a single CSV using centralized service"""
-        default_path = ExportService.get_suggested_filename(
-            base_name="Current_Density_Summary",
-            destination_folder=self.cd_analysis_folder
-        )
-        
-        exporter = CurrentDensityExporter(self.file_data, self.iv_file_mapping, self._get_included_files())
-        summary_data = exporter.prepare_summary_data()
+        """Export all data to CSV - creates separate folders for dual range"""
+        if self.use_dual_range:
+            base_folder = self.cd_analysis_folder or ExportService.select_export_folder(
+                parent=self,
+                title="Select Output Folder"
+            )
+            
+            if not base_folder:
+                return
+                
+            # Create separate folders
+            range1_folder = os.path.join(base_folder, "Range1_CD")
+            range2_folder = os.path.join(base_folder, "Range2_CD")
+            os.makedirs(range1_folder, exist_ok=True)
+            os.makedirs(range2_folder, exist_ok=True)
+            
+            # Export Range 1
+            default_path_r1 = os.path.join(range1_folder, "Current_Density_Summary.csv")
+            
+            exporter_r1 = CurrentDensityExporter(
+                self.file_data, 
+                self.iv_file_mapping, 
+                self._get_included_files()
+            )
+            summary_data_r1 = exporter_r1.prepare_summary_data()
 
-        if not summary_data:
-            QMessageBox.warning(self, "Export Error", "No files are included for export.")
-            return
-        
-        # Use centralized service
-        result = ExportService.export_data_to_csv(
-            data=summary_data['data'],
-            headers=summary_data['headers'],
-            parent=self,
-            default_path=default_path,
-            title="Export All Data to CSV"
-        )
+            if not summary_data_r1:
+                QMessageBox.warning(self, "Export Error", "No files are included for Range 1 export.")
+                return
+            
+            # Export Range 2
+            default_path_r2 = os.path.join(range2_folder, "Current_Density_Summary.csv")
+            
+            # Update cslow values in range 2 data from the UI
+            for file_id in self.file_data_range2:
+                self.file_data_range2[file_id]['cslow'] = self.cslow_entries[file_id].value()
+            
+            exporter_r2 = CurrentDensityExporter(
+                self.file_data_range2,
+                self.iv_file_mapping,
+                self._get_included_files()
+            )
+            summary_data_r2 = exporter_r2.prepare_summary_data()
+            
+            # Use ExportService to save both files
+            result_r1 = ExportService.export_data_to_csv(
+                data=summary_data_r1['data'],
+                headers=summary_data_r1['headers'],
+                parent=self,
+                default_path=default_path_r1,
+                title="Export Range 1 Summary Data"
+            )
+            
+            if result_r1.success:
+                result_r2 = ExportService.export_data_to_csv(
+                    data=summary_data_r2['data'],
+                    headers=summary_data_r2['headers'],
+                    parent=self,
+                    default_path=default_path_r2,
+                    title="Export Range 2 Summary Data"
+                )
+                
+                if result_r2.success:
+                    QMessageBox.information(
+                        self, "Export Complete",
+                        f"Successfully exported both ranges:\n"
+                        f"Range 1: {result_r1.file_path}\n"
+                        f"Range 2: {result_r2.file_path}"
+                    )
+        else:
+            # Single range export (existing code unchanged)
+            default_path = ExportService.get_suggested_filename(
+                base_name="Current_Density_Summary",
+                destination_folder=self.cd_analysis_folder
+            )
+            
+            exporter = CurrentDensityExporter(
+                self.file_data, 
+                self.iv_file_mapping, 
+                self._get_included_files()
+            )
+            summary_data = exporter.prepare_summary_data()
+
+            if not summary_data:
+                QMessageBox.warning(self, "Export Error", "No files are included for export.")
+                return
+            
+            result = ExportService.export_data_to_csv(
+                data=summary_data['data'],
+                headers=summary_data['headers'],
+                parent=self,
+                default_path=default_path,
+                title="Export All Data to CSV"
+            )
     
     def open_destination_folder(self):
         """Open the destination folder in the file explorer."""

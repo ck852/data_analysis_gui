@@ -6,7 +6,7 @@ current density data for various export formats.
 """
 
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 from data_analysis_gui.utils.data_processing import calculate_current_density
 
@@ -14,7 +14,8 @@ from data_analysis_gui.utils.data_processing import calculate_current_density
 class CurrentDensityExporter:
     """Handles data preparation for exporting current density results."""
 
-    def __init__(self, file_data: Dict[str, Any], iv_file_mapping: Dict[str, str], included_files: List[str]):
+    def __init__(self, file_data: Dict[str, Any], iv_file_mapping: Dict[str, str], 
+                 included_files: List[str], range_suffix: str = ""):
         """
         Initializes the exporter with the necessary data.
 
@@ -22,10 +23,12 @@ class CurrentDensityExporter:
             file_data: Dictionary containing the raw data for each file.
             iv_file_mapping: Mapping from file ID (e.g., "Recording 1") to the actual filename.
             included_files: A list of file IDs that are selected for export.
+            range_suffix: Optional suffix to add to filenames (e.g., "_Range1" or "_Range2")
         """
         self.file_data = file_data
         self.iv_file_mapping = iv_file_mapping
         self.included_files = included_files
+        self.range_suffix = range_suffix
 
     def prepare_individual_files_data(self) -> List[Dict[str, Any]]:
         """
@@ -37,6 +40,9 @@ class CurrentDensityExporter:
         """
         files_data = []
         for file_id in self.included_files:
+            if file_id not in self.file_data:
+                continue
+                
             file_info = self.file_data[file_id]
             cslow = file_info['cslow']
             if cslow <= 0:
@@ -50,12 +56,18 @@ class CurrentDensityExporter:
                 voltages.append(voltage)
                 current_densities.append(calculate_current_density(current, cslow))
             
+            if not voltages:  # Skip if no data
+                continue
+                
             sorted_indices = np.argsort(voltages)
             sorted_voltages = np.array(voltages)[sorted_indices]
             sorted_currents = np.array(current_densities)[sorted_indices]
             
+            # Add range suffix to filename if provided
+            filename = f"{file_basename}_CD{self.range_suffix}.csv"
+            
             files_data.append({
-                'filename': f"{file_basename}_CD.csv",
+                'filename': filename,
                 'data': np.column_stack((sorted_voltages, sorted_currents)),
                 'headers': ['Voltage (mV)', 'Current Density (pA/pF)', f'Cslow = {cslow:.2f} pF']
             })
@@ -71,13 +83,25 @@ class CurrentDensityExporter:
         if not self.included_files:
             return {}
 
-        first_file_id = self.included_files[0]
+        # Find the first included file that has data
+        first_file_id = None
+        for file_id in self.included_files:
+            if file_id in self.file_data and self.file_data[file_id]['data']:
+                first_file_id = file_id
+                break
+        
+        if not first_file_id:
+            return {}
+            
         voltages = sorted(self.file_data[first_file_id]['data'].keys())
         
         headers = ["Voltage (mV)"]
         data_to_export = [voltages]
         
         for file_id in self.included_files:
+            if file_id not in self.file_data:
+                continue
+                
             file_info = self.file_data[file_id]
             cslow = file_info['cslow']
             raw_data = file_info['data']

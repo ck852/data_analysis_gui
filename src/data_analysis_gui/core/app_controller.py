@@ -55,12 +55,14 @@ class BatchAnalysisResult:
     batch_result: Any  # BatchResult object
     batch_data: Dict[str, Dict[str, Any]]
     iv_data: Any
+    iv_data_range2: Optional[Any] 
     iv_file_mapping: Any
     successful_count: int
     failed_count: int
     export_outcomes: List[Any]
     x_label: str
     y_label: str
+    use_dual_range: bool
 
 
 class ApplicationController:
@@ -133,15 +135,6 @@ class ApplicationController:
     ) -> BatchAnalysisResult:
         """
         Perform batch analysis and return data only (no plotting).
-        
-        Args:
-            file_paths: List of file paths to analyze
-            params: Analysis parameters
-            destination_folder: Where to save results
-            progress_callback: Optional progress callback
-            
-        Returns:
-            BatchAnalysisResult containing all data needed for visualization
         """
         # Process files
         processor = BatchProcessor(self.channel_definitions)
@@ -156,17 +149,25 @@ class ApplicationController:
         if batch_result.successful_results:
             export_outcomes = exporter.write_tables(batch_result, destination_folder)
         
-        # Prepare batch data for dialog
-        batch_data = {
-            res.base_name: {
+        # Prepare batch data for dialog - NOW INCLUDING x_data2
+        batch_data = {}
+        for res in batch_result.successful_results:
+            file_data = {
                 'x_values': res.x_data.tolist() if hasattr(res.x_data, 'tolist') else res.x_data,
                 'y_values': res.y_data.tolist() if hasattr(res.y_data, 'tolist') else res.y_data,
-                'y_values2': res.y_data2.tolist() if res.y_data2 is not None and hasattr(res.y_data2, 'tolist') else []
-            } for res in batch_result.successful_results
-        }
+            }
+            
+            # Add Range 2 data if available
+            if params.use_dual_range:
+                if res.x_data2 is not None and len(res.x_data2) > 0:
+                    file_data['x_values2'] = res.x_data2.tolist() if hasattr(res.x_data2, 'tolist') else res.x_data2
+                if res.y_data2 is not None and len(res.y_data2) > 0:
+                    file_data['y_values2'] = res.y_data2.tolist() if hasattr(res.y_data2, 'tolist') else res.y_data2
+            
+            batch_data[res.base_name] = file_data
         
-        # Prepare IV data
-        iv_data, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
+        # Prepare IV data with separate x_values for each range
+        iv_data, iv_file_mapping, iv_data_range2 = IVAnalysisService.prepare_iv_data(batch_data, params)
         
         # Create axis labels
         x_label, y_label = self.create_axis_labels(params)
@@ -176,12 +177,14 @@ class ApplicationController:
             batch_result=batch_result,
             batch_data=batch_data,
             iv_data=iv_data,
+            iv_data_range2=iv_data_range2,
             iv_file_mapping=iv_file_mapping,
             successful_count=len(batch_result.successful_results),
             failed_count=len(batch_result.failed_results),
             export_outcomes=export_outcomes,
             x_label=x_label,
-            y_label=y_label
+            y_label=y_label,
+            use_dual_range=params.use_dual_range
         )
     
     # ============ File Operations ============

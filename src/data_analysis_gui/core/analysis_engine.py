@@ -208,24 +208,20 @@ class AnalysisEngine:
     def get_plot_data(self, params: AnalysisParameters) -> Dict[str, Any]:
         """
         Get data formatted for plotting based on the provided parameters.
-
-        Args:
-            params: A DTO containing all parameters for the analysis.
-
-        Returns:
-            Dictionary containing plot-ready data and labels.
         """
         metrics = self.get_all_metrics(params)
         if not metrics:
             return {
                 'x_data': np.array([]),
                 'y_data': np.array([]),
+                'x_data2': np.array([]),  # Add x_data2
                 'y_data2': np.array([]),
                 'x_label': '',
                 'y_label': '',
                 'sweep_indices': []
             }
 
+        # Extract data for Range 1
         x_data, x_label = self._extract_axis_data(metrics, params.x_axis, range_num=1)
         y_data, y_label = self._extract_axis_data(metrics, params.y_axis, range_num=1)
 
@@ -238,15 +234,21 @@ class AnalysisEngine:
         }
 
         if params.use_dual_range:
+            # Extract SEPARATE x and y data for Range 2
+            x_data2, x_label2 = self._extract_axis_data(metrics, params.x_axis, range_num=2)
             y_data2, _ = self._extract_axis_data(metrics, params.y_axis, range_num=2)
+            
+            result['x_data2'] = np.array(x_data2)  # Add x_data2 to result
             result['y_data2'] = np.array(y_data2)
 
+            # Calculate average voltages for labels
             avg_v1 = np.nanmean([m.voltage_mean_r1 for m in metrics])
             avg_v2 = np.nanmean([m.voltage_mean_r2 for m in metrics if m.voltage_mean_r2 is not None])
 
             result['y_label_r1'] = f"{y_label} ({format_voltage_label(avg_v1)}mV)" if not np.isnan(avg_v1) else y_label
             result['y_label_r2'] = f"{y_label} ({format_voltage_label(avg_v2)}mV)" if not np.isnan(avg_v2) else y_label
         else:
+            result['x_data2'] = np.array([])  # Empty array when not dual range
             result['y_data2'] = np.array([])
 
         return result
@@ -254,30 +256,64 @@ class AnalysisEngine:
     def get_export_table(self, params: AnalysisParameters) -> Dict[str, Any]:
         """
         Get table structure ready for CSV export based on provided parameters.
-
-        Args:
-            params: A DTO containing all parameters for the analysis.
-
-        Returns:
-            Dictionary containing headers, data, and format specifier.
         """
         plot_data = self.get_plot_data(params)
 
         if len(plot_data['x_data']) == 0:
             return {'headers': [], 'data': np.array([[]]), 'format_spec': '%.6f'}
 
-        headers = [plot_data['x_label'], plot_data['y_label']]
-        columns = [plot_data['x_data'], plot_data['y_data']]
-
         if params.use_dual_range and len(plot_data.get('y_data2', [])) > 0:
-            if 'y_label_r1' in plot_data and 'y_label_r2' in plot_data:
-                headers[1] = plot_data['y_label_r1']
-                headers.append(plot_data['y_label_r2'])
+            # For dual range, we might have different x_values for each range
+            # Check if x_data2 exists and is different from x_data
+            x_data2 = plot_data.get('x_data2', plot_data['x_data'])
+            
+            # If x values are the same for both ranges, use single x column
+            if np.array_equal(plot_data['x_data'], x_data2):
+                headers = [plot_data['x_label']]
+                columns = [plot_data['x_data']]
+                
+                if 'y_label_r1' in plot_data and 'y_label_r2' in plot_data:
+                    headers.extend([plot_data['y_label_r1'], plot_data['y_label_r2']])
+                else:
+                    headers.extend([f"{plot_data['y_label']} (Range 1)", 
+                                f"{plot_data['y_label']} (Range 2)"])
+                columns.extend([plot_data['y_data'], plot_data['y_data2']])
             else:
-                headers.append(f"{plot_data['y_label']} (Range 2)")
-            columns.append(plot_data['y_data2'])
-
-        data = np.column_stack(columns)
+                # Different x values for each range - need separate columns
+                headers = [f"{plot_data['x_label']} (Range 1)"]
+                columns = [plot_data['x_data']]
+                
+                if 'y_label_r1' in plot_data:
+                    headers.append(plot_data['y_label_r1'])
+                else:
+                    headers.append(f"{plot_data['y_label']} (Range 1)")
+                columns.append(plot_data['y_data'])
+                
+                headers.append(f"{plot_data['x_label']} (Range 2)")
+                columns.append(x_data2)
+                
+                if 'y_label_r2' in plot_data:
+                    headers.append(plot_data['y_label_r2'])
+                else:
+                    headers.append(f"{plot_data['y_label']} (Range 2)")
+                columns.append(plot_data['y_data2'])
+            
+            # Handle potential length mismatches
+            max_len = max(len(col) for col in columns)
+            padded_columns = []
+            for col in columns:
+                if len(col) < max_len:
+                    padded = np.pad(col, (0, max_len - len(col)), constant_values=np.nan)
+                    padded_columns.append(padded)
+                else:
+                    padded_columns.append(col)
+            
+            data = np.column_stack(padded_columns)
+        else:
+            # Single range (original code)
+            headers = [plot_data['x_label'], plot_data['y_label']]
+            columns = [plot_data['x_data'], plot_data['y_data']]
+            data = np.column_stack(columns)
 
         return {'headers': headers, 'data': data, 'format_spec': '%.6f'}
 

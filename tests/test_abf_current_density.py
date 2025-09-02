@@ -87,7 +87,7 @@ class CurrentDensityTestBase:
         batch_data = self.load_iv_data_as_batch_format()
         
         # Use IVAnalysisService to prepare IV data (as GUI does)
-        iv_data_dict, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
+        iv_data_dict, iv_file_mapping, iv_data_range2 = IVAnalysisService.prepare_iv_data(batch_data, params)
         
         # Create file data structure for CurrentDensityExporter
         file_data = {}
@@ -162,7 +162,7 @@ class CurrentDensityTestBase:
         batch_data = self.load_iv_data_as_batch_format()
         
         # Prepare IV data
-        iv_data_dict, iv_file_mapping = IVAnalysisService.prepare_iv_data(batch_data, params)
+        iv_data_dict, iv_file_mapping, iv_data_range2 = IVAnalysisService.prepare_iv_data(batch_data, params)
         
         # Create file data structure
         file_data = {}

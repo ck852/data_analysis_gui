@@ -1,7 +1,9 @@
+# src/data_analysis_gui/core/iv_analysis.py
+
 """
 Service for I-V (Current-Voltage) specific analysis and data transformations.
 """
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from data_analysis_gui.core.params import AnalysisParameters
 
 class IVAnalysisService:
@@ -11,15 +13,16 @@ class IVAnalysisService:
     def prepare_iv_data(
         batch_results: Dict[str, Dict[str, Any]],
         params: AnalysisParameters
-    ) -> Tuple[Dict[float, list], Dict[str, str]]:
+    ) -> Tuple[Dict[float, list], Dict[str, str], Optional[Dict[float, list]]]:
         """
         Transforms raw batch results into a format suitable for I-V curve analysis.
-        ...
+        Now returns a third element for range 2 data when dual range is used.
         """
-        iv_data: Dict[float, list] = {}
+        iv_data_range1: Dict[float, list] = {}
+        iv_data_range2: Optional[Dict[float, list]] = {} if params.use_dual_range else None
         iv_file_mapping: Dict[str, str] = {}
 
-        # Condition check: This is pure business logic.
+        # Condition check
         is_iv_analysis = (
             params.x_axis.measure == "Average" and
             params.x_axis.channel == "Voltage" and
@@ -28,17 +31,40 @@ class IVAnalysisService:
         )
 
         if not is_iv_analysis:
-            return iv_data, iv_file_mapping
+            return iv_data_range1, iv_file_mapping, iv_data_range2
 
-        # SORT the batch_results to ensure consistent ordering
+        # Process sorted batch results
         for idx, (base_name, data) in enumerate(sorted(batch_results.items())):
-            for x_val, y_val in zip(data['x_values'], data['y_values']):
-                rounded_voltage = round(x_val, 1)
-                if rounded_voltage not in iv_data:
-                    iv_data[rounded_voltage] = []
-                iv_data[rounded_voltage].append(y_val)
+            # Process Range 1 data with its own x_values
+            if 'x_values' in data and 'y_values' in data:
+                for x_val, y_val in zip(data['x_values'], data['y_values']):
+                    rounded_voltage = round(x_val, 1)
+                    if rounded_voltage not in iv_data_range1:
+                        iv_data_range1[rounded_voltage] = []
+                    iv_data_range1[rounded_voltage].append(y_val)
+
+            # Process Range 2 data with ITS OWN x_values (not Range 1's)
+            if params.use_dual_range:
+                # Range 2 should have its own x_values!
+                # Check if x_values2 exists (for separate voltage measurements in range 2)
+                if 'x_values2' in data and 'y_values2' in data:
+                    # Use Range 2's own x_values
+                    for x_val2, y_val2 in zip(data['x_values2'], data['y_values2']):
+                        rounded_voltage = round(x_val2, 1)
+                        if rounded_voltage not in iv_data_range2:
+                            iv_data_range2[rounded_voltage] = []
+                        iv_data_range2[rounded_voltage].append(y_val2)
+                elif 'y_values2' in data:
+                    # Fallback - this shouldn't happen if batch processor is fixed
+                    # but keeping for compatibility
+                    print("Warning: Range 2 missing separate x_values, using Range 1 x_values")
+                    for x_val, y_val2 in zip(data['x_values'], data['y_values2']):
+                        rounded_voltage = round(x_val, 1)
+                        if rounded_voltage not in iv_data_range2:
+                            iv_data_range2[rounded_voltage] = []
+                        iv_data_range2[rounded_voltage].append(y_val2)
 
             recording_id = f"Recording {idx + 1}"
             iv_file_mapping[recording_id] = base_name
 
-        return iv_data, iv_file_mapping
+        return iv_data_range1, iv_file_mapping, iv_data_range2

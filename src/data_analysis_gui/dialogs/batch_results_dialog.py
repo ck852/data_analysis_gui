@@ -35,13 +35,17 @@ class BatchResultDialog(QDialog):
     """Dialog for displaying batch analysis results"""
     
     def __init__(self, parent, batch_result, batch_fig, iv_data=None, 
-                 iv_file_mapping=None, x_label=None, y_label=None, 
-                 destination_folder=None):
+             iv_file_mapping=None, x_label=None, y_label=None, 
+             destination_folder=None, iv_data_range2=None, use_dual_range=False):
         super().__init__(parent)
         
         # Store the batch_result object - this is what gets exported
         self.batch_result = batch_result
         
+        # Store dual range info
+        self.iv_data_range2 = iv_data_range2
+        self.use_dual_range = use_dual_range
+
         # Extract batch_data from batch_result for display purposes
         batch_data = self._extract_batch_data_from_result(batch_result)
         
@@ -296,7 +300,9 @@ class BatchResultDialog(QDialog):
             cd_data['iv_data'],
             cd_data['iv_file_mapping'],
             included_files=included_files,
-            destination_folder=cd_data['destination_folder']
+            destination_folder=cd_data['destination_folder'],
+            iv_data_range2=self.iv_data_range2,  # Pass range 2 data
+            use_dual_range=self.use_dual_range    # Pass dual range flag            
         )
         dialog.exec()
     
