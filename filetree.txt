@@ -56,6 +56,20 @@ root/
 |   |-- fixtures/
 |   |   |-- golden_data/
 |   |   |   |-- golden_abf_CD/
+|   |   |   |   |-- range_2/
+|   |   |   |   |   |-- 250514_001_CD.csv
+|   |   |   |   |   |-- 250514_002_CD.csv
+|   |   |   |   |   |-- 250514_003_CD.csv
+|   |   |   |   |   |-- 250514_004_CD.csv
+|   |   |   |   |   |-- 250514_005_CD.csv
+|   |   |   |   |   |-- 250514_006_CD.csv
+|   |   |   |   |   |-- 250514_007_CD.csv
+|   |   |   |   |   |-- 250514_008_CD.csv
+|   |   |   |   |   |-- 250514_009_CD.csv
+|   |   |   |   |   |-- 250514_010_CD.csv
+|   |   |   |   |   |-- 250514_011_CD.csv
+|   |   |   |   |   |-- 250514_012_CD.csv
+|   |   |   |   |   `-- Current_Density_Summary.csv
 |   |   |   |   |-- 250514_001_CD.csv
 |   |   |   |   |-- 250514_002_CD.csv
 |   |   |   |   |-- 250514_003_CD.csv
@@ -70,6 +84,19 @@ root/
 |   |   |   |   |-- 250514_012_CD.csv
 |   |   |   |   `-- Current_Density_Summary.csv
 |   |   |   |-- golden_abf_IV/
+|   |   |   |   |-- range_2/
+|   |   |   |   |   |-- 250514_001.csv
+|   |   |   |   |   |-- 250514_002.csv
+|   |   |   |   |   |-- 250514_003.csv
+|   |   |   |   |   |-- 250514_004.csv
+|   |   |   |   |   |-- 250514_005.csv
+|   |   |   |   |   |-- 250514_006.csv
+|   |   |   |   |   |-- 250514_007.csv
+|   |   |   |   |   |-- 250514_008.csv
+|   |   |   |   |   |-- 250514_009.csv
+|   |   |   |   |   |-- 250514_010.csv
+|   |   |   |   |   |-- 250514_011.csv
+|   |   |   |   |   `-- 250514_012.csv
 |   |   |   |   |-- 250514_001.csv
 |   |   |   |   |-- 250514_002.csv
 |   |   |   |   |-- 250514_003.csv
@@ -83,6 +110,20 @@ root/
 |   |   |   |   |-- 250514_011.csv
 |   |   |   |   `-- 250514_012.csv
 |   |   |   |-- golden_CD/
+|   |   |   |   |-- range_2/
+|   |   |   |   |   |-- 250514_001_CD.csv
+|   |   |   |   |   |-- 250514_002_CD.csv
+|   |   |   |   |   |-- 250514_003_CD.csv
+|   |   |   |   |   |-- 250514_004_CD.csv
+|   |   |   |   |   |-- 250514_005_CD.csv
+|   |   |   |   |   |-- 250514_006_CD.csv
+|   |   |   |   |   |-- 250514_007_CD.csv
+|   |   |   |   |   |-- 250514_008_CD.csv
+|   |   |   |   |   |-- 250514_009_CD.csv
+|   |   |   |   |   |-- 250514_010_CD.csv
+|   |   |   |   |   |-- 250514_011_CD.csv
+|   |   |   |   |   |-- 250514_012_CD.csv
+|   |   |   |   |   `-- Current_Density_Summary.csv
 |   |   |   |   |-- 250514_001_CD.csv
 |   |   |   |   |-- 250514_002_CD.csv
 |   |   |   |   |-- 250514_003_CD.csv
@@ -101,6 +142,19 @@ root/
 |   |   |   |   |-- 250202_0071-234_analyzed_Average_Current_+60mV.csv
 |   |   |   |   `-- 250202_0071-234_analyzed_Average_Current_-60mV.csv
 |   |   |   |-- golden_IV/
+|   |   |   |   |-- range_2/
+|   |   |   |   |   |-- 250514_001.csv
+|   |   |   |   |   |-- 250514_002.csv
+|   |   |   |   |   |-- 250514_003.csv
+|   |   |   |   |   |-- 250514_004.csv
+|   |   |   |   |   |-- 250514_005.csv
+|   |   |   |   |   |-- 250514_006.csv
+|   |   |   |   |   |-- 250514_007.csv
+|   |   |   |   |   |-- 250514_008.csv
+|   |   |   |   |   |-- 250514_009.csv
+|   |   |   |   |   |-- 250514_010.csv
+|   |   |   |   |   |-- 250514_011.csv
+|   |   |   |   |   `-- 250514_012.csv
 |   |   |   |   |-- 250514_001.csv
 |   |   |   |   |-- 250514_002.csv
 |   |   |   |   |-- 250514_003.csv
@@ -174,10 +228,7 @@ root/
 |   |-- conftest.py
 |   |-- pytest.ini
 |   |-- test_abf_batch_analysis.py
-|   |-- test_abf_current_density.py
-|   |-- test_abf_single_analysis.py
 |   |-- test_analysis_plot.py
-|   |-- test_batch_analysis.py
 |   |-- test_channel_definitions.py
 |   |-- test_channel_definitions_demo.py
 |   |-- test_current_density.py
@@ -185,8 +236,7 @@ root/
 |   |-- test_integration.py
 |   |-- test_peak_modes.py
 |   |-- test_single_analysis.py
-|   |-- test_swapped_channels.py
-|   `-- test_working.py
+|   `-- test_swapped_channels.py
 |-- filetree.txt
 |-- filetree_full.py
 |-- pyproject.toml

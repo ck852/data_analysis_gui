@@ -1,5 +1,6 @@
 """
-Tests for single file analysis functionality.
+Refactored tests for single file analysis functionality for both MAT and ABF files.
+This script uses a base class to avoid code duplication.
 """
 import pytest
 from pathlib import Path
@@ -10,88 +11,110 @@ from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.exporter import write_single_table
 
 from conftest import (
-    IV_CD_DATA_DIR, GOLDEN_IV_DIR, 
+    IV_CD_DATA_DIR, GOLDEN_DATA_DIR,
     compare_csv_files
 )
 
+# Define paths for different file types
+MAT_DATA_DIR = IV_CD_DATA_DIR
+ABF_DATA_DIR = IV_CD_DATA_DIR / "ABF"
+GOLDEN_MAT_IV_DIR = GOLDEN_DATA_DIR / "golden_IV"
+GOLDEN_ABF_IV_DIR = GOLDEN_DATA_DIR / "golden_abf_IV"
 
-class TestSingleFileAnalysis:
-    """Test single .mat file analysis."""
+
+class SingleFileTestBase:
+    """Base class for single file analysis tests to avoid code duplication."""
     
+    # Subclasses must define these
+    DATA_DIR = None
+    GOLDEN_DIR = None
+    FILE_EXTENSION = None
+
     @pytest.mark.parametrize("file_num", range(1, 13))
-    def test_analyze_single_file(self, file_num, analysis_params, 
-                                 channel_definitions, temp_output_dir):
+    def test_analyze_single_file_and_verify_content(self, file_num, analysis_params,
+                                                    channel_definitions, temp_output_dir):
         """
-        Test analysis of individual .mat files.
-        
-        Tests each of the 12 base recordings (averaged across sweeps).
+        Test analysis of an individual file and verify its content against a golden file.
+        This test is parameterized to run for each of the 12 recordings.
         """
-        # Construct file pattern - will load first sweep file
         base_name = f"250514_{file_num:03d}"
-        # Correct the filename to match the actual files
-        mat_file = IV_CD_DATA_DIR / f"{base_name}[1-11].mat" 
+        file_path = self.DATA_DIR / f"{base_name}[1-11]{self.FILE_EXTENSION}"
         
-        assert mat_file.exists(), f"Test file not found: {mat_file}"
+        if not file_path.exists():
+            pytest.skip(f"Test file not found: {file_path}")
+
+        # 1. Load dataset from the specified file
+        dataset = DatasetLoader.load(str(file_path), channel_definitions)
+        assert not dataset.is_empty(), f"Dataset is empty for {file_path}"
         
-        # Load dataset
-        dataset = DatasetLoader.load(str(mat_file), channel_definitions)
-        assert not dataset.is_empty(), "Dataset is empty"
-        
-        # Create engine and run analysis
+        # 2. Create engine and run analysis
         engine = AnalysisEngine(dataset, channel_definitions)
-        
-        # Get export table
         export_table = engine.get_export_table(analysis_params)
         
-        # Export to CSV
+        # 3. Export the results to a CSV file in a temporary directory
         output_path = temp_output_dir / f"{base_name}.csv"
         write_single_table(
             export_table,
             base_name,
             str(temp_output_dir)
         )
-        
-        # Compare with golden data
-        golden_path = GOLDEN_IV_DIR / f"{base_name}.csv"
+        assert output_path.exists(), f"Output CSV was not created for {base_name}"
+
+        # 4. Compare the generated file's content with the golden reference file
+        golden_path = self.GOLDEN_DIR / f"{base_name}.csv"
         assert golden_path.exists(), f"Golden file not found: {golden_path}"
         
         assert compare_csv_files(output_path, golden_path), \
-            f"Output doesn't match golden data for {base_name}"
-    
+            f"Output for {base_name} does not match golden data."
+
     def test_sweep_data_extraction(self, channel_definitions):
-        """Test that sweep data is correctly extracted from .mat files."""
-        # Load a sample file
-        mat_file = IV_CD_DATA_DIR / "250514_001[1-11].mat"
-        dataset = DatasetLoader.load(str(mat_file), channel_definitions)
+        """Test that sweep data is correctly extracted from a sample file."""
+        sample_file = self.DATA_DIR / f"250514_001[1-11]{self.FILE_EXTENSION}"
+        if not sample_file.exists():
+            pytest.skip(f"Sample file not found: {sample_file}")
+
+        dataset = DatasetLoader.load(str(sample_file), channel_definitions)
         
-        # Check sweep count
-        assert dataset.sweep_count() > 0, "No sweeps found"
+        assert dataset.sweep_count() > 0, "No sweeps found in the dataset"
         
-        # Check first sweep
         sweep_idx = next(iter(dataset.sweeps()))
         time_ms, data_matrix = dataset.get_sweep(sweep_idx)
         
         assert time_ms is not None, "Time vector is None"
         assert data_matrix is not None, "Data matrix is None"
         assert len(time_ms) > 0, "Time vector is empty"
-        assert data_matrix.shape[0] == len(time_ms), "Data/time mismatch"
-        assert data_matrix.shape[1] >= 2, "Need at least 2 channels"
-    
-    def test_analysis_parameters_applied(self, analysis_params, 
-                                        channel_definitions):
-        """Verify analysis parameters are correctly applied."""
-        # Load test file
-        mat_file = IV_CD_DATA_DIR / "250514_001[1-11].mat"
-        dataset = DatasetLoader.load(str(mat_file), channel_definitions)
+        assert data_matrix.shape[0] == len(time_ms), "Data and time dimensions mismatch"
+        assert data_matrix.shape[1] >= 2, "Dataset should have at least 2 channels"
+
+    def test_analysis_parameters_applied_correctly(self, analysis_params, channel_definitions):
+        """Verify that analysis parameters are correctly applied during processing."""
+        sample_file = self.DATA_DIR / f"250514_001[1-11]{self.FILE_EXTENSION}"
+        if not sample_file.exists():
+            pytest.skip(f"Sample file not found: {sample_file}")
+
+        dataset = DatasetLoader.load(str(sample_file), channel_definitions)
         engine = AnalysisEngine(dataset, channel_definitions)
         
-        # Get metrics
         metrics = engine.get_all_metrics(analysis_params)
         
-        assert len(metrics) > 0, "No metrics calculated"
+        assert len(metrics) > 0, "No metrics were calculated"
         
-        # Verify time range was applied (data should be from range)
+        # Check that calculated values are not NaN, indicating a successful calculation
+        # based on the provided analysis parameters (e.g., time range).
         for metric in metrics:
-            # Check that values are not NaN (indicating successful calculation)
             assert not np.isnan(metric.voltage_mean_r1), "Voltage mean is NaN"
             assert not np.isnan(metric.current_mean_r1), "Current mean is NaN"
+
+
+class TestSingleMatAnalysis(SingleFileTestBase):
+    """Concrete test class for single MAT file analysis."""
+    DATA_DIR = MAT_DATA_DIR
+    GOLDEN_DIR = GOLDEN_MAT_IV_DIR
+    FILE_EXTENSION = ".mat"
+
+
+class TestSingleAbfAnalysis(SingleFileTestBase):
+    """Concrete test class for single ABF file analysis."""
+    DATA_DIR = ABF_DATA_DIR
+    GOLDEN_DIR = GOLDEN_ABF_IV_DIR
+    FILE_EXTENSION = ".abf"
