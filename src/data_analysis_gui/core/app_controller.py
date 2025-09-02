@@ -240,12 +240,7 @@ class ApplicationController:
                     self.on_error("No data to export")
                 return False
             
-            # Extract peak type from parameters
-            peak_type = None
-            if params.y_axis.measure == "Peak":
-                peak_type = getattr(params.y_axis, 'peak_type', None)
-            elif params.x_axis.measure == "Peak":
-                peak_type = getattr(params.x_axis, 'peak_type', None)
+            # Remove the peak_type extraction code - it's not needed
             
             # Extract the directory and filename from the full path
             destination_folder = os.path.dirname(file_path)
@@ -257,8 +252,8 @@ class ApplicationController:
             outcome = exporter.write_single_table(
                 table=table_data,
                 base_name=base_name,
-                destination_folder=destination_folder,
-                peak_type=peak_type  # Pass peak type
+                destination_folder=destination_folder
+                # Removed peak_type parameter
             )
             
             if outcome.success and self.on_status_update:

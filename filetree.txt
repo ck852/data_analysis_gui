@@ -115,10 +115,16 @@ root/
 |   |   |   |   |-- 250514_012.csv
 |   |   |   |   `-- Summary IV.csv
 |   |   |   |-- golden_peaks/
-|   |   |   |   |-- 250514_012_absolute.csv
-|   |   |   |   |-- 250514_012_negative.csv
-|   |   |   |   |-- 250514_012_peak-peak.csv
-|   |   |   |   `-- 250514_012_positive.csv
+|   |   |   |   |-- abf/
+|   |   |   |   |   |-- 250514_012_absolute.csv
+|   |   |   |   |   |-- 250514_012_negative.csv
+|   |   |   |   |   |-- 250514_012_peak-peak.csv
+|   |   |   |   |   `-- 250514_012_positive.csv
+|   |   |   |   `-- mat/
+|   |   |   |       |-- 250514_012_absolute.csv
+|   |   |   |       |-- 250514_012_negative.csv
+|   |   |   |       |-- 250514_012_peak-peak.csv
+|   |   |   |       `-- 250514_012_positive.csv
 |   |   |   `-- golden_swapped/
 |   |   |       |-- 240809_001.csv
 |   |   |       |-- 240809_001_analyzed.csv

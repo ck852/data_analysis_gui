@@ -1,6 +1,7 @@
 """
 Tests for peak analysis modes functionality.
 Tests all peak modes (absolute, positive, negative, peak-peak) against golden reference data.
+Tests both MAT and ABF file formats.
 """
 import pytest
 from pathlib import Path
@@ -22,6 +23,9 @@ GOLDEN_PEAKS_DIR = GOLDEN_DATA_DIR / "golden_peaks"
 
 # Peak mode types to test
 PEAK_MODES = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+
+# File formats to test
+FILE_FORMATS = ["mat", "abf"]
 
 # Filename suffix mapping for golden files
 PEAK_MODE_SUFFIX = {
@@ -58,15 +62,17 @@ class TestPeakAnalysisModes:
             channel_config={}
         )
     
+    @pytest.mark.parametrize("file_format", FILE_FORMATS)
     @pytest.mark.parametrize("peak_mode", PEAK_MODES)
-    def test_peak_mode_analysis(self, peak_mode, peak_analysis_params, 
+    def test_peak_mode_analysis(self, file_format, peak_mode, peak_analysis_params, 
                                 channel_definitions, temp_output_dir):
         """
-        Test each peak analysis mode and verify output against golden reference.
+        Test each peak analysis mode for both MAT and ABF formats.
+        Verify output against format-specific golden references.
         """
         # Setup file paths
         base_name = "250514_012"
-        input_file = PEAK_MODES_DATA_DIR / f"{base_name}[1-11].mat"
+        input_file = PEAK_MODES_DATA_DIR / f"{base_name}[1-11].{file_format}"
         
         if not input_file.exists():
             pytest.skip(f"Test file not found: {input_file}")
@@ -115,16 +121,17 @@ class TestPeakAnalysisModes:
         suffixed_path = temp_output_dir / f"{base_name}{suffix}.csv"
         shutil.move(str(output_path), str(suffixed_path))
         
-        # 6. Compare with golden reference
-        golden_path = GOLDEN_PEAKS_DIR / f"{base_name}{suffix}.csv"
+        # 6. Compare with format-specific golden reference
+        golden_path = GOLDEN_PEAKS_DIR / file_format / f"{base_name}{suffix}.csv"
         assert golden_path.exists(), f"Golden file not found: {golden_path}"
         
         assert compare_csv_files(suffixed_path, golden_path), \
-            f"Output for {peak_mode} mode does not match golden data"
+            f"Output for {peak_mode} mode ({file_format} format) does not match golden data"
     
-    def test_peak_metrics_calculation(self, channel_definitions):
-        """Test that peak metrics are correctly calculated for all modes."""
-        input_file = PEAK_MODES_DATA_DIR / "250514_012[1-11].abf"
+    @pytest.mark.parametrize("file_format", FILE_FORMATS)
+    def test_peak_metrics_calculation(self, file_format, channel_definitions):
+        """Test that peak metrics are correctly calculated for all modes in both formats."""
+        input_file = PEAK_MODES_DATA_DIR / f"250514_012[1-11].{file_format}"
         
         if not input_file.exists():
             pytest.skip(f"Test file not found: {input_file}")
@@ -146,7 +153,7 @@ class TestPeakAnalysisModes:
         )
         
         metrics = engine.get_all_metrics(params)
-        assert len(metrics) > 0, "No metrics calculated"
+        assert len(metrics) > 0, f"No metrics calculated for {file_format} format"
         
         # Verify all peak metric fields exist and are populated
         for metric in metrics:
@@ -163,16 +170,17 @@ class TestPeakAnalysisModes:
             # Peak-to-peak should equal positive minus negative
             expected_pp = metric.voltage_positive_r1 - metric.voltage_negative_r1
             assert abs(metric.voltage_peakpeak_r1 - expected_pp) < 1e-6, \
-                "Peak-to-peak calculation incorrect for voltage"
+                f"Peak-to-peak calculation incorrect for voltage ({file_format} format)"
             
             # Absolute should be the max of abs(positive) and abs(negative)
             expected_abs = max(abs(metric.voltage_positive_r1), abs(metric.voltage_negative_r1))
             assert abs(abs(metric.voltage_absolute_r1) - expected_abs) < 1e-6, \
-                "Absolute peak calculation incorrect for voltage"
+                f"Absolute peak calculation incorrect for voltage ({file_format} format)"
     
-    def test_no_filename_suffixes(self, channel_definitions, temp_output_dir):
-        """Test that exported files do NOT include peak mode suffix in filename."""
-        input_file = PEAK_MODES_DATA_DIR / "250514_012[1-11].abf"
+    @pytest.mark.parametrize("file_format", FILE_FORMATS)
+    def test_no_filename_suffixes(self, file_format, channel_definitions, temp_output_dir):
+        """Test that exported files do NOT include peak mode suffix in filename for both formats."""
+        input_file = PEAK_MODES_DATA_DIR / f"250514_012[1-11].{file_format}"
         
         if not input_file.exists():
             pytest.skip(f"Test file not found: {input_file}")
@@ -199,27 +207,28 @@ class TestPeakAnalysisModes:
             # Export without suffix
             outcome = write_single_table(
                 export_table,
-                "test_file",
+                f"test_file_{file_format}",
                 str(temp_output_dir)
             )
             
             # Check that file was created WITHOUT suffix
-            expected_file = temp_output_dir / "test_file.csv"
+            expected_file = temp_output_dir / f"test_file_{file_format}.csv"
             assert expected_file.exists(), \
-                f"File not created with standard name: {expected_file}"
+                f"File not created with standard name: {expected_file} ({file_format} format)"
             
             # Clean up for next iteration
             expected_file.unlink()
     
+    @pytest.mark.parametrize("file_format", FILE_FORMATS)
     @pytest.mark.parametrize("x_peak,y_peak", [
         ("Absolute", "Positive"),
         ("Negative", "Absolute"),
         ("Peak-Peak", "Negative"),
         ("Positive", "Peak-Peak")
     ])
-    def test_mixed_peak_modes(self, x_peak, y_peak, channel_definitions):
-        """Test that X and Y axes can have different peak modes."""
-        input_file = PEAK_MODES_DATA_DIR / "250514_012[1-11].abf"
+    def test_mixed_peak_modes(self, file_format, x_peak, y_peak, channel_definitions):
+        """Test that X and Y axes can have different peak modes for both formats."""
+        input_file = PEAK_MODES_DATA_DIR / f"250514_012[1-11].{file_format}"
         
         if not input_file.exists():
             pytest.skip(f"Test file not found: {input_file}")
@@ -248,3 +257,52 @@ class TestPeakAnalysisModes:
         assert 'y_data' in plot_data
         assert len(plot_data['x_data']) > 0
         assert len(plot_data['y_data']) > 0
+    
+    def test_format_consistency(self, channel_definitions):
+        """Test that MAT and ABF formats produce consistent results (within tolerance)."""
+        mat_file = PEAK_MODES_DATA_DIR / "250514_012[1-11].mat"
+        abf_file = PEAK_MODES_DATA_DIR / "250514_012[1-11].abf"
+        
+        if not mat_file.exists() or not abf_file.exists():
+            pytest.skip("Both MAT and ABF files required for consistency test")
+        
+        # Load both datasets
+        mat_dataset = DatasetLoader.load(str(mat_file), channel_definitions)
+        abf_dataset = DatasetLoader.load(str(abf_file), channel_definitions)
+        
+        # Create engines
+        mat_engine = AnalysisEngine(mat_dataset, channel_definitions)
+        abf_engine = AnalysisEngine(abf_dataset, channel_definitions)
+        
+        # Test with absolute peak mode
+        params = AnalysisParameters(
+            range1_start=50.2,
+            range1_end=164.9,
+            use_dual_range=False,
+            range2_start=None,
+            range2_end=None,
+            stimulus_period=1000.0,
+            x_axis=AxisConfig(measure="Peak", channel="Voltage", peak_type="Absolute"),
+            y_axis=AxisConfig(measure="Peak", channel="Current", peak_type="Absolute"),
+            channel_config={}
+        )
+        
+        mat_metrics = mat_engine.get_all_metrics(params)
+        abf_metrics = abf_engine.get_all_metrics(params)
+        
+        assert len(mat_metrics) == len(abf_metrics), \
+            "Different number of sweeps between MAT and ABF formats"
+        
+        # Check that peak values are reasonably close (within 1% or 0.1 units)
+        for mat_m, abf_m in zip(mat_metrics, abf_metrics):
+            # Check voltage peaks
+            voltage_diff = abs(mat_m.voltage_absolute_r1 - abf_m.voltage_absolute_r1)
+            voltage_tol = max(0.1, abs(mat_m.voltage_absolute_r1) * 0.01)
+            assert voltage_diff < voltage_tol, \
+                f"Voltage peaks differ by {voltage_diff} between formats"
+            
+            # Check current peaks
+            current_diff = abs(mat_m.current_absolute_r1 - abf_m.current_absolute_r1)
+            current_tol = max(0.1, abs(mat_m.current_absolute_r1) * 0.01)
+            assert current_diff < current_tol, \
+                f"Current peaks differ by {current_diff} between formats"
