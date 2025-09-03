@@ -227,8 +227,9 @@ root/
 |   |           `-- 240809_003[1-12].mat
 |   |-- conftest.py
 |   |-- pytest.ini
-|   |-- test_abf_batch_analysis.py
 |   |-- test_analysis_plot.py
+|   |-- test_batch_analysis.py
+|   |-- test_cd_dual_ranges.py
 |   |-- test_channel_definitions.py
 |   |-- test_channel_definitions_demo.py
 |   |-- test_current_density.py
