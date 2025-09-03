@@ -28,6 +28,9 @@ class ControlPanel(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Track channel swap state
+        self._is_swapped = False
+        self._pending_swap_state = False
         self._setup_ui()
         self._connect_signals()
     
@@ -105,6 +108,7 @@ class ControlPanel(QWidget):
         self.swap_channels_btn = QPushButton("Swap Channels")
         self.swap_channels_btn.setToolTip("Swap voltage and current channel assignments")
         self.swap_channels_btn.clicked.connect(self.swap_channels_requested.emit)
+        self.swap_channels_btn.setEnabled(False) # Initially disabled
         analysis_layout.addWidget(self.swap_channels_btn, 6, 0, 1, 2)
         
         # Center Nearest Cursor button
@@ -240,10 +244,11 @@ class ControlPanel(QWidget):
             'stimulus_period': self.period_spin.value(),
             'x_measure': self.x_measure_combo.currentText(),
             'x_channel': self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
-            'x_peak_type': peak_mode if self.x_measure_combo.currentText() == "Peak" else None,  # NEW
+            'x_peak_type': peak_mode if self.x_measure_combo.currentText() == "Peak" else None,
             'y_measure': self.y_measure_combo.currentText(),
             'y_channel': self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
-            'y_peak_type': peak_mode if self.y_measure_combo.currentText() == "Peak" else None,  # NEW
+            'y_peak_type': peak_mode if self.y_measure_combo.currentText() == "Peak" else None,
+            'channels_swapped': self._is_swapped,  # Add this line
         }
     
     def update_file_info(self, file_name: str, sweep_count: int):
@@ -255,9 +260,17 @@ class ControlPanel(QWidget):
         """Enable or disable analysis controls"""
         self.update_plot_btn.setEnabled(enabled)
         self.export_plot_btn.setEnabled(enabled)
+        self.swap_channels_btn.setEnabled(enabled)  # Add this line
+        
+        # If enabling controls and we have a pending swap state, maintain button appearance
+        if enabled and self._pending_swap_state:
+            # The pending state visual should already be set, just update internal state
+            self._is_swapped = self._pending_swap_state
+            self._pending_swap_state = False
     
     def update_swap_button_state(self, is_swapped: bool):
         """Update the swap channels button appearance"""
+        self._is_swapped = is_swapped  # Add this line
         if is_swapped:
             self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
             self.swap_channels_btn.setText("Channels Swapped ⇄")
@@ -296,3 +309,91 @@ class ControlPanel(QWidget):
         }
         if spinbox_key in spinbox_map:
             spinbox_map[spinbox_key].setValue(value)
+
+    def apply_parameters(self, params: dict) -> None:
+        """
+        Apply parameters to control panel widgets.
+        Only sets values for keys that exist in params, ignores unknown keys.
+        
+        Args:
+            params: Dictionary of parameters to apply
+        """
+        # Range 1 settings (always available)
+        if 'range1_start' in params:
+            self.start_spin.setValue(params['range1_start'])
+        if 'range1_end' in params:
+            self.end_spin.setValue(params['range1_end'])
+        
+        # Dual range checkbox
+        if 'use_dual_range' in params:
+            self.dual_range_cb.setChecked(params['use_dual_range'])
+        
+        # Range 2 settings (only if dual range is enabled)
+        if self.dual_range_cb.isChecked():
+            if 'range2_start' in params:
+                self.start_spin2.setValue(params['range2_start'])
+            if 'range2_end' in params:
+                self.end_spin2.setValue(params['range2_end'])
+        
+        # Stimulus period
+        if 'stimulus_period' in params:
+            self.period_spin.setValue(params['stimulus_period'])
+        
+        # Plot settings - X axis
+        if 'x_measure' in params:
+            idx = self.x_measure_combo.findText(params['x_measure'])
+            if idx >= 0:
+                self.x_measure_combo.setCurrentIndex(idx)
+        if 'x_channel' in params and params['x_channel']:
+            idx = self.x_channel_combo.findText(params['x_channel'])
+            if idx >= 0:
+                self.x_channel_combo.setCurrentIndex(idx)
+        
+        # Plot settings - Y axis
+        if 'y_measure' in params:
+            idx = self.y_measure_combo.findText(params['y_measure'])
+            if idx >= 0:
+                self.y_measure_combo.setCurrentIndex(idx)
+        if 'y_channel' in params and params['y_channel']:
+            idx = self.y_channel_combo.findText(params['y_channel'])
+            if idx >= 0:
+                self.y_channel_combo.setCurrentIndex(idx)
+        
+        # Peak mode (if peak is selected)
+        if 'x_peak_type' in params and params['x_peak_type']:
+            idx = self.peak_mode_combo.findText(params['x_peak_type'])
+            if idx >= 0:
+                self.peak_mode_combo.setCurrentIndex(idx)
+        elif 'y_peak_type' in params and params['y_peak_type']:
+            idx = self.peak_mode_combo.findText(params['y_peak_type'])
+            if idx >= 0:
+                self.peak_mode_combo.setCurrentIndex(idx)
+        
+        # Channel swap state - store as pending if no file loaded yet
+        if 'channels_swapped' in params:
+            if self.swap_channels_btn.isEnabled():
+                # File already loaded, apply immediately
+                self._is_swapped = params.get('channels_swapped', False)
+            else:
+                # No file loaded yet, store as pending
+                self._pending_swap_state = params.get('channels_swapped', False)
+                # Update button appearance to show pending state
+                if self._pending_swap_state:
+                    self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
+                    self.swap_channels_btn.setText("Channels Swapped ⇄")
+                else:
+                    self.swap_channels_btn.setStyleSheet("")
+                    self.swap_channels_btn.setText("Swap Channels")
+
+    def get_pending_swap_state(self) -> bool:
+        """
+        Get the pending swap state that should be applied when a file is loaded.
+        
+        Returns:
+            True if channels should be swapped after file load
+        """
+        return self._pending_swap_state
+
+    def clear_pending_swap_state(self):
+        """Clear the pending swap state after it's been applied."""
+        self._pending_swap_state = False

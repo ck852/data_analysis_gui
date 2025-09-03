@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QAction, QActionGroup, QInputDialog, QApplication)
 from PyQt5.QtCore import Qt, QTimer
 
+from data_analysis_gui.core.session_settings import save_last_session, load_last_session
+
 import base64
 from io import BytesIO
 from matplotlib.figure import Figure
@@ -66,6 +68,12 @@ class ModernMatSweepAnalyzer(QMainWindow):
         # Initialize UI
         self._init_ui()
         self.setStyleSheet(get_theme_stylesheet(THEMES[self.current_theme_name]))
+
+        # Load last session settings
+        last_session = load_last_session()
+        if last_session:
+            self.control_panel.apply_parameters(last_session)
+            # TODO(cursor): Refresh plot/cursor positions if needed after parameter restore
 
     def _show_save_file_dialog(self, suggested_path: str) -> str:
         """This is the callback function. It handles showing the GUI dialog."""
@@ -272,15 +280,37 @@ class ModernMatSweepAnalyzer(QMainWindow):
         # Populate sweep combo
         self.sweep_combo.clear()
         self.sweep_combo.addItems(file_info.sweep_names)
-        if file_info.sweep_names:
-            self.sweep_combo.setCurrentIndex(0)
-            self._update_plot()
         
         # Enable controls
         self.batch_btn.setEnabled(True)
         self.control_panel.set_controls_enabled(True)
         
-        self.status_bar.showMessage(f"Loaded {file_info.sweep_count} sweeps from {file_info.name}")
+        # Check if we need to apply swap state
+        needs_swap = False
+        if hasattr(self.control_panel, '_pending_swap_state') and self.control_panel._pending_swap_state:
+            needs_swap = True
+            self.control_panel._is_swapped = True
+            self.control_panel._pending_swap_state = False
+        elif hasattr(self.control_panel, '_is_swapped') and self.control_panel._is_swapped:
+            needs_swap = True
+        
+        # Apply swap if needed
+        if needs_swap:
+            # Force swap after file load
+            result = self.controller.swap_channels()
+            if result['success']:
+                self.control_panel.update_swap_button_state(True)
+                config = result['configuration']
+                self.status_bar.showMessage(
+                    f"Loaded {file_info.sweep_count} sweeps. Channels: Voltage=Ch{config['voltage']}, Current=Ch{config['current']}"
+                )
+        else:
+            self.status_bar.showMessage(f"Loaded {file_info.sweep_count} sweeps from {file_info.name}")
+        
+        # Update plot - this will now show the swapped data
+        if file_info.sweep_names:
+            self.sweep_combo.setCurrentIndex(0)
+            self._update_plot()
     
     def _update_plot(self):
         """Update the plot display"""
@@ -617,6 +647,20 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Open concentration analysis dialog"""
         self.conc_analysis_dialog = ConcentrationResponseDialog(self)
         self.conc_analysis_dialog.show()
+
+    # =========== Save/Load Session Settings ===========
+    def closeEvent(self, event):
+        """Save session settings before closing."""
+        try:
+            # Collect and save current settings
+            params = self.control_panel.collect_parameters()
+            save_last_session(params)
+        except Exception as e:
+            # Don't prevent app closure if save fails
+            print(f"Failed to save session on exit: {e}")
+        
+        # Continue with normal close
+        event.accept()
     
     # ============ Callbacks for Controller ============
     
