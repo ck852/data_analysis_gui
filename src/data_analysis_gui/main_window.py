@@ -22,7 +22,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 # GUI-only imports
 from data_analysis_gui.plot_manager import PlotManager
 from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTINGS
-from data_analysis_gui.dialogs import (ConcentrationResponseDialog, BatchResultDialog, 
+from data_analysis_gui.dialogs import (BatchResultDialog, 
                      AnalysisPlotDialog, CurrentDensityIVDialog)
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
 from data_analysis_gui.widgets.control_panel import ControlPanel  # Import the new widget
@@ -110,7 +110,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         menubar = self.menuBar()
         
         self._create_file_menu(menubar)
-        self._create_tools_menu(menubar)
         self._create_themes_menu(menubar)
     
     def _create_file_menu(self, menubar):
@@ -142,13 +141,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-    
-    def _create_tools_menu(self, menubar):
-        """Create the Tools menu"""
-        tools_menu = menubar.addMenu('Tools')
-        conc_analysis_action = QAction('Concentration Response Analysis', self)
-        conc_analysis_action.triggered.connect(self._open_conc_analysis)
-        tools_menu.addAction(conc_analysis_action)
     
     def _create_themes_menu(self, menubar):
         """Create the Themes menu"""
@@ -276,6 +268,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
         """Handle successful file load (callback from controller)"""
         # Update control panel file info
         self.control_panel.update_file_info(file_info.name, file_info.sweep_count)
+
+        # Set the analysis range based on the longest sweep
+        if file_info.max_sweep_time is not None:
+            self.control_panel.set_analysis_range(file_info.max_sweep_time)
         
         # Populate sweep combo
         self.sweep_combo.clear()
@@ -402,6 +398,17 @@ class ModernMatSweepAnalyzer(QMainWindow):
         )
         
         if not file_paths:
+            return
+        
+        # Get the shortest max sweep time from all selected files
+        min_max_sweep_time = self.controller.get_min_max_sweep_time_for_files(file_paths)
+        params = self._collect_parameters()
+
+        if params['range1_end'] > min_max_sweep_time or \
+           (params['use_dual_range'] and params['range2_end'] > min_max_sweep_time):
+            QMessageBox.warning(self, "Invalid Range for Batch Analysis",
+                                f"The analysis range is outside the valid time range for at least one of the selected files. "
+                                f"Please adjust the analysis range to be within 0 - {min_max_sweep_time:.2f} ms for all files.")
             return
         
         destination_folder = self._get_batch_output_folder(file_paths)
@@ -642,11 +649,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             self.current_theme_name = name
             new_stylesheet = get_theme_stylesheet(THEMES[name])
             self.setStyleSheet(new_stylesheet)
-    
-    def _open_conc_analysis(self):
-        """Open concentration analysis dialog"""
-        self.conc_analysis_dialog = ConcentrationResponseDialog(self)
-        self.conc_analysis_dialog.show()
 
     # =========== Save/Load Session Settings ===========
     def closeEvent(self, event):

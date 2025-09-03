@@ -24,6 +24,9 @@ class FileInfo:
     name: str
     sweep_count: int
     sweep_names: List[str]
+    # <<< MODIFIED START >>>
+    max_sweep_time: Optional[float] = None
+    # <<< MODIFIED END >>>
 
 
 @dataclass
@@ -55,7 +58,7 @@ class BatchAnalysisResult:
     batch_result: Any  # BatchResult object
     batch_data: Dict[str, Dict[str, Any]]
     iv_data: Any
-    iv_data_range2: Optional[Any] 
+    iv_data_range2: Optional[Any]
     iv_file_mapping: Any
     successful_count: int
     failed_count: int
@@ -70,20 +73,20 @@ class ApplicationController:
     Central controller that manages all business logic.
     GUI interacts only with this controller, never directly with business logic.
     """
-    
+
     def __init__(self, get_save_path_callback=None):
         # Core business objects
         self.channel_definitions = ChannelDefinitions()
         self.analysis_engine = AnalysisEngine(channel_definitions=self.channel_definitions)
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
-        
+
         # Callbacks for GUI updates (dependency injection)
         self.get_save_path_callback = get_save_path_callback
         self.on_file_loaded = None
         self.on_error = None
         self.on_status_update = None
-    
+
     def trigger_export_dialog(self, params):
         """
         Triggers the UI to show a save dialog via the callback,
@@ -125,7 +128,7 @@ class ApplicationController:
             y_peak_type=gui_state.get('y_peak_type', 'Absolute'),  # Added
             channel_config=self.get_channel_configuration()
         )
-    
+
     def perform_batch_analysis(
         self,
         file_paths: List[str],
@@ -143,12 +146,12 @@ class ApplicationController:
             params,
             on_progress=progress_callback
         )
-        
+
         # Export results
         export_outcomes = []
         if batch_result.successful_results:
             export_outcomes = exporter.write_tables(batch_result, destination_folder)
-        
+
         # Prepare batch data for dialog - NOW INCLUDING x_data2
         batch_data = {}
         for res in batch_result.successful_results:
@@ -156,22 +159,22 @@ class ApplicationController:
                 'x_values': res.x_data.tolist() if hasattr(res.x_data, 'tolist') else res.x_data,
                 'y_values': res.y_data.tolist() if hasattr(res.y_data, 'tolist') else res.y_data,
             }
-            
+
             # Add Range 2 data if available
             if params.use_dual_range:
                 if res.x_data2 is not None and len(res.x_data2) > 0:
                     file_data['x_values2'] = res.x_data2.tolist() if hasattr(res.x_data2, 'tolist') else res.x_data2
                 if res.y_data2 is not None and len(res.y_data2) > 0:
                     file_data['y_values2'] = res.y_data2.tolist() if hasattr(res.y_data2, 'tolist') else res.y_data2
-            
+
             batch_data[res.base_name] = file_data
-        
+
         # Prepare IV data with separate x_values for each range
         iv_data, iv_file_mapping, iv_data_range2 = IVAnalysisService.prepare_iv_data(batch_data, params)
-        
+
         # Create axis labels
         x_label, y_label = self.create_axis_labels(params)
-        
+
         return BatchAnalysisResult(
             success=len(batch_result.successful_results) > 0,
             batch_result=batch_result,
@@ -186,16 +189,17 @@ class ApplicationController:
             y_label=y_label,
             use_dual_range=params.use_dual_range
         )
-    
+
     # ============ File Operations ============
-    
+
+    # <<< MODIFIED START >>>
     def load_file(self, file_path: str) -> Optional[FileInfo]:
         """
         Load a MAT file and return file information.
-        
+
         Args:
             file_path: Path to the MAT file
-            
+
         Returns:
             FileInfo object if successful, None otherwise
         """
@@ -203,137 +207,169 @@ class ApplicationController:
             self.current_dataset = DatasetLoader.load(file_path, self.channel_definitions)
             self.loaded_file_path = file_path
             self.analysis_engine.set_dataset(self.current_dataset)
-            
+
             # Prepare file info
             sweep_names = [f"Sweep {idx}" for idx in sorted(
                 self.current_dataset.sweeps(), key=lambda x: int(x)
             )]
-            
+
+            max_sweep_time = self.current_dataset.get_max_sweep_time() if self.current_dataset else 0
+
             file_info = FileInfo(
                 path=file_path,
                 name=os.path.basename(file_path),
                 sweep_count=self.current_dataset.sweep_count(),
-                sweep_names=sweep_names
+                sweep_names=sweep_names,
+                max_sweep_time=max_sweep_time
             )
-            
+
             # Notify GUI if callback is set
             if self.on_file_loaded:
                 self.on_file_loaded(file_info)
-            
+
             return file_info
-            
+
         except Exception as e:
             if self.on_error:
                 self.on_error(f"Error loading file: {str(e)}")
             return None
-        
+    # <<< MODIFIED END >>>
+
     def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
         """
         Export analysis data to a specific CSV file.
         """
         if not self.has_data() or not self.loaded_file_path:
             return False
-        
+
         try:
             self.analysis_engine.set_dataset(self.current_dataset)
             table_data = self.analysis_engine.get_export_table(params)
-            
+
             if not table_data or len(table_data.get('data', [])) == 0:
                 if self.on_error:
                     self.on_error("No data to export")
                 return False
-            
+
             # Remove the peak_type extraction code - it's not needed
-            
+
             # Extract the directory and filename from the full path
             destination_folder = os.path.dirname(file_path)
             filename_with_ext = os.path.basename(file_path)
-            
+
             # Remove .csv extension if present (write_single_table adds it)
             base_name = filename_with_ext.replace('.csv', '')
-            
+
             outcome = exporter.write_single_table(
                 table=table_data,
                 base_name=base_name,
                 destination_folder=destination_folder
                 # Removed peak_type parameter
             )
-            
+
             if outcome.success and self.on_status_update:
                 self.on_status_update(f"Data exported to: {outcome.path}")
             elif not outcome.success and self.on_error:
                 self.on_error(f"Export failed: {outcome.error_message}")
-            
+
             return outcome.success
-            
+
         except Exception as e:
             if self.on_error:
                 self.on_error(f"Export error: {str(e)}")
             return False
-        
+
     def get_suggested_export_filename(self, suffix="_analyzed") -> str:
         """Generate suggested filename for exports"""
         if self.loaded_file_path:
             base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
             if '[' in base_name:
                 base_name = base_name.split('[')[0]
-            
+
             # Get current parameters to check peak type
             # This would need the current params passed in, or stored
             # For now, just return the basic name
             return f"{base_name}{suffix}.csv"
         return f"analyzed.csv"
-    
+
     def has_data(self) -> bool:
         """Check if data is loaded"""
         return self.current_dataset is not None and not self.current_dataset.is_empty()
-    
+
     # ============ Channel Operations ============
-    
+
     def swap_channels(self) -> Dict[str, Any]:
         """
         Swap voltage and current channel assignments.
-        
+
         Returns:
             Dictionary with swap status and configuration
         """
         if not self.has_data():
             return {'success': False, 'reason': 'No data loaded'}
-        
+
         if self.current_dataset.channel_count() < 2:
             return {'success': False, 'reason': 'Data has fewer than 2 channels'}
-        
+
         self.channel_definitions.swap_channels()
-        
+
         return {
             'success': True,
             'is_swapped': self.channel_definitions.is_swapped(),
             'configuration': self.channel_definitions.get_configuration()
         }
-    
+
+    # <<< ADDED START >>>
+    def get_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
+        """Gets the maximum sweep time across a list of files."""
+        max_time = 0
+        for file_path in file_paths:
+            try:
+                dataset = DatasetLoader.load(file_path, self.channel_definitions)
+                max_time = max(max_time, dataset.get_max_sweep_time())
+            except Exception as e:
+                # Optionally log the error or notify the user
+                print(f"Could not process {file_path}: {e}")
+        return max_time
+
+    def get_min_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
+        """Gets the minimum of the maximum sweep times across a list of files."""
+        min_max_time = float('inf')
+        loaded_at_least_one = False
+        for file_path in file_paths:
+            try:
+                dataset = DatasetLoader.load(file_path, self.channel_definitions)
+                min_max_time = min(min_max_time, dataset.get_max_sweep_time())
+                loaded_at_least_one = True
+            except Exception as e:
+                # Optionally log the error or notify the user
+                print(f"Could not process {file_path}: {e}")
+        return min_max_time if loaded_at_least_one else 0
+    # <<< ADDED END >>>
+
     # ============ Sweep Data Operations ============
-    
+
     def get_sweep_plot_data(self, sweep_name: str, channel_type: str) -> Optional[PlotData]:
         """
         Get data for plotting a single sweep.
-        
+
         Args:
             sweep_name: Name of the sweep (e.g., "Sweep 1")
             channel_type: Type of channel to plot ("Voltage" or "Current")
-            
+
         Returns:
             PlotData object if successful, None otherwise
         """
         if not self.has_data():
             return None
-        
+
         try:
             sweep_idx = sweep_name.split()[-1]
             plot_data_dict = self.analysis_engine.get_sweep_plot_data(sweep_idx, channel_type)
-            
+
             if plot_data_dict is None:
                 return None
-            
+
             return PlotData(
                 time_ms=plot_data_dict['time_ms'],
                 data_matrix=plot_data_dict['data_matrix'],
@@ -341,31 +377,31 @@ class ApplicationController:
                 sweep_index=plot_data_dict['sweep_index'],
                 channel_type=plot_data_dict['channel_type']
             )
-            
+
         except Exception as e:
             if self.on_error:
                 self.on_error(f"Error getting sweep data: {str(e)}")
             return None
-    
+
     # ============ Analysis Operations ============
-    
+
     def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisPlotData]:
         """
         Perform analysis with given parameters.
-        
+
         Args:
             params: Analysis parameters
-            
+
         Returns:
             AnalysisPlotData if successful, None otherwise
         """
         if not self.has_data():
             return None
-        
+
         try:
             self.analysis_engine.set_dataset(self.current_dataset)
             result = self.analysis_engine.get_plot_data(params)
-            
+
             return AnalysisPlotData(
                 x_data=result['x_data'],
                 y_data=result['y_data'],
@@ -375,14 +411,14 @@ class ApplicationController:
                 sweep_indices=result['sweep_indices'],
                 use_dual_range=params.use_dual_range
             )
-            
+
         except Exception as e:
             if self.on_error:
                 self.on_error(f"Error performing analysis: {str(e)}")
             return None
-    
+
     # ============ Export Operations ============
-    
+
     def get_suggested_export_filename(self, suffix="_analyzed") -> str:
         """Generate suggested filename for exports"""
         if self.loaded_file_path:
@@ -391,9 +427,9 @@ class ApplicationController:
                 base_name = base_name.split('[')[0]
             return f"{base_name}{suffix}.csv"
         return f"analyzed.csv"
-    
+
     # ============ Parameter Building ============
-    
+
     @staticmethod
     def build_parameters(
         range1_start: float,
@@ -419,13 +455,13 @@ class ApplicationController:
             channel=x_channel if x_measure != "Time" else None,
             peak_type=x_peak_type if x_measure == "Peak" else None  # Added
         )
-        
+
         y_axis_config = AxisConfig(
             measure=y_measure,
             channel=y_channel if y_measure != "Time" else None,
             peak_type=y_peak_type if y_measure == "Peak" else None  # Added
         )
-        
+
         return AnalysisParameters(
             range1_start=range1_start,
             range1_end=range1_end,
@@ -437,7 +473,7 @@ class ApplicationController:
             y_axis=y_axis_config,
             channel_config=channel_config
         )
-    
+
     @staticmethod
     def create_axis_labels(params: AnalysisParameters) -> Tuple[str, str]:
         """Create axis labels from parameters"""
@@ -457,7 +493,7 @@ class ApplicationController:
         else:
             unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
             x_label = f"{params.x_axis.measure} {params.x_axis.channel} {unit}"
-        
+
         # Y-axis label
         if params.y_axis.measure == "Time":
             y_label = "Time (s)"
@@ -474,29 +510,29 @@ class ApplicationController:
         else:
             unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
             y_label = f"{params.y_axis.measure} {params.y_axis.channel} {unit}"
-        
+
         return x_label, y_label
 
-    def perform_peak_analysis(self, base_params: AnalysisParameters, 
+    def perform_peak_analysis(self, base_params: AnalysisParameters,
                             peak_types: List[str] = None) -> Dict[str, AnalysisPlotData]:
         """
         Perform analysis for multiple peak types.
-        
+
         Args:
             base_params: Base analysis parameters
             peak_types: List of peak types to analyze
-            
+
         Returns:
             Dictionary mapping peak type to AnalysisPlotData
         """
         if not self.has_data():
             return {}
-        
+
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
-        
+
         results = {}
-        
+
         for peak_type in peak_types:
             # Create modified parameters with specific peak type
             modified_params = AnalysisParameters(
@@ -518,39 +554,39 @@ class ApplicationController:
                 ),
                 channel_config=base_params.channel_config
             )
-            
+
             # Perform analysis with modified parameters
             plot_data = self.perform_analysis(modified_params)
             if plot_data:
                 results[peak_type] = plot_data
-        
+
         return results
 
-    def export_peak_analysis(self, base_params: AnalysisParameters, 
+    def export_peak_analysis(self, base_params: AnalysisParameters,
                             destination_folder: str,
                             peak_types: List[str] = None) -> Dict[str, bool]:
         """
         Export analysis data for multiple peak types.
-        
+
         Args:
             base_params: Base analysis parameters
             destination_folder: Where to save the files
             peak_types: List of peak types to export
-            
+
         Returns:
             Dictionary mapping peak type to export success status
         """
         if not self.has_data() or not self.loaded_file_path:
             return {}
-        
+
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
-        
+
         results = {}
         base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
         if '[' in base_name:
             base_name = base_name.split('[')[0]
-        
+
         for peak_type in peak_types:
             # Create filename with peak type suffix
             peak_suffix_map = {
@@ -562,7 +598,7 @@ class ApplicationController:
             suffix = peak_suffix_map.get(peak_type, "")
             filename = f"{base_name}{suffix}.csv"
             file_path = os.path.join(destination_folder, filename)
-            
+
             # Create modified parameters
             modified_params = AnalysisParameters(
                 range1_start=base_params.range1_start,
@@ -583,9 +619,9 @@ class ApplicationController:
                 ),
                 channel_config=base_params.channel_config
             )
-            
+
             # Export with modified parameters
             success = self.export_analysis_data_to_file(modified_params, file_path)
             results[peak_type] = success
-        
+
         return results

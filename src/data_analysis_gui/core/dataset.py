@@ -187,6 +187,24 @@ class ElectrophysiologyDataset:
         
         return float(time_ms[-1] - time_ms[0])
     
+    def get_max_sweep_time(self) -> float:
+            """
+            Get the maximum sweep duration across all sweeps in the dataset.
+
+            Returns:
+                Maximum sweep time in milliseconds, or 0 if no sweeps.
+            """
+            if self.is_empty():
+                return 0.0
+            
+            max_duration = 0.0
+            for sweep_idx in self.sweeps():
+                duration = self.get_sweep_duration_ms(sweep_idx)
+                if duration is not None and duration > max_duration:
+                    max_duration = duration
+            
+            return max_duration
+
     def get_sampling_rate(self, sweep_index: str = None) -> Optional[float]:
         """
         Estimate the sampling rate for a sweep or the dataset.

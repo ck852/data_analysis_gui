@@ -310,6 +310,24 @@ class ControlPanel(QWidget):
         if spinbox_key in spinbox_map:
             spinbox_map[spinbox_key].setValue(value)
 
+    def set_analysis_range(self, max_time: float):
+        """Sets the maximum value for the analysis range spinboxes and clamps current values."""
+        self.start_spin.setRange(0, max_time)
+        self.end_spin.setRange(0, max_time)
+        self.start_spin2.setRange(0, max_time)
+        self.end_spin2.setRange(0, max_time)
+
+        # Clamp existing values to the new range
+        if self.start_spin.value() > max_time:
+            self.start_spin.setValue(max_time)
+        if self.end_spin.value() > max_time:
+            self.end_spin.setValue(max_time)
+        if self.start_spin2.value() > max_time:
+            self.start_spin2.setValue(max_time)
+        if self.end_spin2.value() > max_time:
+            self.end_spin2.setValue(max_time)
+
+
     def apply_parameters(self, params: dict) -> None:
         """
         Apply parameters to control panel widgets.

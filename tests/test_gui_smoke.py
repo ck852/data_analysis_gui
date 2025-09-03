@@ -10,7 +10,7 @@ from data_analysis_gui.main_window import ModernMatSweepAnalyzer
 from data_analysis_gui.core.app_controller import ApplicationController
 from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 from data_analysis_gui.dialogs.batch_results_dialog import BatchResultDialog
-from data_analysis_gui.dialogs.concentration_response_dialog import ConcentrationResponseDialog
+# REMOVED: from data_analysis_gui.dialogs.concentration_response_dialog import ConcentrationResponseDialog
 
 # Import the data directory path from your existing test configuration
 from conftest import IV_CD_DATA_DIR
@@ -74,8 +74,8 @@ def test_comprehensive_gui_smoke(qtbot, monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(AnalysisPlotDialog, "exec", auto_close_dialog)
     monkeypatch.setattr(BatchResultDialog, "exec_", auto_close_dialog)
     monkeypatch.setattr(BatchResultDialog, "exec", auto_close_dialog)
-    monkeypatch.setattr(ConcentrationResponseDialog, "show", 
-                       lambda self: (opened_dialogs.append(self), QTimer.singleShot(100, self.close)))
+    # REMOVED: monkeypatch.setattr(ConcentrationResponseDialog, "show", 
+    #                   lambda self: (opened_dialogs.append(self), QTimer.singleShot(100, self.close)))
 
     # --- Launch Window ---
     controller = ApplicationController()
@@ -246,21 +246,7 @@ def test_comprehensive_gui_smoke(qtbot, monkeypatch, tmp_path, caplog):
         print("\n=== Testing Menu Actions ===")
         
         # Re-fetch actions each time to avoid deleted object errors
-        # Test Tools menu - Concentration Response Analysis
-        all_actions = win.findChildren(QAction)
-        conc_action = None
-        for action in all_actions:
-            try:
-                if action and "Concentration Response Analysis" in action.text():
-                    conc_action = action
-                    break
-            except RuntimeError:
-                # Action was deleted, skip it
-                continue
-        
-        if conc_action and conc_action.isEnabled():
-            conc_action.trigger()
-            qtbot.wait(300)
+        # REMOVED: Test Tools menu - Concentration Response Analysis
         
         # Test theme changes - re-fetch actions to avoid deleted objects
         all_actions = win.findChildren(QAction)

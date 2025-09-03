@@ -1,6 +1,6 @@
 # params.py
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, Tuple, Iterable
+from typing import Optional, Dict, Any, Tuple, Iterable, Union, ClassVar
 
 @dataclass(frozen=True)
 class AxisConfig:
@@ -19,6 +19,16 @@ class AnalysisParameters:
     x_axis: AxisConfig
     y_axis: AxisConfig
     channel_config: Dict[str, Any] = field(default_factory=dict)
+
+    # --- Class attribute to hold legacy names ---
+    _legacy_aliases: ClassVar[Dict[str, str]] = {
+        "start1": "range1_start",
+        "end1": "range1_end",
+        "start2": "range2_start",
+        "end2": "range2_end",
+        "use_dual_range": "use_dual_range",
+        "capacitance": "capacitance_pf",
+    }
 
     def cache_key(self) -> Tuple:
         """Immutable, order-invariant cache key derived from fields."""
@@ -39,38 +49,36 @@ class AnalysisParameters:
             r(self.range2_start) if self.range2_start is not None else None,
             r(self.range2_end) if self.range2_end is not None else None,
             r(self.stimulus_period),
-            (self.x_axis.measure, self.x_axis.channel, self.x_axis.peak_type),  # Added peak_type
-            (self.y_axis.measure, self.y_axis.channel, self.y_axis.peak_type),  # Added peak_type
-            freeze(self.channel_config),
+            freeze(asdict(self.x_axis)),
+            freeze(asdict(self.y_axis)),
+            freeze(self.channel_config)
         )
 
     def _flatten(self) -> Dict[str, Any]:
-        """Flatten to a legacy-friendly dict once; cheap and predictable."""
-        base = {
+        """Flattens the dataclass into a simple dictionary for easy access."""
+        flat_dict = {
             "range1_start": self.range1_start,
             "range1_end": self.range1_end,
             "use_dual_range": self.use_dual_range,
             "range2_start": self.range2_start,
             "range2_end": self.range2_end,
             "stimulus_period": self.stimulus_period,
-            "x_axis": self.x_axis,
-            "y_axis": self.y_axis,
-            "channel_config": self.channel_config,
-            # legacy flattened keys expected by older code:
             "x_measure": self.x_axis.measure,
             "x_channel": self.x_axis.channel,
-            "x_peak_type": self.x_axis.peak_type,  # Added
+            "x_peak_type": self.x_axis.peak_type,
             "y_measure": self.y_axis.measure,
             "y_channel": self.y_axis.channel,
-            "y_peak_type": self.y_axis.peak_type,  # Added
+            "y_peak_type": self.y_axis.peak_type,
+            "channel_config": self.channel_config,
         }
-        # add alias keys mirroring the canonical ones
+        # Add legacy aliases for backward compatibility
         for alias, canon in self._legacy_aliases.items():
-            base[alias] = base[canon]
-        return base
+            if canon in flat_dict:
+                flat_dict[alias] = flat_dict[canon]
+        return flat_dict
 
-    def to_legacy_dict(self) -> Dict[str, Any]:
-        """If something truly needs a plain dict (e.g., JSON or templating)."""
+    def to_dict(self) -> Dict[str, Any]:
+        """Returns a plain dict (e.g., JSON or templating)."""
         d = self._flatten().copy()
         # Convert dataclasses to dicts for JSON-friendliness
         d["x_axis"] = asdict(self.x_axis)
@@ -105,10 +113,11 @@ class AnalysisParameters:
         # Combine flattened keys with dataclass field names to be generous
         return set(flat.keys()) | {
             "range1_start","range1_end","use_dual_range","range2_start","range2_end",
-            "stimulus_period","x_axis","y_axis","channel_config"
+            "stimulus_period","x_axis","y_axis","channel_config",
         }
 
+    def values(self) -> Iterable[Any]:
+        return (self[key] for key in self.keys())
+
     def items(self) -> Iterable[Tuple[str, Any]]:
-        flat = self._flatten()
-        for k in self.keys():
-            yield (k, flat[k] if k in flat else getattr(self, k))
+        return ((key, self[key]) for key in self.keys())
