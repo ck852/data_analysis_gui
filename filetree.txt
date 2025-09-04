@@ -20,18 +20,17 @@ root/
 |       |   |-- batch_processor.py
 |       |   |-- batch_results.py
 |       |   |-- channel_definitions.py
-|       |   |-- concentration_response_engine.py
 |       |   |-- current_density_exporter.py
 |       |   |-- dataset.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
 |       |   |-- params.py
-|       |   `-- plotting_interface.py
+|       |   |-- plotting_interface.py
+|       |   `-- session_settings.py
 |       |-- dialogs/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
 |       |   |-- batch_results_dialog.py
-|       |   |-- concentration_response_dialog.py
 |       |   `-- current_density_iv_dialog.py
 |       |-- services/
 |       |   |-- __init__.py
@@ -240,6 +239,7 @@ root/
 |   `-- test_swapped_channels.py
 |-- filetree.txt
 |-- filetree_full.py
+|-- params_fix.diff
 |-- pyproject.toml
 |-- pytest.ini
 |-- README.md

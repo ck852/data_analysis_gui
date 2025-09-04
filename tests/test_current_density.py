@@ -37,12 +37,12 @@ class CurrentDensityTestBase:
         y_axis_config = AxisConfig(measure="Average", channel="Current")
         
         return AnalysisParameters(
-            range1_start=0,
-            range1_end=500,  # Typical values from GUI
-            range2_start=0,  # Required even when use_dual_range=False
-            range2_end=500,  # Required even when use_dual_range=False
+            range1_start=150.1,
+            range1_end=649.2,  # Typical values from GUI
+            range2_start=652.78,  # Required even when use_dual_range=False
+            range2_end=750.52,  # Required even when use_dual_range=False
             use_dual_range=False,
-            stimulus_period=500,
+            stimulus_period=1000,
             x_axis=x_axis_config,
             y_axis=y_axis_config,
             channel_config=channel_definitions.get_configuration()
