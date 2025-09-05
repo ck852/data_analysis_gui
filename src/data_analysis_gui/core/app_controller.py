@@ -84,7 +84,7 @@ class ApplicationController:
 
         # DEPRECATED: This callback parameter will be removed in future phases
         # Phase 2 Refactor: Keeping for backward compatibility
-        self.get_save_path_callback = get_save_path_callback
+        #self.get_save_path_callback = get_save_path_callback
         
         # Callbacks for GUI updates (dependency injection)
         self.on_file_loaded = None
@@ -667,7 +667,7 @@ class ApplicationController:
 
             # Export with modified parameters
             # DEPRECATED: Using old method for now, will be updated in future phases
-            success = self.export_analysis_data_to_file(modified_params, file_path)
-            results[peak_type] = success
+            #success = self.export_analysis_data_to_file(modified_params, file_path)
+            results[peak_type] = False
 
         return results

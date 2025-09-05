@@ -1,6 +1,6 @@
 """
-Refactored Main Window - Simplified by delegating control panel to separate widget.
-All business operations are delegated to the ApplicationController.
+Refactored Main Window - Phase 3 GUI Layer Update.
+Removed callback patterns and GUI now handles file dialogs directly.
 """
 
 import os
@@ -27,23 +27,22 @@ from data_analysis_gui.dialogs import (BatchResultDialog,
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
 from data_analysis_gui.widgets.control_panel import ControlPanel  # Import the new widget
 
-# Import the controller
+# Import the controller and business services
 from data_analysis_gui.core.app_controller import ApplicationController, FileInfo, PlotData
+from data_analysis_gui.services.export_business_service import ExportService
 
 
 class ModernMatSweepAnalyzer(QMainWindow):
     """
     Simplified main window implementation using the extracted ControlPanel widget.
-    This class focuses on high-level application coordination.
+    Phase 3: GUI handles file dialogs directly without callback patterns.
     """
     
     def __init__(self, controller: ApplicationController = None):
         super().__init__()
         
-        # Create the controller and PASS IN the callback method
-        self.controller = controller or ApplicationController(
-            get_save_path_callback=self._show_save_file_dialog
-        )
+        # Create the controller WITHOUT callback (Phase 3 change)
+        self.controller = controller or ApplicationController()
         
         # Set up controller callbacks
         self.controller.on_file_loaded = self._handle_file_loaded
@@ -73,26 +72,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         last_session = load_last_session()
         if last_session:
             self.control_panel.apply_parameters(last_session)
-            # TODO(cursor): Refresh plot/cursor positions if needed after parameter restore
 
-    def _show_save_file_dialog(self, suggested_path: str) -> str:
-        """This is the callback function. It handles showing the GUI dialog."""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Analysis Data", suggested_path, "CSV files (*.csv)"
-        )
-        return file_path  # Returns the path or an empty string if cancelled
-
-    def _export_data(self):
-        """Delegates the entire export process to the controller."""
-        if not self.controller.has_data():
-            QMessageBox.information(self, "Export Error", "No data to export.")
-            return
-            
-        params = self._collect_parameters()
-        
-        # This one line now handles everything!
-        self.controller.trigger_export_dialog(params)
-    
     # ============ UI Initialization ============
     
     def _init_ui(self):
@@ -130,7 +110,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         file_menu.addSeparator()
         
-        export_action = QAction('Export Analyzed Data', self)
+        export_action = QAction('Export Plot Data', self)
         export_action.setShortcut('Ctrl+E')
         export_action.triggered.connect(self._export_data)
         file_menu.addAction(export_action)
@@ -211,7 +191,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         toolbar.addWidget(self.channel_combo)
     
     def _create_main_layout(self):
-        """Create the main layout with splitter - SIMPLIFIED VERSION"""
+        """Create the main layout with splitter"""
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         
@@ -252,7 +232,64 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
     
-    # ============ GUI Event Handlers (delegate to controller) ============
+    # ============ GUI Event Handlers ============
+    
+    def _export_data(self):
+        """
+        Phase 3: Handle export button click - GUI orchestration only.
+        File dialog is handled directly here, no callbacks.
+        """
+        # Validate preconditions
+        if not self.controller.has_data():
+            QMessageBox.information(self, "Export Error", "No data to export.")
+            return
+        
+        # Collect parameters from GUI
+        params = self._collect_parameters()
+        
+        # Get suggested filename from controller
+        suggested_filename = self.controller.get_suggested_export_filename()
+        
+        # Get directory from current file or default
+        if self.controller.loaded_file_path:
+            default_dir = os.path.dirname(self.controller.loaded_file_path)
+            suggested_path = os.path.join(default_dir, suggested_filename)
+        else:
+            suggested_path = suggested_filename
+        
+        # Show file dialog (GUI responsibility)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Export Analysis Data", 
+            suggested_path, 
+            "CSV files (*.csv)"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
+        # Validate path using business service
+        is_valid, error_msg = ExportService.validate_export_path(file_path)
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Path", error_msg)
+            return
+        
+        # Call business logic through controller
+        result = self.controller.export_analysis_data(params, file_path)
+        
+        # Handle result (GUI responsibility)
+        if result.success:
+            QMessageBox.information(
+                self, 
+                "Export Successful", 
+                f"Exported {result.records_exported} records to:\n{result.file_path}"
+            )
+        else:
+            QMessageBox.warning(
+                self, 
+                "Export Failed", 
+                f"Export failed:\n{result.error_message}"
+            )
     
     def _load_file(self):
         """Handle file loading"""
@@ -372,24 +409,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
         else:
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
     
-    def _export_data(self):
-        """Export analysis data"""
-        if not self.controller.has_data():
-            QMessageBox.information(self, "Export Error", "No data to export.")
-            return
-        
-        # Use the controller's suggested filename
-        suggested = self.controller.get_suggested_export_filename()
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Analyzed Data", suggested, "CSV files (*.csv)"
-        )
-        
-        if file_path:
-            params = self._collect_parameters()
-            success = self.controller.export_analysis_data_to_file(params, file_path)
-            # Success/error messages handled by controller callbacks
-    
     def _batch_analyze(self):
         """Perform batch analysis"""
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -434,17 +453,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             )
             
             if result.success:
-                # Create the plot using PlotService
-                from data_analysis_gui.services.plot_service import PlotService
-                plot_service = PlotService()
-                
-                plot_data = plot_service.create_batch_plot(
-                    result.batch_result,
-                    params,
-                    result.x_label,
-                    result.y_label
-                )
-                
                 # Create the plot using PlotService
                 from data_analysis_gui.services.plot_service import PlotService
                 plot_service = PlotService()
