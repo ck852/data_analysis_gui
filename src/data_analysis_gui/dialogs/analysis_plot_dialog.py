@@ -5,14 +5,13 @@ This is a thin wrapper around the core analysis_plot module,
 handling only GUI-specific interactions.
 """
 
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QFileDialog, QMessageBox)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton)
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 # Core imports - all data processing is delegated to these
-from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
+from data_analysis_gui.core.analysis_plot import AnalysisPlotter
 from data_analysis_gui.services.export_service import ExportService
 
 class AnalysisPlotDialog(QDialog):
@@ -20,12 +19,8 @@ class AnalysisPlotDialog(QDialog):
     
     def __init__(self, parent, plot_data, x_label, y_label, title, controller=None, params=None):
         super().__init__(parent)
-        
-        # Convert dict to structured data if needed
-        if isinstance(plot_data, dict):
-            self.plot_data = AnalysisPlotData.from_dict(plot_data)
-        else:
-            self.plot_data = plot_data
+
+        self.plot_data = plot_data
             
         self.x_label = x_label
         self.y_label = y_label
@@ -34,12 +29,6 @@ class AnalysisPlotDialog(QDialog):
         # Store controller and params for export
         self.controller = controller
         self.params = params
-
-        # Convert dict to structured data if needed
-        if isinstance(plot_data, dict):
-            self.plot_data = AnalysisPlotData.from_dict(plot_data)
-        else:
-            self.plot_data = plot_data
 
         # Create the core plotter instance
         self.plotter = AnalysisPlotter(self.plot_data, x_label, y_label, title)
