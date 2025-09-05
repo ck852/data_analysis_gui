@@ -130,7 +130,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         file_menu.addSeparator()
         
-        export_action = QAction('Export Plot Data', self)
+        export_action = QAction('Export Analyzed Data', self)
         export_action.setShortcut('Ctrl+E')
         export_action.triggered.connect(self._export_data)
         file_menu.addAction(export_action)
@@ -382,7 +382,7 @@ class ModernMatSweepAnalyzer(QMainWindow):
         suggested = self.controller.get_suggested_export_filename()
         
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Plot Data", suggested, "CSV files (*.csv)"
+            self, "Export Analyzed Data", suggested, "CSV files (*.csv)"
         )
         
         if file_path:

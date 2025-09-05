@@ -16,6 +16,9 @@ from data_analysis_gui.core.batch_processor import BatchProcessor, FileResult
 from data_analysis_gui.core import exporter
 from data_analysis_gui.core.iv_analysis import IVAnalysisService
 
+# New import for refactored export service
+from data_analysis_gui.services.export_business_service import ExportService, ExportResult
+
 
 @dataclass
 class FileInfo:
@@ -24,9 +27,7 @@ class FileInfo:
     name: str
     sweep_count: int
     sweep_names: List[str]
-    # <<< MODIFIED START >>>
     max_sweep_time: Optional[float] = None
-    # <<< MODIFIED END >>>
 
 
 @dataclass
@@ -81,14 +82,23 @@ class ApplicationController:
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
 
-        # Callbacks for GUI updates (dependency injection)
+        # DEPRECATED: This callback parameter will be removed in future phases
+        # Phase 2 Refactor: Keeping for backward compatibility
         self.get_save_path_callback = get_save_path_callback
+        
+        # Callbacks for GUI updates (dependency injection)
         self.on_file_loaded = None
         self.on_error = None
         self.on_status_update = None
 
+    # ============ DEPRECATED METHODS - Phase 2 Refactor ============
+    # These methods are marked for removal in future phases
+    
     def trigger_export_dialog(self, params):
         """
+        DEPRECATED: This method will be removed in future phases.
+        Use export_analysis_data() with a file path instead.
+        
         Triggers the UI to show a save dialog via the callback,
         then proceeds with the export if a path is returned.
         """
@@ -96,16 +106,123 @@ class ApplicationController:
             print("Error: No callback available to show a save dialog.")
             return False
 
-        # CORRECTED: Call this method without arguments.
         suggested_path = self.get_suggested_export_filename()
-
-        # The rest of the function remains the same.
         file_path = self.get_save_path_callback(suggested_path)
 
         if file_path:
             return self.export_analysis_data_to_file(params, file_path)
 
         return False
+
+    def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
+        """
+        DEPRECATED: This method will be removed in future phases.
+        Use export_analysis_data() instead.
+        
+        Export analysis data to a specific CSV file.
+        """
+        if not self.has_data() or not self.loaded_file_path:
+            return False
+
+        try:
+            self.analysis_engine.set_dataset(self.current_dataset)
+            table_data = self.analysis_engine.get_export_table(params)
+
+            if not table_data or len(table_data.get('data', [])) == 0:
+                if self.on_error:
+                    self.on_error("No data to export")
+                return False
+
+            # Extract the directory and filename from the full path
+            destination_folder = os.path.dirname(file_path)
+            filename_with_ext = os.path.basename(file_path)
+
+            # Remove .csv extension if present (write_single_table adds it)
+            base_name = filename_with_ext.replace('.csv', '')
+
+            outcome = exporter.write_single_table(
+                table=table_data,
+                base_name=base_name,
+                destination_folder=destination_folder
+            )
+
+            if outcome.success and self.on_status_update:
+                self.on_status_update(f"Data exported to: {outcome.path}")
+            elif not outcome.success and self.on_error:
+                self.on_error(f"Export failed: {outcome.error_message}")
+
+            return outcome.success
+
+        except Exception as e:
+            if self.on_error:
+                self.on_error(f"Export error: {str(e)}")
+            return False
+
+    def get_suggested_export_filename(self, suffix="_analyzed") -> str:
+        """
+        DEPRECATED: This method's functionality will be integrated with ExportService in future phases.
+        
+        Generate suggested filename for exports
+        """
+        if self.loaded_file_path:
+            base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
+            if '[' in base_name:
+                base_name = base_name.split('[')[0]
+            return f"{base_name}{suffix}.csv"
+        return f"analyzed.csv"
+    
+    # ============ END DEPRECATED METHODS ============
+    
+    # ============ NEW EXPORT METHOD - Phase 2 Refactor ============
+    
+    def export_analysis_data(self, params: AnalysisParameters, file_path: str) -> ExportResult:
+        """
+        Export analysis data to specified file path using the new ExportService.
+        
+        This is the preferred method for exporting analysis data as part of the
+        Phase 2 refactoring effort to separate GUI from business logic.
+        
+        Args:
+            params: Analysis parameters
+            file_path: Complete file path for export
+            
+        Returns:
+            ExportResult with success/failure details
+        """
+        # Validate preconditions
+        if not self.has_data():
+            return ExportResult(
+                success=False, 
+                error_message="No data loaded for export"
+            )
+        
+        # Get formatted data from analysis engine
+        try:
+            self.analysis_engine.set_dataset(self.current_dataset)
+            table_data = self.analysis_engine.get_export_table(params)
+            
+            if not table_data or len(table_data.get('data', [])) == 0:
+                return ExportResult(
+                    success=False,
+                    error_message="No analysis data to export"
+                )
+            
+            # Delegate to business logic service
+            result = ExportService.export_analysis_data(table_data, file_path)
+            
+            # Update status through callback if available
+            if result.success and self.on_status_update:
+                self.on_status_update(f"Data exported: {result.records_exported} records to {result.file_path}")
+            elif not result.success and self.on_error:
+                self.on_error(result.error_message)
+                
+            return result
+            
+        except Exception as e:
+            error_msg = f"Export error: {str(e)}"
+            if self.on_error:
+                self.on_error(error_msg)
+            return ExportResult(success=False, error_message=error_msg)
 
     def get_channel_configuration(self) -> Dict[str, Any]:
         """Get channel configuration without exposing the internal object"""
@@ -122,10 +239,10 @@ class ApplicationController:
             stimulus_period=gui_state['stimulus_period'],
             x_measure=gui_state['x_measure'],
             x_channel=gui_state.get('x_channel'),
-            x_peak_type=gui_state.get('x_peak_type', 'Absolute'),  # Added
+            x_peak_type=gui_state.get('x_peak_type', 'Absolute'),
             y_measure=gui_state['y_measure'],
             y_channel=gui_state.get('y_channel'),
-            y_peak_type=gui_state.get('y_peak_type', 'Absolute'),  # Added
+            y_peak_type=gui_state.get('y_peak_type', 'Absolute'),
             channel_config=self.get_channel_configuration()
         )
 
@@ -192,7 +309,6 @@ class ApplicationController:
 
     # ============ File Operations ============
 
-    # <<< MODIFIED START >>>
     def load_file(self, file_path: str) -> Optional[FileInfo]:
         """
         Load a MAT file and return file information.
@@ -233,64 +349,6 @@ class ApplicationController:
             if self.on_error:
                 self.on_error(f"Error loading file: {str(e)}")
             return None
-    # <<< MODIFIED END >>>
-
-    def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
-        """
-        Export analysis data to a specific CSV file.
-        """
-        if not self.has_data() or not self.loaded_file_path:
-            return False
-
-        try:
-            self.analysis_engine.set_dataset(self.current_dataset)
-            table_data = self.analysis_engine.get_export_table(params)
-
-            if not table_data or len(table_data.get('data', [])) == 0:
-                if self.on_error:
-                    self.on_error("No data to export")
-                return False
-
-            # Remove the peak_type extraction code - it's not needed
-
-            # Extract the directory and filename from the full path
-            destination_folder = os.path.dirname(file_path)
-            filename_with_ext = os.path.basename(file_path)
-
-            # Remove .csv extension if present (write_single_table adds it)
-            base_name = filename_with_ext.replace('.csv', '')
-
-            outcome = exporter.write_single_table(
-                table=table_data,
-                base_name=base_name,
-                destination_folder=destination_folder
-                # Removed peak_type parameter
-            )
-
-            if outcome.success and self.on_status_update:
-                self.on_status_update(f"Data exported to: {outcome.path}")
-            elif not outcome.success and self.on_error:
-                self.on_error(f"Export failed: {outcome.error_message}")
-
-            return outcome.success
-
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Export error: {str(e)}")
-            return False
-
-    def get_suggested_export_filename(self, suffix="_analyzed") -> str:
-        """Generate suggested filename for exports"""
-        if self.loaded_file_path:
-            base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
-            if '[' in base_name:
-                base_name = base_name.split('[')[0]
-
-            # Get current parameters to check peak type
-            # This would need the current params passed in, or stored
-            # For now, just return the basic name
-            return f"{base_name}{suffix}.csv"
-        return f"analyzed.csv"
 
     def has_data(self) -> bool:
         """Check if data is loaded"""
@@ -319,7 +377,6 @@ class ApplicationController:
             'configuration': self.channel_definitions.get_configuration()
         }
 
-    # <<< ADDED START >>>
     def get_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
         """Gets the maximum sweep time across a list of files."""
         max_time = 0
@@ -345,7 +402,6 @@ class ApplicationController:
                 # Optionally log the error or notify the user
                 print(f"Could not process {file_path}: {e}")
         return min_max_time if loaded_at_least_one else 0
-    # <<< ADDED END >>>
 
     # ============ Sweep Data Operations ============
 
@@ -417,17 +473,6 @@ class ApplicationController:
                 self.on_error(f"Error performing analysis: {str(e)}")
             return None
 
-    # ============ Export Operations ============
-
-    def get_suggested_export_filename(self, suffix="_analyzed") -> str:
-        """Generate suggested filename for exports"""
-        if self.loaded_file_path:
-            base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
-            if '[' in base_name:
-                base_name = base_name.split('[')[0]
-            return f"{base_name}{suffix}.csv"
-        return f"analyzed.csv"
-
     # ============ Parameter Building ============
 
     @staticmethod
@@ -440,10 +485,10 @@ class ApplicationController:
         stimulus_period: float,
         x_measure: str,
         x_channel: Optional[str],
-        x_peak_type: Optional[str],  # Added parameter
+        x_peak_type: Optional[str],
         y_measure: str,
         y_channel: Optional[str],
-        y_peak_type: Optional[str],  # Added parameter
+        y_peak_type: Optional[str],
         channel_config: Dict[str, int]
     ) -> AnalysisParameters:
         """
@@ -453,13 +498,13 @@ class ApplicationController:
         x_axis_config = AxisConfig(
             measure=x_measure,
             channel=x_channel if x_measure != "Time" else None,
-            peak_type=x_peak_type if x_measure == "Peak" else None  # Added
+            peak_type=x_peak_type if x_measure == "Peak" else None
         )
 
         y_axis_config = AxisConfig(
             measure=y_measure,
             channel=y_channel if y_measure != "Time" else None,
-            peak_type=y_peak_type if y_measure == "Peak" else None  # Added
+            peak_type=y_peak_type if y_measure == "Peak" else None
         )
 
         return AnalysisParameters(
@@ -621,6 +666,7 @@ class ApplicationController:
             )
 
             # Export with modified parameters
+            # DEPRECATED: Using old method for now, will be updated in future phases
             success = self.export_analysis_data_to_file(modified_params, file_path)
             results[peak_type] = success
 
