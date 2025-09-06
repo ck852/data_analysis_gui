@@ -81,97 +81,11 @@ class ApplicationController:
         self.analysis_engine = AnalysisEngine(channel_definitions=self.channel_definitions)
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
-
-        # DEPRECATED: This callback parameter will be removed in future phases
-        # Phase 2 Refactor: Keeping for backward compatibility
-        #self.get_save_path_callback = get_save_path_callback
         
         # Callbacks for GUI updates (dependency injection)
         self.on_file_loaded = None
         self.on_error = None
         self.on_status_update = None
-
-    # ============ DEPRECATED METHODS - Phase 2 Refactor ============
-    # These methods are marked for removal in future phases
-    
-    def trigger_export_dialog(self, params):
-        """
-        DEPRECATED: This method will be removed in future phases.
-        Use export_analysis_data() with a file path instead.
-        
-        Triggers the UI to show a save dialog via the callback,
-        then proceeds with the export if a path is returned.
-        """
-        if not self.get_save_path_callback:
-            print("Error: No callback available to show a save dialog.")
-            return False
-
-        suggested_path = self.get_suggested_export_filename()
-        file_path = self.get_save_path_callback(suggested_path)
-
-        if file_path:
-            return self.export_analysis_data_to_file(params, file_path)
-
-        return False
-
-    def export_analysis_data_to_file(self, params: AnalysisParameters, file_path: str) -> bool:
-        """
-        DEPRECATED: This method will be removed in future phases.
-        Use export_analysis_data() instead.
-        
-        Export analysis data to a specific CSV file.
-        """
-        if not self.has_data() or not self.loaded_file_path:
-            return False
-
-        try:
-            self.analysis_engine.set_dataset(self.current_dataset)
-            table_data = self.analysis_engine.get_export_table(params)
-
-            if not table_data or len(table_data.get('data', [])) == 0:
-                if self.on_error:
-                    self.on_error("No data to export")
-                return False
-
-            # Extract the directory and filename from the full path
-            destination_folder = os.path.dirname(file_path)
-            filename_with_ext = os.path.basename(file_path)
-
-            # Remove .csv extension if present (write_single_table adds it)
-            base_name = filename_with_ext.replace('.csv', '')
-
-            outcome = exporter.write_single_table(
-                table=table_data,
-                base_name=base_name,
-                destination_folder=destination_folder
-            )
-
-            if outcome.success and self.on_status_update:
-                self.on_status_update(f"Data exported to: {outcome.path}")
-            elif not outcome.success and self.on_error:
-                self.on_error(f"Export failed: {outcome.error_message}")
-
-            return outcome.success
-
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Export error: {str(e)}")
-            return False
-
-    def get_suggested_export_filename(self, suffix="_analyzed") -> str:
-        """
-        DEPRECATED: This method's functionality will be integrated with ExportService in future phases.
-        
-        Generate suggested filename for exports
-        """
-        if self.loaded_file_path:
-            base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
-            if '[' in base_name:
-                base_name = base_name.split('[')[0]
-            return f"{base_name}{suffix}.csv"
-        return f"analyzed.csv"
-    
-    # ============ END DEPRECATED METHODS ============
     
     # ============ NEW EXPORT METHOD - Phase 2 Refactor ============
     
@@ -666,8 +580,7 @@ class ApplicationController:
             )
 
             # Export with modified parameters
-            # DEPRECATED: Using old method for now, will be updated in future phases
-            #success = self.export_analysis_data_to_file(modified_params, file_path)
+
             results[peak_type] = False
 
         return results
