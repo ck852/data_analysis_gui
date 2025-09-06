@@ -17,6 +17,7 @@ streamlining/
 |       |   |-- analysis_engine.py
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
+|       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
 |       |   |-- dataset.py
 |       |   |-- exporter.py
@@ -228,7 +229,8 @@ streamlining/
 |   |               |-- 240809_002[1-12].mat
 |   |               `-- 240809_003[1-12].mat
 |   |-- test_app_controller_export.py
-|   `-- test_export_service.py
+|   |-- test_export_service.py
+|   `-- test_single_export.py
 |-- filetree.txt
 |-- filetree_full.py
 |-- pyproject.toml
