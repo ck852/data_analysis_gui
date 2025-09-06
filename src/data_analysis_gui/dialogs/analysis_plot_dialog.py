@@ -13,8 +13,8 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 # Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter
-from data_analysis_gui.services.export_service import ExportService as PlotExportService
 from data_analysis_gui.services.export_business_service import ExportService as DataExportService
+from data_analysis_gui.gui_services import FileDialogService
 
 
 class AnalysisPlotDialog(QDialog):
@@ -31,6 +31,9 @@ class AnalysisPlotDialog(QDialog):
         # Store controller and params for export
         self.controller = controller
         self.params = params
+
+        # Initialize GUI service for file operations
+        self.file_dialog_service = FileDialogService()
 
         # Create the core plotter instance
         from data_analysis_gui.core.analysis_plot import AnalysisPlotData
@@ -65,9 +68,9 @@ class AnalysisPlotDialog(QDialog):
         # Add export buttons
         button_layout = QHBoxLayout()
         
-        export_img_btn = QPushButton("Export Plot Image")
-        export_img_btn.clicked.connect(self.export_plot_image)
-        button_layout.addWidget(export_img_btn)
+        # export_img_btn = QPushButton("Export Plot Image")  #Removing export plot image option
+        # export_img_btn.clicked.connect(self.export_plot_image)
+        # button_layout.addWidget(export_img_btn)
         
         export_data_btn = QPushButton("Export Data")
         export_data_btn.clicked.connect(self.export_data)
@@ -76,69 +79,44 @@ class AnalysisPlotDialog(QDialog):
         button_layout.addStretch()
         layout.addLayout(button_layout)
     
-    def export_plot_image(self):
-        """Export plot as image using centralized service"""
-        result = PlotExportService.export_plot_image(
-            figure=self.figure,
-            parent=self,
-            default_path="analysis_plot.png",
-            title="Export Plot"
-        )
+    # def export_plot_image(self):
+    #     """Export plot as image using centralized service"""
+    #     result = PlotExportService.export_plot_image(
+    #         figure=self.figure,
+    #         parent=self,
+    #         default_path="analysis_plot.png",
+    #         title="Export Plot"
+    #     )
     
     def export_data(self):
         """
-        Phase 3: Export analysis data from dialog.
-        Handles file dialog directly without callbacks.
+        Export plot data with proper separation of concerns.
+        
+        Uses the same clean architecture as the main window.
         """
-        # Check if controller and params are available
         if not self.controller or not self.params:
-            QMessageBox.warning(
-                self, 
-                "Export Error", 
-                "Export parameters not available. Please regenerate the plot."
-            )
+            # Fallback to basic export if controller not available
             return
         
-        # Get suggested filename
-        suggested_filename = self.controller.get_suggested_export_filename()
+        # Get suggested filename from controller
+        suggested_filename = self.controller.get_suggested_export_filename(self.params)
         
-        # If we have a loaded file path, use its directory
-        if hasattr(self.controller, 'loaded_file_path') and self.controller.loaded_file_path:
-            default_dir = os.path.dirname(self.controller.loaded_file_path)
-            suggested_path = os.path.join(default_dir, suggested_filename)
-        else:
-            suggested_path = suggested_filename
-        
-        # Show file dialog (GUI responsibility)
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            "Export Analysis Data", 
-            suggested_path, 
-            "CSV files (*.csv)"
+        # Get path through GUI service
+        file_path = self.file_dialog_service.get_export_path(
+            parent=self,
+            suggested_name=suggested_filename,
+            file_types="CSV files (*.csv);;All files (*.*)"
         )
         
-        if not file_path:
-            return  # User cancelled
-        
-        # Validate path using business service
-        is_valid, error_msg = DataExportService.validate_export_path(file_path)
-        if not is_valid:
-            QMessageBox.warning(self, "Invalid Path", error_msg)
-            return
-        
-        # Call controller with the new export method
-        result = self.controller.export_analysis_data(self.params, file_path)
-        
-        # Handle result (GUI responsibility)
-        if result.success:
-            QMessageBox.information(
-                self, 
-                "Export Successful", 
-                f"Exported {result.records_exported} records to:\n{result.file_path}"
-            )
-        else:
-            QMessageBox.warning(
-                self, 
-                "Export Failed", 
-                f"Export failed:\n{result.error_message}"
-            )
+        if file_path:
+            # Export through controller
+            result = self.controller.export_analysis_data(self.params, file_path)
+            
+            # Show result (could use parent's status bar or a message)
+            if result.success:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self, 
+                    "Export Successful", 
+                    f"Exported {result.records_exported} records"
+                )

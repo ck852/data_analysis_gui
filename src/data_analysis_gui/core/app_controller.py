@@ -1,586 +1,358 @@
 """
-Application Controller - Mediates between GUI and business logic.
-This is the ONLY class the GUI should interact with for business operations.
+Application Controller - PHASE 2 REFACTOR
+Now delegates all analysis operations to AnalysisService.
+
+This controller manages application state and coordinates between the GUI
+and business logic layers. Analysis and export operations are delegated
+to the AnalysisService, creating a clean separation of concerns.
+
+Author: Data Analysis GUI Contributors
+License: MIT
 """
 
 import os
-from typing import Optional, Dict, Any, List, Tuple, Callable
+from pathlib import Path
+from typing import Optional, Dict, Any, List, Callable, Tuple
 from dataclasses import dataclass
 
-# Business logic imports (no GUI dependencies)
+# Core imports
+from data_analysis_gui.core.dataset import DatasetLoader, ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
-from data_analysis_gui.core.dataset import ElectrophysiologyDataset, DatasetLoader
 from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
-from data_analysis_gui.core.batch_processor import BatchProcessor, FileResult
-from data_analysis_gui.core import exporter
-from data_analysis_gui.core.iv_analysis import IVAnalysisService
 
-# New import for refactored export service
+# Service imports - Phase 2 addition
+from data_analysis_gui.services.analysis_service import AnalysisService, AnalysisResult, PlotData
 from data_analysis_gui.services.export_business_service import ExportService, ExportResult
 
 
 @dataclass
 class FileInfo:
-    """Information about loaded file"""
-    path: str
+    """Information about a loaded file."""
     name: str
+    path: str
     sweep_count: int
     sweep_names: List[str]
     max_sweep_time: Optional[float] = None
 
 
-@dataclass
-class PlotData:
-    """Data for plotting a single sweep"""
-    time_ms: Any  # numpy array
-    data_matrix: Any  # numpy array
-    channel_id: int
-    sweep_index: int
-    channel_type: str
-
-
-@dataclass
-class AnalysisPlotData:
-    """Data for analysis plots"""
-    x_data: List[float]
-    y_data: List[float]
-    y_data2: Optional[List[float]]
-    x_label: str
-    y_label: str
-    sweep_indices: List[int]
-    use_dual_range: bool
-
-
-@dataclass
-class BatchAnalysisResult:
-    """Result from batch analysis operation"""
-    success: bool
-    batch_result: Any  # BatchResult object
-    batch_data: Dict[str, Dict[str, Any]]
-    iv_data: Any
-    iv_data_range2: Optional[Any]
-    iv_file_mapping: Any
-    successful_count: int
-    failed_count: int
-    export_outcomes: List[Any]
-    x_label: str
-    y_label: str
-    use_dual_range: bool
-
-
 class ApplicationController:
     """
-    Central controller that manages all business logic.
-    GUI interacts only with this controller, never directly with business logic.
+    PHASE 2 REFACTORED: Application controller that manages state and delegates to services.
+    
+    This controller is responsible for:
+    - Managing application state (current dataset, file path, channels)
+    - Loading and preparing data files
+    - Delegating analysis operations to AnalysisService
+    - Coordinating between GUI events and business logic
+    
+    All analysis and export operations are now delegated to the AnalysisService,
+    creating a clean separation between application coordination and business logic.
     """
-
-    def __init__(self, get_save_path_callback=None):
-        # Core business objects
-        self.channel_definitions = ChannelDefinitions()
-        self.analysis_engine = AnalysisEngine(channel_definitions=self.channel_definitions)
+    
+    def __init__(self):
+        """Initialize the controller with all required services."""
+        # Application state
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
         
-        # Callbacks for GUI updates (dependency injection)
-        self.on_file_loaded = None
-        self.on_error = None
-        self.on_status_update = None
-    
-    # ============ NEW EXPORT METHOD - Phase 2 Refactor ============
-    
-    def export_analysis_data(self, params: AnalysisParameters, file_path: str) -> ExportResult:
-        """
-        Export analysis data to specified file path using the new ExportService.
+        # Channel management
+        self.channel_definitions = ChannelDefinitions()
         
-        This is the preferred method for exporting analysis data as part of the
-        Phase 2 refactoring effort to separate GUI from business logic.
+        # Initialize the analysis engine
+        self.engine = AnalysisEngine(self.channel_definitions)
+        
+        # PHASE 2: Initialize the unified analysis service
+        self.analysis_service = AnalysisService(self.engine, ExportService)
+        
+        # GUI callbacks (set by view)
+        self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
+        self.on_error: Optional[Callable[[str], None]] = None
+        self.on_status_update: Optional[Callable[[str], None]] = None
+    
+    # =========================================================================
+    # File Management
+    # =========================================================================
+    
+    def load_file(self, file_path: str) -> bool:
+        """
+        Load a data file and prepare it for analysis.
+        
+        Args:
+            file_path: Path to the data file
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Load the dataset
+            dataset = DatasetLoader.load(file_path, self.channel_definitions)
+            
+            if dataset.is_empty():
+                if self.on_error:
+                    self.on_error(f"No valid sweeps found in {Path(file_path).name}")
+                return False
+            
+            # Update state
+            self.current_dataset = dataset
+            self.loaded_file_path = file_path
+            
+            # Clear analysis caches for new dataset
+            self.analysis_service.clear_caches()
+            
+            # Prepare file info for GUI
+            sweep_names = sorted(dataset.sweeps(), 
+                               key=lambda x: int(x) if x.isdigit() else 0)
+            
+            file_info = FileInfo(
+                name=Path(file_path).name,
+                path=file_path,
+                sweep_count=dataset.sweep_count(),
+                sweep_names=sweep_names,
+                max_sweep_time=dataset.get_max_sweep_time()
+            )
+            
+            # Notify GUI
+            if self.on_file_loaded:
+                self.on_file_loaded(file_info)
+            
+            if self.on_status_update:
+                self.on_status_update(f"Loaded {file_info.sweep_count} sweeps")
+            
+            return True
+            
+        except Exception as e:
+            if self.on_error:
+                self.on_error(f"Failed to load file: {str(e)}")
+            return False
+    
+    def has_data(self) -> bool:
+        """Check if data is currently loaded."""
+        return self.current_dataset is not None and not self.current_dataset.is_empty()
+    
+    # =========================================================================
+    # Analysis Operations - PHASE 2: Now delegate to AnalysisService
+    # =========================================================================
+    
+    def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
+        """
+        Perform analysis on the current dataset.
+        
+        PHASE 2: Now simply delegates to AnalysisService.
         
         Args:
             params: Analysis parameters
-            file_path: Complete file path for export
             
         Returns:
-            ExportResult with success/failure details
+            AnalysisResult with plot data, or None if no data
         """
-        # Validate preconditions
+        if not self.has_data():
+            return None
+        
+        # Delegate to service - single line!
+        return self.analysis_service.perform_analysis(self.current_dataset, params)
+    
+    def export_analysis_data(self, params: AnalysisParameters, 
+                            file_path: str) -> ExportResult:
+        """
+        Export analyzed data to a file.
+        
+        PHASE 2: Now simply delegates to AnalysisService.
+        
+        Args:
+            params: Analysis parameters
+            file_path: Complete path for export
+            
+        Returns:
+            ExportResult with success status and details
+        """
         if not self.has_data():
             return ExportResult(
-                success=False, 
-                error_message="No data loaded for export"
+                success=False,
+                error_message="No data loaded"
             )
         
-        # Get formatted data from analysis engine
-        try:
-            self.analysis_engine.set_dataset(self.current_dataset)
-            table_data = self.analysis_engine.get_export_table(params)
-            
-            if not table_data or len(table_data.get('data', [])) == 0:
-                return ExportResult(
-                    success=False,
-                    error_message="No analysis data to export"
-                )
-            
-            # Delegate to business logic service
-            result = ExportService.export_analysis_data(table_data, file_path)
-            
-            # Update status through callback if available
-            if result.success and self.on_status_update:
-                self.on_status_update(f"Data exported: {result.records_exported} records to {result.file_path}")
-            elif not result.success and self.on_error:
-                self.on_error(result.error_message)
-                
-            return result
-            
-        except Exception as e:
-            error_msg = f"Export error: {str(e)}"
-            if self.on_error:
-                self.on_error(error_msg)
-            return ExportResult(success=False, error_message=error_msg)
-
-    def get_channel_configuration(self) -> Dict[str, Any]:
-        """Get channel configuration without exposing the internal object"""
-        return self.channel_definitions.get_configuration()
-
-    def create_parameters_from_dict(self, gui_state: Dict[str, Any]) -> AnalysisParameters:
-        """Create parameters from a simple dictionary of GUI values"""
-        return self.build_parameters(
-            range1_start=gui_state['range1_start'],
-            range1_end=gui_state['range1_end'],
-            use_dual_range=gui_state['use_dual_range'],
-            range2_start=gui_state.get('range2_start'),
-            range2_end=gui_state.get('range2_end'),
-            stimulus_period=gui_state['stimulus_period'],
-            x_measure=gui_state['x_measure'],
-            x_channel=gui_state.get('x_channel'),
-            x_peak_type=gui_state.get('x_peak_type', 'Absolute'),
-            y_measure=gui_state['y_measure'],
-            y_channel=gui_state.get('y_channel'),
-            y_peak_type=gui_state.get('y_peak_type', 'Absolute'),
-            channel_config=self.get_channel_configuration()
-        )
-
-    def perform_batch_analysis(
-        self,
-        file_paths: List[str],
-        params: AnalysisParameters,
-        destination_folder: str,
-        progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> BatchAnalysisResult:
+        # Delegate to service - single line!
+        return self.analysis_service.export_analysis(self.current_dataset, params, file_path)
+    
+    def get_sweep_plot_data(self, sweep_index: str, 
+                           channel_type: str) -> Optional[PlotData]:
         """
-        Perform batch analysis and return data only (no plotting).
-        """
-        # Process files
-        processor = BatchProcessor(self.channel_definitions)
-        batch_result = processor.run(
-            file_paths,
-            params,
-            on_progress=progress_callback
-        )
-
-        # Export results
-        export_outcomes = []
-        if batch_result.successful_results:
-            export_outcomes = exporter.write_tables(batch_result, destination_folder)
-
-        # Prepare batch data for dialog - NOW INCLUDING x_data2
-        batch_data = {}
-        for res in batch_result.successful_results:
-            file_data = {
-                'x_values': res.x_data.tolist() if hasattr(res.x_data, 'tolist') else res.x_data,
-                'y_values': res.y_data.tolist() if hasattr(res.y_data, 'tolist') else res.y_data,
-            }
-
-            # Add Range 2 data if available
-            if params.use_dual_range:
-                if res.x_data2 is not None and len(res.x_data2) > 0:
-                    file_data['x_values2'] = res.x_data2.tolist() if hasattr(res.x_data2, 'tolist') else res.x_data2
-                if res.y_data2 is not None and len(res.y_data2) > 0:
-                    file_data['y_values2'] = res.y_data2.tolist() if hasattr(res.y_data2, 'tolist') else res.y_data2
-
-            batch_data[res.base_name] = file_data
-
-        # Prepare IV data with separate x_values for each range
-        iv_data, iv_file_mapping, iv_data_range2 = IVAnalysisService.prepare_iv_data(batch_data, params)
-
-        # Create axis labels
-        x_label, y_label = self.create_axis_labels(params)
-
-        return BatchAnalysisResult(
-            success=len(batch_result.successful_results) > 0,
-            batch_result=batch_result,
-            batch_data=batch_data,
-            iv_data=iv_data,
-            iv_data_range2=iv_data_range2,
-            iv_file_mapping=iv_file_mapping,
-            successful_count=len(batch_result.successful_results),
-            failed_count=len(batch_result.failed_results),
-            export_outcomes=export_outcomes,
-            x_label=x_label,
-            y_label=y_label,
-            use_dual_range=params.use_dual_range
-        )
-
-    # ============ File Operations ============
-
-    def load_file(self, file_path: str) -> Optional[FileInfo]:
-        """
-        Load a MAT file and return file information.
-
+        Get data for plotting a single sweep.
+        
+        PHASE 2: Now simply delegates to AnalysisService.
+        
         Args:
-            file_path: Path to the MAT file
-
+            sweep_index: Sweep identifier
+            channel_type: "Voltage" or "Current"
+            
         Returns:
-            FileInfo object if successful, None otherwise
+            PlotData object, or None if unavailable
         """
-        try:
-            self.current_dataset = DatasetLoader.load(file_path, self.channel_definitions)
-            self.loaded_file_path = file_path
-            self.analysis_engine.set_dataset(self.current_dataset)
-
-            # Prepare file info
-            sweep_names = [f"Sweep {idx}" for idx in sorted(
-                self.current_dataset.sweeps(), key=lambda x: int(x)
-            )]
-
-            max_sweep_time = self.current_dataset.get_max_sweep_time() if self.current_dataset else 0
-
-            file_info = FileInfo(
-                path=file_path,
-                name=os.path.basename(file_path),
-                sweep_count=self.current_dataset.sweep_count(),
-                sweep_names=sweep_names,
-                max_sweep_time=max_sweep_time
-            )
-
-            # Notify GUI if callback is set
-            if self.on_file_loaded:
-                self.on_file_loaded(file_info)
-
-            return file_info
-
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Error loading file: {str(e)}")
+        if not self.has_data():
             return None
-
-    def has_data(self) -> bool:
-        """Check if data is loaded"""
-        return self.current_dataset is not None and not self.current_dataset.is_empty()
-
-    # ============ Channel Operations ============
-
+        
+        # Delegate to service - single line!
+        return self.analysis_service.get_sweep_plot_data(
+            self.current_dataset, sweep_index, channel_type
+        )
+    
+    def perform_peak_analysis(self, params: AnalysisParameters,
+                            peak_types: List[str] = None) -> Optional[Any]:
+        """
+        Perform comprehensive peak analysis.
+        
+        PHASE 2: Now simply delegates to AnalysisService.
+        
+        Args:
+            params: Analysis parameters
+            peak_types: List of peak types to analyze
+            
+        Returns:
+            PeakAnalysisResult or None
+        """
+        if not self.has_data():
+            return None
+        
+        # Delegate to service - single line!
+        return self.analysis_service.perform_peak_analysis(
+            self.current_dataset, params, peak_types
+        )
+    
+    def get_suggested_export_filename(self, params: AnalysisParameters) -> str:
+        """
+        Get a suggested filename for export.
+        
+        PHASE 2: Now delegates to AnalysisService.
+        
+        Args:
+            params: Analysis parameters for context-aware naming
+            
+        Returns:
+            Suggested filename
+        """
+        source_path = self.loaded_file_path or "analysis"
+        
+        # Delegate to service
+        return self.analysis_service.get_suggested_export_filename(source_path, params)
+    
+    # =========================================================================
+    # Channel Management (Remains in controller - application state)
+    # =========================================================================
+    
     def swap_channels(self) -> Dict[str, Any]:
         """
         Swap voltage and current channel assignments.
-
+        
+        This remains in the controller as it manages application state.
+        
         Returns:
-            Dictionary with swap status and configuration
+            Dictionary with success status and channel configuration
         """
         if not self.has_data():
-            return {'success': False, 'reason': 'No data loaded'}
-
+            return {
+                'success': False,
+                'reason': 'No data loaded'
+            }
+        
+        # Check if we have enough channels
         if self.current_dataset.channel_count() < 2:
-            return {'success': False, 'reason': 'Data has fewer than 2 channels'}
-
+            return {
+                'success': False,
+                'reason': 'Dataset has only one channel'
+            }
+        
+        # Perform the swap
         self.channel_definitions.swap_channels()
-
+        
+        # Clear caches since channel interpretation changed
+        self.analysis_service.clear_caches()
+        
+        # Return status
         return {
             'success': True,
             'is_swapped': self.channel_definitions.is_swapped(),
-            'configuration': self.channel_definitions.get_configuration()
+            'configuration': self.get_channel_configuration()
         }
-
-    def get_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
-        """Gets the maximum sweep time across a list of files."""
-        max_time = 0
-        for file_path in file_paths:
-            try:
-                dataset = DatasetLoader.load(file_path, self.channel_definitions)
-                max_time = max(max_time, dataset.get_max_sweep_time())
-            except Exception as e:
-                # Optionally log the error or notify the user
-                print(f"Could not process {file_path}: {e}")
-        return max_time
-
-    def get_min_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
-        """Gets the minimum of the maximum sweep times across a list of files."""
-        min_max_time = float('inf')
-        loaded_at_least_one = False
-        for file_path in file_paths:
-            try:
-                dataset = DatasetLoader.load(file_path, self.channel_definitions)
-                min_max_time = min(min_max_time, dataset.get_max_sweep_time())
-                loaded_at_least_one = True
-            except Exception as e:
-                # Optionally log the error or notify the user
-                print(f"Could not process {file_path}: {e}")
-        return min_max_time if loaded_at_least_one else 0
-
-    # ============ Sweep Data Operations ============
-
-    def get_sweep_plot_data(self, sweep_name: str, channel_type: str) -> Optional[PlotData]:
+    
+    def get_channel_configuration(self) -> Dict[str, int]:
         """
-        Get data for plotting a single sweep.
-
-        Args:
-            sweep_name: Name of the sweep (e.g., "Sweep 1")
-            channel_type: Type of channel to plot ("Voltage" or "Current")
-
+        Get current channel configuration.
+        
         Returns:
-            PlotData object if successful, None otherwise
+            Dictionary with voltage and current channel indices
         """
-        if not self.has_data():
-            return None
-
-        try:
-            sweep_idx = sweep_name.split()[-1]
-            plot_data_dict = self.analysis_engine.get_sweep_plot_data(sweep_idx, channel_type)
-
-            if plot_data_dict is None:
-                return None
-
-            return PlotData(
-                time_ms=plot_data_dict['time_ms'],
-                data_matrix=plot_data_dict['data_matrix'],
-                channel_id=plot_data_dict['channel_id'],
-                sweep_index=plot_data_dict['sweep_index'],
-                channel_type=plot_data_dict['channel_type']
-            )
-
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Error getting sweep data: {str(e)}")
-            return None
-
-    # ============ Analysis Operations ============
-
-    def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisPlotData]:
+        return {
+            'voltage': self.channel_definitions.get_voltage_channel(),
+            'current': self.channel_definitions.get_current_channel()
+        }
+    
+    # =========================================================================
+    # Parameter Creation (Helper for GUI)
+    # =========================================================================
+    
+    def create_parameters_from_dict(self, gui_state: Dict[str, Any]) -> AnalysisParameters:
         """
-        Perform analysis with given parameters.
-
+        Create AnalysisParameters from GUI state dictionary.
+        
+        This helper method remains in the controller as it bridges
+        GUI state to domain objects.
+        
         Args:
-            params: Analysis parameters
-
+            gui_state: Dictionary from control panel
+            
         Returns:
-            AnalysisPlotData if successful, None otherwise
+            AnalysisParameters object
         """
-        if not self.has_data():
-            return None
-
-        try:
-            self.analysis_engine.set_dataset(self.current_dataset)
-            result = self.analysis_engine.get_plot_data(params)
-
-            return AnalysisPlotData(
-                x_data=result['x_data'],
-                y_data=result['y_data'],
-                y_data2=result.get('y_data2'),
-                x_label=result['x_label'],
-                y_label=result['y_label'],
-                sweep_indices=result['sweep_indices'],
-                use_dual_range=params.use_dual_range
-            )
-
-        except Exception as e:
-            if self.on_error:
-                self.on_error(f"Error performing analysis: {str(e)}")
-            return None
-
-    # ============ Parameter Building ============
-
-    @staticmethod
-    def build_parameters(
-        range1_start: float,
-        range1_end: float,
-        use_dual_range: bool,
-        range2_start: Optional[float],
-        range2_end: Optional[float],
-        stimulus_period: float,
-        x_measure: str,
-        x_channel: Optional[str],
-        x_peak_type: Optional[str],
-        y_measure: str,
-        y_channel: Optional[str],
-        y_peak_type: Optional[str],
-        channel_config: Dict[str, int]
-    ) -> AnalysisParameters:
-        """
-        Build AnalysisParameters from individual values.
-        This is a static method so it can be used anywhere.
-        """
-        x_axis_config = AxisConfig(
-            measure=x_measure,
-            channel=x_channel if x_measure != "Time" else None,
-            peak_type=x_peak_type if x_measure == "Peak" else None
+        # Extract x-axis configuration
+        x_axis = AxisConfig(
+            measure=gui_state.get('x_measure', 'Time'),
+            channel=gui_state.get('x_channel'),
+            peak_type=gui_state.get('x_peak_type')
         )
-
-        y_axis_config = AxisConfig(
-            measure=y_measure,
-            channel=y_channel if y_measure != "Time" else None,
-            peak_type=y_peak_type if y_measure == "Peak" else None
+        
+        # Extract y-axis configuration
+        y_axis = AxisConfig(
+            measure=gui_state.get('y_measure', 'Average'),
+            channel=gui_state.get('y_channel', 'Current'),
+            peak_type=gui_state.get('y_peak_type')
         )
-
+        
+        # Create parameters
         return AnalysisParameters(
-            range1_start=range1_start,
-            range1_end=range1_end,
-            use_dual_range=use_dual_range,
-            range2_start=range2_start if use_dual_range else None,
-            range2_end=range2_end if use_dual_range else None,
-            stimulus_period=stimulus_period,
-            x_axis=x_axis_config,
-            y_axis=y_axis_config,
-            channel_config=channel_config
+            range1_start=gui_state.get('range1_start', 0.0),
+            range1_end=gui_state.get('range1_end', 100.0),
+            use_dual_range=gui_state.get('use_dual_range', False),
+            range2_start=gui_state.get('range2_start') if gui_state.get('use_dual_range') else None,
+            range2_end=gui_state.get('range2_end') if gui_state.get('use_dual_range') else None,
+            stimulus_period=gui_state.get('stimulus_period', 1000.0),
+            x_axis=x_axis,
+            y_axis=y_axis,
+            channel_config=self.get_channel_configuration()
         )
-
-    @staticmethod
-    def create_axis_labels(params: AnalysisParameters) -> Tuple[str, str]:
-        """Create axis labels from parameters"""
-        # X-axis label
-        if params.x_axis.measure == "Time":
-            x_label = "Time (s)"
-        elif params.x_axis.measure == "Peak":
-            unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
-            peak_type = params.x_axis.peak_type or "Absolute"
-            peak_label_map = {
-                "Absolute": "Peak",
-                "Positive": "Peak (+)",
-                "Negative": "Peak (-)",
-                "Peak-Peak": "Peak-Peak"
-            }
-            x_label = f"{peak_label_map.get(peak_type, 'Peak')} {params.x_axis.channel} {unit}"
-        else:
-            unit = "(pA)" if params.x_axis.channel == "Current" else "(mV)"
-            x_label = f"{params.x_axis.measure} {params.x_axis.channel} {unit}"
-
-        # Y-axis label
-        if params.y_axis.measure == "Time":
-            y_label = "Time (s)"
-        elif params.y_axis.measure == "Peak":
-            unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
-            peak_type = params.y_axis.peak_type or "Absolute"
-            peak_label_map = {
-                "Absolute": "Peak",
-                "Positive": "Peak (+)",
-                "Negative": "Peak (-)",
-                "Peak-Peak": "Peak-Peak"
-            }
-            y_label = f"{peak_label_map.get(peak_type, 'Peak')} {params.y_axis.channel} {unit}"
-        else:
-            unit = "(pA)" if params.y_axis.channel == "Current" else "(mV)"
-            y_label = f"{params.y_axis.measure} {params.y_axis.channel} {unit}"
-
-        return x_label, y_label
-
-    def perform_peak_analysis(self, base_params: AnalysisParameters,
-                            peak_types: List[str] = None) -> Dict[str, AnalysisPlotData]:
-        """
-        Perform analysis for multiple peak types.
-
-        Args:
-            base_params: Base analysis parameters
-            peak_types: List of peak types to analyze
-
-        Returns:
-            Dictionary mapping peak type to AnalysisPlotData
-        """
-        if not self.has_data():
-            return {}
-
-        if peak_types is None:
-            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
-
-        results = {}
-
-        for peak_type in peak_types:
-            # Create modified parameters with specific peak type
-            modified_params = AnalysisParameters(
-                range1_start=base_params.range1_start,
-                range1_end=base_params.range1_end,
-                use_dual_range=base_params.use_dual_range,
-                range2_start=base_params.range2_start,
-                range2_end=base_params.range2_end,
-                stimulus_period=base_params.stimulus_period,
-                x_axis=AxisConfig(
-                    measure=base_params.x_axis.measure,
-                    channel=base_params.x_axis.channel,
-                    peak_type=peak_type if base_params.x_axis.measure == "Peak" else None
-                ),
-                y_axis=AxisConfig(
-                    measure=base_params.y_axis.measure,
-                    channel=base_params.y_axis.channel,
-                    peak_type=peak_type if base_params.y_axis.measure == "Peak" else None
-                ),
-                channel_config=base_params.channel_config
-            )
-
-            # Perform analysis with modified parameters
-            plot_data = self.perform_analysis(modified_params)
-            if plot_data:
-                results[peak_type] = plot_data
-
-        return results
-
-    def export_peak_analysis(self, base_params: AnalysisParameters,
-                            destination_folder: str,
-                            peak_types: List[str] = None) -> Dict[str, bool]:
-        """
-        Export analysis data for multiple peak types.
-
-        Args:
-            base_params: Base analysis parameters
-            destination_folder: Where to save the files
-            peak_types: List of peak types to export
-
-        Returns:
-            Dictionary mapping peak type to export success status
-        """
-        if not self.has_data() or not self.loaded_file_path:
-            return {}
-
-        if peak_types is None:
-            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
-
-        results = {}
-        base_name = os.path.basename(self.loaded_file_path).split('.mat')[0]
-        if '[' in base_name:
-            base_name = base_name.split('[')[0]
-
-        for peak_type in peak_types:
-            # Create filename with peak type suffix
-            peak_suffix_map = {
-                "Absolute": "_absolute",
-                "Positive": "_positive",
-                "Negative": "_negative",
-                "Peak-Peak": "_peak-peak"
-            }
-            suffix = peak_suffix_map.get(peak_type, "")
-            filename = f"{base_name}{suffix}.csv"
-            file_path = os.path.join(destination_folder, filename)
-
-            # Create modified parameters
-            modified_params = AnalysisParameters(
-                range1_start=base_params.range1_start,
-                range1_end=base_params.range1_end,
-                use_dual_range=base_params.use_dual_range,
-                range2_start=base_params.range2_start,
-                range2_end=base_params.range2_end,
-                stimulus_period=base_params.stimulus_period,
-                x_axis=AxisConfig(
-                    measure=base_params.x_axis.measure,
-                    channel=base_params.x_axis.channel,
-                    peak_type=peak_type if base_params.x_axis.measure == "Peak" else None
-                ),
-                y_axis=AxisConfig(
-                    measure=base_params.y_axis.measure,
-                    channel=base_params.y_axis.channel,
-                    peak_type=peak_type if base_params.y_axis.measure == "Peak" else None
-                ),
-                channel_config=base_params.channel_config
-            )
-
-            # Export with modified parameters
-
-            results[peak_type] = False
-
-        return results
+    
+    # =========================================================================
+    # Batch Analysis Support (Commented out - Phase 3)
+    # =========================================================================
+    
+    # def get_min_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
+    #     """
+    #     Get the minimum of maximum sweep times across multiple files.
+    #     
+    #     This will be refactored in Phase 3 to use the service layer.
+    #     """
+    #     # Phase 3 implementation
+    #     pass
+    
+    # def perform_batch_analysis(self,
+    #                           file_paths: List[str],
+    #                           params: AnalysisParameters,
+    #                           destination_folder: str,
+    #                           progress_callback: Optional[Callable] = None) -> Any:
+    #     """
+    #     Perform batch analysis on multiple files.
+    #     
+    #     Phase 3: Will delegate to AnalysisService.perform_batch_analysis()
+    #     """
+    #     # Phase 3 implementation
+    #     pass

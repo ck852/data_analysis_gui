@@ -6,6 +6,9 @@ electrophysiology datasets and computes metrics based on user-defined
 parameters. It maintains efficient caching for real-time updates during
 interactive analysis.
 
+PHASE 1 REFACTOR: Made stateless - all methods now accept dataset as parameter
+instead of storing it internally. Caching is dataset-aware using id(dataset).
+
 Author: Data Analysis GUI Contributors
 License: MIT
 """
@@ -19,6 +22,11 @@ from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 from data_analysis_gui.utils.data_processing import format_voltage_label
+
+
+# Cache size limits to prevent unbounded memory growth
+MAX_METRICS_CACHE_SIZE = 100
+MAX_SERIES_CACHE_SIZE = 200
 
 
 @dataclass
@@ -68,19 +76,24 @@ class SweepMetrics:
 
 class AnalysisEngine:
     """
-    Core analysis engine for electrophysiology data processing.
+    Stateless analysis engine for electrophysiology data processing.
 
     This class provides a clean, framework-independent interface for analyzing
-    electrophysiology datasets. It manages all computation and caching of
-    sweep metrics, providing simple getters for GUI consumption.
+    electrophysiology datasets. It manages computation and caching of
+    sweep metrics, providing simple methods for GUI consumption.
 
-    The engine is designed to be stateless regarding analysis parameters.
-    All parameters for a calculation are passed in a single AnalysisParameters
-    object for each call.
+    The engine is completely stateless - all methods accept the dataset as a
+    parameter. This makes it thread-safe and suitable for batch processing.
+    
+    Caching Strategy:
+    - Caches are keyed by (dataset_id, params) to maintain dataset-specific caching
+    - Uses id(dataset) for dataset identity, which is safe because the controller
+      holds the dataset reference throughout its lifetime
+    - Implements simple size limits to prevent unbounded memory growth during batch ops
 
     Example:
         >>> from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
-        >>> engine = AnalysisEngine(dataset, channel_defs)
+        >>> engine = AnalysisEngine(channel_defs)
         >>> params = AnalysisParameters(
         ...     range1_start=150.0,
         ...     range1_end=500.0,
@@ -92,39 +105,26 @@ class AnalysisEngine:
         ...     y_axis=AxisConfig(measure="Peak", channel="Current"),
         ...     channel_config={}
         ... )
-        >>> plot_data = engine.get_plot_data(params)
-        >>> export_table = engine.get_export_table(params)
+        >>> plot_data = engine.get_plot_data(dataset, params)
+        >>> export_table = engine.get_export_table(dataset, params)
     """
 
-    def __init__(self, dataset: Optional[ElectrophysiologyDataset] = None,
-                 channel_definitions: Optional[ChannelDefinitions] = None):
+    def __init__(self, channel_definitions: Optional[ChannelDefinitions] = None):
         """
         Initialize the analysis engine.
 
         Args:
-            dataset: The electrophysiology dataset to analyze.
             channel_definitions: Channel mapping configuration.
         """
-        self.dataset = dataset
         self.channel_definitions = channel_definitions or ChannelDefinitions()
 
-        # cache by tuple key, not by AnalysisParameters
+        # Dataset-aware caches using (dataset_id, key) tuples
         self._metrics_cache: Dict[Tuple, List[SweepMetrics]] = {}
-        self._series_cache: Dict[str, Any] = {}
+        self._series_cache: Dict[Tuple, Any] = {}
 
     # =========================================================================
-    # Context Management (Dataset and Channels)
+    # Context Management (Channels Only)
     # =========================================================================
-
-    def set_dataset(self, dataset: ElectrophysiologyDataset) -> None:
-        """
-        Set or update the dataset being analyzed. This clears all caches.
-
-        Args:
-            dataset: New dataset to analyze.
-        """
-        self.dataset = dataset
-        self._clear_all_caches()
 
     def set_channel_definitions(self, channel_defs: ChannelDefinitions) -> None:
         """
@@ -134,37 +134,41 @@ class AnalysisEngine:
             channel_defs: New channel mapping configuration.
         """
         self.channel_definitions = channel_defs
-        self._clear_all_caches()
+        self.clear_caches()
 
     # =========================================================================
     # Data Getters (Stateless Operations)
     # =========================================================================
 
-    def get_sweep_series(self, sweep_index: str) -> Optional[Dict[str, np.ndarray]]:
+    def get_sweep_series(self, dataset: ElectrophysiologyDataset, 
+                        sweep_index: str) -> Optional[Dict[str, np.ndarray]]:
         """
         Get time series data for a specific sweep.
 
         This method is independent of analysis parameters and is cached separately.
 
         Args:
+            dataset: The dataset to analyze
             sweep_index: The sweep identifier.
 
         Returns:
             Dictionary with 'time_ms', 'voltage', 'current' arrays,
             or None if sweep doesn't exist.
         """
-        if self.dataset is None or sweep_index not in self.dataset.sweeps():
+        if dataset is None or sweep_index not in dataset.sweeps():
             return None
 
-        cache_key = f"series_{sweep_index}"
+        # Dataset-aware cache key
+        cache_key = (id(dataset), f"series_{sweep_index}")
+        
         if cache_key in self._series_cache:
             return self._series_cache[cache_key]
 
         voltage_ch = self.channel_definitions.get_voltage_channel()
         current_ch = self.channel_definitions.get_current_channel()
 
-        time_ms, voltage = self.dataset.get_channel_vector(sweep_index, voltage_ch)
-        _, current = self.dataset.get_channel_vector(sweep_index, current_ch)
+        time_ms, voltage = dataset.get_channel_vector(sweep_index, voltage_ch)
+        _, current = dataset.get_channel_vector(sweep_index, current_ch)
 
         if time_ms is None:
             return None
@@ -175,41 +179,67 @@ class AnalysisEngine:
             'current': current
         }
 
+        # Manage cache size
+        if len(self._series_cache) > MAX_SERIES_CACHE_SIZE:
+            # Simple cleanup - remove oldest half of entries
+            keys_to_remove = list(self._series_cache.keys())[:MAX_SERIES_CACHE_SIZE // 2]
+            for key in keys_to_remove:
+                del self._series_cache[key]
+
         self._series_cache[cache_key] = result
         return result
 
-    def get_all_metrics(self, params: AnalysisParameters) -> List[SweepMetrics]:
+    def get_all_metrics(self, dataset: ElectrophysiologyDataset,
+                       params: AnalysisParameters) -> List[SweepMetrics]:
         """
         Get computed metrics for all sweeps based on the provided parameters.
 
         Args:
+            dataset: The dataset to analyze
             params: A DTO containing all parameters for the analysis.
 
         Returns:
             List of SweepMetrics objects, one per sweep.
         """
-        if self.dataset is None or self.dataset.is_empty():
+        if dataset is None or dataset.is_empty():
             return []
 
-        key = params.cache_key()  # <<< use the tuple key
-        if key in self._metrics_cache:
-            return self._metrics_cache[key]
+        # Dataset-aware cache key
+        cache_key = (id(dataset), params.cache_key())
+        
+        if cache_key in self._metrics_cache:
+            return self._metrics_cache[cache_key]
 
         metrics: List[SweepMetrics] = []
-        sweep_list = sorted(self.dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
+        sweep_list = sorted(dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
         for i, sweep_idx in enumerate(sweep_list):
-            metric = self._compute_sweep_metrics(sweep_idx, i, params)
+            metric = self._compute_sweep_metrics(dataset, sweep_idx, i, params)
             if metric is not None:
                 metrics.append(metric)
 
-        self._metrics_cache[key] = metrics
+        # Manage cache size
+        if len(self._metrics_cache) > MAX_METRICS_CACHE_SIZE:
+            # Simple cleanup - remove oldest half of entries
+            keys_to_remove = list(self._metrics_cache.keys())[:MAX_METRICS_CACHE_SIZE // 2]
+            for key in keys_to_remove:
+                del self._metrics_cache[key]
+
+        self._metrics_cache[cache_key] = metrics
         return metrics
 
-    def get_plot_data(self, params: AnalysisParameters) -> Dict[str, Any]:
+    def get_plot_data(self, dataset: ElectrophysiologyDataset,
+                     params: AnalysisParameters) -> Dict[str, Any]:
         """
         Get data formatted for plotting based on the provided parameters.
+        
+        Args:
+            dataset: The dataset to analyze
+            params: Analysis parameters
+            
+        Returns:
+            Dictionary with plot data
         """
-        metrics = self.get_all_metrics(params)
+        metrics = self.get_all_metrics(dataset, params)
         if not metrics:
             return {
                 'x_data': np.array([]),
@@ -253,11 +283,19 @@ class AnalysisEngine:
 
         return result
 
-    def get_export_table(self, params: AnalysisParameters) -> Dict[str, Any]:
+    def get_export_table(self, dataset: ElectrophysiologyDataset,
+                        params: AnalysisParameters) -> Dict[str, Any]:
         """
         Get table structure ready for CSV export based on provided parameters.
+        
+        Args:
+            dataset: The dataset to analyze
+            params: Analysis parameters
+            
+        Returns:
+            Dictionary with export table data
         """
-        plot_data = self.get_plot_data(params)
+        plot_data = self.get_plot_data(dataset, params)
 
         if len(plot_data['x_data']) == 0:
             return {'headers': [], 'data': np.array([[]]), 'format_spec': '%.6f'}
@@ -317,15 +355,115 @@ class AnalysisEngine:
 
         return {'headers': headers, 'data': data, 'format_spec': '%.6f'}
 
+    def get_sweep_plot_data(self, dataset: ElectrophysiologyDataset,
+                           sweep_index: str, channel_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Get and prepare time series data for plotting a single sweep.
+
+        This method fetches the data for the specified channel type, packages it
+        into the 2D matrix format expected by the PlotManager, and returns
+        all necessary components for plotting.
+
+        Args:
+            dataset: The dataset to analyze
+            sweep_index: The identifier for the sweep.
+            channel_type: The type of channel to plot ("Voltage" or "Current").
+
+        Returns:
+            A dictionary containing 'time_ms', 'data_matrix', 'channel_id',
+            'sweep_index', and 'channel_type', or None if data is invalid.
+        """
+        if dataset is None or self.channel_definitions is None:
+            return None
+
+        # 1. Translate channel type to physical channel ID
+        if channel_type == "Voltage":
+            channel_id = self.channel_definitions.get_voltage_channel()
+        else:  # "Current"
+            channel_id = self.channel_definitions.get_current_channel()
+
+        # 2. Get the raw channel data from the dataset
+        time_ms, channel_data = dataset.get_channel_vector(sweep_index, channel_id)
+
+        if time_ms is None or channel_data is None:
+            return None
+
+        # 3. Create the 2D data_matrix required by the PlotManager
+        # This ensures compatibility even if the dataset has 1 or more channels.
+        num_channels = dataset.channel_count()
+        data_matrix = np.zeros((len(time_ms), num_channels))
+        if channel_id < num_channels:
+            data_matrix[:, channel_id] = channel_data
+
+        # 4. Package everything needed for the plot manager
+        return {
+            'time_ms': time_ms,
+            'data_matrix': data_matrix,
+            'channel_id': channel_id,
+            'sweep_index': sweep_index,
+            'channel_type': channel_type
+        }
+    
+    def get_peak_analysis_data(self, dataset: ElectrophysiologyDataset,
+                               params: AnalysisParameters, 
+                               peak_types: List[str] = None) -> Dict[str, Any]:
+        """
+        Get data for multiple peak types for comprehensive peak analysis.
+        
+        Args:
+            dataset: The dataset to analyze
+            params: Analysis parameters
+            peak_types: List of peak types to analyze. 
+                    Defaults to ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        Returns:
+            Dictionary with peak analysis data for each type
+        """
+        if peak_types is None:
+            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        metrics = self.get_all_metrics(dataset, params)
+        if not metrics:
+            return {}
+        
+        result = {}
+        for peak_type in peak_types:
+            # Create modified axis config with the peak type
+            modified_y_axis = AxisConfig(
+                measure="Peak",
+                channel=params.y_axis.channel,
+                peak_type=peak_type
+            )
+            
+            y_data, y_label = self._extract_axis_data(metrics, modified_y_axis, range_num=1)
+            
+            result[peak_type.lower().replace("-", "_")] = {
+                'data': np.array(y_data),
+                'label': y_label
+            }
+            
+            if params.use_dual_range:
+                y_data2, _ = self._extract_axis_data(metrics, modified_y_axis, range_num=2)
+                result[peak_type.lower().replace("-", "_")]['data_r2'] = np.array(y_data2)
+        
+        # Add x-axis data (common for all peak types)
+        x_data, x_label = self._extract_axis_data(metrics, params.x_axis, range_num=1)
+        result['x_data'] = np.array(x_data)
+        result['x_label'] = x_label
+        result['sweep_indices'] = [m.sweep_index for m in metrics]
+        
+        return result
+
     # =========================================================================
     # Private Methods
     # =========================================================================
 
-    def _compute_sweep_metrics(self, sweep_index: str,
-                            sweep_number: int,
-                            params: AnalysisParameters) -> Optional[SweepMetrics]:
+    def _compute_sweep_metrics(self, dataset: ElectrophysiologyDataset,
+                              sweep_index: str,
+                              sweep_number: int,
+                              params: AnalysisParameters) -> Optional[SweepMetrics]:
         """Compute all metrics for a single sweep using specified parameters."""
-        series = self.get_sweep_series(sweep_index)
+        series = self.get_sweep_series(dataset, sweep_index)
         if series is None:
             return None
 
@@ -446,101 +584,12 @@ class AnalysisEngine:
 
         return data, label
 
-    def _clear_all_caches(self) -> None:
-        """Clear all caches when dataset or channel definitions change."""
+    def clear_caches(self) -> None:
+        """
+        Clear all caches. 
+        
+        This can be called explicitly when needed, such as when loading a new file
+        or when channel definitions change.
+        """
         self._metrics_cache.clear()
         self._series_cache.clear()
-
-    def get_sweep_plot_data(self, sweep_index: str, channel_type: str) -> Optional[Dict[str, Any]]:
-        """
-        Get and prepare time series data for plotting a single sweep.
-
-        This method fetches the data for the specified channel type, packages it
-        into the 2D matrix format expected by the PlotManager, and returns
-        all necessary components for plotting.
-
-        Args:
-            sweep_index: The identifier for the sweep.
-            channel_type: The type of channel to plot ("Voltage" or "Current").
-
-        Returns:
-            A dictionary containing 'time_ms', 'data_matrix', 'channel_id',
-            'sweep_index', and 'channel_type', or None if data is invalid.
-        """
-        if self.dataset is None or self.channel_definitions is None:
-            return None
-
-        # 1. Translate channel type to physical channel ID
-        if channel_type == "Voltage":
-            channel_id = self.channel_definitions.get_voltage_channel()
-        else:  # "Current"
-            channel_id = self.channel_definitions.get_current_channel()
-
-        # 2. Get the raw channel data from the dataset
-        time_ms, channel_data = self.dataset.get_channel_vector(sweep_index, channel_id)
-
-        if time_ms is None or channel_data is None:
-            return None
-
-        # 3. Create the 2D data_matrix required by the PlotManager
-        # This ensures compatibility even if the dataset has 1 or more channels.
-        num_channels = self.dataset.channel_count()
-        data_matrix = np.zeros((len(time_ms), num_channels))
-        if channel_id < num_channels:
-            data_matrix[:, channel_id] = channel_data
-
-        # 4. Package everything needed for the plot manager
-        return {
-            'time_ms': time_ms,
-            'data_matrix': data_matrix,
-            'channel_id': channel_id,
-            'sweep_index': sweep_index,
-            'channel_type': channel_type
-        }
-    
-    def get_peak_analysis_data(self, params: AnalysisParameters, peak_types: List[str] = None) -> Dict[str, Any]:
-        """
-        Get data for multiple peak types for comprehensive peak analysis.
-        
-        Args:
-            params: Analysis parameters
-            peak_types: List of peak types to analyze. 
-                    Defaults to ["Absolute", "Positive", "Negative", "Peak-Peak"]
-        
-        Returns:
-            Dictionary with peak analysis data for each type
-        """
-        if peak_types is None:
-            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
-        
-        metrics = self.get_all_metrics(params)
-        if not metrics:
-            return {}
-        
-        result = {}
-        for peak_type in peak_types:
-            # Create modified axis config with the peak type
-            modified_y_axis = AxisConfig(
-                measure="Peak",
-                channel=params.y_axis.channel,
-                peak_type=peak_type
-            )
-            
-            y_data, y_label = self._extract_axis_data(metrics, modified_y_axis, range_num=1)
-            
-            result[peak_type.lower().replace("-", "_")] = {
-                'data': np.array(y_data),
-                'label': y_label
-            }
-            
-            if params.use_dual_range:
-                y_data2, _ = self._extract_axis_data(metrics, modified_y_axis, range_num=2)
-                result[peak_type.lower().replace("-", "_")]['data_r2'] = np.array(y_data2)
-        
-        # Add x-axis data (common for all peak types)
-        x_data, x_label = self._extract_axis_data(metrics, params.x_axis, range_num=1)
-        result['x_data'] = np.array(x_data)
-        result['x_label'] = x_label
-        result['sweep_indices'] = [m.sweep_index for m in metrics]
-        
-        return result

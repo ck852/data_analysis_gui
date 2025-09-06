@@ -5,7 +5,7 @@ Removed callback patterns and GUI now handles file dialogs directly.
 
 import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QComboBox, QCheckBox, QFileDialog,
+                             QPushButton, QComboBox, QCheckBox,
                              QMessageBox, QGroupBox, QLabel, QSplitter,
                              QScrollArea, QGridLayout, QProgressBar,
                              QStatusBar, QToolBar, QMenuBar, QMenu,
@@ -25,11 +25,11 @@ from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTI
 from data_analysis_gui.dialogs import (BatchResultDialog, 
                      AnalysisPlotDialog, CurrentDensityIVDialog)
 from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
-from data_analysis_gui.widgets.control_panel import ControlPanel  # Import the new widget
+from data_analysis_gui.widgets.control_panel import ControlPanel
+from data_analysis_gui.gui_services import FileDialogService
 
 # Import the controller and business services
 from data_analysis_gui.core.app_controller import ApplicationController, FileInfo, PlotData
-from data_analysis_gui.services.export_business_service import ExportService
 
 
 class ModernMatSweepAnalyzer(QMainWindow):
@@ -43,6 +43,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         # Create the controller WITHOUT callback (Phase 3 change)
         self.controller = controller or ApplicationController()
+
+        # Initialize GUI services for clean separation of concerns
+        self.file_dialog_service = FileDialogService()
         
         # Set up controller callbacks
         self.controller.on_file_loaded = self._handle_file_loaded
@@ -236,69 +239,84 @@ class ModernMatSweepAnalyzer(QMainWindow):
     
     def _export_data(self):
         """
-        Phase 3: Handle export button click - GUI orchestration only.
-        File dialog is handled directly here, no callbacks.
+        Handle export button click - clean separation of concerns.
+        
+        This method demonstrates proper architecture:
+        1. GUI layer handles user interaction (file dialog)
+        2. Controller provides business context (suggested filename)
+        3. Business layer processes the export
+        4. GUI layer presents the result
         """
-        # Validate preconditions
+        # Check preconditions through controller
         if not self.controller.has_data():
             QMessageBox.information(self, "Export Error", "No data to export.")
             return
         
-        # Collect parameters from GUI
+        # Collect current analysis parameters from GUI
         params = self._collect_parameters()
         
-        # Get suggested filename from controller
-        suggested_filename = self.controller.get_suggested_export_filename()
+        # Get business-logic-determined suggested filename
+        suggested_filename = self.controller.get_suggested_export_filename(params)
         
-        # Get directory from current file or default
+        # Determine default directory from current context
+        default_directory = None
         if self.controller.loaded_file_path:
-            default_dir = os.path.dirname(self.controller.loaded_file_path)
-            suggested_path = os.path.join(default_dir, suggested_filename)
-        else:
-            suggested_path = suggested_filename
+            default_directory = os.path.dirname(self.controller.loaded_file_path)
         
-        # Show file dialog (GUI responsibility)
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            "Export Analysis Data", 
-            suggested_path, 
-            "CSV files (*.csv)"
+        # Handle file selection through GUI service (presentation layer concern)
+        file_path = self.file_dialog_service.get_export_path(
+            parent=self,
+            suggested_name=suggested_filename,
+            default_directory=default_directory,
+            file_types="CSV files (*.csv);;All files (*.*)"
         )
         
         if not file_path:
-            return  # User cancelled
+            return  # User cancelled dialog
         
-        # Validate path using business service
-        is_valid, error_msg = ExportService.validate_export_path(file_path)
-        if not is_valid:
-            QMessageBox.warning(self, "Invalid Path", error_msg)
-            return
-        
-        # Call business logic through controller
+        # Delegate export to controller (business layer)
         result = self.controller.export_analysis_data(params, file_path)
         
-        # Handle result (GUI responsibility)
+        # Present result to user (presentation layer concern)
         if result.success:
             QMessageBox.information(
                 self, 
                 "Export Successful", 
                 f"Exported {result.records_exported} records to:\n{result.file_path}"
             )
+            # Update status bar with concise message
+            self.status_bar.showMessage(f"Export complete: {os.path.basename(result.file_path)}")
         else:
             QMessageBox.warning(
                 self, 
                 "Export Failed", 
                 f"Export failed:\n{result.error_message}"
             )
+            self.status_bar.showMessage("Export failed")
     
     def _load_file(self):
-        """Handle file loading"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Load Data File", "", 
-            "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
+        """
+        Handle file loading with clean separation of concerns.
+        
+        GUI service handles dialog, controller handles business logic.
+        """
+        # Define supported file types for electrophysiology data
+        file_types = (
+            "Data files (*.mat *.abf);;"
+            "MAT files (*.mat);;"
+            "ABF files (*.abf);;"
+            "All files (*.*)"
+        )
+        
+        # Get file path through GUI service
+        file_path = self.file_dialog_service.get_import_path(
+            parent=self,
+            title="Load Data File",
+            file_types=file_types
         )
         
         if file_path:
+            # Delegate to controller for business logic
             self.controller.load_file(file_path)
     
     def _handle_file_loaded(self, file_info: FileInfo):
@@ -409,89 +427,89 @@ class ModernMatSweepAnalyzer(QMainWindow):
         else:
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
     
-    def _batch_analyze(self):
-        """Perform batch analysis"""
-        file_paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select Files for Batch Analysis", "", 
-            "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
-        )
+    # def _batch_analyze(self):
+    #     """Perform batch analysis"""
+    #     file_paths, _ = QFileDialog.getOpenFileNames(
+    #         self, "Select Files for Batch Analysis", "", 
+    #         "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
+    #     )
         
-        if not file_paths:
-            return
+    #     if not file_paths:
+    #         return
         
-        # Get the shortest max sweep time from all selected files
-        min_max_sweep_time = self.controller.get_min_max_sweep_time_for_files(file_paths)
-        params = self._collect_parameters()
+    #     # Get the shortest max sweep time from all selected files
+    #     min_max_sweep_time = self.controller.get_min_max_sweep_time_for_files(file_paths)
+    #     params = self._collect_parameters()
 
-        if params['range1_end'] > min_max_sweep_time or \
-           (params['use_dual_range'] and params['range2_end'] > min_max_sweep_time):
-            QMessageBox.warning(self, "Invalid Range for Batch Analysis",
-                                f"The analysis range is outside the valid time range for at least one of the selected files. "
-                                f"Please adjust the analysis range to be within 0 - {min_max_sweep_time:.2f} ms for all files.")
-            return
+    #     if params['range1_end'] > min_max_sweep_time or \
+    #        (params['use_dual_range'] and params['range2_end'] > min_max_sweep_time):
+    #         QMessageBox.warning(self, "Invalid Range for Batch Analysis",
+    #                             f"The analysis range is outside the valid time range for at least one of the selected files. "
+    #                             f"Please adjust the analysis range to be within 0 - {min_max_sweep_time:.2f} ms for all files.")
+    #         return
         
-        destination_folder = self._get_batch_output_folder(file_paths)
-        if not destination_folder:
-            return
+    #     destination_folder = self._get_batch_output_folder(file_paths)
+    #     if not destination_folder:
+    #         return
         
-        params = self._collect_parameters()
+    #     params = self._collect_parameters()
         
-        # Create progress dialog
-        progress = self._create_progress_dialog(len(file_paths))
+    #     # Create progress dialog
+    #     progress = self._create_progress_dialog(len(file_paths))
         
-        def update_progress(current, total):
-            progress.setValue(current)
-            QApplication.processEvents()
+    #     def update_progress(current, total):
+    #         progress.setValue(current)
+    #         QApplication.processEvents()
         
-        try:
-            # Get data from controller
-            result = self.controller.perform_batch_analysis(
-                file_paths,
-                params,
-                destination_folder,
-                progress_callback=update_progress
-            )
+    #     try:
+    #         # Get data from controller
+    #         result = self.controller.perform_batch_analysis(
+    #             file_paths,
+    #             params,
+    #             destination_folder,
+    #             progress_callback=update_progress
+    #         )
             
-            if result.success:
-                # Create the plot using PlotService
-                from data_analysis_gui.services.plot_service import PlotService
-                plot_service = PlotService()
+    #         if result.success:
+    #             # Create the plot using PlotService
+    #             from data_analysis_gui.services.plot_service import PlotService
+    #             plot_service = PlotService()
 
-                figure, plot_count = plot_service.build_batch_figure(
-                    result.batch_result,
-                    params,
-                    result.x_label,
-                    result.y_label
-                )
+    #             figure, plot_count = plot_service.build_batch_figure(
+    #                 result.batch_result,
+    #                 params,
+    #                 result.x_label,
+    #                 result.y_label
+    #             )
                 
-                # Show batch results dialog
-                batch_dialog = BatchResultDialog(
-                    self, 
-                    result.batch_result, 
-                    figure,
-                    result.iv_data, 
-                    result.iv_file_mapping,
-                    result.x_label, 
-                    result.y_label, 
-                    destination_folder=destination_folder,
-                    iv_data_range2=result.iv_data_range2,
-                    use_dual_range=result.use_dual_range  
-                )
-                batch_dialog.exec()
+    #             # Show batch results dialog
+    #             batch_dialog = BatchResultDialog(
+    #                 self, 
+    #                 result.batch_result, 
+    #                 figure,
+    #                 result.iv_data, 
+    #                 result.iv_file_mapping,
+    #                 result.x_label, 
+    #                 result.y_label, 
+    #                 destination_folder=destination_folder,
+    #                 iv_data_range2=result.iv_data_range2,
+    #                 use_dual_range=result.use_dual_range  
+    #             )
+    #             batch_dialog.exec()
                 
-                # Update status
-                self.status_bar.showMessage(
-                    f"Batch complete. Processed {result.successful_count} files, "
-                    f"{result.failed_count} failed."
-                )
-            else:
-                QMessageBox.warning(self, "Batch Analysis Failed", 
-                                "No files could be processed successfully.")
+    #             # Update status
+    #             self.status_bar.showMessage(
+    #                 f"Batch complete. Processed {result.successful_count} files, "
+    #                 f"{result.failed_count} failed."
+    #             )
+    #         else:
+    #             QMessageBox.warning(self, "Batch Analysis Failed", 
+    #                             "No files could be processed successfully.")
         
-        except Exception as e:
-            QMessageBox.critical(self, "Batch Analysis Error", str(e))
-        finally:
-            progress.close()
+    #     except Exception as e:
+    #         QMessageBox.critical(self, "Batch Analysis Error", str(e))
+    #     finally:
+    #         progress.close()
     
     def _swap_channels(self):
         """Handle channel swapping"""

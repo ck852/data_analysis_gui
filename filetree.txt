@@ -17,10 +17,7 @@ streamlining/
 |       |   |-- analysis_engine.py
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
-|       |   |-- batch_processor.py
-|       |   |-- batch_results.py
 |       |   |-- channel_definitions.py
-|       |   |-- current_density_exporter.py
 |       |   |-- dataset.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
@@ -29,9 +26,10 @@ streamlining/
 |       |   `-- session_settings.py
 |       |-- dialogs/
 |       |   |-- __init__.py
-|       |   |-- analysis_plot_dialog.py
-|       |   |-- batch_results_dialog.py
-|       |   `-- current_density_iv_dialog.py
+|       |   `-- analysis_plot_dialog.py
+|       |-- gui_services/
+|       |   |-- __init__.py
+|       |   `-- file_dialog_service.py
 |       |-- services/
 |       |   |-- __init__.py
 |       |   |-- export_business_service.py
@@ -228,21 +226,8 @@ streamlining/
 |   |               |-- 240809_001[1-12].mat
 |   |               |-- 240809_002[1-12].mat
 |   |               `-- 240809_003[1-12].mat
-|   |-- conftest.py
-|   |-- pytest.ini
-|   |-- test_analysis_plot.py
 |   |-- test_app_controller_export.py
-|   |-- test_batch_analysis.py
-|   |-- test_cd_dual_ranges.py
-|   |-- test_channel_definitions.py
-|   |-- test_channel_definitions_demo.py
-|   |-- test_current_density.py
-|   |-- test_export_service.py
-|   |-- test_gui_smoke.py
-|   |-- test_integration.py
-|   |-- test_peak_modes.py
-|   |-- test_single_analysis.py
-|   `-- test_swapped_channels.py
+|   `-- test_export_service.py
 |-- filetree.txt
 |-- filetree_full.py
 |-- pyproject.toml
