@@ -32,6 +32,7 @@ streamlining/
 |       |   `-- file_dialog_service.py
 |       |-- services/
 |       |   |-- __init__.py
+|       |   |-- analysis_service.py
 |       |   |-- export_business_service.py
 |       |   |-- export_service.py
 |       |   `-- plot_service.py
