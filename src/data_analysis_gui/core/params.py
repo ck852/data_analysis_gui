@@ -1,207 +1,216 @@
-# params.py
+"""
+Analysis parameters data model.
+
+PHASE 4 REFACTOR: Removed all dict-like methods and from_dict() for clean architecture.
+This is now a pure immutable dataclass with validation.
+
+Author: Data Analysis GUI Contributors
+License: MIT
+"""
+
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, Tuple, Iterable, ClassVar
+from typing import Optional, Dict, Any, Tuple
+
 
 @dataclass(frozen=True)
 class AxisConfig:
-    measure: str
-    channel: Optional[str]
-    peak_type: Optional[str] = "Absolute"  # Options: "Absolute", "Positive", "Negative", "Peak-Peak"
+    """
+    Configuration for a plot axis.
+    
+    Immutable configuration specifying how data should be extracted
+    and displayed for a particular axis (X or Y).
+    """
+    measure: str  # "Time", "Average", or "Peak"
+    channel: Optional[str]  # "Voltage" or "Current" (None for Time)
+    peak_type: Optional[str] = "Absolute"  # "Absolute", "Positive", "Negative", "Peak-Peak"
 
-@dataclass  # Removed frozen=True to allow mutation via dict-style access
+
+@dataclass(frozen=True)
 class AnalysisParameters:
-    range1_start: float
-    range1_end: float
-    use_dual_range: bool
-    range2_start: Optional[float]
-    range2_end: Optional[float]
-    stimulus_period: float
-    x_axis: AxisConfig
-    y_axis: AxisConfig
+    """
+    Immutable parameters for analysis operations.
+    
+    PHASE 4 REFACTOR: Pure data class with validation.
+    No dict-like access, no from_dict(), just clean data.
+    
+    This class encapsulates all parameters needed for an analysis operation,
+    with validation at construction time to ensure data integrity.
+    
+    Example:
+        >>> params = AnalysisParameters(
+        ...     range1_start=150.0,
+        ...     range1_end=500.0,
+        ...     use_dual_range=False,
+        ...     range2_start=None,
+        ...     range2_end=None,
+        ...     stimulus_period=1000.0,
+        ...     x_axis=AxisConfig(measure="Average", channel="Voltage"),
+        ...     y_axis=AxisConfig(measure="Peak", channel="Current", peak_type="Absolute"),
+        ...     channel_config={'voltage': 0, 'current': 1}
+        ... )
+    """
+    # Range configuration
+    range1_start: float  # Start time in ms for Range 1
+    range1_end: float    # End time in ms for Range 1
+    use_dual_range: bool # Whether to use dual range analysis
+    range2_start: Optional[float]  # Start time in ms for Range 2 (if dual range)
+    range2_end: Optional[float]    # End time in ms for Range 2 (if dual range)
+    
+    # Timing
+    stimulus_period: float  # Period between stimuli in ms
+    
+    # Axis configurations
+    x_axis: AxisConfig  # Configuration for X-axis
+    y_axis: AxisConfig  # Configuration for Y-axis
+    
+    # Channel mapping
     channel_config: Dict[str, Any] = field(default_factory=dict)
-
-    # Legacy aliases for backward compatibility
-    _legacy_aliases: ClassVar[Dict[str, str]] = {
-        "start1": "range1_start",
-        "end1": "range1_end",
-        "start2": "range2_start",
-        "end2": "range2_end",
-        # Removed broken "capacitance": "capacitance_pf" - field doesn't exist
-    }
-
+    
     def __post_init__(self):
-        """Validate parameters on creation."""
-        if self.range1_end <= self.range1_start:
-            raise ValueError(f"Range 1 end ({self.range1_end}) must be after start ({self.range1_start})")
+        """
+        Validate parameters on creation.
         
+        Ensures that:
+        - Range end times are after start times
+        - Dual range parameters are provided when dual range is enabled
+        
+        Raises:
+            ValueError: If validation fails
+        """
+        # Validate Range 1
+        if self.range1_end <= self.range1_start:
+            raise ValueError(
+                f"Range 1 end ({self.range1_end}) must be after start ({self.range1_start})"
+            )
+        
+        # Validate Range 2 if dual range is enabled
         if self.use_dual_range:
             if self.range2_start is None or self.range2_end is None:
                 raise ValueError("Dual range enabled but range 2 values not provided")
             if self.range2_end <= self.range2_start:
-                raise ValueError(f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})")
-
+                raise ValueError(
+                    f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})"
+                )
+            # Optionally validate that ranges don't overlap
+            # (uncomment if this is a requirement)
+            # if not (self.range2_start >= self.range1_end or self.range2_end <= self.range1_start):
+            #     if not (self.range1_start >= self.range2_end or self.range1_end <= self.range2_start):
+            #         raise ValueError("Range 1 and Range 2 overlap")
+    
     def cache_key(self) -> Tuple:
-        """Immutable, order-invariant cache key for memoization."""
-        def r(x):
+        """
+        Generate an immutable, hashable cache key for this parameter set.
+        
+        This key is used for caching analysis results. It includes all
+        parameters that affect the analysis output, rounded to avoid
+        floating point precision issues.
+        
+        Returns:
+            Tuple that can be used as a dictionary key
+        """
+        def round_value(x):
+            """Round numeric values to avoid floating point issues."""
             return round(x, 9) if isinstance(x, (float, int)) else x
-
-        def freeze(v):
+        
+        def freeze_value(v):
+            """Convert mutable structures to immutable tuples."""
             if isinstance(v, dict):
-                return tuple(sorted((k, freeze(vv)) for k, vv in v.items()))
+                return tuple(sorted((k, freeze_value(vv)) for k, vv in v.items()))
             if isinstance(v, (list, tuple)):
-                return tuple(freeze(x) for x in v)
+                return tuple(freeze_value(x) for x in v)
             return v
-
+        
+        # Create cache key with all relevant parameters
         return (
-            r(self.range1_start),
-            r(self.range1_end),
+            round_value(self.range1_start),
+            round_value(self.range1_end),
             self.use_dual_range,
-            r(self.range2_start) if self.range2_start is not None else None,
-            r(self.range2_end) if self.range2_end is not None else None,
-            r(self.stimulus_period),
-            freeze(asdict(self.x_axis)),
-            freeze(asdict(self.y_axis)),
-            freeze(self.channel_config)
+            round_value(self.range2_start) if self.range2_start is not None else None,
+            round_value(self.range2_end) if self.range2_end is not None else None,
+            round_value(self.stimulus_period),
+            freeze_value(asdict(self.x_axis)),
+            freeze_value(asdict(self.y_axis)),
+            freeze_value(self.channel_config)
         )
-
-    def _flatten(self) -> Dict[str, Any]:
-        """Flattens the dataclass into a simple dictionary for easy access."""
-        flat_dict = {
-            "range1_start": self.range1_start,
-            "range1_end": self.range1_end,
-            "use_dual_range": self.use_dual_range,
-            "range2_start": self.range2_start,
-            "range2_end": self.range2_end,
-            "stimulus_period": self.stimulus_period,
-            "x_measure": self.x_axis.measure,
-            "x_channel": self.x_axis.channel,
-            "x_peak_type": self.x_axis.peak_type,
-            "y_measure": self.y_axis.measure,
-            "y_channel": self.y_axis.channel,
-            "y_peak_type": self.y_axis.peak_type,
-            "channel_config": self.channel_config,
+    
+    def with_updates(self, **kwargs) -> 'AnalysisParameters':
+        """
+        Create a new AnalysisParameters instance with updated values.
+        
+        Since this class is immutable (frozen), this method provides
+        a way to create modified copies.
+        
+        Args:
+            **kwargs: Keyword arguments for fields to update
+            
+        Returns:
+            New AnalysisParameters instance with updated values
+            
+        Example:
+            >>> new_params = params.with_updates(range1_start=200.0)
+        """
+        # Get current values as dict
+        current = asdict(self)
+        
+        # Update with provided values
+        current.update(kwargs)
+        
+        # Handle nested AxisConfig objects
+        if 'x_axis' in current and isinstance(current['x_axis'], dict):
+            current['x_axis'] = AxisConfig(**current['x_axis'])
+        if 'y_axis' in current and isinstance(current['y_axis'], dict):
+            current['y_axis'] = AxisConfig(**current['y_axis'])
+        
+        # Create new instance
+        return AnalysisParameters(**current)
+    
+    def to_export_dict(self) -> Dict[str, Any]:
+        """
+        Export parameters as a dictionary for serialization.
+        
+        This method is explicitly for export purposes (e.g., saving
+        to JSON), not for general dict-like access.
+        
+        Returns:
+            Dictionary representation of parameters
+        """
+        return {
+            'range1_start': self.range1_start,
+            'range1_end': self.range1_end,
+            'use_dual_range': self.use_dual_range,
+            'range2_start': self.range2_start,
+            'range2_end': self.range2_end,
+            'stimulus_period': self.stimulus_period,
+            'x_axis': asdict(self.x_axis),
+            'y_axis': asdict(self.y_axis),
+            'channel_config': self.channel_config
         }
-        # Add legacy aliases for backward compatibility
-        for alias, canon in self._legacy_aliases.items():
-            if canon in flat_dict:
-                flat_dict[alias] = flat_dict[canon]
-        return flat_dict
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Returns a plain dict for JSON serialization or templating."""
-        return self._flatten()
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "AnalysisParameters":
-        """Create from dictionary (e.g., from GUI or JSON)."""
-        # Handle legacy aliases in input
-        for alias, canon in cls._legacy_aliases.items():
-            if alias in d and canon not in d:
-                d[canon] = d[alias]
+    
+    def describe(self) -> str:
+        """
+        Generate a human-readable description of the parameters.
         
-        return cls(
-            range1_start=d.get("range1_start", 0.0),
-            range1_end=d.get("range1_end", 100.0),
-            use_dual_range=d.get("use_dual_range", False),
-            range2_start=d.get("range2_start"),
-            range2_end=d.get("range2_end"),
-            stimulus_period=d.get("stimulus_period", 1000.0),
-            x_axis=AxisConfig(
-                measure=d.get("x_measure", "Average"),
-                channel=d.get("x_channel"),
-                peak_type=d.get("x_peak_type", "Absolute")
-            ),
-            y_axis=AxisConfig(
-                measure=d.get("y_measure", "Average"),
-                channel=d.get("y_channel"),
-                peak_type=d.get("y_peak_type", "Absolute")
-            ),
-            channel_config=d.get("channel_config", {})
-        )
-
-    # Dict-like methods for backward compatibility
-    def __getitem__(self, key: str) -> Any:
-        """Support dict-style read access."""
-        flat = self._flatten()
-        if key in flat:
-            return flat[key]
-        # Allow direct attribute names as fallback
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def __setitem__(self, key: str, value: Any):
-        """Support dict-style write access."""
-        # Handle legacy aliases
-        if key in self._legacy_aliases:
-            key = self._legacy_aliases[key]
+        Useful for logging or display purposes.
         
-        # Handle flattened keys for nested AxisConfig
-        if key == "x_measure":
-            self.x_axis = AxisConfig(value, self.x_axis.channel, self.x_axis.peak_type)
-        elif key == "x_channel":
-            self.x_axis = AxisConfig(self.x_axis.measure, value, self.x_axis.peak_type)
-        elif key == "x_peak_type":
-            self.x_axis = AxisConfig(self.x_axis.measure, self.x_axis.channel, value)
-        elif key == "y_measure":
-            self.y_axis = AxisConfig(value, self.y_axis.channel, self.y_axis.peak_type)
-        elif key == "y_channel":
-            self.y_axis = AxisConfig(self.y_axis.measure, value, self.y_axis.peak_type)
-        elif key == "y_peak_type":
-            self.y_axis = AxisConfig(self.y_axis.measure, self.y_axis.channel, value)
-        elif hasattr(self, key):
-            # Direct attribute
-            setattr(self, key, value)
-        else:
-            raise KeyError(f"Unknown parameter: {key}")
-
-    def get(self, key: str, default=None) -> Any:
-        """Dict-like get with default."""
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def __contains__(self, key: object) -> bool:
-        """Check if key exists."""
-        if not isinstance(key, str):
-            return False
-        flat = self._flatten()
-        return key in flat or hasattr(self, key)
-
-    def keys(self) -> Iterable[str]:
-        """Return all accessible keys."""
-        return self._flatten().keys()
-
-    def values(self) -> Iterable[Any]:
-        """Return all values."""
-        flat = self._flatten()
-        return flat.values()
-
-    def items(self) -> Iterable[Tuple[str, Any]]:
-        """Return key-value pairs."""
-        flat = self._flatten()
-        return flat.items()
-
-    def copy(self) -> "AnalysisParameters":
-        """Create a shallow copy."""
-        return AnalysisParameters(
-            range1_start=self.range1_start,
-            range1_end=self.range1_end,
-            use_dual_range=self.use_dual_range,
-            range2_start=self.range2_start,
-            range2_end=self.range2_end,
-            stimulus_period=self.stimulus_period,
-            x_axis=AxisConfig(
-                self.x_axis.measure,
-                self.x_axis.channel,
-                self.x_axis.peak_type
-            ),
-            y_axis=AxisConfig(
-                self.y_axis.measure,
-                self.y_axis.channel,
-                self.y_axis.peak_type
-            ),
-            channel_config=self.channel_config.copy()
-        )
+        Returns:
+            String description of parameters
+        """
+        desc = [
+            f"Range 1: {self.range1_start:.1f}-{self.range1_end:.1f} ms"
+        ]
+        
+        if self.use_dual_range:
+            desc.append(f"Range 2: {self.range2_start:.1f}-{self.range2_end:.1f} ms")
+        
+        desc.extend([
+            f"Stimulus Period: {self.stimulus_period:.1f} ms",
+            f"X-Axis: {self.x_axis.measure} {self.x_axis.channel or ''}".strip(),
+            f"Y-Axis: {self.y_axis.measure} {self.y_axis.channel or ''}".strip()
+        ])
+        
+        if self.x_axis.measure == "Peak" and self.x_axis.peak_type:
+            desc.append(f"X Peak Type: {self.x_axis.peak_type}")
+        if self.y_axis.measure == "Peak" and self.y_axis.peak_type:
+            desc.append(f"Y Peak Type: {self.y_axis.peak_type}")
+        
+        return " | ".join(desc)

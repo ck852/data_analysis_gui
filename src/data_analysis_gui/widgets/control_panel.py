@@ -1,6 +1,7 @@
 """
-Control Panel Widget - Extracted from main window for better modularity.
+Control Panel Widget - PHASE 4 REFACTORED
 Handles all control settings and communicates via signals.
+Now returns AnalysisParameters directly instead of dictionaries.
 """
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QScrollArea, QGroupBox,
@@ -10,12 +11,16 @@ from PyQt5.QtCore import pyqtSignal, QTimer
 
 from data_analysis_gui.widgets import SelectAllSpinBox
 from data_analysis_gui.config import DEFAULT_SETTINGS
+from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 
 
 class ControlPanel(QWidget):
     """
     Self-contained control panel widget that manages all analysis settings.
     Emits signals to communicate user actions to the main window.
+    
+    PHASE 4: Now creates AnalysisParameters objects directly,
+    eliminating the dictionary intermediate step for type safety.
     """
 
     # Define signals for communication with main window
@@ -348,10 +353,6 @@ class ControlPanel(QWidget):
             spinbox.setValue(previous_value)
             spinbox.blockSignals(False)
 
-    def _flash_invalid_indicator(self, spinbox):
-        """No longer used - replaced by persistent invalid state marking."""
-        pass
-
     def _on_dual_range_changed(self):
         """Handle dual range checkbox state change"""
         enabled = self.dual_range_cb.isChecked()
@@ -365,30 +366,57 @@ class ControlPanel(QWidget):
         
         self.dual_range_toggled.emit(enabled)
 
-    # --- Public methods for data access and updates ---
-
-    def collect_parameters(self) -> dict:
+    # --- PHASE 4: New method to create AnalysisParameters directly ---
+    
+    def create_parameters(self) -> AnalysisParameters:
         """
-        Collect all parameters from the control panel.
-        Returns a dictionary with all settings.
+        Create AnalysisParameters directly from GUI state.
+        
+        PHASE 4: Returns AnalysisParameters object directly,
+        eliminating the dictionary intermediate for type safety
+        and cleaner architecture.
+        
+        Returns:
+            AnalysisParameters configured from current GUI state
         """
+        # Determine peak type based on measure selection
         peak_mode = self.peak_mode_combo.currentText()
-
-        return {
-            'range1_start': self.start_spin.value(),
-            'range1_end': self.end_spin.value(),
-            'use_dual_range': self.dual_range_cb.isChecked(),
-            'range2_start': self.start_spin2.value(),
-            'range2_end': self.end_spin2.value(),
-            'stimulus_period': self.period_spin.value(),
-            'x_measure': self.x_measure_combo.currentText(),
-            'x_channel': self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
-            'x_peak_type': peak_mode if self.x_measure_combo.currentText() == "Peak" else None,
-            'y_measure': self.y_measure_combo.currentText(),
-            'y_channel': self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
-            'y_peak_type': peak_mode if self.y_measure_combo.currentText() == "Peak" else None,
+        
+        # Create x-axis configuration
+        x_axis = AxisConfig(
+            measure=self.x_measure_combo.currentText(),
+            channel=self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
+            peak_type=peak_mode if self.x_measure_combo.currentText() == "Peak" else None
+        )
+        
+        # Create y-axis configuration
+        y_axis = AxisConfig(
+            measure=self.y_measure_combo.currentText(),
+            channel=self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
+            peak_type=peak_mode if self.y_measure_combo.currentText() == "Peak" else None
+        )
+        
+        # Build channel configuration
+        channel_config = {
             'channels_swapped': self._is_swapped,
+            'voltage': 1 if self._is_swapped else 0,
+            'current': 0 if self._is_swapped else 1
         }
+        
+        # Create and return parameters
+        return AnalysisParameters(
+            range1_start=self.start_spin.value(),
+            range1_end=self.end_spin.value(),
+            use_dual_range=self.dual_range_cb.isChecked(),
+            range2_start=self.start_spin2.value() if self.dual_range_cb.isChecked() else None,
+            range2_end=self.end_spin2.value() if self.dual_range_cb.isChecked() else None,
+            stimulus_period=self.period_spin.value(),
+            x_axis=x_axis,
+            y_axis=y_axis,
+            channel_config=channel_config
+        )
+
+    # --- Public methods for data access and updates ---
 
     def update_file_info(self, file_name: str, sweep_count: int):
         """Update file information labels"""
@@ -472,91 +500,6 @@ class ControlPanel(QWidget):
             'start2': self.start_spin2.value(),
             'end2': self.end_spin2.value()
         }
-
-    def apply_parameters(self, params: dict) -> None:
-        """
-        Apply parameters to control panel widgets.
-        Only sets values for keys that exist in params, ignores unknown keys.
-        
-        Args:
-            params: Dictionary of parameters to apply
-        """
-        # Range 1 settings
-        if 'range1_start' in params:
-            self.start_spin.setValue(params['range1_start'])
-        if 'range1_end' in params:
-            self.end_spin.setValue(params['range1_end'])
-        
-        # Dual range checkbox
-        if 'use_dual_range' in params:
-            self.dual_range_cb.setChecked(params['use_dual_range'])
-        
-        # Range 2 settings
-        if self.dual_range_cb.isChecked():
-            if 'range2_start' in params:
-                self.start_spin2.setValue(params['range2_start'])
-            if 'range2_end' in params:
-                self.end_spin2.setValue(params['range2_end'])
-        
-        # Stimulus period
-        if 'stimulus_period' in params:
-            self.period_spin.setValue(params['stimulus_period'])
-        
-        # Plot settings - X axis
-        if 'x_measure' in params:
-            idx = self.x_measure_combo.findText(params['x_measure'])
-            if idx >= 0:
-                self.x_measure_combo.setCurrentIndex(idx)
-        if 'x_channel' in params and params['x_channel']:
-            idx = self.x_channel_combo.findText(params['x_channel'])
-            if idx >= 0:
-                self.x_channel_combo.setCurrentIndex(idx)
-        
-        # Plot settings - Y axis
-        if 'y_measure' in params:
-            idx = self.y_measure_combo.findText(params['y_measure'])
-            if idx >= 0:
-                self.y_measure_combo.setCurrentIndex(idx)
-        if 'y_channel' in params and params['y_channel']:
-            idx = self.y_channel_combo.findText(params['y_channel'])
-            if idx >= 0:
-                self.y_channel_combo.setCurrentIndex(idx)
-        
-        # Peak mode
-        if 'x_peak_type' in params and params['x_peak_type']:
-            idx = self.peak_mode_combo.findText(params['x_peak_type'])
-            if idx >= 0:
-                self.peak_mode_combo.setCurrentIndex(idx)
-        elif 'y_peak_type' in params and params['y_peak_type']:
-            idx = self.peak_mode_combo.findText(params['y_peak_type'])
-            if idx >= 0:
-                self.peak_mode_combo.setCurrentIndex(idx)
-        
-        # Channel swap state
-        if 'channels_swapped' in params:
-            if self.swap_channels_btn.isEnabled():
-                self._is_swapped = params.get('channels_swapped', False)
-            else:
-                self._pending_swap_state = params.get('channels_swapped', False)
-                if self._pending_swap_state:
-                    self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
-                    self.swap_channels_btn.setText("Channels Swapped ⇄")
-                else:
-                    self.swap_channels_btn.setStyleSheet("")
-                    self.swap_channels_btn.setText("Swap Channels")
-                    
-        # After setting all values, sync the valid state
-        self._previous_valid_values = {
-            'start1': self.start_spin.value(),
-            'end1': self.end_spin.value(),
-            'start2': self.start_spin2.value(),
-            'end2': self.end_spin2.value()
-        }
-        
-        # Clear any invalid field markers
-        self._invalid_fields.clear()
-        for key in ['start1', 'end1', 'start2', 'end2']:
-            self._clear_invalid_state(key)
 
     def get_pending_swap_state(self) -> bool:
         """
