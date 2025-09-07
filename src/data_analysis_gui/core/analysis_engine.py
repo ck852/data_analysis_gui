@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
-from data_analysis_gui.utils.data_processing import format_voltage_label
+
 
 
 # Cache size limits to prevent unbounded memory growth
@@ -593,3 +593,74 @@ class AnalysisEngine:
         """
         self._metrics_cache.clear()
         self._series_cache.clear()
+
+# ===========================================================================
+# Data Processing Utilities (moved from utils/data_processing.py)
+# ===========================================================================
+
+def process_sweep_data(time: np.ndarray, data: np.ndarray, 
+                       start_ms: float, end_ms: float, channel_id: int) -> np.ndarray:
+    """Process sweep data within time range."""
+    mask = (time >= start_ms) & (time <= end_ms)
+    return data[:, channel_id][mask]
+
+
+def calculate_peak(data: np.ndarray, peak_type: str = "Absolute") -> float:
+    """Calculate peak value based on type."""
+    if len(data) == 0:
+        return np.nan
+    
+    if peak_type == "Positive" or peak_type == "Max":
+        return np.max(data)
+    elif peak_type == "Negative" or peak_type == "Min":
+        return np.min(data)
+    elif peak_type == "Peak-Peak":
+        return np.max(data) - np.min(data)
+    else:  # "Absolute" or "Absolute Max"
+        return data[np.abs(data).argmax()]
+
+
+def calculate_average(data: np.ndarray) -> float:
+    """Calculate average of data."""
+    return np.mean(data) if len(data) > 0 else np.nan
+
+
+def apply_analysis_mode(data: np.ndarray, mode: str = "Average", 
+                        peak_type: Optional[str] = None) -> float:
+    """Apply selected analysis mode to data."""
+    if mode == "Average":
+        return calculate_average(data)
+    elif mode == "Peak":
+        return calculate_peak(data, peak_type or "Absolute")
+    else:
+        return 0
+
+
+def calculate_current_density(current: float, cslow: float) -> float:
+    """Calculate current density by dividing current by Cslow."""
+    if cslow > 0 and not np.isnan(current):
+        return current / cslow
+    return np.nan
+
+
+def calculate_sem(values: np.ndarray) -> float:
+    """Calculate standard error of mean."""
+    if len(values) > 1:
+        return np.std(values, ddof=1) / np.sqrt(len(values))
+    return 0
+
+
+def calculate_average_voltage(voltage_data: np.ndarray) -> str:
+    """Calculate average voltage for range."""
+    if len(voltage_data) > 0:
+        mean_v = np.nanmean(voltage_data)
+        rounded_v = int(round(mean_v))
+        formatted_v = f"+{rounded_v}" if rounded_v >= 0 else str(rounded_v)
+        return formatted_v
+    return ""
+
+
+def format_voltage_label(voltage: float) -> str:
+    """Format voltage value for display."""
+    rounded = int(round(voltage))
+    return f"+{rounded}" if rounded >= 0 else str(rounded)

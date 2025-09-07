@@ -1,10 +1,14 @@
 """
 Application Controller - PHASE 2 REFACTOR
-Now delegates all analysis operations to AnalysisService.
+Fixed dependency injection anti-pattern in AnalysisService initialization.
 
 This controller manages application state and coordinates between the GUI
 and business logic layers. Analysis and export operations are delegated
 to the AnalysisService, creating a clean separation of concerns.
+
+Phase 2 Key Fix: Now properly creates an ExportService INSTANCE and passes
+it to AnalysisService, enabling proper dependency injection, testing, and
+configuration. This fixes the class-as-type anti-pattern.
 
 Author: Data Analysis GUI Contributors
 License: MIT
@@ -20,25 +24,18 @@ from data_analysis_gui.core.dataset import DatasetLoader, ElectrophysiologyDatas
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
+from data_analysis_gui.core.models import (
+    FileInfo, AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
+)
 
-# Service imports - Phase 2 addition
-from data_analysis_gui.services.analysis_service import AnalysisService, AnalysisResult, PlotData
-from data_analysis_gui.services.export_business_service import ExportService, ExportResult
-
-
-@dataclass
-class FileInfo:
-    """Information about a loaded file."""
-    name: str
-    path: str
-    sweep_count: int
-    sweep_names: List[str]
-    max_sweep_time: Optional[float] = None
+# Service imports - Phase 2: Clean imports without redundancy
+from data_analysis_gui.services.analysis_service import AnalysisService
+from data_analysis_gui.services.export_business_service import ExportService
 
 
 class ApplicationController:
     """
-    PHASE 2 REFACTORED: Application controller that manages state and delegates to services.
+    PHASE 2 REFACTORED: Application controller with proper dependency injection.
     
     This controller is responsible for:
     - Managing application state (current dataset, file path, channels)
@@ -46,12 +43,20 @@ class ApplicationController:
     - Delegating analysis operations to AnalysisService
     - Coordinating between GUI events and business logic
     
-    All analysis and export operations are now delegated to the AnalysisService,
+    Phase 2 Key Change: AnalysisService now receives an ExportService INSTANCE
+    instead of a class type, enabling proper dependency injection patterns.
+    
+    All analysis and export operations are delegated to the AnalysisService,
     creating a clean separation between application coordination and business logic.
     """
     
     def __init__(self):
-        """Initialize the controller with all required services."""
+        """
+        Initialize the controller with all required services.
+        
+        Phase 2 Key Change: Now properly creates ExportService instance
+        for dependency injection instead of passing the class type.
+        """
         # Application state
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
@@ -62,8 +67,11 @@ class ApplicationController:
         # Initialize the analysis engine
         self.engine = AnalysisEngine(self.channel_definitions)
         
-        # PHASE 2: Initialize the unified analysis service
-        self.analysis_service = AnalysisService(self.engine, ExportService)
+        # PHASE 2: Create ExportService INSTANCE for proper dependency injection
+        export_service_instance = ExportService()
+        
+        # PHASE 2: Initialize the unified analysis service with proper DI
+        self.analysis_service = AnalysisService(self.engine, export_service_instance)
         
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
@@ -131,14 +139,14 @@ class ApplicationController:
         return self.current_dataset is not None and not self.current_dataset.is_empty()
     
     # =========================================================================
-    # Analysis Operations - PHASE 2: Now delegate to AnalysisService
+    # Analysis Operations - PHASE 2: Delegate to AnalysisService
     # =========================================================================
     
     def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
         """
         Perform analysis on the current dataset.
         
-        PHASE 2: Now simply delegates to AnalysisService.
+        PHASE 2: Delegates to AnalysisService which now has proper dependency injection.
         
         Args:
             params: Analysis parameters
@@ -149,7 +157,7 @@ class ApplicationController:
         if not self.has_data():
             return None
         
-        # Delegate to service - single line!
+        # Delegate to service - single line with proper DI!
         return self.analysis_service.perform_analysis(self.current_dataset, params)
     
     def export_analysis_data(self, params: AnalysisParameters, 
@@ -157,7 +165,7 @@ class ApplicationController:
         """
         Export analyzed data to a file.
         
-        PHASE 2: Now simply delegates to AnalysisService.
+        PHASE 2: Delegates to AnalysisService which now uses ExportService instance.
         
         Args:
             params: Analysis parameters
@@ -172,7 +180,7 @@ class ApplicationController:
                 error_message="No data loaded"
             )
         
-        # Delegate to service - single line!
+        # Delegate to service - single line with proper DI!
         return self.analysis_service.export_analysis(self.current_dataset, params, file_path)
     
     def get_sweep_plot_data(self, sweep_index: str, 
@@ -180,7 +188,7 @@ class ApplicationController:
         """
         Get data for plotting a single sweep.
         
-        PHASE 2: Now simply delegates to AnalysisService.
+        PHASE 2: Delegates to AnalysisService.
         
         Args:
             sweep_index: Sweep identifier
@@ -198,11 +206,11 @@ class ApplicationController:
         )
     
     def perform_peak_analysis(self, params: AnalysisParameters,
-                            peak_types: List[str] = None) -> Optional[Any]:
+                            peak_types: List[str] = None) -> Optional[PeakAnalysisResult]:
         """
         Perform comprehensive peak analysis.
         
-        PHASE 2: Now simply delegates to AnalysisService.
+        PHASE 2: Delegates to AnalysisService.
         
         Args:
             params: Analysis parameters
@@ -223,7 +231,7 @@ class ApplicationController:
         """
         Get a suggested filename for export.
         
-        PHASE 2: Now delegates to AnalysisService.
+        PHASE 2: Delegates to AnalysisService which uses ExportService instance.
         
         Args:
             params: Analysis parameters for context-aware naming
@@ -233,7 +241,7 @@ class ApplicationController:
         """
         source_path = self.loaded_file_path or "analysis"
         
-        # Delegate to service
+        # Delegate to service with proper instance method call
         return self.analysis_service.get_suggested_export_filename(source_path, params)
     
     # =========================================================================
@@ -331,28 +339,3 @@ class ApplicationController:
             channel_config=self.get_channel_configuration()
         )
     
-    # =========================================================================
-    # Batch Analysis Support (Commented out - Phase 3)
-    # =========================================================================
-    
-    # def get_min_max_sweep_time_for_files(self, file_paths: List[str]) -> float:
-    #     """
-    #     Get the minimum of maximum sweep times across multiple files.
-    #     
-    #     This will be refactored in Phase 3 to use the service layer.
-    #     """
-    #     # Phase 3 implementation
-    #     pass
-    
-    # def perform_batch_analysis(self,
-    #                           file_paths: List[str],
-    #                           params: AnalysisParameters,
-    #                           destination_folder: str,
-    #                           progress_callback: Optional[Callable] = None) -> Any:
-    #     """
-    #     Perform batch analysis on multiple files.
-    #     
-    #     Phase 3: Will delegate to AnalysisService.perform_batch_analysis()
-    #     """
-    #     # Phase 3 implementation
-    #     pass

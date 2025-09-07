@@ -2,6 +2,10 @@
 """
 Pure business logic export service with no GUI dependencies.
 Handles all data export operations independently of the presentation layer.
+
+Phase 2 Refactor: Converted from static methods to instance methods for proper
+dependency injection. This allows for better testing, mocking, and future
+configuration options.
 """
 
 import os
@@ -10,6 +14,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass
+from data_analysis_gui.services.loader_service import LoaderService
 
 @dataclass
 class ExportResult:
@@ -21,10 +26,20 @@ class ExportResult:
 
 
 class ExportService:
-    """Pure business logic for data export operations."""
+    """
+    Business logic for data export operations.
     
-    @staticmethod
+    Phase 2 Refactor: Converted to instance methods from static methods
+    to enable proper dependency injection and testing.
+    """
+    
+    def __init__(self):
+        """Initialize the export service."""
+        # Future: Could accept configuration options here
+        pass
+    
     def export_analysis_data(
+        self,
         analysis_data: Dict[str, Any], 
         file_path: str,
         format_spec: str = '%.6f'
@@ -114,8 +129,8 @@ class ExportService:
                 error_message=f"Export failed: {str(e)}"
             )
     
-    @staticmethod
     def get_suggested_filename(
+        self,
         source_file_path: str, 
         analysis_params: Optional[Any] = None,
         suffix: str = "_analyzed"
@@ -159,9 +174,7 @@ class ExportService:
         
         return f"{base_name}{suffix}.csv"
     
-    # Consider deleting validate_export_path if path is validated elsewhere
-    @staticmethod
-    def validate_export_path(file_path: str) -> Tuple[bool, Optional[str]]:
+    def validate_export_path(self, file_path: str) -> Tuple[bool, Optional[str]]:
         """
         Validate export file path.
         
@@ -214,8 +227,7 @@ class ExportService:
         except Exception as e:
             return False, f"Invalid file path: {str(e)}"
     
-    @staticmethod
-    def sanitize_filename(filename: str) -> str:
+    def sanitize_filename(self, filename: str) -> str:
         """
         Remove invalid characters from a filename.
         
@@ -246,8 +258,7 @@ class ExportService:
         
         return filename
     
-    @staticmethod
-    def ensure_unique_path(file_path: str) -> str:
+    def ensure_unique_path(self, file_path: str) -> str:
         """
         Ensure file path is unique by appending numbers if necessary.
         
@@ -277,8 +288,8 @@ class ExportService:
             if counter > 10000:
                 raise ValueError(f"Could not find unique filename after 10000 attempts for: {file_path}")
     
-    @staticmethod
     def export_multiple_tables(
+        self,
         tables: List[Dict[str, Any]],
         output_directory: str,
         base_name: str = "export"
@@ -314,10 +325,10 @@ class ExportService:
             file_path = os.path.join(output_directory, filename)
             
             # Ensure unique path
-            file_path = ExportService.ensure_unique_path(file_path)
+            file_path = self.ensure_unique_path(file_path)
             
             # Export table
-            result = ExportService.export_analysis_data(table, file_path)
+            result = self.export_analysis_data(table, file_path)
             results.append(result)
         
         return results

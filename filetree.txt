@@ -17,11 +17,11 @@ streamlining/
 |       |   |-- analysis_engine.py
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
-|       |   |-- batch_processor.py
 |       |   |-- channel_definitions.py
 |       |   |-- dataset.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
+|       |   |-- models.py
 |       |   |-- params.py
 |       |   |-- plotting_interface.py
 |       |   `-- session_settings.py
@@ -35,13 +35,8 @@ streamlining/
 |       |   |-- __init__.py
 |       |   |-- analysis_service.py
 |       |   |-- export_business_service.py
-|       |   |-- export_service.py
+|       |   |-- loader_service.py
 |       |   `-- plot_service.py
-|       |-- utils/
-|       |   |-- __init__.py
-|       |   |-- data_processing.py
-|       |   |-- file_io.py
-|       |   `-- plot_helpers.py
 |       |-- widgets/
 |       |   |-- __init__.py
 |       |   |-- control_panel.py

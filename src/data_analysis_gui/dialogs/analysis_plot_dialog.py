@@ -12,8 +12,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 # Core imports - all data processing is delegated to these
-from data_analysis_gui.core.analysis_plot import AnalysisPlotter
-from data_analysis_gui.services.export_business_service import ExportService as DataExportService
+
+from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
+from data_analysis_gui.services.export_business_service import ExportService
+from data_analysis_gui.core.models import AnalysisPlotData
 from data_analysis_gui.gui_services import FileDialogService
 
 

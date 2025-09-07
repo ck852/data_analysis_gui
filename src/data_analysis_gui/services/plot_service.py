@@ -9,7 +9,7 @@ from io import BytesIO
 import base64
 
 from data_analysis_gui.core.plotting_interface import PlotBackend, PlotBackendFactory
-from data_analysis_gui.core.batch_processor import BatchResult
+from data_analysis_gui.core.models import BatchResult, FileResult
 from data_analysis_gui.core.params import AnalysisParameters
 from matplotlib.figure import Figure
 

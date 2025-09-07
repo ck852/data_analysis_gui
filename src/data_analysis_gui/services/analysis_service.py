@@ -5,15 +5,15 @@ This service provides a clean, high-level API for analysis operations by
 coordinating the AnalysisEngine and ExportService. It serves as the single
 point of entry for all business logic related to data analysis and export.
 
-Phase 2 Refactor: Introduced to consolidate scattered business logic from
-ApplicationController into a reusable, testable service layer.
+Phase 2 Refactor: Fixed dependency injection anti-pattern by accepting
+ExportService instance instead of class type. This enables proper testing,
+mocking, and configuration.
 
 Author: Data Analysis GUI Contributors
 License: MIT
 """
 
 from typing import Dict, Any, Optional, List, Callable
-from dataclasses import dataclass
 import numpy as np
 from pathlib import Path
 
@@ -22,41 +22,9 @@ from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.services.export_business_service import ExportService, ExportResult
-
-
-@dataclass
-class AnalysisResult:
-    """Result of an analysis operation."""
-    x_data: np.ndarray
-    y_data: np.ndarray
-    x_data2: np.ndarray  # For dual range
-    y_data2: np.ndarray  # For dual range
-    x_label: str
-    y_label: str
-    y_label_r1: Optional[str] = None
-    y_label_r2: Optional[str] = None
-    sweep_indices: List[str] = None
-    use_dual_range: bool = False
-
-
-@dataclass
-class PlotData:
-    """Data structure for plotting a single sweep."""
-    time_ms: np.ndarray
-    data_matrix: np.ndarray
-    channel_id: int
-    sweep_index: str
-    channel_type: str
-
-
-@dataclass
-class PeakAnalysisResult:
-    """Result of peak analysis across multiple peak types."""
-    peak_data: Dict[str, Any]  # Peak type -> data dict
-    x_data: np.ndarray
-    x_label: str
-    sweep_indices: List[str]
-
+from data_analysis_gui.core.models import (
+    AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
+)
 
 class AnalysisService:
     """
@@ -70,9 +38,12 @@ class AnalysisService:
     return results without maintaining any internal state. This makes the
     service suitable for both single-file and batch processing scenarios.
     
+    Phase 2 Refactor: Now properly accepts an ExportService instance instead
+    of a class type, enabling proper dependency injection.
+    
     Example:
         >>> engine = AnalysisEngine(channel_defs)
-        >>> export_svc = ExportService()
+        >>> export_svc = ExportService()  # Create instance
         >>> analysis_svc = AnalysisService(engine, export_svc)
         >>> 
         >>> # Export analyzed data
@@ -82,15 +53,29 @@ class AnalysisService:
         >>> plot_result = analysis_svc.perform_analysis(dataset, params)
     """
     
-    def __init__(self, engine: AnalysisEngine, export_service: type = ExportService):
+    def __init__(self, engine: AnalysisEngine, export_service: ExportService):
         """
         Initialize the analysis service with dependencies.
         
+        Phase 2 Fix: Now properly accepts an ExportService instance,
+        not a class type.
+        
         Args:
             engine: The analysis engine instance for computations
-            export_service: The export service class (typically ExportService)
+            export_service: The export service instance (not a class!)
+            
+        Raises:
+            TypeError: If export_service is not an ExportService instance
         """
         self.engine = engine
+        
+        # Phase 2 Fix: Validate that we received an instance, not a class
+        if not isinstance(export_service, ExportService):
+            raise TypeError(
+                f"export_service must be an ExportService instance, "
+                f"got {type(export_service).__name__}"
+            )
+        
         self.export_service = export_service
     
     # =========================================================================
@@ -174,7 +159,7 @@ class AnalysisService:
                 error_message="No analysis data to export"
             )
         
-        # Export using the export service
+        # Phase 2 Fix: Use instance method instead of static method
         return self.export_service.export_analysis_data(table_data, file_path)
     
     def get_sweep_plot_data(self, dataset: ElectrophysiologyDataset,
@@ -257,6 +242,7 @@ class AnalysisService:
         Returns:
             Suggested filename (not full path)
         """
+        # Phase 2 Fix: Use instance method instead of static method
         return self.export_service.get_suggested_filename(
             source_file_path, params, suffix
         )
@@ -271,6 +257,7 @@ class AnalysisService:
         Returns:
             Tuple of (is_valid, error_message)
         """
+        # Phase 2 Fix: Use instance method instead of static method
         return self.export_service.validate_export_path(file_path)
     
     # =========================================================================

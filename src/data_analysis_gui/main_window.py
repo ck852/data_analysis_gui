@@ -4,27 +4,19 @@ Removed callback patterns and GUI now handles file dialogs directly.
 """
 
 import os
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QComboBox, QCheckBox,
-                             QMessageBox, QGroupBox, QLabel, QSplitter,
-                             QScrollArea, QGridLayout, QProgressBar,
+from typing import Optional
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
+                             QPushButton, QComboBox, QMessageBox, QLabel, QSplitter,
                              QStatusBar, QToolBar, QMenuBar, QMenu,
                              QAction, QActionGroup, QInputDialog, QApplication)
 from PyQt5.QtCore import Qt, QTimer
 
 from data_analysis_gui.core.session_settings import save_last_session, load_last_session
 
-import base64
-from io import BytesIO
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-
 # GUI-only imports
 from data_analysis_gui.plot_manager import PlotManager
 from data_analysis_gui.config import THEMES, get_theme_stylesheet, DEFAULT_SETTINGS
-from data_analysis_gui.dialogs import (BatchResultDialog, 
-                     AnalysisPlotDialog, CurrentDensityIVDialog)
-from data_analysis_gui.widgets import SelectAllSpinBox, NoScrollComboBox
+from data_analysis_gui.dialogs import AnalysisPlotDialog
 from data_analysis_gui.widgets.control_panel import ControlPanel
 from data_analysis_gui.gui_services import FileDialogService
 
@@ -56,8 +48,14 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.current_theme_name = "Light"
         
         # Plot manager for visualization
-        self.plot_manager = PlotManager(self, figure_size=DEFAULT_SETTINGS['plot_figsize'])
-        self.plot_manager.set_drag_callback(self._on_line_dragged)
+        self.plot_manager = PlotManager(figure_size=DEFAULT_SETTINGS['plot_figsize'])
+        
+        # Connect to plot manager signals
+        self.plot_manager.line_state_changed.connect(self._on_plot_line_changed)
+        self.plot_manager.plot_updated.connect(self._on_plot_updated)
+        
+        # MainWindow-owned mapping from plot line IDs to spinboxes
+        self._line_id_to_spinbox = {}
         
         # Dialog references
         self.conc_analysis_dialog = None
@@ -396,10 +394,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
                 range_values['range2_end']
             )
             
-            # Update spinbox mapping for dragging
-            self.plot_manager.update_line_spinbox_map(
-                self.control_panel.get_range_spinboxes()
-            )
+            # Refresh our internal mapping
+            self._update_line_spinbox_mapping()
     
     def _generate_analysis_plot(self):
         """Generate and display analysis plot"""
@@ -426,90 +422,6 @@ class ModernMatSweepAnalyzer(QMainWindow):
             dialog.exec()
         else:
             QMessageBox.warning(self, "No Data", "Please load a MAT file first.")
-    
-    # def _batch_analyze(self):
-    #     """Perform batch analysis"""
-    #     file_paths, _ = QFileDialog.getOpenFileNames(
-    #         self, "Select Files for Batch Analysis", "", 
-    #         "Data files (*.mat *.abf);;MAT files (*.mat);;ABF files (*.abf);;All files (*.*)"
-    #     )
-        
-    #     if not file_paths:
-    #         return
-        
-    #     # Get the shortest max sweep time from all selected files
-    #     min_max_sweep_time = self.controller.get_min_max_sweep_time_for_files(file_paths)
-    #     params = self._collect_parameters()
-
-    #     if params['range1_end'] > min_max_sweep_time or \
-    #        (params['use_dual_range'] and params['range2_end'] > min_max_sweep_time):
-    #         QMessageBox.warning(self, "Invalid Range for Batch Analysis",
-    #                             f"The analysis range is outside the valid time range for at least one of the selected files. "
-    #                             f"Please adjust the analysis range to be within 0 - {min_max_sweep_time:.2f} ms for all files.")
-    #         return
-        
-    #     destination_folder = self._get_batch_output_folder(file_paths)
-    #     if not destination_folder:
-    #         return
-        
-    #     params = self._collect_parameters()
-        
-    #     # Create progress dialog
-    #     progress = self._create_progress_dialog(len(file_paths))
-        
-    #     def update_progress(current, total):
-    #         progress.setValue(current)
-    #         QApplication.processEvents()
-        
-    #     try:
-    #         # Get data from controller
-    #         result = self.controller.perform_batch_analysis(
-    #             file_paths,
-    #             params,
-    #             destination_folder,
-    #             progress_callback=update_progress
-    #         )
-            
-    #         if result.success:
-    #             # Create the plot using PlotService
-    #             from data_analysis_gui.services.plot_service import PlotService
-    #             plot_service = PlotService()
-
-    #             figure, plot_count = plot_service.build_batch_figure(
-    #                 result.batch_result,
-    #                 params,
-    #                 result.x_label,
-    #                 result.y_label
-    #             )
-                
-    #             # Show batch results dialog
-    #             batch_dialog = BatchResultDialog(
-    #                 self, 
-    #                 result.batch_result, 
-    #                 figure,
-    #                 result.iv_data, 
-    #                 result.iv_file_mapping,
-    #                 result.x_label, 
-    #                 result.y_label, 
-    #                 destination_folder=destination_folder,
-    #                 iv_data_range2=result.iv_data_range2,
-    #                 use_dual_range=result.use_dual_range  
-    #             )
-    #             batch_dialog.exec()
-                
-    #             # Update status
-    #             self.status_bar.showMessage(
-    #                 f"Batch complete. Processed {result.successful_count} files, "
-    #                 f"{result.failed_count} failed."
-    #             )
-    #         else:
-    #             QMessageBox.warning(self, "Batch Analysis Failed", 
-    #                             "No files could be processed successfully.")
-        
-    #     except Exception as e:
-    #         QMessageBox.critical(self, "Batch Analysis Error", str(e))
-    #     finally:
-    #         progress.close()
     
     def _swap_channels(self):
         """Handle channel swapping"""
@@ -581,39 +493,82 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         return destination_folder
     
-    def _create_progress_dialog(self, max_value):
-        """Create and configure progress dialog"""
-        progress = QProgressBar()
-        progress.setMaximum(max_value)
-        progress.setWindowTitle("Batch Analysis Progress")
-        progress.show()
-        return progress
-    
     # ============ Pure GUI Methods ============
-    
+
+    def _on_plot_line_changed(self, action: str, line_id: str, value: float):
+        """
+        Handle line state changes from plot manager.
+        Args:
+            action: The type of action ('dragged', 'added', 'removed', 'centered')
+            line_id: The identifier of the line
+            value: The x-position value of the line
+        """
+        if action in ('dragged', 'centered'):
+            # Map line ID to control panel spinbox key
+            spinbox_key = self._map_line_id_to_spinbox_key(line_id)
+            if spinbox_key:
+                self.control_panel.update_range_value(spinbox_key, value)
+        
+        elif action == 'added':
+            # Refresh our mapping when lines are added
+            self._update_line_spinbox_mapping()
+        
+        elif action == 'removed':
+            # Clean up mapping when lines are removed
+            if line_id in self._line_id_to_spinbox:
+                del self._line_id_to_spinbox[line_id]
+
+    def _on_plot_updated(self):
+        """Handle plot update signals from PlotManager."""
+        # Can be used for any UI updates needed after plot changes
+        pass
+
+    def _map_line_id_to_spinbox_key(self, line_id: str) -> Optional[str]:
+        """
+        Map a plot line ID to a control panel spinbox key.
+        Args:
+            line_id: The line identifier from PlotManager
+            
+        Returns:
+            The corresponding spinbox key, or None if not mapped
+        """
+        mapping = {
+            'range1_start': 'start1',
+            'range1_end': 'end1',
+            'range2_start': 'start2',
+            'range2_end': 'end2'
+        }
+        return mapping.get(line_id)
+
+    def _update_line_spinbox_mapping(self):
+        """Build MainWindow's internal mapping of line IDs to spinboxes."""
+        self._line_id_to_spinbox.clear()
+        
+        # Get spinboxes from control panel
+        spinboxes = self.control_panel.get_range_spinboxes()
+        
+        # Map line IDs to spinbox objects
+        id_to_key = {
+            'range1_start': 'start1',
+            'range1_end': 'end1',
+            'range2_start': 'start2',
+            'range2_end': 'end2'
+        }
+        
+        for line_id, spinbox_key in id_to_key.items():
+            if spinbox_key in spinboxes:
+                self._line_id_to_spinbox[line_id] = spinboxes[spinbox_key]
+
     def _toggle_dual_range(self, enabled):
         """Handle dual range toggle from control panel"""
         range_values = self.control_panel.get_range_values()
         self.plot_manager.toggle_dual_range(
             enabled, 
-            range_values['range2_start'], 
-            range_values['range2_end']
+            range_values.get('range2_start', 0) if enabled else 0,
+            range_values.get('range2_end', 100) if enabled else 100
         )
-    
-    def _on_line_dragged(self, line, x_value):
-        """Callback when range lines are dragged"""
-        # Determine which spinbox to update based on the line
-        spinboxes = self.control_panel.get_range_spinboxes()
-        
-        if line == self.plot_manager.range_lines[0]:
-            self.control_panel.update_range_value('start1', x_value)
-        elif line == self.plot_manager.range_lines[1]:
-            self.control_panel.update_range_value('end1', x_value)
-        elif self.control_panel.dual_range_cb.isChecked() and len(self.plot_manager.range_lines) > 2:
-            if line == self.plot_manager.range_lines[2]:
-                self.control_panel.update_range_value('start2', x_value)
-            elif line == self.plot_manager.range_lines[3]:
-                self.control_panel.update_range_value('end2', x_value)
+        # Rebuild our mapping since the number of lines may have changed
+        self._update_line_spinbox_mapping()
     
     def _update_lines_from_entries(self):
         """Update range lines based on control panel values"""
@@ -622,24 +577,18 @@ class ModernMatSweepAnalyzer(QMainWindow):
             range_values['range1_start'],
             range_values['range1_end'],
             range_values['use_dual_range'],
-            range_values['range2_start'],
-            range_values['range2_end']
+            range_values.get('range2_start'),
+            range_values.get('range2_end')
         )
     
     def _center_nearest_cursor(self):
         """Center the nearest cursor line"""
-        line_moved, new_position = self.plot_manager.center_nearest_cursor()
+        line_id, new_position = self.plot_manager.center_nearest_cursor()
         
-        if line_moved and new_position is not None:
-            # Update the corresponding spinbox
-            if line_moved in self.plot_manager.line_spinbox_map:
-                spinbox = self.plot_manager.line_spinbox_map[line_moved]
-                # Find which spinbox and update through control panel
-                spinboxes = self.control_panel.get_range_spinboxes()
-                for key, sb in spinboxes.items():
-                    if sb == spinbox:
-                        self.control_panel.update_range_value(key, new_position)
-                        break
+        if line_id and new_position is not None:
+            spinbox_key = self._map_line_id_to_spinbox_key(line_id)
+            if spinbox_key:
+                self.control_panel.update_range_value(spinbox_key, new_position)
     
     def _start_hold(self, direction_func):
         """Start continuous navigation"""
