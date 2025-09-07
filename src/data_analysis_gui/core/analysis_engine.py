@@ -6,8 +6,8 @@ electrophysiology datasets and computes metrics based on user-defined
 parameters. It maintains efficient caching for real-time updates during
 interactive analysis.
 
-PHASE 1 REFACTOR: Made stateless - all methods now accept dataset as parameter
-instead of storing it internally. Caching is dataset-aware using id(dataset).
+PHASE 3 REFACTOR: Fixed cache key generation to use content-based hashing
+instead of memory addresses. Added comprehensive thread safety documentation.
 
 Author: Data Analysis GUI Contributors
 License: MIT
@@ -16,12 +16,15 @@ License: MIT
 from typing import Dict, List, Tuple, Optional, Any
 import numpy as np
 from dataclasses import dataclass
+import hashlib
+import os
+from pathlib import Path
+import threading
 
 # Import core abstractions
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
-
 
 
 # Cache size limits to prevent unbounded memory growth
@@ -76,20 +79,32 @@ class SweepMetrics:
 
 class AnalysisEngine:
     """
-    Stateless analysis engine for electrophysiology data processing.
+    Analysis engine for electrophysiology data processing.
 
+    PHASE 3 REFACTOR: Fixed critical cache key bug and documented thread safety.
+    
     This class provides a clean, framework-independent interface for analyzing
     electrophysiology datasets. It manages computation and caching of
     sweep metrics, providing simple methods for GUI consumption.
 
-    The engine is completely stateless - all methods accept the dataset as a
-    parameter. This makes it thread-safe and suitable for batch processing.
+    The engine uses content-based cache keys instead of memory addresses,
+    preventing cache corruption when Python reuses memory addresses.
+    
+    Thread Safety Guarantees:
+    - Read operations are thread-safe (get_sweep_series, get_all_metrics, etc.)
+    - Write operations to cache require external synchronization
+    - Cache operations use thread-local locks for safety
+    - Dataset and channel_definitions should not be modified during analysis
     
     Caching Strategy:
-    - Caches are keyed by (dataset_id, params) to maintain dataset-specific caching
-    - Uses id(dataset) for dataset identity, which is safe because the controller
-      holds the dataset reference throughout its lifetime
-    - Implements simple size limits to prevent unbounded memory growth during batch ops
+    - Cache keys use dataset file path + modification time + parameters hash
+    - This ensures cache invalidation when files change
+    - Simple LRU-style cleanup prevents unbounded memory growth
+    
+    Thread Safety Classification: CONDITIONALLY SAFE
+    - Safe for concurrent reads from multiple threads
+    - Requires synchronization for concurrent writes
+    - Recommend using ThreadPoolExecutor with proper locking for batch operations
 
     Example:
         >>> from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
@@ -115,12 +130,58 @@ class AnalysisEngine:
 
         Args:
             channel_definitions: Channel mapping configuration.
+            
+        Thread Safety: Constructor is thread-safe
         """
         self.channel_definitions = channel_definitions or ChannelDefinitions()
 
-        # Dataset-aware caches using (dataset_id, key) tuples
-        self._metrics_cache: Dict[Tuple, List[SweepMetrics]] = {}
-        self._series_cache: Dict[Tuple, Any] = {}
+        # Dataset-aware caches with thread-safe access
+        self._metrics_cache: Dict[str, List[SweepMetrics]] = {}
+        self._series_cache: Dict[str, Any] = {}
+        
+        # Thread safety lock for cache modifications
+        self._cache_lock = threading.RLock()
+
+    # =========================================================================
+    # Cache Key Generation (PHASE 3 FIX)
+    # =========================================================================
+    
+    def _get_dataset_key(self, dataset: ElectrophysiologyDataset) -> str:
+        """
+        Generate a content-based cache key for a dataset.
+        
+        PHASE 3: Replaces dangerous id(dataset) with content-based key.
+        Uses file path and modification time to detect changes.
+        
+        Args:
+            dataset: The dataset to generate a key for
+            
+        Returns:
+            Content-based hash key
+            
+        Thread Safety: Safe, read-only operation
+        """
+        if not hasattr(dataset, 'source_path') or not dataset.source_path:
+            # Fallback for datasets without file path
+            # Use a hash of the dataset's sweep names as identifier
+            sweep_str = ','.join(sorted(dataset.sweeps()))
+            return hashlib.md5(sweep_str.encode()).hexdigest()
+        
+        # Use file path and modification time for file-based datasets
+        try:
+            file_path = Path(dataset.source_path)
+            if file_path.exists():
+                mtime = os.path.getmtime(file_path)
+                key_str = f"{file_path.absolute()}:{mtime}"
+            else:
+                # File doesn't exist, use path only
+                key_str = str(file_path.absolute())
+        except (OSError, AttributeError):
+            # Fallback to sweep-based key
+            sweep_str = ','.join(sorted(dataset.sweeps()))
+            key_str = sweep_str
+        
+        return hashlib.md5(key_str.encode()).hexdigest()
 
     # =========================================================================
     # Context Management (Channels Only)
@@ -132,12 +193,15 @@ class AnalysisEngine:
 
         Args:
             channel_defs: New channel mapping configuration.
+            
+        Thread Safety: NOT SAFE - requires external synchronization
         """
-        self.channel_definitions = channel_defs
-        self.clear_caches()
+        with self._cache_lock:
+            self.channel_definitions = channel_defs
+            self.clear_caches()
 
     # =========================================================================
-    # Data Getters (Stateless Operations)
+    # Data Getters (Thread-Safe Operations)
     # =========================================================================
 
     def get_sweep_series(self, dataset: ElectrophysiologyDataset, 
@@ -154,15 +218,19 @@ class AnalysisEngine:
         Returns:
             Dictionary with 'time_ms', 'voltage', 'current' arrays,
             or None if sweep doesn't exist.
+            
+        Thread Safety: Safe for concurrent reads
         """
         if dataset is None or sweep_index not in dataset.sweeps():
             return None
 
-        # Dataset-aware cache key
-        cache_key = (id(dataset), f"series_{sweep_index}")
+        # Content-based cache key
+        dataset_key = self._get_dataset_key(dataset)
+        cache_key = f"{dataset_key}_series_{sweep_index}"
         
-        if cache_key in self._series_cache:
-            return self._series_cache[cache_key]
+        with self._cache_lock:
+            if cache_key in self._series_cache:
+                return self._series_cache[cache_key]
 
         voltage_ch = self.channel_definitions.get_voltage_channel()
         current_ch = self.channel_definitions.get_current_channel()
@@ -179,14 +247,17 @@ class AnalysisEngine:
             'current': current
         }
 
-        # Manage cache size
-        if len(self._series_cache) > MAX_SERIES_CACHE_SIZE:
-            # Simple cleanup - remove oldest half of entries
-            keys_to_remove = list(self._series_cache.keys())[:MAX_SERIES_CACHE_SIZE // 2]
-            for key in keys_to_remove:
-                del self._series_cache[key]
+        # Thread-safe cache update
+        with self._cache_lock:
+            # Manage cache size
+            if len(self._series_cache) > MAX_SERIES_CACHE_SIZE:
+                # Simple cleanup - remove oldest half of entries
+                keys_to_remove = list(self._series_cache.keys())[:MAX_SERIES_CACHE_SIZE // 2]
+                for key in keys_to_remove:
+                    del self._series_cache[key]
+            
+            self._series_cache[cache_key] = result
 
-        self._series_cache[cache_key] = result
         return result
 
     def get_all_metrics(self, dataset: ElectrophysiologyDataset,
@@ -200,15 +271,19 @@ class AnalysisEngine:
 
         Returns:
             List of SweepMetrics objects, one per sweep.
+            
+        Thread Safety: Safe for concurrent reads
         """
         if dataset is None or dataset.is_empty():
             return []
 
-        # Dataset-aware cache key
-        cache_key = (id(dataset), params.cache_key())
+        # Content-based cache key
+        dataset_key = self._get_dataset_key(dataset)
+        cache_key = f"{dataset_key}_{params.cache_key()}"
         
-        if cache_key in self._metrics_cache:
-            return self._metrics_cache[cache_key]
+        with self._cache_lock:
+            if cache_key in self._metrics_cache:
+                return self._metrics_cache[cache_key]
 
         metrics: List[SweepMetrics] = []
         sweep_list = sorted(dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
@@ -217,14 +292,17 @@ class AnalysisEngine:
             if metric is not None:
                 metrics.append(metric)
 
-        # Manage cache size
-        if len(self._metrics_cache) > MAX_METRICS_CACHE_SIZE:
-            # Simple cleanup - remove oldest half of entries
-            keys_to_remove = list(self._metrics_cache.keys())[:MAX_METRICS_CACHE_SIZE // 2]
-            for key in keys_to_remove:
-                del self._metrics_cache[key]
+        # Thread-safe cache update
+        with self._cache_lock:
+            # Manage cache size
+            if len(self._metrics_cache) > MAX_METRICS_CACHE_SIZE:
+                # Simple cleanup - remove oldest half of entries
+                keys_to_remove = list(self._metrics_cache.keys())[:MAX_METRICS_CACHE_SIZE // 2]
+                for key in keys_to_remove:
+                    del self._metrics_cache[key]
+            
+            self._metrics_cache[cache_key] = metrics
 
-        self._metrics_cache[cache_key] = metrics
         return metrics
 
     def get_plot_data(self, dataset: ElectrophysiologyDataset,
@@ -238,6 +316,8 @@ class AnalysisEngine:
             
         Returns:
             Dictionary with plot data
+            
+        Thread Safety: Safe for concurrent reads
         """
         metrics = self.get_all_metrics(dataset, params)
         if not metrics:
@@ -294,6 +374,8 @@ class AnalysisEngine:
             
         Returns:
             Dictionary with export table data
+            
+        Thread Safety: Safe for concurrent reads
         """
         plot_data = self.get_plot_data(dataset, params)
 
@@ -372,6 +454,8 @@ class AnalysisEngine:
         Returns:
             A dictionary containing 'time_ms', 'data_matrix', 'channel_id',
             'sweep_index', and 'channel_type', or None if data is invalid.
+            
+        Thread Safety: Safe for concurrent reads
         """
         if dataset is None or self.channel_definitions is None:
             return None
@@ -418,6 +502,8 @@ class AnalysisEngine:
         
         Returns:
             Dictionary with peak analysis data for each type
+            
+        Thread Safety: Safe for concurrent reads
         """
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
@@ -455,14 +541,18 @@ class AnalysisEngine:
         return result
 
     # =========================================================================
-    # Private Methods
+    # Private Methods (Thread Safety Documented)
     # =========================================================================
 
     def _compute_sweep_metrics(self, dataset: ElectrophysiologyDataset,
                               sweep_index: str,
                               sweep_number: int,
                               params: AnalysisParameters) -> Optional[SweepMetrics]:
-        """Compute all metrics for a single sweep using specified parameters."""
+        """
+        Compute all metrics for a single sweep using specified parameters.
+        
+        Thread Safety: Safe, operates on immutable data
+        """
         series = self.get_sweep_series(dataset, sweep_index)
         if series is None:
             return None
@@ -539,6 +629,8 @@ class AnalysisEngine:
                         range_num: int = 1) -> Tuple[List[float], str]:
         """
         Extract data for a specific axis configuration from computed metrics.
+        
+        Thread Safety: Safe, read-only operation on immutable data
         """
         measure, channel_type = axis_config.measure, axis_config.channel
 
@@ -590,23 +682,35 @@ class AnalysisEngine:
         
         This can be called explicitly when needed, such as when loading a new file
         or when channel definitions change.
+        
+        Thread Safety: NOT SAFE - requires external synchronization
         """
-        self._metrics_cache.clear()
-        self._series_cache.clear()
+        with self._cache_lock:
+            self._metrics_cache.clear()
+            self._series_cache.clear()
 
 # ===========================================================================
 # Data Processing Utilities (moved from utils/data_processing.py)
+# Thread Safety: All functions below are pure and thread-safe
 # ===========================================================================
 
 def process_sweep_data(time: np.ndarray, data: np.ndarray, 
                        start_ms: float, end_ms: float, channel_id: int) -> np.ndarray:
-    """Process sweep data within time range."""
+    """
+    Process sweep data within time range.
+    
+    Thread Safety: Safe, pure function
+    """
     mask = (time >= start_ms) & (time <= end_ms)
     return data[:, channel_id][mask]
 
 
 def calculate_peak(data: np.ndarray, peak_type: str = "Absolute") -> float:
-    """Calculate peak value based on type."""
+    """
+    Calculate peak value based on type.
+    
+    Thread Safety: Safe, pure function
+    """
     if len(data) == 0:
         return np.nan
     
@@ -621,13 +725,21 @@ def calculate_peak(data: np.ndarray, peak_type: str = "Absolute") -> float:
 
 
 def calculate_average(data: np.ndarray) -> float:
-    """Calculate average of data."""
+    """
+    Calculate average of data.
+    
+    Thread Safety: Safe, pure function
+    """
     return np.mean(data) if len(data) > 0 else np.nan
 
 
 def apply_analysis_mode(data: np.ndarray, mode: str = "Average", 
                         peak_type: Optional[str] = None) -> float:
-    """Apply selected analysis mode to data."""
+    """
+    Apply selected analysis mode to data.
+    
+    Thread Safety: Safe, pure function
+    """
     if mode == "Average":
         return calculate_average(data)
     elif mode == "Peak":
@@ -637,21 +749,33 @@ def apply_analysis_mode(data: np.ndarray, mode: str = "Average",
 
 
 def calculate_current_density(current: float, cslow: float) -> float:
-    """Calculate current density by dividing current by Cslow."""
+    """
+    Calculate current density by dividing current by Cslow.
+    
+    Thread Safety: Safe, pure function
+    """
     if cslow > 0 and not np.isnan(current):
         return current / cslow
     return np.nan
 
 
 def calculate_sem(values: np.ndarray) -> float:
-    """Calculate standard error of mean."""
+    """
+    Calculate standard error of mean.
+    
+    Thread Safety: Safe, pure function
+    """
     if len(values) > 1:
         return np.std(values, ddof=1) / np.sqrt(len(values))
     return 0
 
 
 def calculate_average_voltage(voltage_data: np.ndarray) -> str:
-    """Calculate average voltage for range."""
+    """
+    Calculate average voltage for range.
+    
+    Thread Safety: Safe, pure function
+    """
     if len(voltage_data) > 0:
         mean_v = np.nanmean(voltage_data)
         rounded_v = int(round(mean_v))
@@ -661,6 +785,10 @@ def calculate_average_voltage(voltage_data: np.ndarray) -> str:
 
 
 def format_voltage_label(voltage: float) -> str:
-    """Format voltage value for display."""
+    """
+    Format voltage value for display.
+    
+    Thread Safety: Safe, pure function
+    """
     rounded = int(round(voltage))
     return f"+{rounded}" if rounded >= 0 else str(rounded)

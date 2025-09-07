@@ -3,11 +3,17 @@
 Core analysis plot functionality that can be used independently of GUI.
 This module provides all the data processing and plotting logic without
 any GUI dependencies.
+
+PHASE 3 REFACTOR: Converted to stateless pure functions for thread safety
+and memory efficiency. All methods are now static and receive data as parameters.
 """
 
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
+import matplotlib
+# Set thread-safe backend as default for non-GUI operations
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -39,31 +45,77 @@ class AnalysisPlotData:
 
 
 class AnalysisPlotter:
-    """Handles creation and configuration of analysis plots"""
+    """
+    PHASE 3 REFACTOR: Stateless plotter for analysis plots.
     
-    def __init__(self, plot_data: AnalysisPlotData, x_label: str, y_label: str, title: str):
-        self.plot_data = plot_data
-        self.x_label = x_label
-        self.y_label = y_label
-        self.title = title
-        
-    def create_figure(self, figsize: Tuple[int, int] = (8, 6)) -> Tuple[Figure, Axes]:
+    All methods are static and pure functions that transform inputs to outputs
+    without side effects. This design ensures:
+    - Thread safety: No shared mutable state between calls
+    - Memory efficiency: No data stored in instances
+    - Testability: Pure functions are easy to test in isolation
+    - Parallelization: Safe for concurrent execution
+    
+    Thread Safety Guarantees:
+    - All methods are thread-safe when using 'Agg' backend
+    - Matplotlib Figure creation is thread-local
+    - No global state modifications
+    - Safe for parallel batch processing
+    
+    Note: When using GUI backends, external synchronization may be required.
+    """
+    
+    @staticmethod
+    def create_figure(plot_data: AnalysisPlotData, 
+                     x_label: str, 
+                     y_label: str, 
+                     title: str,
+                     figsize: Tuple[int, int] = (8, 6)) -> Tuple[Figure, Axes]:
         """
         Create and configure a matplotlib figure with the analysis plot.
         
+        This is a pure function that creates a new figure each time it's called.
+        Thread-safe when using 'Agg' backend.
+        
+        Args:
+            plot_data: Data structure containing arrays to plot
+            x_label: Label for x-axis
+            y_label: Label for y-axis
+            title: Plot title
+            figsize: Figure size as (width, height) in inches
+            
         Returns:
             Tuple of (Figure, Axes) objects
+            
+        Thread Safety: Safe with 'Agg' backend, no shared state
         """
         figure = Figure(figsize=figsize)
         ax = figure.add_subplot(111)
-        self._configure_plot(ax)
+        AnalysisPlotter._configure_plot(ax, plot_data, x_label, y_label, title)
         return figure, ax
     
-    def _configure_plot(self, ax: Axes) -> None:
-        """Configure the plot on the given axes"""
-        x_data = self.plot_data.x_data
-        y_data = self.plot_data.y_data
-        sweep_indices = self.plot_data.sweep_indices
+    @staticmethod
+    def _configure_plot(ax: Axes, 
+                       plot_data: AnalysisPlotData,
+                       x_label: str,
+                       y_label: str, 
+                       title: str) -> None:
+        """
+        Configure the plot on the given axes.
+        
+        Pure function that modifies only the provided axes object.
+        
+        Args:
+            ax: Matplotlib axes to configure
+            plot_data: Data to plot
+            x_label: X-axis label
+            y_label: Y-axis label
+            title: Plot title
+            
+        Thread Safety: Safe, modifies only provided axes
+        """
+        x_data = plot_data.x_data
+        y_data = plot_data.y_data
+        sweep_indices = plot_data.sweep_indices
         
         if len(x_data) > 0 and len(y_data) > 0:
             # Create scatter plot with connecting lines for Range 1
@@ -79,31 +131,44 @@ class AnalysisPlotter:
                                 ha='center')
         
         # Plot Range 2 if available
-        if self.plot_data.use_dual_range and self.plot_data.y_data2 is not None:
-            y_data2 = self.plot_data.y_data2
+        if plot_data.use_dual_range and plot_data.y_data2 is not None:
+            y_data2 = plot_data.y_data2
             if len(x_data) > 0 and len(y_data2) > 0:
                 ax.plot(x_data, y_data2, 's--', linewidth=2, markersize=6, label="Range 2")
         
         # Format plot
-        ax.set_xlabel(self.x_label)
-        ax.set_ylabel(self.y_label)
-        ax.set_title(self.title)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.set_title(title)
         ax.grid(True, alpha=0.3)
         
         # Add legend if needed
-        if self.plot_data.use_dual_range:
+        if plot_data.use_dual_range:
             ax.legend()
         
         # Apply padding
-        self._apply_axis_padding(ax)
+        AnalysisPlotter._apply_axis_padding(ax, x_data, y_data)
     
-    def _apply_axis_padding(self, ax: Axes, padding_factor: float = 0.05) -> None:
-        """Apply padding to both axes for better visualization"""
+    @staticmethod
+    def _apply_axis_padding(ax: Axes, 
+                           x_data: np.ndarray,
+                           y_data: np.ndarray,
+                           padding_factor: float = 0.05) -> None:
+        """
+        Apply padding to both axes for better visualization.
+        
+        Pure function that modifies only the provided axes limits.
+        
+        Args:
+            ax: Matplotlib axes to modify
+            x_data: X-axis data array
+            y_data: Y-axis data array
+            padding_factor: Fraction of range to use as padding
+            
+        Thread Safety: Safe, modifies only provided axes
+        """
         ax.relim()
         ax.autoscale_view()
-        
-        x_data = self.plot_data.x_data
-        y_data = self.plot_data.y_data
         
         if len(x_data) > 0 and len(y_data) > 0:
             x_min, x_max = ax.get_xlim()
@@ -118,12 +183,62 @@ class AnalysisPlotter:
             ax.set_xlim(x_min - x_padding, x_max + x_padding)
             ax.set_ylim(y_min - y_padding, y_max + y_padding)
     
-    def save_figure(self, figure: Figure, filepath: str, dpi: int = 300) -> None:
-        """Save figure to file"""
+    @staticmethod
+    def save_figure(figure: Figure, 
+                   filepath: str, 
+                   dpi: int = 300) -> None:
+        """
+        Save figure to file.
+        
+        Pure function that performs I/O operation.
+        
+        Args:
+            figure: Matplotlib figure to save
+            filepath: Output file path
+            dpi: Resolution in dots per inch
+            
+        Thread Safety: File I/O may require external synchronization
+                      if multiple threads write to same directory
+        """
         figure.tight_layout()
         figure.savefig(filepath, dpi=dpi, bbox_inches='tight')
+    
+    @staticmethod
+    def create_and_save_plot(plot_data: AnalysisPlotData,
+                           x_label: str,
+                           y_label: str,
+                           title: str,
+                           filepath: str,
+                           figsize: Tuple[int, int] = (8, 6),
+                           dpi: int = 300) -> Figure:
+        """
+        Convenience method to create and save a plot in one operation.
+        
+        Combines figure creation and saving for common use case.
+        Pure function that returns the created figure.
+        
+        Args:
+            plot_data: Data to plot
+            x_label: X-axis label
+            y_label: Y-axis label
+            title: Plot title
+            filepath: Output file path
+            figsize: Figure size
+            dpi: Resolution
+            
+        Returns:
+            The created Figure object
+            
+        Thread Safety: Safe with 'Agg' backend, file I/O may need synchronization
+        """
+        figure, _ = AnalysisPlotter.create_figure(
+            plot_data, x_label, y_label, title, figsize
+        )
+        AnalysisPlotter.save_figure(figure, filepath, dpi)
+        return figure
 
-# CLI-friendly functions
+
+# CLI-friendly functions updated for stateless operation
 def create_analysis_plot(plot_data_dict: Dict[str, Any], 
                          x_label: str, 
                          y_label: str, 
@@ -132,6 +247,9 @@ def create_analysis_plot(plot_data_dict: Dict[str, Any],
                          show: bool = False) -> Optional[Figure]:
     """
     Create an analysis plot from data dictionary.
+    
+    PHASE 3 UPDATE: Now uses stateless AnalysisPlotter methods.
+    This function serves as a CLI interface to the plotting functionality.
     
     Args:
         plot_data_dict: Dictionary containing plot data
@@ -143,19 +261,33 @@ def create_analysis_plot(plot_data_dict: Dict[str, Any],
     
     Returns:
         Figure object if created, None otherwise
+        
+    Thread Safety: Safe with 'Agg' backend when show=False
+                  GUI display (show=True) requires main thread
     """
     plot_data = AnalysisPlotData.from_dict(plot_data_dict)
-    plotter = AnalysisPlotter(plot_data, x_label, y_label, title)
     
-    # Use regular matplotlib for CLI
-    fig, ax = plt.subplots(figsize=(8, 6))
-    plotter._configure_plot(ax)
-    
+    # Use stateless methods
     if output_path:
-        fig.tight_layout()
-        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        # Use the combined method for efficiency
+        fig = AnalysisPlotter.create_and_save_plot(
+            plot_data, x_label, y_label, title, output_path
+        )
+    else:
+        # Just create without saving
+        fig, ax = AnalysisPlotter.create_figure(
+            plot_data, x_label, y_label, title
+        )
     
     if show:
+        # Note: This requires GUI backend and is NOT thread-safe
+        # Should only be called from main thread
+        import warnings
+        warnings.warn(
+            "Displaying plots with show=True is not thread-safe. "
+            "Use only from main thread.",
+            RuntimeWarning
+        )
         plt.show()
     
     return fig

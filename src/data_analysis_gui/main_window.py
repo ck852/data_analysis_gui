@@ -104,10 +104,10 @@ class ModernMatSweepAnalyzer(QMainWindow):
         
         file_menu.addSeparator()
         
-        batch_action = QAction('Batch Analysis', self)
-        batch_action.setShortcut('Ctrl+B')
-        batch_action.triggered.connect(self._batch_analyze)
-        file_menu.addAction(batch_action)
+        # batch_action = QAction('Batch Analysis', self)
+        # batch_action.setShortcut('Ctrl+B')
+        # batch_action.triggered.connect(self._batch_analyze)
+        # file_menu.addAction(batch_action)
         
         file_menu.addSeparator()
         
@@ -160,9 +160,9 @@ class ModernMatSweepAnalyzer(QMainWindow):
         toolbar.addSeparator()
         
         # Batch analysis button
-        self.batch_btn = QPushButton("Batch Analysis")
-        self.batch_btn.clicked.connect(self._batch_analyze)
-        toolbar.addWidget(self.batch_btn)
+        # self.batch_btn = QPushButton("Batch Analysis")
+        # self.batch_btn.clicked.connect(self._batch_analyze)
+        # toolbar.addWidget(self.batch_btn)
     
     def _add_navigation_controls(self, toolbar):
         """Add navigation controls to toolbar"""
@@ -331,8 +331,8 @@ class ModernMatSweepAnalyzer(QMainWindow):
         self.sweep_combo.addItems(file_info.sweep_names)
         
         # Enable controls
-        self.batch_btn.setEnabled(True)
-        self.control_panel.set_controls_enabled(True)
+        # self.batch_btn.setEnabled(True)
+        # self.control_panel.set_controls_enabled(True)
         
         # Check if we need to apply swap state
         needs_swap = False

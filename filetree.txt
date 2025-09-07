@@ -1,4 +1,5 @@
 streamlining/
+|-- batch/
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/
@@ -223,8 +224,6 @@ streamlining/
 |   |               |-- 240809_001[1-12].mat
 |   |               |-- 240809_002[1-12].mat
 |   |               `-- 240809_003[1-12].mat
-|   |-- test_app_controller_export.py
-|   |-- test_export_service.py
 |   `-- test_single_export.py
 |-- filetree.txt
 |-- filetree_full.py
@@ -232,4 +231,5 @@ streamlining/
 |-- pytest.ini
 |-- README.md
 |-- requirements-test.txt
-`-- requirements.txt
+|-- requirements.txt
+`-- THREAD_SAFETY.md

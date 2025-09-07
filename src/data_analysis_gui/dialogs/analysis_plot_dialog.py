@@ -1,7 +1,7 @@
 # src/data_analysis_gui/dialogs/analysis_plot_dialog.py
 """
 GUI dialog for displaying analysis plots.
-Phase 3: Updated to handle file dialog directly without callbacks.
+Phase 3: Updated to use stateless AnalysisPlotter methods.
 """
 
 import os
@@ -12,20 +12,25 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 # Core imports - all data processing is delegated to these
-
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
 from data_analysis_gui.services.export_business_service import ExportService
-from data_analysis_gui.core.models import AnalysisPlotData
+from data_analysis_gui.core.models import AnalysisPlotData as ModelAnalysisPlotData
 from data_analysis_gui.gui_services import FileDialogService
 
 
 class AnalysisPlotDialog(QDialog):
-    """Dialog for displaying analysis plot in a separate window"""
+    """
+    Dialog for displaying analysis plot in a separate window.
+    
+    PHASE 3 UPDATE: Now uses stateless AnalysisPlotter methods instead of
+    instantiating a plotter object. This reduces memory usage and ensures
+    thread safety for future parallel processing.
+    """
     
     def __init__(self, parent, plot_data, x_label, y_label, title, controller=None, params=None):
         super().__init__(parent)
 
-        self.plot_data = plot_data
+        # Store data and labels directly (no plotter instance)
         self.x_label = x_label
         self.y_label = y_label
         self.plot_title = title
@@ -37,14 +42,14 @@ class AnalysisPlotDialog(QDialog):
         # Initialize GUI service for file operations
         self.file_dialog_service = FileDialogService()
 
-        # Create the core plotter instance
-        from data_analysis_gui.core.analysis_plot import AnalysisPlotData
+        # Convert plot data to AnalysisPlotData if needed
         if isinstance(plot_data, dict):
             self.plot_data_obj = AnalysisPlotData.from_dict(plot_data)
         else:
             self.plot_data_obj = plot_data
         
-        self.plotter = AnalysisPlotter(self.plot_data_obj, x_label, y_label, title)
+        # PHASE 3: No longer create plotter instance
+        # self.plotter = AnalysisPlotter(self.plot_data_obj, x_label, y_label, title)
         
         self.setWindowTitle("Analysis Plot")
         self.setGeometry(200, 200, 800, 600)
@@ -54,8 +59,14 @@ class AnalysisPlotDialog(QDialog):
         """Initialize the user interface"""
         layout = QVBoxLayout(self)
         
-        # Create plot using core module
-        self.figure, self.ax = self.plotter.create_figure(figsize=(8, 6))
+        # PHASE 3: Use static method to create plot
+        self.figure, self.ax = AnalysisPlotter.create_figure(
+            self.plot_data_obj,
+            self.x_label, 
+            self.y_label,
+            self.plot_title,
+            figsize=(8, 6)
+        )
         self.canvas = FigureCanvas(self.figure)
         
         # Create toolbar
@@ -70,7 +81,8 @@ class AnalysisPlotDialog(QDialog):
         # Add export buttons
         button_layout = QHBoxLayout()
         
-        # export_img_btn = QPushButton("Export Plot Image")  #Removing export plot image option
+        # Export plot image button (if needed in future)
+        # export_img_btn = QPushButton("Export Plot Image")
         # export_img_btn.clicked.connect(self.export_plot_image)
         # button_layout.addWidget(export_img_btn)
         
@@ -81,14 +93,26 @@ class AnalysisPlotDialog(QDialog):
         button_layout.addStretch()
         layout.addLayout(button_layout)
     
-    # def export_plot_image(self):
-    #     """Export plot as image using centralized service"""
-    #     result = PlotExportService.export_plot_image(
-    #         figure=self.figure,
-    #         parent=self,
-    #         default_path="analysis_plot.png",
-    #         title="Export Plot"
-    #     )
+    def export_plot_image(self):
+        """
+        Export plot as image using stateless plotter.
+        
+        PHASE 3: Updated to use static save_figure method.
+        """
+        file_path = self.file_dialog_service.get_export_path(
+            parent=self,
+            suggested_name="analysis_plot.png",
+            file_types="PNG files (*.png);;All files (*.*)"
+        )
+        
+        if file_path:
+            # Use static method to save
+            AnalysisPlotter.save_figure(self.figure, file_path, dpi=300)
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Plot saved to {os.path.basename(file_path)}"
+            )
     
     def export_data(self):
         """
@@ -98,6 +122,11 @@ class AnalysisPlotDialog(QDialog):
         """
         if not self.controller or not self.params:
             # Fallback to basic export if controller not available
+            QMessageBox.warning(
+                self,
+                "Export Error",
+                "Export functionality requires controller context"
+            )
             return
         
         # Get suggested filename from controller
@@ -114,11 +143,16 @@ class AnalysisPlotDialog(QDialog):
             # Export through controller
             result = self.controller.export_analysis_data(self.params, file_path)
             
-            # Show result (could use parent's status bar or a message)
+            # Show result
             if result.success:
-                from PyQt5.QtWidgets import QMessageBox
                 QMessageBox.information(
                     self, 
                     "Export Successful", 
                     f"Exported {result.records_exported} records"
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Export Failed",
+                    f"Export failed: {result.error_message}"
                 )
