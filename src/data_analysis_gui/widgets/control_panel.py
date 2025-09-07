@@ -368,42 +368,35 @@ class ControlPanel(QWidget):
 
     # --- PHASE 4: New method to create AnalysisParameters directly ---
     
-    def create_parameters(self) -> AnalysisParameters:
+    def get_parameters(self) -> AnalysisParameters:
         """
-        Create AnalysisParameters directly from GUI state.
-        
-        PHASE 4: Returns AnalysisParameters object directly,
-        eliminating the dictionary intermediate for type safety
-        and cleaner architecture.
+        Get analysis parameters as a proper typed object.
         
         Returns:
-            AnalysisParameters configured from current GUI state
+            AnalysisParameters object with current control values
         """
-        # Determine peak type based on measure selection
+        from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
+        
+        # Determine peak mode
         peak_mode = self.peak_mode_combo.currentText()
         
-        # Create x-axis configuration
+        # Create X-axis config
+        x_measure = self.x_measure_combo.currentText()
         x_axis = AxisConfig(
-            measure=self.x_measure_combo.currentText(),
-            channel=self.x_channel_combo.currentText() if self.x_measure_combo.currentText() != "Time" else None,
-            peak_type=peak_mode if self.x_measure_combo.currentText() == "Peak" else None
+            measure=x_measure,
+            channel=self.x_channel_combo.currentText() if x_measure != "Time" else None,
+            peak_type=peak_mode if x_measure == "Peak" else None
         )
         
-        # Create y-axis configuration
+        # Create Y-axis config
+        y_measure = self.y_measure_combo.currentText()
         y_axis = AxisConfig(
-            measure=self.y_measure_combo.currentText(),
-            channel=self.y_channel_combo.currentText() if self.y_measure_combo.currentText() != "Time" else None,
-            peak_type=peak_mode if self.y_measure_combo.currentText() == "Peak" else None
+            measure=y_measure,
+            channel=self.y_channel_combo.currentText() if y_measure != "Time" else None,
+            peak_type=peak_mode if y_measure == "Peak" else None
         )
         
-        # Build channel configuration
-        channel_config = {
-            'channels_swapped': self._is_swapped,
-            'voltage': 1 if self._is_swapped else 0,
-            'current': 0 if self._is_swapped else 1
-        }
-        
-        # Create and return parameters
+        # Return clean parameters object
         return AnalysisParameters(
             range1_start=self.start_spin.value(),
             range1_end=self.end_spin.value(),
@@ -413,7 +406,7 @@ class ControlPanel(QWidget):
             stimulus_period=self.period_spin.value(),
             x_axis=x_axis,
             y_axis=y_axis,
-            channel_config=channel_config
+            channel_config={'channels_swapped': self._is_swapped}
         )
 
     # --- Public methods for data access and updates ---

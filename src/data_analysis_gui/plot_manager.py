@@ -86,8 +86,8 @@ class PlotManager(QObject):
 
     def _initialize_range_lines(self) -> None:
         """Initializes default range lines on the plot."""
-        for line in self.range_lines:
-            line.remove()
+        # Clear existing lines WITHOUT trying to remove them from axes
+        # (they may not be attached, causing the error)
         self.range_lines.clear()
         self._line_ids.clear()
 
@@ -156,22 +156,25 @@ class PlotManager(QObject):
         start2: Optional[float] = None,
         end2: Optional[float] = None,
     ) -> None:
-        """
-        Updates the positions of the draggable range lines.
-
-        Args:
-            start1: The start position for the first range (green lines).
-            end1: The end position for the first range (green lines).
-            use_dual_range: Flag to enable the second range (red lines).
-            start2: The start position for the second range.
-            end2: The end position for the second range.
-        """
+        """Updates the positions of the draggable range lines."""
+        # Make sure we have at least 2 lines
         if len(self.range_lines) < 2:
-            self._initialize_range_lines()
-
-        # Update Range 1 lines
-        self.range_lines[0].set_xdata([start1, start1])
-        self.range_lines[1].set_xdata([end1, end1])
+            # Don't call _initialize_range_lines since it might cause issues
+            # Just add the missing lines directly
+            if len(self.range_lines) == 0:
+                line1 = self.ax.axvline(start1, color='green', linestyle='-', picker=5, linewidth=2)
+                line2 = self.ax.axvline(end1, color='green', linestyle='-', picker=5, linewidth=2)
+                self.range_lines.extend([line1, line2])
+                self._line_ids[line1] = 'range1_start'
+                self._line_ids[line2] = 'range1_end'
+            elif len(self.range_lines) == 1:
+                line2 = self.ax.axvline(end1, color='green', linestyle='-', picker=5, linewidth=2)
+                self.range_lines.append(line2)
+                self._line_ids[line2] = 'range1_end'
+        else:
+            # Update existing Range 1 lines
+            self.range_lines[0].set_xdata([start1, start1])
+            self.range_lines[1].set_xdata([end1, end1])
 
         has_second_range = len(self.range_lines) == 4
         
@@ -185,7 +188,6 @@ class PlotManager(QObject):
                 self._line_ids[line3] = 'range2_start'
                 self._line_ids[line4] = 'range2_end'
                 
-                # Emit signals for new lines
                 self.line_state_changed.emit('added', 'range2_start', start2)
                 self.line_state_changed.emit('added', 'range2_end', end2)
             else:
@@ -193,19 +195,25 @@ class PlotManager(QObject):
                 self.range_lines[2].set_xdata([start2, start2])
                 self.range_lines[3].set_xdata([end2, end2])
         elif not use_dual_range and has_second_range:
-            # Remove Range 2 lines
+            # Remove Range 2 lines safely
             line4 = self.range_lines.pop()
             line3 = self.range_lines.pop()
             
-            # Emit removal signals
-            self.line_state_changed.emit('removed', self._line_ids[line3], line3.get_xdata()[0])
-            self.line_state_changed.emit('removed', self._line_ids[line4], line4.get_xdata()[0])
+            # Emit removal signals before removing
+            self.line_state_changed.emit('removed', self._line_ids.get(line3, 'range2_start'), line3.get_xdata()[0])
+            self.line_state_changed.emit('removed', self._line_ids.get(line4, 'range2_end'), line4.get_xdata()[0])
             
-            # Clean up
-            del self._line_ids[line3]
-            del self._line_ids[line4]
-            line3.remove()
-            line4.remove()
+            # Remove from tracking
+            if line3 in self._line_ids:
+                del self._line_ids[line3]
+            if line4 in self._line_ids:
+                del self._line_ids[line4]
+            
+            # Remove from axes if they're attached
+            if line3.axes:
+                line3.remove()
+            if line4.axes:
+                line4.remove()
 
         self.redraw()
         logger.debug("Updated range lines.")
@@ -274,8 +282,24 @@ class PlotManager(QObject):
 
     def clear(self) -> None:
         """Clears the plot axes completely."""
+        # Clear axes - this removes all artists including lines
         self.ax.clear()
-        self._initialize_range_lines()
+        
+        # Reset line tracking (don't try to remove already-removed lines)
+        self.range_lines.clear()
+        self._line_ids.clear()
+        
+        # Re-add default range lines
+        line1 = self.ax.axvline(150, color='green', linestyle='-', picker=5, linewidth=2)
+        line2 = self.ax.axvline(500, color='green', linestyle='-', picker=5, linewidth=2)
+        
+        self.range_lines.extend([line1, line2])
+        self._line_ids[line1] = 'range1_start'
+        self._line_ids[line2] = 'range1_end'
+        
+        self.line_state_changed.emit('added', 'range1_start', 150)
+        self.line_state_changed.emit('added', 'range1_end', 500)
+        
         self.redraw()
         self.plot_updated.emit()
         logger.info("Plot cleared.")

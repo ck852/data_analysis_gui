@@ -144,12 +144,10 @@ class ApplicationController:
     
     def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
         """
-        Perform analysis on the current dataset.
-        
-        PHASE 2: Delegates to AnalysisService which now has proper dependency injection.
+        Perform analysis with typed parameters.
         
         Args:
-            params: Analysis parameters
+            params: AnalysisParameters object (not a dict!)
             
         Returns:
             AnalysisResult with plot data, or None if no data
@@ -157,22 +155,19 @@ class ApplicationController:
         if not self.has_data():
             return None
         
-        # Delegate to service - single line with proper DI!
+        # Direct delegation - clean!
         return self.analysis_service.perform_analysis(self.current_dataset, params)
-    
-    def export_analysis_data(self, params: AnalysisParameters, 
-                            file_path: str) -> ExportResult:
+
+    def export_analysis_data(self, params: AnalysisParameters, file_path: str) -> ExportResult:
         """
-        Export analyzed data to a file.
-        
-        PHASE 2: Delegates to AnalysisService which now uses ExportService instance.
+        Export with typed parameters.
         
         Args:
-            params: Analysis parameters
+            params: AnalysisParameters object (not a dict!)
             file_path: Complete path for export
             
         Returns:
-            ExportResult with success status and details
+            ExportResult with success status
         """
         if not self.has_data():
             return ExportResult(
@@ -180,7 +175,7 @@ class ApplicationController:
                 error_message="No data loaded"
             )
         
-        # Delegate to service - single line with proper DI!
+        # Direct delegation - clean!
         return self.analysis_service.export_analysis(self.current_dataset, params, file_path)
     
     def get_sweep_plot_data(self, sweep_index: str, 
@@ -229,19 +224,17 @@ class ApplicationController:
     
     def get_suggested_export_filename(self, params: AnalysisParameters) -> str:
         """
-        Get a suggested filename for export.
-        
-        PHASE 2: Delegates to AnalysisService which uses ExportService instance.
+        Get suggested filename with typed parameters.
         
         Args:
-            params: Analysis parameters for context-aware naming
+            params: AnalysisParameters object (not a dict!)
             
         Returns:
             Suggested filename
         """
         source_path = self.loaded_file_path or "analysis"
         
-        # Delegate to service with proper instance method call
+        # Direct delegation - clean!
         return self.analysis_service.get_suggested_export_filename(source_path, params)
     
     # =========================================================================
