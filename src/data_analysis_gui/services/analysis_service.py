@@ -125,7 +125,8 @@ class AnalysisService:
                 details={'params': str(params)}
             )
         
-        if not plot_data.get('x_data') or len(plot_data.get('x_data', [])) == 0:
+        # Check if 'x_data' is not present or if its length is zero
+        if 'x_data' not in plot_data or len(plot_data['x_data']) == 0:
             raise ProcessingError(
                 "Analysis produced empty results",
                 details={

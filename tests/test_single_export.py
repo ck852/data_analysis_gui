@@ -237,13 +237,14 @@ class TestExportWorkflow:
         # Get the analysis result (before export)
         analysis_result = controller.perform_analysis(params)
         assert analysis_result is not None, "Analysis returned None"
+        assert analysis_result.data.use_dual_range == False, "Dual range should be False"
         
         # Verify analysis result structure
-        assert len(analysis_result.x_data) == 11, f"Expected 11 x-values, got {len(analysis_result.x_data)}"
-        assert len(analysis_result.y_data) == 11, f"Expected 11 y-values, got {len(analysis_result.y_data)}"
-        assert analysis_result.x_label == "Average Voltage (mV)", f"X label mismatch: {analysis_result.x_label}"
-        assert analysis_result.y_label == "Average Current (pA)", f"Y label mismatch: {analysis_result.y_label}"
-        assert analysis_result.use_dual_range == False, "Dual range should be False"
+        assert len(analysis_result.data.x_data) == 11, f"Expected 11 x-values, got {len(analysis_result.data.x_data)}"
+        assert len(analysis_result.data.y_data) == 11, f"Expected 11 y-values, got {len(analysis_result.data.y_data)}"
+        assert analysis_result.data.x_label == "Average Voltage (mV)", f"X label mismatch: {analysis_result.data.x_label}"
+        assert analysis_result.data.y_label == "Average Current (pA)", f"Y label mismatch: {analysis_result.data.y_label}"
+        assert analysis_result.data.use_dual_range == False, "Dual range should be False"
         
         # Verify that export produces the same data
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -258,7 +259,7 @@ class TestExportWorkflow:
             # X data should match first column
             np.testing.assert_allclose(
                 exported_data[:, 0], 
-                analysis_result.x_data,
+                analysis_result.data.x_data,
                 rtol=1e-6,
                 err_msg="Exported X data doesn't match analysis result"
             )
@@ -266,7 +267,7 @@ class TestExportWorkflow:
             # Y data should match second column  
             np.testing.assert_allclose(
                 exported_data[:, 1],
-                analysis_result.y_data,
+                analysis_result.data.y_data,
                 rtol=1e-6,
                 err_msg="Exported Y data doesn't match analysis result"
             )

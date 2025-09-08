@@ -11,10 +11,11 @@ Author: Data Analysis GUI Contributors
 License: MIT
 """
 
-import os
+
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass
+from data_analysis_gui.core.analysis_engine import create_analysis_engine
 
 # Core imports
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
@@ -77,17 +78,16 @@ class ApplicationController:
     """
     
     def __init__(self):
-        """Initialize the controller with all required services."""
         # Application state
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
         
         # Channel management
         self.channel_definitions = ChannelDefinitions()
-        
-        # Initialize the analysis engine
-        self.engine = AnalysisEngine(self.channel_definitions)
-        
+
+        # Initialize the analysis engine using the factory function
+        self.engine = create_analysis_engine(self.channel_definitions)
+
         # Create services using factory
         self.dataset_service = ServiceFactory.create_dataset_service()
         export_service = ServiceFactory.create_export_service()
