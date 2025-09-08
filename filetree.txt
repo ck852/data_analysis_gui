@@ -25,6 +25,7 @@ streamlining/
 |       |   |-- dataset_identifier.py
 |       |   |-- exceptions.py
 |       |   |-- exporter.py
+|       |   |-- interfaces.py
 |       |   |-- iv_analysis.py
 |       |   |-- metrics_calculator.py
 |       |   |-- models.py
@@ -38,12 +39,15 @@ streamlining/
 |       |-- gui_services/
 |       |   |-- __init__.py
 |       |   `-- file_dialog_service.py
+|       |-- infrastructure/
+|       |   `-- file_io.py
 |       |-- services/
 |       |   |-- __init__.py
 |       |   |-- analysis_service.py
-|       |   |-- export_business_service.py
-|       |   |-- loader_service.py
-|       |   `-- plot_service.py
+|       |   |-- dataset_service.py
+|       |   |-- export_service.py
+|       |   |-- plot_service.py
+|       |   `-- service_factory.py
 |       |-- widgets/
 |       |   |-- __init__.py
 |       |   |-- control_panel.py

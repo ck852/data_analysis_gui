@@ -13,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 # Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
-from data_analysis_gui.services.export_business_service import ExportService
+from data_analysis_gui.services.export_service import ExportService
 from data_analysis_gui.core.models import AnalysisPlotData as ModelAnalysisPlotData
 from data_analysis_gui.gui_services import FileDialogService
 
