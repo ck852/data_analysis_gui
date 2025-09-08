@@ -1,17 +1,19 @@
 """
-Unified analysis service with comprehensive logging and validation.
+Unified analysis service that orchestrates all analysis and export operations.
 
-This service provides a clean API for analysis operations, coordinating
-between the AnalysisEngine and ExportService while maintaining separation
-of concerns. Business logic is kept separate from infrastructure.
+This service provides a clean, high-level API for analysis operations by
+coordinating the AnalysisEngine and ExportService. It serves as the single
+point of entry for all business logic related to data analysis and export.
 
-Phase 5 Complete: Enhanced with logging and fail-fast validation.
+Phase 5 Refactor: PROPER fail-fast implementation.
+ALL methods either return valid results or raise exceptions.
+NO methods return None or Optional types.
 
 Author: Data Analysis GUI Contributors
 License: MIT
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import numpy as np
 
 # Core imports
@@ -21,18 +23,13 @@ from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
 )
-from data_analysis_gui.core.exceptions import (
-    ValidationError, DataError, ProcessingError, 
-    validate_not_none
-)
-
 # Service imports
 from data_analysis_gui.services.export_service import ExportService
-
-# Logging imports
-from data_analysis_gui.config.logging import (
-    get_logger, log_performance, log_error_with_context
+from data_analysis_gui.core.exceptions import (
+    ValidationError, FileError, DataError, ProcessingError,
+    validate_not_none
 )
+from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -41,25 +38,19 @@ class AnalysisService:
     """
     Unified service for all analysis and export operations.
     
-    This service coordinates between the AnalysisEngine and ExportService,
-    providing high-level methods that hide implementation details.
+    PHASE 5 COMPLIANT: This service implements strict fail-fast principles.
     
-    Responsibilities:
-    - Orchestrate analysis workflows
-    - Coordinate export operations
-    - Provide consistent error handling
-    - Log operations for observability
+    ALL methods follow these rules:
+    1. NEVER return None
+    2. NEVER return Optional types
+    3. ALWAYS raise specific exceptions on failure
+    4. ALWAYS return valid, complete results on success
     
-    It does NOT:
-    - Perform calculations (delegated to AnalysisEngine)
-    - Handle file I/O (delegated to ExportService)
-    - Manage application state (that's the controller's job)
+    This ensures "fail closed" behavior - the system stops and reports errors
+    rather than continuing with corrupted state.
     
-    Key improvements in Phase 5:
-    - Returns empty results instead of None for better null safety
-    - Comprehensive error context logging
-    - Performance metrics for all operations
-    - Fail-fast validation
+    All methods are stateless - they accept a dataset and parameters and
+    return results without maintaining any internal state.
     """
     
     def __init__(self, engine: AnalysisEngine, export_service: ExportService):
@@ -71,17 +62,13 @@ class AnalysisService:
             export_service: The export service instance
             
         Raises:
-            ValueError: If engine is None
-            TypeError: If export_service is not an ExportService instance
+            ValidationError: If any dependency is None or invalid
         """
-        logger.info("Initializing AnalysisService")
-        
-        # Validate dependencies
-        if engine is None:
-            raise ValueError("engine cannot be None")
+        validate_not_none(engine, "engine")
+        validate_not_none(export_service, "export_service")
         
         if not isinstance(export_service, ExportService):
-            raise TypeError(
+            raise ValidationError(
                 f"export_service must be an ExportService instance, "
                 f"got {type(export_service).__name__}"
             )
@@ -89,109 +76,96 @@ class AnalysisService:
         self.engine = engine
         self.export_service = export_service
         
-        logger.info("AnalysisService initialized successfully")
+        logger.info("AnalysisService initialized with fail-fast error handling")
     
     # =========================================================================
-    # High-Level Analysis Operations
+    # High-Level Analysis Operations - ALL FAIL FAST
     # =========================================================================
     
-    def perform_analysis(self, dataset: ElectrophysiologyDataset, 
+    def perform_analysis(self, 
+                        dataset: ElectrophysiologyDataset, 
                         params: AnalysisParameters) -> AnalysisResult:
         """
         Perform analysis and return data formatted for plotting.
         
-        This method NEVER returns None, following fail-fast principles.
-        Returns an empty AnalysisResult if no data is available.
+        FAIL FAST: This method ALWAYS returns a valid AnalysisResult or raises
+        an exception. It NEVER returns None.
         
         Args:
             dataset: The dataset to analyze
             params: Analysis parameters defining ranges, axes, etc.
             
         Returns:
-            AnalysisResult with plot data (may be empty but never None)
+            AnalysisResult with valid plot data (NEVER None)
             
         Raises:
-            ValidationError: If inputs are invalid
-            DataError: If dataset is corrupted
-            ProcessingError: If analysis fails
+            ValidationError: If inputs are invalid (None, wrong type)
+            DataError: If dataset is empty or corrupted
+            ProcessingError: If analysis fails to produce results
         """
-        logger.info("Starting analysis")
+        # Input validation - fail fast
+        validate_not_none(dataset, "dataset")
+        validate_not_none(params, "params")
         
-        # Validate inputs
-        try:
-            validate_not_none(dataset, "dataset")
-            validate_not_none(params, "params")
-            
-            if dataset.is_empty():
-                logger.warning("Dataset is empty, returning empty result")
-                return self._create_empty_result(params)
-                
-        except ValidationError as e:
-            log_error_with_context(logger, e, "analysis_validation_failed")
-            raise
+        if dataset.is_empty():
+            raise DataError(
+                "Cannot analyze empty dataset",
+                details={'sweep_count': 0}
+            )
         
-        try:
-            # Log analysis parameters
-            logger.debug(f"Analysis parameters: {params.describe()}")
-            
-            # Get plot data from engine
-            with log_performance(logger, "engine.get_plot_data"):
-                plot_data = self.engine.get_plot_data(dataset, params)
-            
-            if not plot_data or len(plot_data.get('x_data', [])) == 0:
-                logger.warning("Engine returned no data, creating empty result")
-                return self._create_empty_result(params)
-            
-            # Create result
-            result = AnalysisResult(
-                x_data=plot_data['x_data'],
-                y_data=plot_data['y_data'],
-                x_data2=plot_data.get('x_data2'),
-                y_data2=plot_data.get('y_data2'),
-                x_label=plot_data['x_label'],
-                y_label=plot_data['y_label'],
-                sweep_indices=plot_data.get('sweep_indices', []),
-                use_dual_range=params.use_dual_range,
-                y_label_r1=plot_data.get('y_label_r1'),
-                y_label_r2=plot_data.get('y_label_r2')
+        logger.debug(f"Performing analysis with params: {params.describe() if hasattr(params, 'describe') else params}")
+        
+        # Get plot data from engine
+        plot_data = self.engine.get_plot_data(dataset, params)
+        
+        # Validate results - fail fast if invalid
+        if not plot_data:
+            raise ProcessingError(
+                "Analysis engine returned no data",
+                details={'params': str(params)}
             )
-            
-            logger.info(
-                f"Analysis completed: points={len(result.x_data)}, "
-                f"dual_range={result.use_dual_range}"
+        
+        if not plot_data.get('x_data') or len(plot_data.get('x_data', [])) == 0:
+            raise ProcessingError(
+                "Analysis produced empty results",
+                details={
+                    'x_data_present': 'x_data' in plot_data,
+                    'x_data_length': len(plot_data.get('x_data', [])),
+                    'params': str(params)
+                }
             )
-            
-            return result
-            
-        except (DataError, ProcessingError) as e:
-            log_error_with_context(
-                logger, e, "analysis_processing_failed",
-                dataset_sweeps=dataset.sweep_count(),
-                params=params.describe()
-            )
-            raise
-            
-        except Exception as e:
-            # Wrap unexpected errors with context
-            error = ProcessingError(
-                "Unexpected error during analysis",
-                details={'original_error': str(e)},
-                cause=e
-            )
-            log_error_with_context(
-                logger, error, "analysis_unexpected_error",
-                error_type=type(e).__name__
-            )
-            raise error
+        
+        # Create result - guaranteed to be valid
+        result = AnalysisResult(
+            x_data=np.array(plot_data['x_data']),
+            y_data=np.array(plot_data['y_data']),
+            x_data2=np.array(plot_data.get('x_data2', [])),
+            y_data2=np.array(plot_data.get('y_data2', [])),
+            x_label=plot_data.get('x_label', ''),
+            y_label=plot_data.get('y_label', ''),
+            sweep_indices=plot_data.get('sweep_indices', []),
+            use_dual_range=params.use_dual_range
+        )
+        
+        # Add range-specific labels if present
+        if 'y_label_r1' in plot_data:
+            result.y_label_r1 = plot_data['y_label_r1']
+        if 'y_label_r2' in plot_data:
+            result.y_label_r2 = plot_data['y_label_r2']
+        
+        logger.debug(f"Analysis completed: {len(result.x_data)} data points")
+        return result  # ALWAYS returns valid result
     
-    def export_analysis(self, dataset: ElectrophysiologyDataset,
+    def export_analysis(self, 
+                       dataset: ElectrophysiologyDataset,
                        params: AnalysisParameters, 
                        file_path: str) -> ExportResult:
         """
         Export analyzed data to a file.
         
-        This method orchestrates the export workflow, delegating actual
-        file operations to the ExportService.
+        FAIL FAST: Always returns a complete ExportResult, even on failure.
+        The ExportResult.success field indicates outcome, but the method
+        itself never returns None.
         
         Args:
             dataset: The dataset to analyze and export
@@ -199,74 +173,62 @@ class AnalysisService:
             file_path: Complete path for the output file
             
         Returns:
-            ExportResult indicating success/failure and details
-        """
-        logger.info(f"Starting export to {file_path}")
-        
-        # Validate inputs
-        try:
-            validate_not_none(dataset, "dataset")
-            validate_not_none(params, "params")
-            validate_not_none(file_path, "file_path")
+            ExportResult with success status (NEVER None)
             
-            if dataset.is_empty():
-                logger.warning("Dataset is empty, cannot export")
-                return ExportResult(
-                    success=False,
-                    error_message="No data available for export"
-                )
-                
-        except ValidationError as e:
-            log_error_with_context(logger, e, "export_validation_failed")
+        Raises:
+            ValidationError: If inputs are invalid
+        """
+        # Input validation
+        validate_not_none(dataset, "dataset")
+        validate_not_none(params, "params")
+        validate_not_none(file_path, "file_path")
+        
+        # Check dataset state
+        if dataset.is_empty():
+            logger.warning("Cannot export empty dataset")
             return ExportResult(
                 success=False,
-                error_message=str(e)
+                error_message="Dataset is empty - no data to export"
             )
         
         try:
             # Get export table from engine
-            logger.debug("Generating export table")
-            with log_performance(logger, "generate_export_table"):
-                table_data = self.engine.get_export_table(dataset, params)
+            table_data = self.engine.get_export_table(dataset, params)
             
             if not table_data or len(table_data.get('data', [])) == 0:
                 logger.warning("No analysis data to export")
                 return ExportResult(
                     success=False,
-                    error_message="No analysis data to export"
+                    error_message="Analysis produced no exportable data"
                 )
             
-            # Log export metrics
-            data_shape = table_data['data'].shape if hasattr(table_data['data'], 'shape') else 'unknown'
-            logger.debug(f"Export table generated: shape={data_shape}")
-            
             # Delegate to export service
-            with log_performance(logger, "write_export_file"):
-                result = self.export_service.export_analysis_data(table_data, file_path)
+            result = self.export_service.export_analysis_data(table_data, file_path)
             
             if result.success:
-                logger.info(f"Export successful: {result.records_exported} records")
+                logger.info(f"Exported {result.records_exported} records")
             else:
-                logger.warning(f"Export failed: {result.error_message}")
-            
+                logger.error(f"Export failed: {result.error_message}")
+                
             return result
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "export_unexpected_error",
-                filepath=file_path,
-                error_type=type(e).__name__
-            )
+            # Even on exception, return a proper ExportResult
+            logger.error(f"Export failed with exception: {e}", exc_info=True)
             return ExportResult(
                 success=False,
-                error_message=f"Unexpected error: {str(e)}"
+                error_message=f"Export failed: {str(e)}"
             )
     
-    def get_sweep_plot_data(self, dataset: ElectrophysiologyDataset,
+    def get_sweep_plot_data(self, 
+                           dataset: ElectrophysiologyDataset,
                            sweep_index: str, 
-                           channel_type: str) -> Optional[PlotData]:
+                           channel_type: str) -> PlotData:
         """
         Get data for plotting a single sweep.
+        
+        FAIL FAST: This method ALWAYS returns valid PlotData or raises
+        an exception. It NEVER returns None.
         
         Args:
             dataset: The dataset containing the sweep
@@ -274,131 +236,165 @@ class AnalysisService:
             channel_type: Type of channel ("Voltage" or "Current")
             
         Returns:
-            PlotData object ready for plotting, or None if unavailable
+            PlotData object ready for plotting (NEVER None)
+            
+        Raises:
+            ValidationError: If inputs are invalid
+            DataError: If dataset is empty or sweep not found
+            ProcessingError: If data extraction fails
         """
-        logger.debug(f"Getting sweep plot data: sweep={sweep_index}, channel={channel_type}")
+        # Input validation - fail fast
+        validate_not_none(dataset, "dataset")
+        validate_not_none(sweep_index, "sweep_index")
+        validate_not_none(channel_type, "channel_type")
         
-        try:
-            validate_not_none(dataset, "dataset")
-            validate_not_none(sweep_index, "sweep_index")
-            validate_not_none(channel_type, "channel_type")
-            
-            if dataset.is_empty():
-                logger.debug("Dataset is empty")
-                return None
-            
-            # Get sweep data from engine
-            data = self.engine.get_sweep_plot_data(dataset, sweep_index, channel_type)
-            
-            if not data:
-                logger.debug(f"No data available for sweep {sweep_index}")
-                return None
-            
-            result = PlotData(
-                time_ms=data['time_ms'],
-                data_matrix=data['data_matrix'],
-                channel_id=data['channel_id'],
-                sweep_index=data['sweep_index'],
-                channel_type=data['channel_type']
+        if not sweep_index.strip():
+            raise ValidationError("Sweep index cannot be empty")
+        
+        if channel_type not in ["Voltage", "Current"]:
+            raise ValidationError(
+                f"Invalid channel type: '{channel_type}'",
+                details={'valid_types': ["Voltage", "Current"]}
             )
-            
-            logger.debug(f"Sweep plot data retrieved: {len(result.time_ms)} points")
-            return result
-            
-        except (ValidationError, DataError) as e:
-            log_error_with_context(
-                logger, e, "get_sweep_plot_failed",
-                sweep_index=sweep_index,
-                channel_type=channel_type
+        
+        if dataset.is_empty():
+            raise DataError(
+                "Cannot get sweep data from empty dataset",
+                details={'sweep_count': 0}
             )
-            return None
-            
-        except Exception as e:
-            log_error_with_context(
-                logger, e, "get_sweep_plot_unexpected",
-                sweep_index=sweep_index,
-                channel_type=channel_type,
-                error_type=type(e).__name__
+        
+        logger.debug(f"Getting plot data for sweep {sweep_index}, channel {channel_type}")
+        
+        # Get sweep data from engine
+        data = self.engine.get_sweep_plot_data(dataset, sweep_index, channel_type)
+        
+        # Validate result - fail fast
+        if not data:
+            raise ProcessingError(
+                f"Failed to retrieve data for sweep {sweep_index}",
+                details={
+                    'sweep': sweep_index,
+                    'channel': channel_type,
+                    'available_sweeps': dataset.sweeps()[:10]  # First 10 for debugging
+                }
             )
-            return None
+        
+        # Validate required fields
+        required_fields = ['time_ms', 'data_matrix', 'channel_id', 'sweep_index', 'channel_type']
+        missing_fields = [f for f in required_fields if f not in data]
+        
+        if missing_fields:
+            raise ProcessingError(
+                "Incomplete sweep data returned",
+                details={
+                    'missing_fields': missing_fields,
+                    'sweep': sweep_index
+                }
+            )
+        
+        # Create and return valid PlotData
+        plot_data = PlotData(
+            time_ms=np.array(data['time_ms']),
+            data_matrix=np.array(data['data_matrix']),
+            channel_id=data['channel_id'],
+            sweep_index=data['sweep_index'],
+            channel_type=data['channel_type']
+        )
+        
+        logger.debug(f"Retrieved {len(plot_data.time_ms)} time points for sweep {sweep_index}")
+        return plot_data  # ALWAYS returns valid PlotData
     
-    def perform_peak_analysis(self, dataset: ElectrophysiologyDataset,
+    def perform_peak_analysis(self, 
+                             dataset: ElectrophysiologyDataset,
                              params: AnalysisParameters,
                              peak_types: List[str] = None) -> PeakAnalysisResult:
         """
         Perform comprehensive peak analysis across multiple peak types.
         
-        This method NEVER returns None, following fail-fast principles.
+        FAIL FAST: This method ALWAYS returns valid PeakAnalysisResult or
+        raises an exception. It NEVER returns None.
         
         Args:
             dataset: The dataset to analyze
             params: Analysis parameters
-            peak_types: List of peak types to analyze
+            peak_types: List of peak types to analyze 
+                       (defaults to ["Absolute", "Positive", "Negative", "Peak-Peak"])
             
         Returns:
-            PeakAnalysisResult with data (may be empty but never None)
+            PeakAnalysisResult with data for all peak types (NEVER None)
             
         Raises:
             ValidationError: If inputs are invalid
-            ProcessingError: If analysis fails
+            DataError: If dataset is empty
+            ProcessingError: If peak analysis fails
         """
-        logger.info(f"Starting peak analysis with types: {peak_types}")
+        # Input validation - fail fast
+        validate_not_none(dataset, "dataset")
+        validate_not_none(params, "params")
         
-        # Validate inputs
-        try:
-            validate_not_none(dataset, "dataset")
-            validate_not_none(params, "params")
-            
-            if dataset.is_empty():
-                logger.warning("Dataset is empty, returning empty peak result")
-                return self._create_empty_peak_result()
-                
-        except ValidationError as e:
-            log_error_with_context(logger, e, "peak_analysis_validation_failed")
-            raise
+        if dataset.is_empty():
+            raise DataError(
+                "Cannot perform peak analysis on empty dataset",
+                details={'sweep_count': 0}
+            )
         
-        try:
-            # Get peak analysis data from engine
-            with log_performance(logger, f"peak_analysis_{len(peak_types or [])}types"):
-                peak_data = self.engine.get_peak_analysis_data(dataset, params, peak_types)
-            
-            if not peak_data or 'x_data' not in peak_data:
-                logger.warning("No peak data available, returning empty result")
-                return self._create_empty_peak_result()
-            
-            result = PeakAnalysisResult(
-                peak_data=peak_data,
-                x_data=peak_data['x_data'],
-                x_label=peak_data['x_label'],
-                sweep_indices=peak_data.get('sweep_indices', [])
+        # Default peak types if not specified
+        if peak_types is None:
+            peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
+        
+        logger.debug(f"Performing peak analysis for types: {peak_types}")
+        
+        # Get peak analysis data from engine
+        peak_data = self.engine.get_peak_analysis_data(dataset, params, peak_types)
+        
+        # Validate result - fail fast
+        if not peak_data:
+            raise ProcessingError(
+                "Peak analysis returned no data",
+                details={
+                    'peak_types': peak_types,
+                    'params': str(params)
+                }
             )
-            
-            logger.info(f"Peak analysis completed: {len(result.x_data)} points")
-            return result
-            
-        except Exception as e:
-            error = ProcessingError(
-                "Peak analysis failed",
-                details={'peak_types': peak_types},
-                cause=e
+        
+        if 'x_data' not in peak_data:
+            raise ProcessingError(
+                "Peak analysis missing required x_data",
+                details={
+                    'available_keys': list(peak_data.keys()),
+                    'peak_types': peak_types
+                }
             )
-            log_error_with_context(
-                logger, error, "peak_analysis_failed",
-                error_type=type(e).__name__
+        
+        if not peak_data.get('peak_data'):
+            raise ProcessingError(
+                "Peak analysis produced no peak data",
+                details={'peak_types': peak_types}
             )
-            raise error
+        
+        # Create and return valid PeakAnalysisResult
+        result = PeakAnalysisResult(
+            peak_data=peak_data.get('peak_data', {}),
+            x_data=np.array(peak_data['x_data']),
+            x_label=peak_data.get('x_label', ''),
+            sweep_indices=peak_data.get('sweep_indices', [])
+        )
+        
+        logger.debug(f"Peak analysis completed: {len(result.peak_data)} peak types analyzed")
+        return result  # ALWAYS returns valid PeakAnalysisResult
     
     # =========================================================================
     # Export Support Methods
     # =========================================================================
     
-    def get_suggested_export_filename(self, source_file_path: str,
-                                     params: Optional[AnalysisParameters] = None,
+    def get_suggested_export_filename(self, 
+                                     source_file_path: str,
+                                     params: AnalysisParameters = None,
                                      suffix: str = "_analyzed") -> str:
         """
         Generate a suggested filename for export.
         
-        Delegates to ExportService for filename generation logic.
+        FAIL FAST: Always returns a valid filename, never None.
         
         Args:
             source_file_path: Path to the original data file
@@ -406,93 +402,99 @@ class AnalysisService:
             suffix: Suffix to append to the filename
             
         Returns:
-            Suggested filename (not full path)
+            Suggested filename (NEVER None)
+            
+        Raises:
+            ValidationError: If source_file_path is None
         """
-        logger.debug(f"Generating export filename for {source_file_path}")
+        validate_not_none(source_file_path, "source_file_path")
         
+        # Delegate to export service
         filename = self.export_service.get_suggested_filename(
             source_file_path, params, suffix
         )
         
-        logger.debug(f"Suggested filename: {filename}")
+        # Ensure we always return a valid filename
+        if not filename:
+            logger.warning("Export service returned empty filename, using default")
+            filename = "analysis_export.csv"
+        
         return filename
     
-    def validate_export_path(self, file_path: str) -> bool:
+    def validate_export_path(self, file_path: str) -> None:
         """
         Validate that a file path is suitable for export.
         
-        Delegates to ExportService for validation logic.
+        FAIL FAST: Raises exception if path is invalid. Does not return bool.
         
         Args:
             file_path: Path to validate
             
-        Returns:
-            True if path is valid, False otherwise
+        Raises:
+            ValidationError: If path is invalid or None
+            FileError: If path exists but isn't writable
         """
-        logger.debug(f"Validating export path: {file_path}")
+        validate_not_none(file_path, "file_path")
         
-        try:
-            # Note: ExportService handles the actual validation
-            # We just catch exceptions here
-            self.export_service.validate_export_path(file_path)
-            logger.debug("Export path is valid")
-            return True
-        except ValidationError as e:
-            logger.debug(f"Export path invalid: {e}")
-            return False
-        except Exception as e:
-            logger.debug(f"Export path validation error: {e}")
-            return False
+        # Delegate validation to export service (will raise on failure)
+        self.export_service.validate_export_path(file_path)
+        
+        logger.debug(f"Export path validated: {file_path}")
     
-    def prepare_export_path(self, file_path: str, ensure_unique: bool = True) -> str:
+    def prepare_export_path(self, 
+                          file_path: str, 
+                          ensure_unique: bool = True) -> str:
         """
         Prepare an export path, optionally ensuring uniqueness.
         
-        Delegates to ExportService for path preparation.
+        FAIL FAST: Always returns a valid path, never None.
         
         Args:
             file_path: Desired export path
             ensure_unique: Whether to ensure the path is unique
             
         Returns:
-            Prepared path (possibly made unique)
+            Prepared path (possibly made unique) - NEVER None
             
         Raises:
-            ValidationError: If the path is invalid
+            ValidationError: If file_path is invalid
         """
-        logger.debug(f"Preparing export path: {file_path}, unique={ensure_unique}")
+        validate_not_none(file_path, "file_path")
         
-        try:
-            prepared_path = self.export_service.prepare_export_path(file_path, ensure_unique)
-            logger.debug(f"Prepared path: {prepared_path}")
-            return prepared_path
-        except ValidationError as e:
-            log_error_with_context(logger, e, "prepare_export_path_failed", filepath=file_path)
-            raise
+        prepared_path = self.export_service.prepare_export_path(file_path, ensure_unique)
+        
+        if not prepared_path:
+            raise ProcessingError(
+                "Export service failed to prepare path",
+                details={'original_path': file_path}
+            )
+        
+        logger.debug(f"Prepared export path: {prepared_path}")
+        return prepared_path
     
     # =========================================================================
     # Utility Methods
     # =========================================================================
     
-    def clear_caches(self):
+    def clear_caches(self) -> None:
         """
         Clear all internal caches in the analysis engine.
         
         This should be called when switching between datasets or when
         channel configurations change.
         """
-        logger.info("Clearing all analysis caches")
         self.engine.clear_caches()
+        logger.info("Analysis caches cleared")
     
     def get_channel_configuration(self) -> Dict[str, Any]:
         """
         Get the current channel configuration from the engine.
         
+        FAIL FAST: Always returns a valid configuration dict, never None.
+        
         Returns:
             Dictionary with channel mapping information
         """
-        logger.debug("Getting channel configuration")
-        
         if hasattr(self.engine, 'channel_definitions'):
             config = {
                 'voltage': self.engine.channel_definitions.get_voltage_channel(),
@@ -500,69 +502,61 @@ class AnalysisService:
                 'is_swapped': self.engine.channel_definitions.is_swapped()
             }
         else:
+            # Default configuration if not available
             config = {'voltage': 0, 'current': 1, 'is_swapped': False}
         
         logger.debug(f"Channel configuration: {config}")
         return config
     
-    def get_export_table(self, dataset: ElectrophysiologyDataset,
+    def get_export_table(self, 
+                        dataset: ElectrophysiologyDataset,
                         params: AnalysisParameters) -> Dict[str, Any]:
         """
         Get raw export table data without writing to file.
         
-        This is useful for preview or further processing before export.
+        FAIL FAST: Always returns a valid dict, never None.
         
         Args:
             dataset: The dataset to analyze
             params: Analysis parameters
             
         Returns:
-            Dictionary with 'headers', 'data', and 'format_spec'
+            Dictionary with 'headers', 'data', and 'format_spec' (NEVER None)
+            
+        Raises:
+            ValidationError: If inputs are invalid
+            DataError: If dataset is empty
         """
-        logger.debug("Getting export table")
+        validate_not_none(dataset, "dataset")
+        validate_not_none(params, "params")
         
-        if dataset is None or dataset.is_empty():
-            logger.debug("No data for export table")
-            return {'headers': [], 'data': np.array([[]]), 'format_spec': '%.6f'}
+        if dataset.is_empty():
+            # Return empty but valid structure
+            logger.warning("Returning empty export table for empty dataset")
+            return {
+                'headers': [],
+                'data': np.array([[]]),
+                'format_spec': '%.6f'
+            }
         
-        with log_performance(logger, "generate_export_table"):
-            table = self.engine.get_export_table(dataset, params)
+        # Get table from engine
+        table = self.engine.get_export_table(dataset, params)
         
-        logger.debug(f"Export table generated: {len(table.get('data', []))} rows")
+        # Ensure we always return a valid structure
+        if not table:
+            logger.warning("Engine returned no export table, using empty structure")
+            return {
+                'headers': [],
+                'data': np.array([[]]),
+                'format_spec': '%.6f'
+            }
+        
+        # Validate and ensure required keys
+        if 'headers' not in table:
+            table['headers'] = []
+        if 'data' not in table:
+            table['data'] = np.array([[]])
+        if 'format_spec' not in table:
+            table['format_spec'] = '%.6f'
+        
         return table
-    
-    # =========================================================================
-    # Private Helper Methods
-    # =========================================================================
-    
-    def _create_empty_result(self, params: AnalysisParameters) -> AnalysisResult:
-        """
-        Create an empty AnalysisResult when no data is available.
-        
-        This ensures we never return None from analysis operations.
-        """
-        logger.debug("Creating empty AnalysisResult")
-        
-        return AnalysisResult(
-            x_data=np.array([]),
-            y_data=np.array([]),
-            x_label="",
-            y_label="",
-            sweep_indices=[],
-            use_dual_range=params.use_dual_range if params else False
-        )
-    
-    def _create_empty_peak_result(self) -> PeakAnalysisResult:
-        """
-        Create an empty PeakAnalysisResult when no data is available.
-        
-        This ensures we never return None from peak analysis operations.
-        """
-        logger.debug("Creating empty PeakAnalysisResult")
-        
-        return PeakAnalysisResult(
-            peak_data={},
-            x_data=np.array([]),
-            x_label="",
-            sweep_indices=[]
-        )

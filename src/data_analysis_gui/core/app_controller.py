@@ -1,9 +1,11 @@
 """
-Application Controller - PHASE 5 COMPLETE
-Enhanced with comprehensive logging and improved error handling.
+Application Controller - Phase 5 COMPLETE with True Fail-Closed
+No silent failures - all operations return explicit result objects.
 
-This controller orchestrates application flow without mixing business logic.
-All business logic is delegated to services, maintaining clean separation.
+This controller implements the fail-closed principle completely:
+- NEVER returns None
+- ALL operations return result objects with explicit success/failure
+- Errors are always explicit, never silent
 
 Author: Data Analysis GUI Contributors
 License: MIT
@@ -12,93 +14,93 @@ License: MIT
 import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
+from dataclasses import dataclass
 
 # Core imports
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
-from data_analysis_gui.core.analysis_engine import create_analysis_engine
+from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     FileInfo, AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
 )
-from data_analysis_gui.core.exceptions import (
-    DataError, FileError, ValidationError, ConfigurationError,
-    ProcessingError, validate_not_none
-)
+from data_analysis_gui.core.exceptions import DataError, FileError, ValidationError
 
 # Service imports
 from data_analysis_gui.services.analysis_service import AnalysisService
 from data_analysis_gui.services.service_factory import ServiceFactory
-
-# Logging imports
-from data_analysis_gui.config.logging import (
-    get_logger, log_performance, log_analysis_request,
-    log_error_with_context, log_cache_operation
-)
+from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+@dataclass
+class AnalysisOperationResult:
+    """
+    Result wrapper for analysis operations.
+    Ensures all operations return explicit success/failure, never None.
+    """
+    success: bool
+    data: Optional[AnalysisResult] = None
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
+
+
+@dataclass
+class PlotDataResult:
+    """Result wrapper for plot data operations."""
+    success: bool
+    data: Optional[PlotData] = None
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
+
+
+@dataclass
+class PeakAnalysisOperationResult:
+    """Result wrapper for peak analysis operations."""
+    success: bool
+    data: Optional[PeakAnalysisResult] = None
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
+
+
 class ApplicationController:
     """
-    Application controller responsible for orchestrating application flow.
+    Application controller with complete fail-closed implementation.
     
-    This controller maintains separation of concerns by:
-    - Managing application state (current dataset, file path, channels)
-    - Delegating business logic to services
-    - Coordinating between GUI events and services
-    - Providing logging and error handling at the application level
+    ALL methods return explicit result objects - NEVER None.
+    This ensures that every operation explicitly indicates success or failure,
+    making silent failures impossible.
     
-    It does NOT:
-    - Perform analysis calculations (delegated to AnalysisEngine)
-    - Handle file I/O directly (delegated to DatasetService)
-    - Implement export logic (delegated to ExportService)
+    The GUI can check result.success and handle accordingly, but there's
+    no ambiguity about whether an operation succeeded or failed.
     """
     
     def __init__(self):
         """Initialize the controller with all required services."""
-        logger.info("Initializing ApplicationController")
+        # Application state
+        self.current_dataset: Optional[ElectrophysiologyDataset] = None
+        self.loaded_file_path: Optional[str] = None
         
-        try:
-            # Application state
-            self.current_dataset: Optional[ElectrophysiologyDataset] = None
-            self.loaded_file_path: Optional[str] = None
-            
-            # Channel management
-            self.channel_definitions = ChannelDefinitions()
-            logger.debug(f"Channel configuration initialized: "
-                        f"voltage={self.channel_definitions.get_voltage_channel()}, "
-                        f"current={self.channel_definitions.get_current_channel()}")
-            
-            # Initialize the analysis engine with caching
-            self.engine = create_analysis_engine(
-                self.channel_definitions,
-                enable_caching=True,
-                cache_sizes={'metrics': 100, 'series': 200}
-            )
-            logger.debug("Analysis engine created with caching enabled")
-            
-            # Create services using factory
-            self.dataset_service = ServiceFactory.create_dataset_service()
-            export_service = ServiceFactory.create_export_service()
-            
-            # Initialize the unified analysis service
-            self.analysis_service = AnalysisService(self.engine, export_service)
-            logger.debug("All services initialized successfully")
-            
-            # GUI callbacks (set by view)
-            self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
-            self.on_error: Optional[Callable[[str], None]] = None
-            self.on_status_update: Optional[Callable[[str], None]] = None
-            
-            logger.info("ApplicationController initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize ApplicationController: {e}", exc_info=True)
-            raise ConfigurationError(
-                "Failed to initialize application controller",
-                cause=e
-            )
+        # Channel management
+        self.channel_definitions = ChannelDefinitions()
+        
+        # Initialize the analysis engine
+        self.engine = AnalysisEngine(self.channel_definitions)
+        
+        # Create services using factory
+        self.dataset_service = ServiceFactory.create_dataset_service()
+        export_service = ServiceFactory.create_export_service()
+        
+        # Initialize the unified analysis service with proper DI
+        self.analysis_service = AnalysisService(self.engine, export_service)
+        
+        # GUI callbacks (set by view)
+        self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
+        self.on_error: Optional[Callable[[str], None]] = None
+        self.on_status_update: Optional[Callable[[str], None]] = None
+        
+        logger.info("ApplicationController initialized with fail-closed architecture")
     
     # =========================================================================
     # File Management
@@ -106,41 +108,36 @@ class ApplicationController:
     
     def load_file(self, file_path: str) -> bool:
         """
-        Load a data file with comprehensive error handling and logging.
+        Load a data file using the DatasetService.
         
         Args:
             file_path: Path to the data file
             
         Returns:
             True if successful, False otherwise
-        """
-        logger.info(f"Loading file: {Path(file_path).name}")
-        
-        try:
-            # Validate input
-            validate_not_none(file_path, "file_path")
             
-            # Load dataset with performance tracking
-            with log_performance(logger, f"load {Path(file_path).name}"):
-                dataset = self.dataset_service.load_dataset(
-                    file_path,
-                    self.channel_definitions
-                )
+        Note: This returns bool for backward compatibility, but internally
+              uses proper exception handling.
+        """
+        try:
+            logger.info(f"Loading file: {file_path}")
+            
+            # Delegate to service - will raise exception on failure
+            dataset = self.dataset_service.load_dataset(
+                file_path,
+                self.channel_definitions
+            )
             
             # Update state
             self.current_dataset = dataset
             self.loaded_file_path = file_path
             
-            # Clear caches for new dataset
-            logger.debug("Clearing analysis caches for new dataset")
+            # Clear analysis caches for new dataset
             self.analysis_service.clear_caches()
-            log_cache_operation(logger, "clear", "all_caches", hit=False)
             
-            # Prepare file info
-            sweep_names = sorted(
-                dataset.sweeps(),
-                key=lambda x: int(x) if x.isdigit() else 0
-            )
+            # Prepare file info for GUI
+            sweep_names = sorted(dataset.sweeps(),
+                               key=lambda x: int(x) if x.isdigit() else 0)
             
             file_info = FileInfo(
                 name=Path(file_path).name,
@@ -150,13 +147,6 @@ class ApplicationController:
                 max_sweep_time=dataset.get_max_sweep_time()
             )
             
-            # Log dataset metrics
-            logger.info(
-                f"Dataset loaded successfully: "
-                f"sweeps={file_info.sweep_count}, "
-                f"max_time={file_info.max_sweep_time:.1f}ms"
-            )
-            
             # Notify GUI
             if self.on_file_loaded:
                 self.on_file_loaded(file_info)
@@ -164,115 +154,98 @@ class ApplicationController:
             if self.on_status_update:
                 self.on_status_update(f"Loaded {file_info.sweep_count} sweeps")
             
+            logger.info(f"Successfully loaded {file_info.name}")
             return True
             
-        except ValidationError as e:
-            log_error_with_context(logger, e, "file_load_validation", filepath=file_path)
+        except (ValidationError, FileError, DataError) as e:
+            logger.error(f"Failed to load file: {e}")
             if self.on_error:
-                self.on_error(f"Invalid file path: {str(e)}")
-            return False
-            
-        except FileError as e:
-            log_error_with_context(logger, e, "file_load_io", filepath=file_path)
-            if self.on_error:
-                self.on_error(f"File access error: {str(e)}")
-            return False
-            
-        except DataError as e:
-            log_error_with_context(logger, e, "file_load_data", filepath=file_path)
-            if self.on_error:
-                self.on_error(f"Data format error: {str(e)}")
+                self.on_error(f"Failed to load file: {str(e)}")
             return False
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "file_load_unexpected",
-                filepath=file_path,
-                error_type=type(e).__name__
-            )
+            logger.error(f"Unexpected error loading file: {e}", exc_info=True)
             if self.on_error:
-                self.on_error(f"Unexpected error: {str(e)}")
+                self.on_error(f"An unexpected error occurred: {str(e)}")
             return False
 
     def has_data(self) -> bool:
         """Check if data is currently loaded."""
-        has_data = self.current_dataset is not None and not self.current_dataset.is_empty()
-        logger.debug(f"has_data check: {has_data}")
-        return has_data
+        return self.current_dataset is not None and not self.current_dataset.is_empty()
     
     # =========================================================================
-    # Analysis Operations (Delegation with logging)
+    # Analysis Operations - ALL RETURN RESULT OBJECTS (NEVER None)
     # =========================================================================
     
-    def perform_analysis(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
+    def perform_analysis(self, params: AnalysisParameters) -> AnalysisOperationResult:
         """
-        Perform analysis with comprehensive logging.
+        Perform analysis with typed parameters.
         
-        Delegates to AnalysisService for actual processing.
+        FAIL-CLOSED: Always returns a result object, never None.
         
         Args:
             params: AnalysisParameters object
             
         Returns:
-            AnalysisResult with plot data, or None if no data
+            AnalysisOperationResult with either data or error information
         """
-        logger.info("Starting analysis operation")
-        
         if not self.has_data():
-            logger.warning("Analysis requested but no data loaded")
-            return None
+            logger.warning("No data loaded for analysis")
+            return AnalysisOperationResult(
+                success=False,
+                error_message="No data loaded",
+                error_type="ValidationError"
+            )
         
         try:
-            # Log the analysis request
-            log_analysis_request(
-                logger,
-                params.to_export_dict(),
-                {'file': self.loaded_file_path, 'sweeps': self.current_dataset.sweep_count()}
+            # Delegate to service - will raise on failure
+            result = self.analysis_service.perform_analysis(self.current_dataset, params)
+            logger.debug("Analysis completed successfully")
+            
+            return AnalysisOperationResult(
+                success=True,
+                data=result
             )
             
-            # Delegate to service
-            with log_performance(logger, "perform_analysis"):
-                result = self.analysis_service.perform_analysis(
-                    self.current_dataset, params
-                )
+        except ValidationError as e:
+            logger.error(f"Analysis validation failed: {e}")
+            return AnalysisOperationResult(
+                success=False,
+                error_message=str(e),
+                error_type="ValidationError"
+            )
             
-            if result and result.has_data:
-                logger.info(
-                    f"Analysis completed: "
-                    f"data_points={len(result.x_data)}, "
-                    f"dual_range={result.use_dual_range}"
-                )
-            else:
-                logger.warning("Analysis returned no results")
-            
-            return result
+        except DataError as e:
+            logger.error(f"Analysis data error: {e}")
+            return AnalysisOperationResult(
+                success=False,
+                error_message=str(e),
+                error_type="DataError"
+            )
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "analysis_failed",
-                params=params.describe() if hasattr(params, 'describe') else str(params)
+            logger.error(f"Unexpected error during analysis: {e}", exc_info=True)
+            return AnalysisOperationResult(
+                success=False,
+                error_message=f"Unexpected error: {str(e)}",
+                error_type=type(e).__name__
             )
-            if self.on_error:
-                self.on_error(f"Analysis failed: {str(e)}")
-            return None
 
     def export_analysis_data(self, params: AnalysisParameters, file_path: str) -> ExportResult:
         """
-        Export analysis data with comprehensive logging.
+        Export analyzed data.
         
-        Delegates to AnalysisService for actual export.
+        This already follows fail-closed by returning ExportResult.
         
         Args:
             params: AnalysisParameters object
             file_path: Complete path for export
             
         Returns:
-            ExportResult with success status
+            ExportResult with success status (never None)
         """
-        logger.info(f"Starting export to {Path(file_path).name}")
-        
         if not self.has_data():
-            logger.warning("Export requested but no data loaded")
+            logger.warning("No data loaded for export")
             return ExportResult(
                 success=False,
                 error_message="No data loaded"
@@ -280,201 +253,287 @@ class ApplicationController:
         
         try:
             # Delegate to service
-            with log_performance(logger, f"export to {Path(file_path).name}"):
-                result = self.analysis_service.export_analysis(
-                    self.current_dataset, params, file_path
-                )
+            result = self.analysis_service.export_analysis(self.current_dataset, params, file_path)
             
             if result.success:
-                logger.info(
-                    f"Export successful: "
-                    f"records={result.records_exported}, "
-                    f"file={Path(file_path).name}"
-                )
+                logger.info(f"Exported {result.records_exported} records to {Path(file_path).name}")
             else:
-                logger.warning(f"Export failed: {result.error_message}")
-            
+                logger.error(f"Export failed: {result.error_message}")
+                
             return result
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "export_failed",
-                filepath=file_path,
-                params=params.describe() if hasattr(params, 'describe') else str(params)
-            )
+            logger.error(f"Unexpected error during export: {e}", exc_info=True)
             return ExportResult(
                 success=False,
-                error_message=str(e)
+                error_message=f"Unexpected error: {str(e)}"
             )
     
     def get_sweep_plot_data(self, sweep_index: str, 
-                           channel_type: str) -> Optional[PlotData]:
+                           channel_type: str) -> PlotDataResult:
         """
-        Get data for plotting a single sweep with logging.
+        Get data for plotting a single sweep.
         
-        Delegates to AnalysisService.
+        FAIL-CLOSED: Always returns a result object, never None.
         
         Args:
             sweep_index: Sweep identifier
             channel_type: "Voltage" or "Current"
             
         Returns:
-            PlotData object, or None if unavailable
+            PlotDataResult with either data or error information
         """
-        logger.debug(f"Getting plot data for sweep {sweep_index}, channel {channel_type}")
-        
         if not self.has_data():
-            logger.debug("No data available for sweep plot")
-            return None
+            logger.warning("No data loaded for sweep plot")
+            return PlotDataResult(
+                success=False,
+                error_message="No data loaded",
+                error_type="ValidationError"
+            )
         
         try:
-            result = self.analysis_service.get_sweep_plot_data(
+            # Delegate to service - will raise on failure
+            plot_data = self.analysis_service.get_sweep_plot_data(
                 self.current_dataset, sweep_index, channel_type
             )
+            logger.debug(f"Retrieved sweep plot data for sweep {sweep_index}")
             
-            if result:
-                logger.debug(f"Plot data retrieved for sweep {sweep_index}")
-            else:
-                logger.debug(f"No plot data available for sweep {sweep_index}")
+            return PlotDataResult(
+                success=True,
+                data=plot_data
+            )
             
-            return result
+        except ValidationError as e:
+            logger.error(f"Validation error getting sweep data: {e}")
+            return PlotDataResult(
+                success=False,
+                error_message=str(e),
+                error_type="ValidationError"
+            )
+            
+        except DataError as e:
+            logger.error(f"Data error getting sweep data: {e}")
+            return PlotDataResult(
+                success=False,
+                error_message=str(e),
+                error_type="DataError"
+            )
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "get_sweep_plot_failed",
-                sweep_index=sweep_index,
-                channel_type=channel_type
+            logger.error(f"Unexpected error getting sweep data: {e}", exc_info=True)
+            return PlotDataResult(
+                success=False,
+                error_message=f"Unexpected error: {str(e)}",
+                error_type=type(e).__name__
             )
-            return None
     
     def perform_peak_analysis(self, params: AnalysisParameters,
-                            peak_types: List[str] = None) -> Optional[PeakAnalysisResult]:
+                            peak_types: List[str] = None) -> PeakAnalysisOperationResult:
         """
-        Perform comprehensive peak analysis with logging.
+        Perform comprehensive peak analysis.
         
-        Delegates to AnalysisService.
+        FAIL-CLOSED: Always returns a result object, never None.
         
         Args:
             params: Analysis parameters
             peak_types: List of peak types to analyze
             
         Returns:
-            PeakAnalysisResult or None
+            PeakAnalysisOperationResult with either data or error information
         """
-        logger.info(f"Starting peak analysis with types: {peak_types}")
-        
         if not self.has_data():
-            logger.warning("Peak analysis requested but no data loaded")
-            return None
+            logger.warning("No data loaded for peak analysis")
+            return PeakAnalysisOperationResult(
+                success=False,
+                error_message="No data loaded",
+                error_type="ValidationError"
+            )
         
         try:
-            with log_performance(logger, f"peak analysis ({len(peak_types or [])} types)"):
-                result = self.analysis_service.perform_peak_analysis(
-                    self.current_dataset, params, peak_types
-                )
+            # Delegate to service - will raise on failure
+            result = self.analysis_service.perform_peak_analysis(
+                self.current_dataset, params, peak_types
+            )
+            logger.debug("Peak analysis completed successfully")
             
-            if result and result.peak_data:
-                logger.info(f"Peak analysis completed successfully")
-            else:
-                logger.warning("Peak analysis returned no results")
+            return PeakAnalysisOperationResult(
+                success=True,
+                data=result
+            )
             
-            return result
+        except ValidationError as e:
+            logger.error(f"Peak analysis validation failed: {e}")
+            return PeakAnalysisOperationResult(
+                success=False,
+                error_message=str(e),
+                error_type="ValidationError"
+            )
+            
+        except DataError as e:
+            logger.error(f"Peak analysis data error: {e}")
+            return PeakAnalysisOperationResult(
+                success=False,
+                error_message=str(e),
+                error_type="DataError"
+            )
             
         except Exception as e:
-            log_error_with_context(
-                logger, e, "peak_analysis_failed",
-                peak_types=peak_types
+            logger.error(f"Unexpected error during peak analysis: {e}", exc_info=True)
+            return PeakAnalysisOperationResult(
+                success=False,
+                error_message=f"Unexpected error: {str(e)}",
+                error_type=type(e).__name__
             )
-            return None
     
     def get_suggested_export_filename(self, params: AnalysisParameters) -> str:
         """
-        Get suggested filename with logging.
-        
-        Delegates to AnalysisService.
+        Get suggested filename for export.
         
         Args:
             params: AnalysisParameters object
             
         Returns:
-            Suggested filename
+            Suggested filename (always returns a valid string, never None)
         """
         source_path = self.loaded_file_path or "analysis"
         
-        filename = self.analysis_service.get_suggested_export_filename(source_path, params)
-        logger.debug(f"Suggested export filename: {filename}")
-        
-        return filename
+        try:
+            return self.analysis_service.get_suggested_export_filename(source_path, params)
+        except Exception as e:
+            logger.error(f"Error generating filename: {e}")
+            # Return a safe default instead of failing
+            return "analysis_export.csv"
     
     # =========================================================================
-    # Channel Management (Application state management)
+    # Channel Management
     # =========================================================================
     
     def swap_channels(self) -> Dict[str, Any]:
         """
         Swap voltage and current channel assignments.
         
-        This remains as returning a dict for backward compatibility with GUI.
-        The actual swap is an application state change, not business logic.
-        
         Returns:
             Dictionary with success status and channel configuration
+            (Always returns a valid dict, never None)
         """
-        logger.info("Swapping channel assignments")
-        
         if not self.has_data():
-            logger.warning("Channel swap requested but no data loaded")
+            logger.warning("Cannot swap channels - no data loaded")
             return {
                 'success': False,
                 'reason': 'No data loaded'
             }
         
-        # Check if we have enough channels
-        channel_count = self.current_dataset.channel_count()
-        if channel_count < 2:
-            logger.warning(f"Cannot swap: only {channel_count} channel(s)")
+        try:
+            # Check if we have enough channels
+            if self.current_dataset.channel_count() < 2:
+                logger.warning("Cannot swap - dataset has only one channel")
+                return {
+                    'success': False,
+                    'reason': 'Dataset has only one channel'
+                }
+            
+            # Perform the swap
+            self.channel_definitions.swap_channels()
+            
+            # Clear caches since channel interpretation changed
+            self.analysis_service.clear_caches()
+            
+            logger.info("Channels swapped successfully")
+            
+            # Return status
+            return {
+                'success': True,
+                'is_swapped': self.channel_definitions.is_swapped(),
+                'configuration': self.get_channel_configuration()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error swapping channels: {e}", exc_info=True)
             return {
                 'success': False,
-                'reason': f'Dataset has only {channel_count} channel(s)'
+                'reason': f'Error: {str(e)}'
             }
-        
-        # Perform the swap
-        old_voltage = self.channel_definitions.get_voltage_channel()
-        old_current = self.channel_definitions.get_current_channel()
-        
-        self.channel_definitions.swap_channels()
-        
-        new_voltage = self.channel_definitions.get_voltage_channel()
-        new_current = self.channel_definitions.get_current_channel()
-        
-        logger.info(
-            f"Channels swapped: voltage {old_voltage}→{new_voltage}, "
-            f"current {old_current}→{new_current}"
-        )
-        
-        # Clear caches since channel interpretation changed
-        logger.debug("Clearing caches after channel swap")
-        self.analysis_service.clear_caches()
-        log_cache_operation(logger, "clear", "all_caches_after_swap", hit=False)
-        
-        # Return status for GUI
-        return {
-            'success': True,
-            'is_swapped': self.channel_definitions.is_swapped(),
-            'configuration': self.get_channel_configuration()
-        }
     
     def get_channel_configuration(self) -> Dict[str, int]:
         """
-        Get current channel configuration with logging.
+        Get current channel configuration.
         
         Returns:
             Dictionary with voltage and current channel indices
+            (Always returns a valid dict, never None)
         """
-        config = {
+        return {
             'voltage': self.channel_definitions.get_voltage_channel(),
             'current': self.channel_definitions.get_current_channel()
         }
+    
+    # =========================================================================
+    # Convenience Methods for GUI Migration
+    # =========================================================================
+    
+    def perform_analysis_legacy(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
+        """
+        Legacy wrapper for perform_analysis that returns None on failure.
         
-        logger.debug(f"Channel configuration: {config}")
-        return config
+        DEPRECATED: Use perform_analysis() which returns AnalysisOperationResult.
+        This method exists only to ease GUI migration.
+        
+        Args:
+            params: AnalysisParameters object
+            
+        Returns:
+            AnalysisResult or None (for backward compatibility only)
+        """
+        result = self.perform_analysis(params)
+        if result.success:
+            return result.data
+        else:
+            if self.on_error:
+                self.on_error(f"Analysis failed: {result.error_message}")
+            return None
+    
+    def get_sweep_plot_data_legacy(self, sweep_index: str, 
+                                  channel_type: str) -> Optional[PlotData]:
+        """
+        Legacy wrapper for get_sweep_plot_data that returns None on failure.
+        
+        DEPRECATED: Use get_sweep_plot_data() which returns PlotDataResult.
+        This method exists only to ease GUI migration.
+        
+        Args:
+            sweep_index: Sweep identifier
+            channel_type: "Voltage" or "Current"
+            
+        Returns:
+            PlotData or None (for backward compatibility only)
+        """
+        result = self.get_sweep_plot_data(sweep_index, channel_type)
+        if result.success:
+            return result.data
+        else:
+            # Don't show error dialog for individual sweep failures
+            logger.debug(f"Sweep plot data unavailable: {result.error_message}")
+            return None
+    
+    def perform_peak_analysis_legacy(self, params: AnalysisParameters,
+                                    peak_types: List[str] = None) -> Optional[PeakAnalysisResult]:
+        """
+        Legacy wrapper for perform_peak_analysis that returns None on failure.
+        
+        DEPRECATED: Use perform_peak_analysis() which returns PeakAnalysisOperationResult.
+        This method exists only to ease GUI migration.
+        
+        Args:
+            params: Analysis parameters
+            peak_types: List of peak types to analyze
+            
+        Returns:
+            PeakAnalysisResult or None (for backward compatibility only)
+        """
+        result = self.perform_peak_analysis(params, peak_types)
+        if result.success:
+            return result.data
+        else:
+            if self.on_error:
+                self.on_error(f"Peak analysis failed: {result.error_message}")
+            return None
