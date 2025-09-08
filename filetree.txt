@@ -1,10 +1,10 @@
 streamlining/
-|-- batch/
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/
 |       |   |-- __init__.py
 |       |   |-- environment.py
+|       |   |-- logging.py
 |       |   |-- settings.py
 |       |   `-- themes.py
 |       |-- core/
@@ -18,12 +18,18 @@ streamlining/
 |       |   |-- analysis_engine.py
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
+|       |   |-- cache_manager.py
 |       |   |-- channel_definitions.py
+|       |   |-- data_extractor.py
 |       |   |-- dataset.py
+|       |   |-- dataset_identifier.py
+|       |   |-- exceptions.py
 |       |   |-- exporter.py
 |       |   |-- iv_analysis.py
+|       |   |-- metrics_calculator.py
 |       |   |-- models.py
 |       |   |-- params.py
+|       |   |-- plot_formatter.py
 |       |   |-- plotting_interface.py
 |       |   `-- session_settings.py
 |       |-- dialogs/
