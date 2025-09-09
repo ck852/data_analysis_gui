@@ -9,7 +9,7 @@ from io import BytesIO
 import base64
 
 from data_analysis_gui.core.plotting_interface import PlotBackend, PlotBackendFactory
-from data_analysis_gui.core.models import BatchResult, FileResult
+from data_analysis_gui.services.batch_service import BatchService
 from data_analysis_gui.core.params import AnalysisParameters
 from matplotlib.figure import Figure
 
@@ -30,7 +30,7 @@ class PlotService:
     
     def create_batch_plot(
         self,
-        batch_result: BatchResult,
+        batch_result: BatchService,
         params: AnalysisParameters,
         x_label: str,
         y_label: str,
@@ -212,7 +212,7 @@ class PlotService:
     
     def build_batch_figure(
         self,
-        batch_result: BatchResult,
+        batch_result: BatchService,
         params: AnalysisParameters,
         x_label: str,
         y_label: str,

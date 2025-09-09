@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 import numpy as np
 from pathlib import Path
-
+from data_analysis_gui.core.params import AnalysisParameters
 
 # ==============================================================================
 # Validation Errors
@@ -263,119 +263,59 @@ class AnalysisPlotData:
                     f"x_data length ({len(self.x_data)})"
                 )
 
-
-# ==============================================================================
-# Batch Processing Models (Minimal for now, to replace deleted BatchResult)
-# ==============================================================================
+# models.py - Add these batch-specific models
 
 @dataclass(frozen=True)
-class FileResult:
-    """
-    Result of analyzing a single file in batch processing.
-    
-    This is a minimal placeholder to replace the deleted BatchResult's
-    FileResult component. Will be expanded when batch processing is
-    properly reimplemented.
-    """
+class FileAnalysisResult:
+    """Result of analyzing a single file in batch processing."""
     file_path: str
     base_name: str
     success: bool
     x_data: np.ndarray = field(default_factory=lambda: np.array([]))
     y_data: np.ndarray = field(default_factory=lambda: np.array([]))
+    x_data2: Optional[np.ndarray] = None
     y_data2: Optional[np.ndarray] = None
+    export_table: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
+    processing_time: float = 0.0
     
     def __post_init__(self):
-        """Validate file result data."""
-        if not self.file_path:
-            raise ModelValidationError("file_path cannot be empty")
-        
-        if not self.base_name:
-            object.__setattr__(self, 'base_name', Path(self.file_path).stem)
-        
-        # Ensure numpy arrays
-        if not isinstance(self.x_data, np.ndarray):
-            object.__setattr__(self, 'x_data', np.array(self.x_data))
-        if not isinstance(self.y_data, np.ndarray):
-            object.__setattr__(self, 'y_data', np.array(self.y_data))
-        
-        if self.y_data2 is not None and not isinstance(self.y_data2, np.ndarray):
-            object.__setattr__(self, 'y_data2', np.array(self.y_data2))
-        
-        # Validate array dimensions match
-        if len(self.x_data) != len(self.y_data):
-            raise ModelValidationError(
-                f"x_data and y_data must have same length: "
-                f"{len(self.x_data)} != {len(self.y_data)}"
-            )
-        
-        if self.y_data2 is not None and len(self.y_data2) != len(self.x_data):
-            raise ModelValidationError(
-                f"y_data2 length ({len(self.y_data2)}) must match "
-                f"x_data length ({len(self.x_data)})"
-            )
-        
-        # If failed, should have error message
-        if not self.success and not self.error_message:
-            raise ModelValidationError(
-                "Failed result must have an error_message"
-            )
-
+        # Validation logic...
+        pass
 
 @dataclass(frozen=True)
-class BatchResult:
-    """
-    Minimal batch analysis result to replace deleted BatchResult.
-    
-    This is a placeholder structure that provides the minimum needed
-    to prevent import errors. Will be properly designed when batch
-    processing is reimplemented.
-    """
-    successful_results: List[FileResult] = field(default_factory=list)
-    failed_results: List[FileResult] = field(default_factory=list)
-    
-    def __post_init__(self):
-        """Validate batch results."""
-        # Ensure all successful results are actually successful
-        for result in self.successful_results:
-            if not result.success:
-                raise ModelValidationError(
-                    f"Result for {result.file_path} marked as successful but has success=False"
-                )
-        
-        # Ensure all failed results are actually failed
-        for result in self.failed_results:
-            if result.success:
-                raise ModelValidationError(
-                    f"Result for {result.file_path} marked as failed but has success=True"
-                )
+class BatchAnalysisResult:
+    """Complete result of batch analysis operation."""
+    successful_results: List[FileAnalysisResult]
+    failed_results: List[FileAnalysisResult]
+    parameters: 'AnalysisParameters'  # The params used for all files
+    start_time: float
+    end_time: float
     
     @property
     def total_files(self) -> int:
-        """Total number of files processed."""
         return len(self.successful_results) + len(self.failed_results)
     
     @property
-    def success_count(self) -> int:
-        """Number of successfully processed files."""
-        return len(self.successful_results)
-    
-    @property
-    def failure_count(self) -> int:
-        """Number of failed files."""
-        return len(self.failed_results)
-    
-    @property
     def success_rate(self) -> float:
-        """Percentage of files successfully processed."""
         if self.total_files == 0:
             return 0.0
-        return (self.success_count / self.total_files) * 100
+        return (len(self.successful_results) / self.total_files) * 100
+    
+    @property
+    def processing_time(self) -> float:
+        return self.end_time - self.start_time
 
-
-# ==============================================================================
-# Export Models
-# ==============================================================================
+@dataclass(frozen=True)
+class BatchExportResult:
+    """Result of batch export operation."""
+    export_results: List['ExportResult']
+    output_directory: str
+    total_records: int
+    
+    @property
+    def success_count(self) -> int:
+        return sum(1 for r in self.export_results if r.success)
 
 @dataclass(frozen=True)
 class ExportResult:

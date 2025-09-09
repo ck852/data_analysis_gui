@@ -85,6 +85,18 @@ class ServiceFactory:
             ServiceFactory.create_dataset_service(),
             ServiceFactory.create_export_service()
         )
+    
+    @staticmethod
+    def create_batch_service(dataset_service, analysis_service, 
+                            export_service, channel_definitions):
+        """Create a BatchService with dependencies."""
+        from data_analysis_gui.services.batch_service import BatchService
+        return BatchService(
+            dataset_service,
+            analysis_service,
+            export_service,
+            channel_definitions
+        )
 
 
 # Compatibility layer for existing code

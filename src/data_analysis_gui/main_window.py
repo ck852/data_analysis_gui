@@ -1,6 +1,7 @@
 """
 Main Window - Clean Architecture with Full Functionality
-No backwards compatibility, just clean direct parameter flow.
+Uses the new fail-closed architecture with proper result handling.
+No legacy methods or backwards compatibility.
 """
 
 import os
@@ -17,6 +18,7 @@ from PyQt5.QtGui import QKeySequence
 from data_analysis_gui.core.app_controller import ApplicationController
 from data_analysis_gui.core.models import FileInfo
 from data_analysis_gui.core.params import AnalysisParameters
+from data_analysis_gui.config.logging import get_logger
 
 # Widget imports
 from data_analysis_gui.widgets.control_panel import ControlPanel
@@ -28,11 +30,14 @@ from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
 
+logger = get_logger(__name__)
+
 
 class MainWindow(QMainWindow):
     """
     Main application window with clean architecture.
     Direct parameter flow, no dict conversions.
+    Uses fail-closed result wrappers for all controller operations.
     """
     
     # Application events
@@ -113,12 +118,6 @@ class MainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
-        self.export_action = QAction("&Export Data...", self)
-        self.export_action.setShortcut("Ctrl+E")
-        self.export_action.triggered.connect(self._export_data)
-        self.export_action.setEnabled(False)
-        file_menu.addAction(self.export_action)
-        
         file_menu.addSeparator()
         
         exit_action = QAction("E&xit", self)
@@ -129,12 +128,6 @@ class MainWindow(QMainWindow):
         # Analysis menu
         analysis_menu = menubar.addMenu("&Analysis")
         
-        self.plot_action = QAction("&Generate Plot", self)
-        self.plot_action.setShortcut("Ctrl+G")
-        self.plot_action.triggered.connect(self._generate_analysis)
-        self.plot_action.setEnabled(False)
-        analysis_menu.addAction(self.plot_action)
-        
         analysis_menu.addSeparator()
         
         self.swap_action = QAction("&Swap Channels", self)
@@ -142,6 +135,34 @@ class MainWindow(QMainWindow):
         self.swap_action.triggered.connect(self._swap_channels)
         self.swap_action.setEnabled(False)
         analysis_menu.addAction(self.swap_action)
+
+        batch_action = QAction("&Batch Analyze...", self)
+        batch_action.setShortcut("Ctrl+B")
+        batch_action.triggered.connect(self._batch_analyze)
+        batch_action.setEnabled(False)  # Enable when params are set
+        self.batch_action = batch_action
+        analysis_menu.addAction(batch_action)
+
+    # Add method:
+    def _batch_analyze(self):
+        """Open batch analysis dialog."""
+        # Get current parameters from control panel
+        params = self.control_panel.get_parameters()
+        
+        # Create batch service (can be cached as instance variable)
+        if not hasattr(self, 'batch_service'):
+            from data_analysis_gui.services.batch_service import BatchService
+            self.batch_service = BatchService(
+                self.controller.dataset_service,
+                self.controller.analysis_service,
+                self.controller.export_service,
+                self.controller.channel_definitions
+            )
+        
+        # Open batch dialog
+        from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
+        dialog = BatchAnalysisDialog(self, self.batch_service, params)
+        dialog.show()
 
     def _create_toolbar(self):
         """Create toolbar with navigation"""
@@ -185,10 +206,6 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.channel_combo)
         
         toolbar.addSeparator()
-        
-        # Analysis
-        toolbar.addAction("Generate Plot", self._generate_analysis)
-        toolbar.addAction("Export", self._export_data)
 
     def _connect_signals(self):
         """Connect all signals with clean handlers"""
@@ -222,8 +239,10 @@ class MainWindow(QMainWindow):
         
         if file_path:
             self.current_file_path = file_path
-            if self.controller.load_file(file_path):
+            result = self.controller.load_file(file_path)
+            if result.success:
                 self.file_loaded.emit(file_path)
+            # Error is already handled via controller.on_error callback
 
     def _on_file_loaded(self, file_info: FileInfo):
         """Handle successful file load"""
@@ -235,8 +254,6 @@ class MainWindow(QMainWindow):
             self.control_panel.set_analysis_range(file_info.max_sweep_time)
         
         # Enable UI elements
-        self.export_action.setEnabled(True)
-        self.plot_action.setEnabled(True)
         self.swap_action.setEnabled(True)
         self.prev_btn.setEnabled(True)
         self.next_btn.setEnabled(True)
@@ -266,26 +283,32 @@ class MainWindow(QMainWindow):
         self._update_plot()
 
     def _update_plot(self):
-        """Update the sweep plot display"""
+        """Update the sweep plot display using new fail-closed architecture"""
         sweep = self.sweep_combo.currentText()
         if not sweep or not self.controller.has_data():
             return
         
         channel_type = self.channel_combo.currentText()
-        plot_data = self.controller.get_sweep_plot_data(sweep, channel_type)
         
-        if plot_data:
+        # Use the new fail-closed result pattern
+        result = self.controller.get_sweep_plot_data(sweep, channel_type)
+        
+        if result.success and result.data:
             self.plot_manager.update_sweep_plot(
-                t=plot_data.time_ms,
-                y=plot_data.data_matrix,
-                channel=plot_data.channel_id,
+                t=result.data.time_ms,
+                y=result.data.data_matrix,
+                channel=result.data.channel_id,
                 sweep_index=int(sweep) if sweep.isdigit() else 0,
                 channel_type=channel_type
             )
             self._sync_cursors_to_plot()
+        else:
+            # Log the error but don't show dialog for sweep changes
+            # as that would be annoying during navigation
+            logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
     def _generate_analysis(self):
-        """Generate analysis plot with clean parameter flow"""
+        """Generate analysis plot with clean parameter flow and proper result handling"""
         if not self.controller.has_data():
             QMessageBox.warning(self, "No Data", "Please load a data file first.")
             return
@@ -293,26 +316,32 @@ class MainWindow(QMainWindow):
         # Get typed parameters directly
         params = self.control_panel.get_parameters()
         
-        # Perform analysis
+        # Perform analysis using new fail-closed architecture
         result = self.controller.perform_analysis(params)
         
-        if not result or not result.has_data:
+        if not result.success:
+            QMessageBox.warning(self, "Analysis Failed", 
+                              f"Analysis failed: {result.error_message}")
+            return
+        
+        if not result.data or not result.data.has_data:
             QMessageBox.warning(self, "No Results", 
                               "No data available for selected parameters.")
             return
         
-        # Prepare plot data
+        # Prepare plot data from the successful result
+        analysis_data = result.data
         plot_data = {
-            'x_data': result.x_data,
-            'y_data': result.y_data,
-            'sweep_indices': result.sweep_indices,
-            'use_dual_range': result.use_dual_range
+            'x_data': analysis_data.x_data,
+            'y_data': analysis_data.y_data,
+            'sweep_indices': analysis_data.sweep_indices,
+            'use_dual_range': analysis_data.use_dual_range
         }
         
-        if result.use_dual_range and result.y_data2 is not None:
-            plot_data['y_data2'] = result.y_data2
-            plot_data['y_label_r1'] = result.y_label_r1 or result.y_label
-            plot_data['y_label_r2'] = result.y_label_r2 or result.y_label
+        if analysis_data.use_dual_range and analysis_data.y_data2 is not None:
+            plot_data['y_data2'] = analysis_data.y_data2
+            plot_data['y_label_r1'] = analysis_data.y_label_r1 or analysis_data.y_label
+            plot_data['y_label_r2'] = analysis_data.y_label_r2 or analysis_data.y_label
         
         # Show dialog
         if self.analysis_dialog:
@@ -321,7 +350,7 @@ class MainWindow(QMainWindow):
         title = f"Analysis - {Path(self.current_file_path).stem}" if self.current_file_path else "Analysis"
         
         self.analysis_dialog = AnalysisPlotDialog(
-            self, plot_data, result.x_label, result.y_label,
+            self, plot_data, analysis_data.x_label, analysis_data.y_label,
             title, self.controller, params
         )
         self.analysis_dialog.show()
@@ -345,7 +374,7 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
         
-        # Export
+        # Export - already returns ExportResult properly
         result = self.controller.export_analysis_data(params, file_path)
         
         if result.success:

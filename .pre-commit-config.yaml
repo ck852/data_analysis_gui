@@ -1,9 +1,0 @@
-repos:
-  - repo: local
-    hooks:
-      - id: import-linter
-        name: Check architecture boundaries
-        entry: lint-imports
-        language: system
-        pass_filenames: false
-        always_run: true

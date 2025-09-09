@@ -20,7 +20,6 @@ from data_analysis_gui.core.analysis_engine import create_analysis_engine
 # Core imports
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
-from data_analysis_gui.core.analysis_engine import AnalysisEngine
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     FileInfo, AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
@@ -64,6 +63,13 @@ class PeakAnalysisOperationResult:
     error_message: Optional[str] = None
     error_type: Optional[str] = None
 
+@dataclass
+class FileLoadResult:
+    """Result wrapper for file loading operations."""
+    success: bool
+    file_info: Optional[FileInfo] = None
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
 
 class ApplicationController:
     """
@@ -106,18 +112,17 @@ class ApplicationController:
     # File Management
     # =========================================================================
     
-    def load_file(self, file_path: str) -> bool:
+    def load_file(self, file_path: str) -> FileLoadResult:
         """
         Load a data file using the DatasetService.
+        
+        FAIL-CLOSED: Always returns a FileLoadResult, never None.
         
         Args:
             file_path: Path to the data file
             
         Returns:
-            True if successful, False otherwise
-            
-        Note: This returns bool for backward compatibility, but internally
-              uses proper exception handling.
+            FileLoadResult with either file info or error information
         """
         try:
             logger.info(f"Loading file: {file_path}")
@@ -137,7 +142,7 @@ class ApplicationController:
             
             # Prepare file info for GUI
             sweep_names = sorted(dataset.sweeps(),
-                               key=lambda x: int(x) if x.isdigit() else 0)
+                            key=lambda x: int(x) if x.isdigit() else 0)
             
             file_info = FileInfo(
                 name=Path(file_path).name,
@@ -155,19 +160,51 @@ class ApplicationController:
                 self.on_status_update(f"Loaded {file_info.sweep_count} sweeps")
             
             logger.info(f"Successfully loaded {file_info.name}")
-            return True
             
-        except (ValidationError, FileError, DataError) as e:
-            logger.error(f"Failed to load file: {e}")
+            return FileLoadResult(
+                success=True,
+                file_info=file_info
+            )
+            
+        except ValidationError as e:
+            logger.error(f"Failed to load file - validation error: {e}")
             if self.on_error:
                 self.on_error(f"Failed to load file: {str(e)}")
-            return False
+            return FileLoadResult(
+                success=False,
+                error_message=str(e),
+                error_type="ValidationError"
+            )
+            
+        except FileError as e:
+            logger.error(f"Failed to load file - file error: {e}")
+            if self.on_error:
+                self.on_error(f"Failed to load file: {str(e)}")
+            return FileLoadResult(
+                success=False,
+                error_message=str(e),
+                error_type="FileError"
+            )
+            
+        except DataError as e:
+            logger.error(f"Failed to load file - data error: {e}")
+            if self.on_error:
+                self.on_error(f"Failed to load file: {str(e)}")
+            return FileLoadResult(
+                success=False,
+                error_message=str(e),
+                error_type="DataError"
+            )
             
         except Exception as e:
             logger.error(f"Unexpected error loading file: {e}", exc_info=True)
             if self.on_error:
                 self.on_error(f"An unexpected error occurred: {str(e)}")
-            return False
+            return FileLoadResult(
+                success=False,
+                error_message=f"Unexpected error: {str(e)}",
+                error_type=type(e).__name__
+            )
 
     def has_data(self) -> bool:
         """Check if data is currently loaded."""
@@ -466,74 +503,3 @@ class ApplicationController:
             'voltage': self.channel_definitions.get_voltage_channel(),
             'current': self.channel_definitions.get_current_channel()
         }
-    
-    # =========================================================================
-    # Convenience Methods for GUI Migration
-    # =========================================================================
-    
-    def perform_analysis_legacy(self, params: AnalysisParameters) -> Optional[AnalysisResult]:
-        """
-        Legacy wrapper for perform_analysis that returns None on failure.
-        
-        DEPRECATED: Use perform_analysis() which returns AnalysisOperationResult.
-        This method exists only to ease GUI migration.
-        
-        Args:
-            params: AnalysisParameters object
-            
-        Returns:
-            AnalysisResult or None (for backward compatibility only)
-        """
-        result = self.perform_analysis(params)
-        if result.success:
-            return result.data
-        else:
-            if self.on_error:
-                self.on_error(f"Analysis failed: {result.error_message}")
-            return None
-    
-    def get_sweep_plot_data_legacy(self, sweep_index: str, 
-                                  channel_type: str) -> Optional[PlotData]:
-        """
-        Legacy wrapper for get_sweep_plot_data that returns None on failure.
-        
-        DEPRECATED: Use get_sweep_plot_data() which returns PlotDataResult.
-        This method exists only to ease GUI migration.
-        
-        Args:
-            sweep_index: Sweep identifier
-            channel_type: "Voltage" or "Current"
-            
-        Returns:
-            PlotData or None (for backward compatibility only)
-        """
-        result = self.get_sweep_plot_data(sweep_index, channel_type)
-        if result.success:
-            return result.data
-        else:
-            # Don't show error dialog for individual sweep failures
-            logger.debug(f"Sweep plot data unavailable: {result.error_message}")
-            return None
-    
-    def perform_peak_analysis_legacy(self, params: AnalysisParameters,
-                                    peak_types: List[str] = None) -> Optional[PeakAnalysisResult]:
-        """
-        Legacy wrapper for perform_peak_analysis that returns None on failure.
-        
-        DEPRECATED: Use perform_peak_analysis() which returns PeakAnalysisOperationResult.
-        This method exists only to ease GUI migration.
-        
-        Args:
-            params: Analysis parameters
-            peak_types: List of peak types to analyze
-            
-        Returns:
-            PeakAnalysisResult or None (for backward compatibility only)
-        """
-        result = self.perform_peak_analysis(params, peak_types)
-        if result.success:
-            return result.data
-        else:
-            if self.on_error:
-                self.on_error(f"Peak analysis failed: {result.error_message}")
-            return None
