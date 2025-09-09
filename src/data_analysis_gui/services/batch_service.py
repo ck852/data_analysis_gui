@@ -1,5 +1,3 @@
-# services/batch_service.py
-
 from typing import List, Callable, Optional
 import time
 from pathlib import Path
@@ -12,8 +10,10 @@ from data_analysis_gui.core.models import (
 from data_analysis_gui.services.dataset_service import DatasetService
 from data_analysis_gui.services.analysis_service import AnalysisService
 from data_analysis_gui.services.export_service import ExportService
+from data_analysis_gui.core.analysis_engine import create_analysis_engine
 from data_analysis_gui.core.exceptions import ValidationError
 from data_analysis_gui.config.logging import get_logger
+import re
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ class BatchService:
                  channel_definitions):
         """Initialize with injected dependencies."""
         self.dataset_service = dataset_service
-        self.analysis_service = analysis_service
+        self.analysis_service = analysis_service  # Keep for compatibility
         self.export_service = export_service
         self.channel_definitions = channel_definitions
         
@@ -72,7 +72,7 @@ class BatchService:
             # Parallel processing
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._analyze_single_file, path, params): path
+                    executor.submit(self._analyze_single_file_isolated, path, params): path
                     for path in file_paths
                 }
                 
@@ -105,12 +105,12 @@ class BatchService:
                             )
                         )
         else:
-            # Sequential processing
+            # Sequential processing - also use isolated analysis for consistency
             for i, path in enumerate(file_paths):
                 if self.on_progress:
                     self.on_progress(i + 1, len(file_paths), Path(path).name)
                 
-                result = self._analyze_single_file(path, params)
+                result = self._analyze_single_file_isolated(path, params)
                 
                 if result.success:
                     successful_results.append(result)
@@ -135,11 +135,20 @@ class BatchService:
             end_time=end_time
         )
     
-    def _analyze_single_file(self,
-                            file_path: str,
-                            params: AnalysisParameters) -> FileAnalysisResult:
-        """Analyze a single file and return result."""
-        base_name = Path(file_path).stem
+    @staticmethod
+    def _sanitize_name(file_path: str) -> str:
+        """Return filename stem with bracketed content removed."""
+        stem = Path(file_path).stem
+        return re.sub(r"\[.*?\]", "", stem).strip()
+    
+    def _analyze_single_file_isolated(self,
+                                     file_path: str,
+                                     params: AnalysisParameters) -> FileAnalysisResult:
+        """
+        Analyze a single file with its own isolated AnalysisEngine.
+        This prevents cache interference between files in batch processing.
+        """
+        base_name = self._sanitize_name(file_path)
         start_time = time.time()
         
         try:
@@ -148,13 +157,26 @@ class BatchService:
                 file_path, self.channel_definitions
             )
             
-            # Perform analysis
-            analysis_result = self.analysis_service.perform_analysis(
+            # Create a fresh AnalysisEngine for this file
+            # This ensures no cache interference between files
+            fresh_engine = create_analysis_engine(
+                self.channel_definitions,
+                enable_caching=False  # Disable caching for batch processing
+            )
+            
+            # Create a fresh AnalysisService with the isolated engine
+            fresh_analysis_service = AnalysisService(
+                fresh_engine,
+                self.export_service
+            )
+            
+            # Perform analysis with the isolated service
+            analysis_result = fresh_analysis_service.perform_analysis(
                 dataset, params
             )
             
             # Get export table
-            export_table = self.analysis_service.get_export_table(
+            export_table = fresh_analysis_service.get_export_table(
                 dataset, params
             )
             
@@ -181,6 +203,15 @@ class BatchService:
                 error_message=str(e),
                 processing_time=time.time() - start_time
             )
+    
+    def _analyze_single_file(self,
+                            file_path: str,
+                            params: AnalysisParameters) -> FileAnalysisResult:
+        """
+        Legacy method - redirects to isolated analysis.
+        Kept for compatibility if called directly.
+        """
+        return self._analyze_single_file_isolated(file_path, params)
     
     def export_batch_results(self,
                             batch_result: BatchAnalysisResult,
