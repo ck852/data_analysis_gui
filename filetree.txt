@@ -18,11 +18,9 @@ streamlining/
 |       |   |-- analysis_engine.py
 |       |   |-- analysis_plot.py
 |       |   |-- app_controller.py
-|       |   |-- cache_manager.py
 |       |   |-- channel_definitions.py
 |       |   |-- data_extractor.py
 |       |   |-- dataset.py
-|       |   |-- dataset_identifier.py
 |       |   |-- exceptions.py
 |       |   |-- interfaces.py
 |       |   |-- iv_analysis.py
