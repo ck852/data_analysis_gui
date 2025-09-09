@@ -386,7 +386,7 @@ class BatchResultsWindow(QMainWindow):
         # Create buttons
         export_csvs_btn = QPushButton("Export Individual CSVs...")
         export_plot_btn = QPushButton("Export Plot...")
-        export_combined_btn = QPushButton("Export Combined CSV...")
+        
         
         # IV-specific export if applicable
         if self._is_iv_analysis():
@@ -396,7 +396,7 @@ class BatchResultsWindow(QMainWindow):
         
         button_layout.addWidget(export_csvs_btn)
         button_layout.addWidget(export_plot_btn)
-        button_layout.addWidget(export_combined_btn)
+        
         button_layout.addStretch()
         
         layout.addLayout(button_layout)
@@ -404,7 +404,7 @@ class BatchResultsWindow(QMainWindow):
         # Connect signals
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
-        export_combined_btn.clicked.connect(self._export_combined_csv)
+        
         
         # Populate file list after UI is created
         self._populate_file_list()
@@ -413,10 +413,11 @@ class BatchResultsWindow(QMainWindow):
     def _is_iv_analysis(self):
         """Check if this is an IV analysis."""
         params = self.batch_result.parameters
-        return (params.x_axis.measure == "Average" and 
-                params.x_axis.channel == "Voltage" and
-                params.y_axis.measure == "Average" and
-                params.y_axis.channel == "Current")
+        return (
+            params.x_axis.channel == "Voltage"
+            and params.y_axis.channel == "Current"
+            and {params.x_axis.measure, params.y_axis.measure} <= {"Average", "Current"}
+        )
     
     def _get_filtered_results(self):
         """Get results filtered by current selection."""
@@ -539,35 +540,7 @@ class BatchResultsWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"Failed to export plot: {e}")
                 QMessageBox.critical(self, "Export Failed", str(e))
-    
-    def _export_combined_csv(self):
-        """Export combined CSV for selected files only."""
-        filtered_results = self._get_filtered_results()
-        
-        if not filtered_results:
-            QMessageBox.warning(self, "No Data", "No files selected for export.")
-            return
-        
-        file_path = self.file_dialog_service.get_export_path(
-            self, "batch_combined.csv",
-            file_types="CSV files (*.csv)"
-        )
-        
-        if file_path:
-            # Build export table for selected files only
-            export_table = self._build_combined_export_table(filtered_results)
-            
-            result = self.export_service.export_analysis_data(
-                export_table, file_path
-            )
-            
-            if result.success:
-                QMessageBox.information(
-                    self, "Export Complete",
-                    f"Exported {result.records_exported} records from {len(filtered_results)} files"
-                )
-            else:
-                QMessageBox.warning(self, "Export Failed", result.error_message)
+
     
     def _build_combined_export_table(self, results=None):
         """Build export table using PlotFormatter patterns."""

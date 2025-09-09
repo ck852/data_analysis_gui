@@ -25,6 +25,9 @@ class BatchService:
     This service orchestrates the analysis of multiple files using the
     existing single-file infrastructure, maintaining clean architecture
     and fail-closed principles.
+    
+    With caching removed from AnalysisEngine, batch processing is naturally
+    thread-safe - each file gets its own analysis without any shared state.
     """
     
     def __init__(self,
@@ -34,7 +37,7 @@ class BatchService:
                  channel_definitions):
         """Initialize with injected dependencies."""
         self.dataset_service = dataset_service
-        self.analysis_service = analysis_service  # Keep for compatibility
+        self.analysis_service = analysis_service
         self.export_service = export_service
         self.channel_definitions = channel_definitions
         
@@ -70,9 +73,10 @@ class BatchService:
         
         if parallel and len(file_paths) > 1:
             # Parallel processing
+            # With no caching, each thread can safely use its own engine
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._analyze_single_file_isolated, path, params): path
+                    executor.submit(self._analyze_single_file, path, params): path
                     for path in file_paths
                 }
                 
@@ -105,12 +109,12 @@ class BatchService:
                             )
                         )
         else:
-            # Sequential processing - also use isolated analysis for consistency
+            # Sequential processing
             for i, path in enumerate(file_paths):
                 if self.on_progress:
                     self.on_progress(i + 1, len(file_paths), Path(path).name)
                 
-                result = self._analyze_single_file_isolated(path, params)
+                result = self._analyze_single_file(path, params)
                 
                 if result.success:
                     successful_results.append(result)
@@ -141,12 +145,14 @@ class BatchService:
         stem = Path(file_path).stem
         return re.sub(r"\[.*?\]", "", stem).strip()
     
-    def _analyze_single_file_isolated(self,
-                                     file_path: str,
-                                     params: AnalysisParameters) -> FileAnalysisResult:
+    def _analyze_single_file(self,
+                            file_path: str,
+                            params: AnalysisParameters) -> FileAnalysisResult:
         """
-        Analyze a single file with its own isolated AnalysisEngine.
-        This prevents cache interference between files in batch processing.
+        Analyze a single file.
+        
+        With caching removed, each analysis is naturally isolated.
+        No special handling needed for thread safety.
         """
         base_name = self._sanitize_name(file_path)
         start_time = time.time()
@@ -157,26 +163,20 @@ class BatchService:
                 file_path, self.channel_definitions
             )
             
-            # Create a fresh AnalysisEngine for this file
-            # This ensures no cache interference between files
-            fresh_engine = create_analysis_engine(
-                self.channel_definitions,
-                enable_caching=False  # Disable caching for batch processing
-            )
+            # Create a fresh engine for this file
+            # This is cheap now without caching infrastructure
+            engine = create_analysis_engine(self.channel_definitions)
             
-            # Create a fresh AnalysisService with the isolated engine
-            fresh_analysis_service = AnalysisService(
-                fresh_engine,
-                self.export_service
-            )
+            # Create analysis service with the fresh engine
+            analysis_service = AnalysisService(engine, self.export_service)
             
-            # Perform analysis with the isolated service
-            analysis_result = fresh_analysis_service.perform_analysis(
+            # Perform analysis
+            analysis_result = analysis_service.perform_analysis(
                 dataset, params
             )
             
             # Get export table
-            export_table = fresh_analysis_service.get_export_table(
+            export_table = analysis_service.get_export_table(
                 dataset, params
             )
             
@@ -203,15 +203,6 @@ class BatchService:
                 error_message=str(e),
                 processing_time=time.time() - start_time
             )
-    
-    def _analyze_single_file(self,
-                            file_path: str,
-                            params: AnalysisParameters) -> FileAnalysisResult:
-        """
-        Legacy method - redirects to isolated analysis.
-        Kept for compatibility if called directly.
-        """
-        return self._analyze_single_file_isolated(file_path, params)
     
     def export_batch_results(self,
                             batch_result: BatchAnalysisResult,
