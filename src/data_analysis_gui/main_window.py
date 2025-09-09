@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         batch_action = QAction("&Batch Analyze...", self)
         batch_action.setShortcut("Ctrl+B")
         batch_action.triggered.connect(self._batch_analyze)
-        batch_action.setEnabled(False)  # Enable when params are set
+        batch_action.setEnabled(True)
         self.batch_action = batch_action
         analysis_menu.addAction(batch_action)
 

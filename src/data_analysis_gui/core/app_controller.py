@@ -96,10 +96,10 @@ class ApplicationController:
 
         # Create services using factory
         self.dataset_service = ServiceFactory.create_dataset_service()
-        export_service = ServiceFactory.create_export_service()
+        self.export_service = ServiceFactory.create_export_service()
         
         # Initialize the unified analysis service with proper DI
-        self.analysis_service = AnalysisService(self.engine, export_service)
+        self.analysis_service = AnalysisService(self.engine, self.export_service)
         
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None

@@ -24,7 +24,6 @@ streamlining/
 |       |   |-- dataset.py
 |       |   |-- dataset_identifier.py
 |       |   |-- exceptions.py
-|       |   |-- exporter.py
 |       |   |-- interfaces.py
 |       |   |-- iv_analysis.py
 |       |   |-- metrics_calculator.py
@@ -35,7 +34,9 @@ streamlining/
 |       |   `-- session_settings.py
 |       |-- dialogs/
 |       |   |-- __init__.py
-|       |   `-- analysis_plot_dialog.py
+|       |   |-- analysis_plot_dialog.py
+|       |   |-- batch_dialog.py
+|       |   `-- batch_results_window.py
 |       |-- gui_services/
 |       |   |-- __init__.py
 |       |   `-- file_dialog_service.py
@@ -44,6 +45,7 @@ streamlining/
 |       |-- services/
 |       |   |-- __init__.py
 |       |   |-- analysis_service.py
+|       |   |-- batch_service.py
 |       |   |-- dataset_service.py
 |       |   |-- export_service.py
 |       |   |-- plot_service.py
