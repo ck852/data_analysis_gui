@@ -7,9 +7,9 @@ from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     FileAnalysisResult, BatchAnalysisResult, BatchExportResult
 )
-from data_analysis_gui.services.dataset_service import DatasetService
+
 from data_analysis_gui.services.analysis_service import AnalysisService
-from data_analysis_gui.services.export_service import ExportService
+from data_analysis_gui.services.data_service import DataService
 from data_analysis_gui.core.analysis_engine import create_analysis_engine
 from data_analysis_gui.core.exceptions import ValidationError
 from data_analysis_gui.config.logging import get_logger
@@ -31,9 +31,9 @@ class BatchService:
     """
     
     def __init__(self,
-                 dataset_service: DatasetService,
+                 dataset_service: DataService,
                  analysis_service: AnalysisService,
-                 export_service: ExportService,
+                 export_service: DataService,
                  channel_definitions):
         """Initialize with injected dependencies."""
         self.dataset_service = dataset_service

@@ -28,7 +28,7 @@ from data_analysis_gui.core.exceptions import DataError, FileError, ValidationEr
 
 # Service imports
 from data_analysis_gui.services.analysis_service import AnalysisService
-from data_analysis_gui.services.service_factory import ServiceFactory
+from data_analysis_gui.services.data_service import DataService
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -94,12 +94,11 @@ class ApplicationController:
         # Initialize the analysis engine using the factory function
         self.engine = create_analysis_engine(self.channel_definitions)
 
-        # Create services using factory
-        self.dataset_service = ServiceFactory.create_dataset_service()
-        self.export_service = ServiceFactory.create_export_service()
+        # Create unified data service (replaces dataset_service and export_service)
+        self.data_service = DataService()
         
-        # Initialize the unified analysis service with proper DI
-        self.analysis_service = AnalysisService(self.engine, self.export_service)
+        # Initialize the unified analysis service with engine and data service
+        self.analysis_service = AnalysisService(self.engine, self.data_service)
         
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
@@ -128,10 +127,10 @@ class ApplicationController:
             logger.info(f"Loading file: {file_path}")
             
             # Delegate to service - will raise exception on failure
-            dataset = self.dataset_service.load_dataset(
+            dataset = self.data_service.load_dataset(
                 file_path,
                 self.channel_definitions
-            )
+                )
             
             # Update state
             self.current_dataset = dataset

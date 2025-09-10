@@ -1,0 +1,61 @@
+data_analysis_gui/
+|-- config/
+|   |-- __init__.py
+|   |-- environment.py
+|   |-- logging.py
+|   |-- settings.py
+|   `-- themes.py
+|-- core/
+|   |-- backends/
+|   |   |-- headless_backend.py
+|   |   `-- qt_backend.py
+|   |-- loaders/
+|   |   |-- __init__.py
+|   |   `-- abf_loader.py
+|   |-- __init__.py
+|   |-- analysis_engine.py
+|   |-- analysis_plot.py
+|   |-- app_controller.py
+|   |-- channel_definitions.py
+|   |-- data_extractor.py
+|   |-- dataset.py
+|   |-- exceptions.py
+|   |-- interfaces.py
+|   |-- iv_analysis.py
+|   |-- metrics_calculator.py
+|   |-- models.py
+|   |-- params.py
+|   |-- plot_formatter.py
+|   |-- plotting_interface.py
+|   `-- session_settings.py
+|-- dialogs/
+|   |-- __init__.py
+|   |-- analysis_plot_dialog.py
+|   |-- batch_dialog.py
+|   `-- batch_results_window.py
+|-- gui_services/
+|   |-- __init__.py
+|   `-- file_dialog_service.py
+|-- infrastructure/
+|   `-- file_io.py
+|-- services/
+|   |-- __init__.py
+|   |-- analysis_service.py
+|   |-- batch_service.py
+|   |-- data_service.py
+|   |-- dataset_service.py
+|   |-- export_service.py
+|   |-- plot_service.py
+|   `-- service_factory.py
+|-- widgets/
+|   |-- __init__.py
+|   |-- control_panel.py
+|   |-- custom_combos.py
+|   `-- custom_inputs.py
+|-- __init__.py
+|-- cli.py
+|-- filetree.txt
+|-- filetree_full.py
+|-- main.py
+|-- main_window.py
+`-- plot_manager.py

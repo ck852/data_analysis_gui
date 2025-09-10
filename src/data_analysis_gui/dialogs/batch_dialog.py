@@ -313,7 +313,7 @@ class BatchAnalysisDialog(QDialog):
                 self.batch_result,
                 self.batch_service,
                 plot_service,
-                self.parent().controller.export_service  # Pass export service
+                self.parent().controller.data_service  # Pass data service
             )
             results_window.show()
             

@@ -176,26 +176,6 @@ class ExportError(AnalysisError):
     """
     pass
 
-
-class CacheError(AnalysisError):
-    """
-    Raised when cache operations fail.
-    
-    This includes:
-    - Cache corruption
-    - Invalid cache keys
-    - Cache size limit exceeded
-    
-    Example:
-        if corrupted_cache_detected:
-            raise CacheError(
-                "Cache corruption detected, clearing cache",
-                details={'cache_size': len(cache), 'key': cache_key}
-            )
-    """
-    pass
-
-
 # Validation helper functions that raise appropriate exceptions
 
 def validate_not_none(value: Any, name: str) -> Any:

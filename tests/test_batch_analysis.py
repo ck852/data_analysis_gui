@@ -53,9 +53,9 @@ class TestBatchAnalysisWorkflow:
         """Create a BatchService instance with proper dependencies."""
         # Use the same pattern as main_window._batch_analyze()
         return BatchService(
-            controller.dataset_service,
+            controller.data_service,
             controller.analysis_service,
-            controller.export_service,
+            controller.data_service,
             controller.channel_definitions
         )
     
@@ -172,7 +172,7 @@ class TestBatchAnalysisWorkflow:
             'y_measure': 'Average',  # Y-Axis: Average  
             'y_channel': 'Current',  # Y-Axis: Current
             
-            # Default stimulus period
+            # Default stimulus period (irrelevant for IV analysis)
             'stimulus_period': 1000.0,
             
             # No peak type needed for Average measure

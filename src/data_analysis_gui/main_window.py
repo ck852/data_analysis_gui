@@ -153,9 +153,9 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'batch_service'):
             from data_analysis_gui.services.batch_service import BatchService
             self.batch_service = BatchService(
-                self.controller.dataset_service,
+                self.controller.data_service,
                 self.controller.analysis_service,
-                self.controller.export_service,
+                self.controller.data_service,
                 self.controller.channel_definitions
             )
         

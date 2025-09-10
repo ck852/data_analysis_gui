@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import re
-from typing import Dict, List, Set
+from typing import Set
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
                              QCheckBox, QLabel, QSplitter, QHeaderView)
@@ -12,7 +12,6 @@ from PyQt5.QtGui import QColor, QPixmap, QPainter, QBrush
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
-import numpy as np
 
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.core.plot_formatter import PlotFormatter
@@ -139,12 +138,12 @@ class FileListWidget(QTableWidget):
 class BatchResultsWindow(QMainWindow):
     """Window for displaying batch analysis results with file selection."""
     
-    def __init__(self, parent, batch_result, batch_service, plot_service, export_service):
+    def __init__(self, parent, batch_result, batch_service, plot_service, data_service):
         super().__init__(parent)
         self.batch_result = batch_result
         self.batch_service = batch_service
         self.plot_service = plot_service
-        self.export_service = export_service
+        self.export_service = data_service
         self.file_dialog_service = FileDialogService()
         
         # Use PlotFormatter for consistent formatting
@@ -468,7 +467,7 @@ class BatchResultsWindow(QMainWindow):
                     iv_data_r1, mapping, selected_set
                 )
                 
-                result = self.export_service.export_analysis_data(table, file_path)
+                result = self.data_service.export_analysis_data(table, file_path)
                 
                 if result.success:
                     QMessageBox.information(
