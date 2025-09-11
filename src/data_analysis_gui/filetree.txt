@@ -32,7 +32,9 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- analysis_plot_dialog.py
 |   |-- batch_dialog.py
-|   `-- batch_results_window.py
+|   |-- batch_results_window.py
+|   |-- current_density_dialog.py
+|   `-- current_density_results_window.py
 |-- gui_services/
 |   |-- __init__.py
 |   `-- file_dialog_service.py
@@ -42,6 +44,7 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- analysis_manager.py
 |   |-- batch_processor.py
+|   |-- current_density_service.py
 |   |-- data_manager.py
 |   `-- plot_service.py
 |-- widgets/

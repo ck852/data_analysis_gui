@@ -5,7 +5,7 @@ import re
 from typing import Set
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
-                             QCheckBox, QLabel, QSplitter, QHeaderView)
+                             QCheckBox, QLabel, QSplitter, QHeaderView, QApplication)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QPixmap, QPainter, QBrush
 
@@ -160,7 +160,14 @@ class BatchResultsWindow(QMainWindow):
         self.file_colors = {}  # Store color mapping
         
         self.setWindowTitle("Batch Analysis Results")
-        self.setGeometry(150, 150, 1200, 700)
+        screen = self.screen() or QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        w = max(900, min(int(avail.width() * 0.90), 1200))
+        h = max(600, min(int(avail.height() * 0.90), 700))
+        self.resize(w, h)
+        fg = self.frameGeometry()
+        fg.moveCenter(avail.center())
+        self.move(fg.topLeft())
         self.init_ui()
     
     def init_ui(self):
@@ -663,6 +670,7 @@ class BatchResultsWindow(QMainWindow):
                 self,
                 self.batch_result,
                 cslow_mapping,
-                self.data_service
+                self.data_service,
+                self.batch_service
             )
             cd_window.show()

@@ -244,83 +244,75 @@ class ControlPanel(QWidget):
 
     def _connect_signals(self):
         """Connect internal widget signals with validation."""
-        self.start_spin.valueChanged.connect(lambda: self._validate_ranges('start1'))
-        self.end_spin.valueChanged.connect(lambda: self._validate_ranges('end1'))
-        self.start_spin2.valueChanged.connect(lambda: self._validate_ranges('start2'))
-        self.end_spin2.valueChanged.connect(lambda: self._validate_ranges('end2'))
+        # Validate on any value change
+        self.start_spin.valueChanged.connect(self._validate_and_update)
+        self.end_spin.valueChanged.connect(self._validate_and_update)
+        self.start_spin2.valueChanged.connect(self._validate_and_update)
+        self.end_spin2.valueChanged.connect(self._validate_and_update)
+        # Also re-validate when the dual range checkbox is toggled
+        self.dual_range_cb.stateChanged.connect(self._validate_and_update)
 
-    def _validate_ranges(self, changed_key: str):
+    def _validate_and_update(self):
         """
-        Validates range pairs. If a change creates an invalid range
-        (end <= start), it reverts the spinbox that caused it.
-        
-        Args:
-            changed_key: Which spinbox triggered the validation
+        Validates all ranges, updates UI feedback, and emits a signal
+        that the range values have changed for the plot to sync.
         """
-        # Validate Range 1
+        # --- Validate Range 1 ---
         start1_val = self.start_spin.value()
         end1_val = self.end_spin.value()
-        
-        range1_valid = end1_val > start1_val
-        
-        if not range1_valid:
-            # Mark the field that caused the issue as invalid
-            self._mark_field_invalid(changed_key)
-            self._revert_spinbox_value(changed_key)
-            # Emit signal to sync plot lines with reverted values
-            self.range_values_changed.emit()
-            return  # Stop processing
+        is_range1_valid = end1_val > start1_val
+
+        if not is_range1_valid:
+            self._mark_field_invalid('start1')
+            self._mark_field_invalid('end1')
         else:
-            # Range 1 is valid, clear any invalid markers for range 1 fields
             self._clear_invalid_state('start1')
             self._clear_invalid_state('end1')
-        
-        # Range 1 is valid, update stored values
-        self._previous_valid_values['start1'] = start1_val
-        self._previous_valid_values['end1'] = end1_val
-        
-        # Validate Range 2 (if enabled)
+
+        # --- Validate Range 2 (if enabled) ---
+        is_range2_valid = True
         if self.dual_range_cb.isChecked():
             start2_val = self.start_spin2.value()
             end2_val = self.end_spin2.value()
-            
-            range2_valid = end2_val > start2_val
-            
-            if not range2_valid:
-                # Mark the field that caused the issue as invalid
-                self._mark_field_invalid(changed_key)
-                self._revert_spinbox_value(changed_key)
-                # Emit signal to sync plot lines with reverted values
-                self.range_values_changed.emit()
-                return  # Stop processing
+            is_range2_valid = end2_val > start2_val
+
+            if not is_range2_valid:
+                self._mark_field_invalid('start2')
+                self._mark_field_invalid('end2')
             else:
-                # Range 2 is valid, clear any invalid markers for range 2 fields
                 self._clear_invalid_state('start2')
                 self._clear_invalid_state('end2')
-            
-            # Range 2 is valid, update stored values
-            self._previous_valid_values['start2'] = start2_val
-            self._previous_valid_values['end2'] = end2_val
+        else:
+            # If dual range is disabled, its fields can't be invalid
+            self._clear_invalid_state('start2')
+            self._clear_invalid_state('end2')
+
+        # --- Update Button State ---
+        is_all_valid = is_range1_valid and is_range2_valid
         
-        # All validation passed, emit signal
+        # Only enable buttons if controls are generally active
+        if self.update_plot_btn.property("enabled_by_file"):
+            self.update_plot_btn.setEnabled(is_all_valid)
+            self.export_plot_btn.setEnabled(is_all_valid)
+
+        # --- Sync Cursors ---
         self.range_values_changed.emit()
 
     def _mark_field_invalid(self, spinbox_key: str):
-        """Mark a field as invalid with persistent red background."""
+        """Mark a field as invalid with a persistent red background."""
         spinbox_map = {
             'start1': self.start_spin,
             'end1': self.end_spin,
             'start2': self.start_spin2,
             'end2': self.end_spin2
         }
-        
         spinbox = spinbox_map.get(spinbox_key)
         if spinbox and spinbox_key not in self._invalid_fields:
             self._invalid_fields.add(spinbox_key)
             spinbox.setStyleSheet("QDoubleSpinBox { background-color: #ffcccc; }")
 
     def _clear_invalid_state(self, spinbox_key: str):
-        """Clear invalid state from a field if it's marked."""
+        """Clear the invalid state from a field if it's marked."""
         if spinbox_key in self._invalid_fields:
             self._invalid_fields.remove(spinbox_key)
             spinbox_map = {
@@ -331,40 +323,35 @@ class ControlPanel(QWidget):
             }
             spinbox = spinbox_map.get(spinbox_key)
             if spinbox:
-                # Restore original style
                 original_style = self._original_styles.get(spinbox_key, "")
                 spinbox.setStyleSheet(original_style)
 
-    def _revert_spinbox_value(self, spinbox_key: str):
-        """Reverts a spinbox to its previous valid value."""
-        spinbox_map = {
-            'start1': self.start_spin,
-            'end1': self.end_spin,
-            'start2': self.start_spin2,
-            'end2': self.end_spin2
-        }
-        
-        spinbox = spinbox_map.get(spinbox_key)
-        if spinbox:
-            previous_value = self._previous_valid_values[spinbox_key]
-            
-            # Block signals to prevent recursion
-            spinbox.blockSignals(True)
-            spinbox.setValue(previous_value)
-            spinbox.blockSignals(False)
-
     def _on_dual_range_changed(self):
-        """Handle dual range checkbox state change"""
+        """Handle dual range checkbox state change."""
         enabled = self.dual_range_cb.isChecked()
         self.start_spin2.setEnabled(enabled)
         self.end_spin2.setEnabled(enabled)
-        
-        # Clear any invalid state on range 2 fields when disabling
-        if not enabled:
-            self._clear_invalid_state('start2')
-            self._clear_invalid_state('end2')
-        
         self.dual_range_toggled.emit(enabled)
+        # The validation is handled by the connected signal
+
+    def set_controls_enabled(self, enabled: bool):
+        """Enable or disable analysis controls based on file loading."""
+        # Use a custom property to track if buttons *should* be enabled
+        self.update_plot_btn.setProperty("enabled_by_file", enabled)
+        self.export_plot_btn.setProperty("enabled_by_file", enabled)
+        
+        self.swap_channels_btn.setEnabled(enabled)
+
+        if enabled:
+            # If enabling, run validation to set the correct state of the buttons
+            self._validate_and_update()
+            if self._pending_swap_state:
+                self._is_swapped = self._pending_swap_state
+                self._pending_swap_state = False
+        else:
+            # If disabling, just turn them off
+            self.update_plot_btn.setEnabled(False)
+            self.export_plot_btn.setEnabled(False)
 
     # --- PHASE 4: New method to create AnalysisParameters directly ---
     
