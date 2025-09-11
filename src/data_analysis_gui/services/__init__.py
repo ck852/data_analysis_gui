@@ -1,9 +1,13 @@
-# services/__init__.py
-"""
-Service layer for the application.
-Services handle operations that coordinate between business logic and presentation.
-"""
+from .data_manager import DataManager
+from .analysis_manager import AnalysisManager
+from .batch_processor import BatchProcessor
+from .plot_service import PlotService
+from .current_density_service import CurrentDensityService
 
-from data_analysis_gui.services.plot_service import PlotService
-
-__all__ = ['PlotService']
+__all__ = [
+    'DataManager',
+    'AnalysisManager',
+    'BatchProcessor',
+    'PlotService',
+    'CurrentDensityService'
+]

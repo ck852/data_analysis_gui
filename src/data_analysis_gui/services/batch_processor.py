@@ -1,71 +1,78 @@
-from typing import List, Callable, Optional
+"""
+Simplified batch processing with direct method calls.
+
+This module provides straightforward batch analysis functionality without
+complex dependency injection patterns.
+
+Author: Data Analysis GUI Contributors
+License: MIT
+"""
+
 import time
+import re
 from pathlib import Path
+from typing import List, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     FileAnalysisResult, BatchAnalysisResult, BatchExportResult
 )
-
-from data_analysis_gui.services.analysis_service import AnalysisService
-from data_analysis_gui.services.data_service import DataService
-from data_analysis_gui.core.analysis_engine import create_analysis_engine
-from data_analysis_gui.core.exceptions import ValidationError
+from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.config.logging import get_logger
-import re
+
+# Direct imports of managers
+from data_analysis_gui.services.data_manager import DataManager
+from data_analysis_gui.services.analysis_manager import AnalysisManager
 
 logger = get_logger(__name__)
 
 
-class BatchService:
+class BatchProcessor:
     """
-    Service for batch processing multiple files with the same parameters.
+    Processes multiple files with the same analysis parameters.
     
-    This service orchestrates the analysis of multiple files using the
-    existing single-file infrastructure, maintaining clean architecture
-    and fail-closed principles.
-    
-    With caching removed from AnalysisEngine, batch processing is naturally
-    thread-safe - each file gets its own analysis without any shared state.
+    Simple, direct implementation without complex dependency patterns.
+    Scientists can easily understand and modify the batch processing logic.
     """
     
-    def __init__(self,
-                 dataset_service: DataService,
-                 analysis_service: AnalysisService,
-                 export_service: DataService,
-                 channel_definitions):
-        """Initialize with injected dependencies."""
-        self.dataset_service = dataset_service
-        self.analysis_service = analysis_service
-        self.export_service = export_service
-        self.channel_definitions = channel_definitions
-        
-        # Progress callback (set by GUI)
-        self.on_progress: Optional[Callable[[int, int, str], None]] = None
-        self.on_file_complete: Optional[Callable[[FileAnalysisResult], None]] = None
-    
-    def analyze_files(self,
-                      file_paths: List[str],
-                      params: AnalysisParameters,
-                      parallel: bool = False,
-                      max_workers: int = 4) -> BatchAnalysisResult:
+    def __init__(self, channel_definitions: ChannelDefinitions):
         """
-        Analyze multiple files with the same parameters.
+        Initialize with channel definitions.
         
         Args:
-            file_paths: List of file paths to analyze
-            params: Analysis parameters to use for all files
-            parallel: Whether to process files in parallel
-            max_workers: Maximum number of parallel workers
+            channel_definitions: Channel configuration
+        """
+        self.channel_definitions = channel_definitions
+        self.data_manager = DataManager()  # Direct instantiation
+        
+        # Progress callbacks (optional)
+        self.on_progress: Optional[Callable] = None
+        self.on_file_complete: Optional[Callable] = None
+        
+        logger.info("BatchProcessor initialized")
+    
+    def process_files(self,
+                     file_paths: List[str],
+                     params: AnalysisParameters,
+                     parallel: bool = False,
+                     max_workers: int = 4) -> BatchAnalysisResult:
+        """
+        Process multiple files with the same parameters.
+        
+        Args:
+            file_paths: List of files to process
+            params: Analysis parameters
+            parallel: Whether to use parallel processing
+            max_workers: Number of parallel workers
             
         Returns:
             BatchAnalysisResult with all results
         """
         if not file_paths:
-            raise ValidationError("No files provided for batch analysis")
+            raise ValueError("No files provided")
         
-        logger.info(f"Starting batch analysis of {len(file_paths)} files")
+        logger.info(f"Processing {len(file_paths)} files")
         start_time = time.time()
         
         successful_results = []
@@ -73,10 +80,9 @@ class BatchService:
         
         if parallel and len(file_paths) > 1:
             # Parallel processing
-            # With no caching, each thread can safely use its own engine
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._analyze_single_file, path, params): path
+                    executor.submit(self._process_single_file, path, params): path
                     for path in file_paths
                 }
                 
@@ -99,7 +105,7 @@ class BatchService:
                             self.on_file_complete(result)
                             
                     except Exception as e:
-                        logger.error(f"Unexpected error processing {path}: {e}")
+                        logger.error(f"Failed to process {path}: {e}")
                         failed_results.append(
                             FileAnalysisResult(
                                 file_path=path,
@@ -114,7 +120,7 @@ class BatchService:
                 if self.on_progress:
                     self.on_progress(i + 1, len(file_paths), Path(path).name)
                 
-                result = self._analyze_single_file(path, params)
+                result = self._process_single_file(path, params)
                 
                 if result.success:
                     successful_results.append(result)
@@ -127,7 +133,7 @@ class BatchService:
         end_time = time.time()
         
         logger.info(
-            f"Batch analysis complete: {len(successful_results)} succeeded, "
+            f"Batch complete: {len(successful_results)} succeeded, "
             f"{len(failed_results)} failed in {end_time - start_time:.2f}s"
         )
         
@@ -139,46 +145,34 @@ class BatchService:
             end_time=end_time
         )
     
-    @staticmethod
-    def _sanitize_name(file_path: str) -> str:
-        """Return filename stem with bracketed content removed."""
-        stem = Path(file_path).stem
-        return re.sub(r"\[.*?\]", "", stem).strip()
-    
-    def _analyze_single_file(self,
-                            file_path: str,
-                            params: AnalysisParameters) -> FileAnalysisResult:
+    def _process_single_file(self,
+                           file_path: str,
+                           params: AnalysisParameters) -> FileAnalysisResult:
         """
-        Analyze a single file.
+        Process a single file.
         
-        With caching removed, each analysis is naturally isolated.
-        No special handling needed for thread safety.
+        Args:
+            file_path: Path to file
+            params: Analysis parameters
+            
+        Returns:
+            FileAnalysisResult with status
         """
-        base_name = self._sanitize_name(file_path)
+        base_name = self._clean_filename(file_path)
         start_time = time.time()
         
         try:
             # Load dataset
-            dataset = self.dataset_service.load_dataset(
-                file_path, self.channel_definitions
-            )
+            dataset = self.data_manager.load_dataset(file_path, self.channel_definitions)
             
-            # Create a fresh engine for this file
-            # This is cheap now without caching infrastructure
-            engine = create_analysis_engine(self.channel_definitions)
-            
-            # Create analysis service with the fresh engine
-            analysis_service = AnalysisService(engine, self.export_service)
+            # Create analysis manager for this file
+            analysis_manager = AnalysisManager(self.channel_definitions)
             
             # Perform analysis
-            analysis_result = analysis_service.perform_analysis(
-                dataset, params
-            )
+            analysis_result = analysis_manager.analyze(dataset, params)
             
             # Get export table
-            export_table = analysis_service.get_export_table(
-                dataset, params
-            )
+            export_table = analysis_manager.get_export_table(dataset, params)
             
             processing_time = time.time() - start_time
             
@@ -195,7 +189,7 @@ class BatchService:
             )
             
         except Exception as e:
-            logger.error(f"Failed to analyze {base_name}: {e}")
+            logger.error(f"Failed to process {base_name}: {e}")
             return FileAnalysisResult(
                 file_path=file_path,
                 base_name=base_name,
@@ -204,26 +198,56 @@ class BatchService:
                 processing_time=time.time() - start_time
             )
     
-    def export_batch_results(self,
-                            batch_result: BatchAnalysisResult,
-                            output_directory: str) -> BatchExportResult:
-        """Export all successful results to CSV files."""
+    def export_results(self,
+                      batch_result: BatchAnalysisResult,
+                      output_dir: str) -> BatchExportResult:
+        """
+        Export all successful results to CSV files.
+        
+        Args:
+            batch_result: Batch analysis results
+            output_dir: Output directory
+            
+        Returns:
+            BatchExportResult with export status
+        """
         export_results = []
         total_records = 0
         
         for file_result in batch_result.successful_results:
             if file_result.export_table:
-                output_path = Path(output_directory) / f"{file_result.base_name}.csv"
-                export_result = self.export_service.export_analysis_data(
+                output_path = Path(output_dir) / f"{file_result.base_name}.csv"
+                
+                # Export using DataManager
+                export_result = self.data_manager.export_to_csv(
                     file_result.export_table,
                     str(output_path)
                 )
+                
                 export_results.append(export_result)
                 if export_result.success:
                     total_records += export_result.records_exported
         
+        logger.info(f"Exported {len(export_results)} files, {total_records} total records")
+        
         return BatchExportResult(
             export_results=export_results,
-            output_directory=output_directory,
+            output_directory=output_dir,
             total_records=total_records
         )
+    
+    @staticmethod
+    def _clean_filename(file_path: str) -> str:
+        """
+        Clean filename for display/export.
+        
+        Args:
+            file_path: Full file path
+            
+        Returns:
+            Cleaned filename without extension and brackets
+        """
+        stem = Path(file_path).stem
+        # Remove bracketed content
+        cleaned = re.sub(r"\[.*?\]", "", stem).strip()
+        return cleaned

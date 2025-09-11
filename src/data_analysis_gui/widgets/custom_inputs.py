@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QLineEdit, QDoubleSpinBox, QSpinBox
+from PyQt5.QtWidgets import QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox
 from PyQt5.QtCore import QTimer
 
 class SelectAllLineEdit(QLineEdit):
@@ -46,4 +46,9 @@ class SelectAllIntSpinBox(QSpinBox):
 
     def wheelEvent(self, event):
         # Ignore the mouse wheel event to prevent scrolling
+        event.ignore()
+
+class NoScrollComboBox(QComboBox):
+    """ComboBox that ignores wheel events to prevent accidental changes."""
+    def wheelEvent(self, event):
         event.ignore()

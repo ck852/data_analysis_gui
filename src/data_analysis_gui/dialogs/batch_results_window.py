@@ -17,6 +17,9 @@ from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.config.logging import get_logger
 
+from data_analysis_gui.dialogs.current_density_dialog import CurrentDensityDialog
+from data_analysis_gui.dialogs.current_density_results_window import CurrentDensityResultsWindow
+
 logger = get_logger(__name__)
 
 
@@ -143,7 +146,10 @@ class BatchResultsWindow(QMainWindow):
         self.batch_result = batch_result
         self.batch_service = batch_service
         self.plot_service = plot_service
+        # New data layer uses DataManager with export_to_csv(...)
         self.export_service = data_service
+        # Back-compat alias in case other methods still reference data_service
+        self.data_service = data_service
         self.file_dialog_service = FileDialogService()
         
         # Use PlotFormatter for consistent formatting
@@ -386,12 +392,17 @@ class BatchResultsWindow(QMainWindow):
         export_csvs_btn = QPushButton("Export Individual CSVs...")
         export_plot_btn = QPushButton("Export Plot...")
         
-        
-        # IV-specific export if applicable
+        # IV-specific exports if applicable
         if self._is_iv_analysis():
             export_iv_summary_btn = QPushButton("Export IV Summary...")
             button_layout.addWidget(export_iv_summary_btn)
             export_iv_summary_btn.clicked.connect(self._export_iv_summary)
+            
+            # Add Current Density Analysis button
+            current_density_btn = QPushButton("Current Density Analysis...")
+            current_density_btn.setStyleSheet("QPushButton { background-color: #4682b4; }")
+            button_layout.addWidget(current_density_btn)
+            current_density_btn.clicked.connect(self._open_current_density_analysis)
         
         button_layout.addWidget(export_csvs_btn)
         button_layout.addWidget(export_plot_btn)
@@ -403,7 +414,6 @@ class BatchResultsWindow(QMainWindow):
         # Connect signals
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
-        
         
         # Populate file list after UI is created
         self._populate_file_list()
@@ -467,7 +477,8 @@ class BatchResultsWindow(QMainWindow):
                     iv_data_r1, mapping, selected_set
                 )
                 
-                result = self.data_service.export_analysis_data(table, file_path)
+                # New API: DataManager.export_to_csv(table_dict, path)
+                result = self.export_service.export_to_csv(table, file_path)
                 
                 if result.success:
                     QMessageBox.information(
@@ -505,13 +516,15 @@ class BatchResultsWindow(QMainWindow):
                     end_time=self.batch_result.end_time
                 )
                 
-                result = self.batch_service.export_batch_results(
-                    filtered_batch, output_dir
-                )
+                # New API name on BatchProcessor is export_results(...)
+                result = self.batch_service.export_results(filtered_batch, output_dir)
+
+                # BatchExportResult no longer has success_count; compute it
+                success_count = sum(1 for r in result.export_results if r.success)
                 
                 QMessageBox.information(
                     self, "Export Complete",
-                    f"Exported {result.success_count} files\n"
+                    f"Exported {success_count} files\n"
                     f"Total: {result.total_records} records"
                 )
             except Exception as e:
@@ -627,3 +640,29 @@ class BatchResultsWindow(QMainWindow):
             'data': data,
             'format_spec': '%.6f'
         }
+
+    def _open_current_density_analysis(self):
+        """Open current density analysis dialog."""
+        # Create and show dialog
+        dialog = CurrentDensityDialog(self, self.batch_result)
+        
+        if dialog.exec_():
+            # Get Cslow values
+            cslow_mapping = dialog.get_cslow_mapping()
+            
+            if not cslow_mapping:
+                QMessageBox.warning(
+                    self, 
+                    "No Data", 
+                    "No Cslow values were entered."
+                )
+                return
+            
+            # Create and show current density window
+            cd_window = CurrentDensityResultsWindow(
+                self,
+                self.batch_result,
+                cslow_mapping,
+                self.data_service
+            )
+            cd_window.show()

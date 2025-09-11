@@ -39,7 +39,7 @@ class BatchAnalysisWorker(QThread):
             self.batch_service.on_progress = lambda c, t, n: self.progress.emit(c, t, n)
             self.batch_service.on_file_complete = lambda r: self.file_complete.emit(r)
             
-            result = self.batch_service.analyze_files(
+            result = self.batch_service.process_files(
                 self.file_paths, 
                 self.params, 
                 self.parallel, 

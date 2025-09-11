@@ -7,11 +7,11 @@ Now returns AnalysisParameters directly instead of dictionaries.
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QScrollArea, QGroupBox,
                              QLabel, QPushButton, QCheckBox, QComboBox,
                              QGridLayout)
-from PyQt5.QtCore import pyqtSignal, QTimer
+from PyQt5.QtCore import pyqtSignal
 
 from data_analysis_gui.widgets import SelectAllSpinBox
 from data_analysis_gui.config import DEFAULT_SETTINGS
-from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
+from data_analysis_gui.core.params import AnalysisParameters
 
 
 class ControlPanel(QWidget):

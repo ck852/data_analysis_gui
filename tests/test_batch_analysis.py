@@ -9,6 +9,8 @@ This test mimics the exact user workflow for batch analysis:
 5. Compare outputs with golden reference files
 
 The test runs headless without GUI components but follows the same logic paths.
+
+REFACTORED: Updated to work with simplified service architecture
 """
 
 import pytest
@@ -22,8 +24,6 @@ from typing import List, Dict, Any
 from data_analysis_gui.core.app_controller import ApplicationController
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
-from data_analysis_gui.services.batch_service import BatchService
-from data_analysis_gui.services.service_factory import ServiceFactory
 from data_analysis_gui.core.models import BatchAnalysisResult
 
 
@@ -50,14 +50,9 @@ class TestBatchAnalysisWorkflow:
     
     @pytest.fixture
     def batch_service(self, controller):
-        """Create a BatchService instance with proper dependencies."""
-        # Use the same pattern as main_window._batch_analyze()
-        return BatchService(
-            controller.data_service,
-            controller.analysis_service,
-            controller.data_service,
-            controller.channel_definitions
-        )
+        """Get the batch processor service from controller."""
+        # Use the controller's batch processor directly (new architecture)
+        return controller.batch_processor
     
     def create_parameters_from_gui_state(self, controller: ApplicationController, 
                                         gui_state: Dict[str, Any]) -> AnalysisParameters:
@@ -206,7 +201,7 @@ class TestBatchAnalysisWorkflow:
         batch_service.on_file_complete = on_file_complete
         
         # Run batch analysis (parallel=False for deterministic testing)
-        batch_result = batch_service.analyze_files(
+        batch_result = batch_service.process_files(
             file_paths=input_files,
             params=params,
             parallel=False  # Use sequential for deterministic testing
@@ -227,13 +222,13 @@ class TestBatchAnalysisWorkflow:
         with tempfile.TemporaryDirectory() as temp_dir:
             print(f"Exporting to temporary directory: {temp_dir}")
             
-            # Export batch results to individual CSV files
-            export_result = batch_service.export_batch_results(
+            # Export batch results to individual CSV files (using new method name)
+            export_result = batch_service.export_results(
                 batch_result=batch_result,
-                output_directory=temp_dir
+                output_dir=temp_dir  # New architecture uses output_dir
             )
             
-            # Verify export was successful
+            # Verify export was successful (using success_count property)
             assert export_result.success_count == 12, \
                 f"Expected 12 successful exports, got {export_result.success_count}"
             assert export_result.total_records > 0, "No records were exported"
@@ -291,7 +286,7 @@ class TestBatchAnalysisWorkflow:
         params = self.create_parameters_from_gui_state(controller, gui_state)
         
         # Run batch analysis
-        batch_result = batch_service.analyze_files(input_files, params, parallel=False)
+        batch_result = batch_service.process_files(input_files, params, parallel=False)
         
         # Verify batch result structure
         assert batch_result.parameters == params, "Parameters should be preserved in result"
@@ -351,11 +346,11 @@ class TestBatchAnalysisWorkflow:
         )
         
         # Run batch analysis
-        batch_result = batch_service.analyze_files(input_files, params, parallel=False)
+        batch_result = batch_service.process_files(input_files, params, parallel=False)
         
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Export results
-            export_result = batch_service.export_batch_results(batch_result, temp_dir)
+            # Export results (using new method name)
+            export_result = batch_service.export_results(batch_result, temp_dir)
             
             # Check exported filename
             exported_files = list(Path(temp_dir).glob("*.csv"))
@@ -368,6 +363,52 @@ class TestBatchAnalysisWorkflow:
                 f"Expected filename '250514_001.csv', got '{exported_name}'"
             
             print(f"File naming verified: {exported_name}")
+    
+    def test_using_controller_batch_methods(self, controller, test_data_path):
+        """
+        Test batch analysis using the controller's compatibility methods.
+        This ensures the controller properly wraps batch service functionality.
+        """
+        # Get a couple of test files
+        input_files = self.get_all_abf_files(test_data_path)[:2]
+        
+        # Create parameters
+        params = AnalysisParameters(
+            range1_start=150.1,
+            range1_end=649.2,
+            use_dual_range=False,
+            range2_start=None,
+            range2_end=None,
+            stimulus_period=1000.0,
+            x_axis=AxisConfig(measure="Average", channel="Voltage"),
+            y_axis=AxisConfig(measure="Average", channel="Current"),
+            channel_config={'voltage': 0, 'current': 1}
+        )
+        
+        # Run batch analysis through controller
+        batch_result = controller.run_batch_analysis(
+            file_paths=input_files,
+            params=params,
+            parallel=False
+        )
+        
+        # Verify results
+        assert isinstance(batch_result, BatchAnalysisResult)
+        assert len(batch_result.successful_results) == 2
+        assert batch_result.success_rate == 100.0
+        
+        # Export through controller
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_result = controller.export_batch_results(batch_result, temp_dir)
+            
+            assert export_result.success_count == 2
+            assert export_result.total_records > 0
+            
+            # Verify files exist
+            exported_files = list(Path(temp_dir).glob("*.csv"))
+            assert len(exported_files) == 2
+        
+        print("Controller batch methods working correctly")
 
 
 if __name__ == "__main__":

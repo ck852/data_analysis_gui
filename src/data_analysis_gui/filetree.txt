@@ -40,17 +40,13 @@ data_analysis_gui/
 |   `-- file_io.py
 |-- services/
 |   |-- __init__.py
-|   |-- analysis_service.py
-|   |-- batch_service.py
-|   |-- data_service.py
-|   |-- dataset_service.py
-|   |-- export_service.py
-|   |-- plot_service.py
-|   `-- service_factory.py
+|   |-- analysis_manager.py
+|   |-- batch_processor.py
+|   |-- data_manager.py
+|   `-- plot_service.py
 |-- widgets/
 |   |-- __init__.py
 |   |-- control_panel.py
-|   |-- custom_combos.py
 |   `-- custom_inputs.py
 |-- __init__.py
 |-- cli.py

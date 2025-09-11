@@ -1,45 +1,43 @@
 """
-Application Controller - Phase 5 COMPLETE with True Fail-Closed
-No silent failures - all operations return explicit result objects.
-
-This controller implements the fail-closed principle completely:
-- NEVER returns None
-- ALL operations return result objects with explicit success/failure
-- Errors are always explicit, never silent
-
-Author: Data Analysis GUI Contributors
-License: MIT
+Application Controller - Fixed service initialization and compatibility
 """
-
 
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass
-from data_analysis_gui.core.analysis_engine import create_analysis_engine
 
 # Core imports
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
-    FileInfo, AnalysisResult, PlotData, PeakAnalysisResult, ExportResult
+    FileInfo,
+    AnalysisResult,
+    PlotData,
+    PeakAnalysisResult,
+    ExportResult,
+    BatchAnalysisResult,
+    BatchExportResult,
 )
 from data_analysis_gui.core.exceptions import DataError, FileError, ValidationError
 
-# Service imports
-from data_analysis_gui.services.analysis_service import AnalysisService
-from data_analysis_gui.services.data_service import DataService
+# Services (new)
+from data_analysis_gui.services.data_manager import DataManager
+from data_analysis_gui.services.analysis_manager import AnalysisManager
+from data_analysis_gui.services.batch_processor import BatchProcessor
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+# =========================
+# Result wrapper dataclasses (kept as is)
+# =========================
+
 @dataclass
 class AnalysisOperationResult:
-    """
-    Result wrapper for analysis operations.
-    Ensures all operations return explicit success/failure, never None.
-    """
+    """Result wrapper for analysis operations."""
     success: bool
     data: Optional[AnalysisResult] = None
     error_message: Optional[str] = None
@@ -63,6 +61,7 @@ class PeakAnalysisOperationResult:
     error_message: Optional[str] = None
     error_type: Optional[str] = None
 
+
 @dataclass
 class FileLoadResult:
     """Result wrapper for file loading operations."""
@@ -71,434 +70,350 @@ class FileLoadResult:
     error_message: Optional[str] = None
     error_type: Optional[str] = None
 
+
+# =========================
+# Controller
+# =========================
+
 class ApplicationController:
     """
-    Application controller with complete fail-closed implementation.
-    
-    ALL methods return explicit result objects - NEVER None.
-    This ensures that every operation explicitly indicates success or failure,
-    making silent failures impossible.
-    
-    The GUI can check result.success and handle accordingly, but there's
-    no ambiguity about whether an operation succeeded or failed.
+    Application controller with proper service management.
+    Services can be injected or created internally.
     """
-    
-    def __init__(self):
+
+    def __init__(self, 
+                 channel_definitions: Optional[ChannelDefinitions] = None,
+                 data_manager: Optional[DataManager] = None,
+                 analysis_manager: Optional[AnalysisManager] = None,
+                 batch_processor: Optional[BatchProcessor] = None):
+        """
+        Initialize controller with optional service injection.
+        
+        Args:
+            channel_definitions: Channel configuration (created if not provided)
+            data_manager: Data management service (created if not provided)
+            analysis_manager: Analysis service (created if not provided)
+            batch_processor: Batch processing service (created if not provided)
+        """
         # Application state
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
-        
+
         # Channel management
-        self.channel_definitions = ChannelDefinitions()
+        self.channel_definitions = channel_definitions or ChannelDefinitions()
 
-        # Initialize the analysis engine using the factory function
-        self.engine = create_analysis_engine(self.channel_definitions)
+        # Services - use provided or create new
+        self.data_manager = data_manager or DataManager()
+        self.analysis_manager = analysis_manager or AnalysisManager(self.channel_definitions)
+        self.batch_processor = batch_processor or BatchProcessor(self.channel_definitions)
 
-        # Create unified data service (replaces dataset_service and export_service)
-        self.data_service = DataService()
-        
-        # Initialize the unified analysis service with engine and data service
-        self.analysis_service = AnalysisService(self.engine, self.data_service)
-        
+        # Compatibility aliases (to avoid breaking older code)
+        self.data_service = self.data_manager
+        self.export_service = self.data_manager
+        self.dataset_service = self.data_manager
+        self.batch_service = self.batch_processor
+
+        # Keep reference to analysis engine from analysis manager if it exists
+        if hasattr(self.analysis_manager, 'engine'):
+            self.engine = self.analysis_manager.engine
+
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
         self.on_status_update: Optional[Callable[[str], None]] = None
+
+        logger.info("ApplicationController initialized with service injection support")
+
+    def get_services(self) -> Dict[str, Any]:
+        """
+        Get all services for external use.
         
-        logger.info("ApplicationController initialized with fail-closed architecture")
-    
+        Returns:
+            Dictionary of service references
+        """
+        return {
+            'data_manager': self.data_manager,
+            'analysis_manager': self.analysis_manager,
+            'batch_processor': self.batch_processor,
+            'channel_definitions': self.channel_definitions
+        }
+
     # =========================================================================
-    # File Management
+    # Batch Operations (with compatibility methods)
     # =========================================================================
-    
+
+    def run_batch_analysis(
+        self,
+        file_paths: List[str],
+        params: AnalysisParameters,
+        parallel: bool = False,
+        max_workers: int = 4,
+    ) -> BatchAnalysisResult:
+        """
+        Run a batch analysis over multiple files.
+        """
+        try:
+            return self.batch_processor.process_files(
+                file_paths=file_paths,
+                params=params,
+                parallel=parallel,
+                max_workers=max_workers,
+            )
+        except Exception as e:
+            logger.error(f"Batch analysis failed: {e}", exc_info=True)
+            # Return an explicit failed result to stay fail-closed
+            return BatchAnalysisResult(
+                successful_results=[],
+                failed_results=[],
+                parameters=params,
+                start_time=0.0,
+                end_time=0.0,
+            )
+
+    def export_batch_results(
+        self,
+        batch_result: BatchAnalysisResult,
+        output_directory: str,
+    ) -> BatchExportResult:
+        """
+        Export all successful results of a batch run to CSV files.
+        """
+        try:
+            return self.batch_processor.export_results(batch_result, output_directory)
+        except Exception as e:
+            logger.error(f"Batch export failed: {e}", exc_info=True)
+            return BatchExportResult(
+                export_results=[],
+                output_directory=output_directory,
+                total_records=0,
+            )
+
+    # =========================================================================
+    # Rest of the methods remain the same...
+    # =========================================================================
+
     def load_file(self, file_path: str) -> FileLoadResult:
         """
-        Load a data file using the DatasetService.
-        
+        Load a data file using DataManager.
+
         FAIL-CLOSED: Always returns a FileLoadResult, never None.
-        
-        Args:
-            file_path: Path to the data file
-            
-        Returns:
-            FileLoadResult with either file info or error information
         """
         try:
             logger.info(f"Loading file: {file_path}")
-            
-            # Delegate to service - will raise exception on failure
-            dataset = self.data_service.load_dataset(
-                file_path,
-                self.channel_definitions
-                )
-            
+
+            # Will raise on failure
+            dataset = self.data_manager.load_dataset(
+                file_path, self.channel_definitions
+            )
+
             # Update state
             self.current_dataset = dataset
             self.loaded_file_path = file_path
-            
-            # Clear analysis caches for new dataset
-            self.analysis_service.clear_caches()
-            
+
+            # Clear analysis caches
+            if hasattr(self.analysis_manager, "clear_caches"):
+                self.analysis_manager.clear_caches()
+
             # Prepare file info for GUI
-            sweep_names = sorted(dataset.sweeps(),
-                            key=lambda x: int(x) if x.isdigit() else 0)
-            
+            sweep_names = sorted(
+                dataset.sweeps(),
+                key=lambda x: int(x) if x.isdigit() else 0
+            )
             file_info = FileInfo(
                 name=Path(file_path).name,
                 path=file_path,
                 sweep_count=dataset.sweep_count(),
                 sweep_names=sweep_names,
-                max_sweep_time=dataset.get_max_sweep_time()
+                max_sweep_time=dataset.get_max_sweep_time(),
             )
-            
+
             # Notify GUI
             if self.on_file_loaded:
                 self.on_file_loaded(file_info)
-            
             if self.on_status_update:
                 self.on_status_update(f"Loaded {file_info.sweep_count} sweeps")
-            
+
             logger.info(f"Successfully loaded {file_info.name}")
-            
-            return FileLoadResult(
-                success=True,
-                file_info=file_info
-            )
-            
+
+            return FileLoadResult(success=True, file_info=file_info)
+
         except ValidationError as e:
             logger.error(f"Failed to load file - validation error: {e}")
             if self.on_error:
                 self.on_error(f"Failed to load file: {str(e)}")
-            return FileLoadResult(
-                success=False,
-                error_message=str(e),
-                error_type="ValidationError"
-            )
-            
+            return FileLoadResult(False, None, str(e), "ValidationError")
+
         except FileError as e:
             logger.error(f"Failed to load file - file error: {e}")
             if self.on_error:
                 self.on_error(f"Failed to load file: {str(e)}")
-            return FileLoadResult(
-                success=False,
-                error_message=str(e),
-                error_type="FileError"
-            )
-            
+            return FileLoadResult(False, None, str(e), "FileError")
+
         except DataError as e:
             logger.error(f"Failed to load file - data error: {e}")
             if self.on_error:
                 self.on_error(f"Failed to load file: {str(e)}")
-            return FileLoadResult(
-                success=False,
-                error_message=str(e),
-                error_type="DataError"
-            )
-            
+            return FileLoadResult(False, None, str(e), "DataError")
+
         except Exception as e:
             logger.error(f"Unexpected error loading file: {e}", exc_info=True)
             if self.on_error:
                 self.on_error(f"An unexpected error occurred: {str(e)}")
-            return FileLoadResult(
-                success=False,
-                error_message=f"Unexpected error: {str(e)}",
-                error_type=type(e).__name__
-            )
+            return FileLoadResult(False, None, f"Unexpected error: {str(e)}", type(e).__name__)
 
     def has_data(self) -> bool:
         """Check if data is currently loaded."""
         return self.current_dataset is not None and not self.current_dataset.is_empty()
-    
-    # =========================================================================
-    # Analysis Operations - ALL RETURN RESULT OBJECTS (NEVER None)
-    # =========================================================================
-    
+
     def perform_analysis(self, params: AnalysisParameters) -> AnalysisOperationResult:
         """
-        Perform analysis with typed parameters.
-        
+        Perform analysis with typed parameters (single file).
         FAIL-CLOSED: Always returns a result object, never None.
-        
-        Args:
-            params: AnalysisParameters object
-            
-        Returns:
-            AnalysisOperationResult with either data or error information
         """
         if not self.has_data():
             logger.warning("No data loaded for analysis")
-            return AnalysisOperationResult(
-                success=False,
-                error_message="No data loaded",
-                error_type="ValidationError"
-            )
-        
+            return AnalysisOperationResult(False, None, "No data loaded", "ValidationError")
+
         try:
-            # Delegate to service - will raise on failure
-            result = self.analysis_service.perform_analysis(self.current_dataset, params)
+            result = self.analysis_manager.analyze(self.current_dataset, params)
             logger.debug("Analysis completed successfully")
-            
-            return AnalysisOperationResult(
-                success=True,
-                data=result
-            )
-            
+            return AnalysisOperationResult(True, result)
+
         except ValidationError as e:
             logger.error(f"Analysis validation failed: {e}")
-            return AnalysisOperationResult(
-                success=False,
-                error_message=str(e),
-                error_type="ValidationError"
-            )
-            
+            return AnalysisOperationResult(False, None, str(e), "ValidationError")
+
         except DataError as e:
             logger.error(f"Analysis data error: {e}")
-            return AnalysisOperationResult(
-                success=False,
-                error_message=str(e),
-                error_type="DataError"
-            )
-            
+            return AnalysisOperationResult(False, None, str(e), "DataError")
+
         except Exception as e:
             logger.error(f"Unexpected error during analysis: {e}", exc_info=True)
-            return AnalysisOperationResult(
-                success=False,
-                error_message=f"Unexpected error: {str(e)}",
-                error_type=type(e).__name__
-            )
+            return AnalysisOperationResult(False, None, f"Unexpected error: {str(e)}", type(e).__name__)
 
     def export_analysis_data(self, params: AnalysisParameters, file_path: str) -> ExportResult:
         """
-        Export analyzed data.
-        
-        This already follows fail-closed by returning ExportResult.
-        
-        Args:
-            params: AnalysisParameters object
-            file_path: Complete path for export
-            
-        Returns:
-            ExportResult with success status (never None)
+        Export analyzed data (single file).
         """
         if not self.has_data():
             logger.warning("No data loaded for export")
-            return ExportResult(
-                success=False,
-                error_message="No data loaded"
-            )
-        
+            return ExportResult(success=False, error_message="No data loaded")
+
         try:
-            # Delegate to service
-            result = self.analysis_service.export_analysis(self.current_dataset, params, file_path)
-            
+            table = self.analysis_manager.get_export_table(self.current_dataset, params)
+            result = self.data_manager.export_to_csv(table, file_path)
+
             if result.success:
                 logger.info(f"Exported {result.records_exported} records to {Path(file_path).name}")
             else:
                 logger.error(f"Export failed: {result.error_message}")
-                
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Unexpected error during export: {e}", exc_info=True)
-            return ExportResult(
-                success=False,
-                error_message=f"Unexpected error: {str(e)}"
-            )
-    
-    def get_sweep_plot_data(self, sweep_index: str, 
-                           channel_type: str) -> PlotDataResult:
+            return ExportResult(success=False, error_message=f"Unexpected error: {str(e)}")
+
+    def get_sweep_plot_data(self, sweep_index: str, channel_type: str) -> PlotDataResult:
         """
         Get data for plotting a single sweep.
-        
         FAIL-CLOSED: Always returns a result object, never None.
-        
-        Args:
-            sweep_index: Sweep identifier
-            channel_type: "Voltage" or "Current"
-            
-        Returns:
-            PlotDataResult with either data or error information
         """
         if not self.has_data():
             logger.warning("No data loaded for sweep plot")
-            return PlotDataResult(
-                success=False,
-                error_message="No data loaded",
-                error_type="ValidationError"
-            )
-        
+            return PlotDataResult(False, None, "No data loaded", "ValidationError")
+
         try:
-            # Delegate to service - will raise on failure
-            plot_data = self.analysis_service.get_sweep_plot_data(
+            plot_data = self.analysis_manager.get_sweep_plot_data(
                 self.current_dataset, sweep_index, channel_type
             )
             logger.debug(f"Retrieved sweep plot data for sweep {sweep_index}")
-            
-            return PlotDataResult(
-                success=True,
-                data=plot_data
-            )
-            
+            return PlotDataResult(True, plot_data)
+
         except ValidationError as e:
             logger.error(f"Validation error getting sweep data: {e}")
-            return PlotDataResult(
-                success=False,
-                error_message=str(e),
-                error_type="ValidationError"
-            )
-            
+            return PlotDataResult(False, None, str(e), "ValidationError")
+
         except DataError as e:
             logger.error(f"Data error getting sweep data: {e}")
-            return PlotDataResult(
-                success=False,
-                error_message=str(e),
-                error_type="DataError"
-            )
-            
+            return PlotDataResult(False, None, str(e), "DataError")
+
         except Exception as e:
             logger.error(f"Unexpected error getting sweep data: {e}", exc_info=True)
-            return PlotDataResult(
-                success=False,
-                error_message=f"Unexpected error: {str(e)}",
-                error_type=type(e).__name__
-            )
-    
-    def perform_peak_analysis(self, params: AnalysisParameters,
-                            peak_types: List[str] = None) -> PeakAnalysisOperationResult:
+            return PlotDataResult(False, None, f"Unexpected error: {str(e)}", type(e).__name__)
+
+    def get_peak_analysis(self, params: AnalysisParameters,
+                              peak_types: List[str] = None) -> PeakAnalysisOperationResult:
         """
         Perform comprehensive peak analysis.
-        
         FAIL-CLOSED: Always returns a result object, never None.
-        
-        Args:
-            params: Analysis parameters
-            peak_types: List of peak types to analyze
-            
-        Returns:
-            PeakAnalysisOperationResult with either data or error information
         """
         if not self.has_data():
             logger.warning("No data loaded for peak analysis")
-            return PeakAnalysisOperationResult(
-                success=False,
-                error_message="No data loaded",
-                error_type="ValidationError"
-            )
-        
+            return PeakAnalysisOperationResult(False, None, "No data loaded", "ValidationError")
+
         try:
-            # Delegate to service - will raise on failure
-            result = self.analysis_service.perform_peak_analysis(
-                self.current_dataset, params, peak_types
-            )
+            result = self.analysis_manager.get_peak_analysis(self.current_dataset, params, peak_types)
             logger.debug("Peak analysis completed successfully")
-            
-            return PeakAnalysisOperationResult(
-                success=True,
-                data=result
-            )
-            
+            return PeakAnalysisOperationResult(True, result)
+
         except ValidationError as e:
             logger.error(f"Peak analysis validation failed: {e}")
-            return PeakAnalysisOperationResult(
-                success=False,
-                error_message=str(e),
-                error_type="ValidationError"
-            )
-            
+            return PeakAnalysisOperationResult(False, None, str(e), "ValidationError")
+
         except DataError as e:
             logger.error(f"Peak analysis data error: {e}")
-            return PeakAnalysisOperationResult(
-                success=False,
-                error_message=str(e),
-                error_type="DataError"
-            )
-            
+            return PeakAnalysisOperationResult(False, None, str(e), "DataError")
+
         except Exception as e:
             logger.error(f"Unexpected error during peak analysis: {e}", exc_info=True)
-            return PeakAnalysisOperationResult(
-                success=False,
-                error_message=f"Unexpected error: {str(e)}",
-                error_type=type(e).__name__
-            )
-    
+            return PeakAnalysisOperationResult(False, None, f"Unexpected error: {str(e)}", type(e).__name__)
+
     def get_suggested_export_filename(self, params: AnalysisParameters) -> str:
         """
-        Get suggested filename for export.
-        
-        Args:
-            params: AnalysisParameters object
-            
-        Returns:
-            Suggested filename (always returns a valid string, never None)
+        Get suggested filename for export (single file).
         """
         source_path = self.loaded_file_path or "analysis"
-        
         try:
-            return self.analysis_service.get_suggested_export_filename(source_path, params)
+            return self.data_manager.suggest_filename(source_path, "_analyzed", params)
         except Exception as e:
             logger.error(f"Error generating filename: {e}")
-            # Return a safe default instead of failing
             return "analysis_export.csv"
-    
-    # =========================================================================
-    # Channel Management
-    # =========================================================================
-    
+
     def swap_channels(self) -> Dict[str, Any]:
         """
         Swap voltage and current channel assignments.
-        
-        Returns:
-            Dictionary with success status and channel configuration
-            (Always returns a valid dict, never None)
         """
         if not self.has_data():
             logger.warning("Cannot swap channels - no data loaded")
-            return {
-                'success': False,
-                'reason': 'No data loaded'
-            }
-        
+            return {'success': False, 'reason': 'No data loaded'}
+
         try:
-            # Check if we have enough channels
             if self.current_dataset.channel_count() < 2:
                 logger.warning("Cannot swap - dataset has only one channel")
-                return {
-                    'success': False,
-                    'reason': 'Dataset has only one channel'
-                }
-            
-            # Perform the swap
+                return {'success': False, 'reason': 'Dataset has only one channel'}
+
             self.channel_definitions.swap_channels()
-            
-            # Clear caches since channel interpretation changed
-            self.analysis_service.clear_caches()
-            
+
+            if hasattr(self.analysis_manager, "clear_caches"):
+                self.analysis_manager.clear_caches()
+
             logger.info("Channels swapped successfully")
-            
-            # Return status
             return {
                 'success': True,
                 'is_swapped': self.channel_definitions.is_swapped(),
-                'configuration': self.get_channel_configuration()
+                'configuration': self.get_channel_configuration(),
             }
-            
+
         except Exception as e:
             logger.error(f"Error swapping channels: {e}", exc_info=True)
-            return {
-                'success': False,
-                'reason': f'Error: {str(e)}'
-            }
-    
+            return {'success': False, 'reason': f'Error: {str(e)}'}
+
     def get_channel_configuration(self) -> Dict[str, int]:
         """
         Get current channel configuration.
-        
-        Returns:
-            Dictionary with voltage and current channel indices
-            (Always returns a valid dict, never None)
         """
         return {
             'voltage': self.channel_definitions.get_voltage_channel(),
-            'current': self.channel_definitions.get_current_channel()
+            'current': self.channel_definitions.get_current_channel(),
         }

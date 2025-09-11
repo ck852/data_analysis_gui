@@ -13,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 # Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
-from data_analysis_gui.services.export_service import ExportService
+
 from data_analysis_gui.core.models import AnalysisPlotData as ModelAnalysisPlotData
 from data_analysis_gui.gui_services import FileDialogService
 
@@ -27,7 +27,8 @@ class AnalysisPlotDialog(QDialog):
     thread safety for future parallel processing.
     """
     
-    def __init__(self, parent, plot_data, x_label, y_label, title, controller=None, params=None):
+    def __init__(self, parent, plot_data, x_label, y_label, title, 
+                 controller_or_manager=None, params=None, dataset=None):
         super().__init__(parent)
 
         # Store data and labels directly (no plotter instance)
@@ -35,9 +36,10 @@ class AnalysisPlotDialog(QDialog):
         self.y_label = y_label
         self.plot_title = title
         
-        # Store controller and params for export
-        self.controller = controller
+        # Store controller/manager and params for export
+        self.controller = controller_or_manager  # Can be ApplicationController or AnalysisManager
         self.params = params
+        self.dataset = dataset  # Store dataset if passed directly
 
         # Initialize GUI service for file operations
         self.file_dialog_service = FileDialogService()
@@ -117,11 +119,8 @@ class AnalysisPlotDialog(QDialog):
     def export_data(self):
         """
         Export plot data with proper separation of concerns.
-        
-        Uses the same clean architecture as the main window.
         """
         if not self.controller or not self.params:
-            # Fallback to basic export if controller not available
             QMessageBox.warning(
                 self,
                 "Export Error",
@@ -129,8 +128,22 @@ class AnalysisPlotDialog(QDialog):
             )
             return
         
-        # Get suggested filename from controller
-        suggested_filename = self.controller.get_suggested_export_filename(self.params)
+        # Determine what type of object we have
+        if hasattr(self.controller, 'export_analysis_data'):
+            # It's an ApplicationController
+            suggested_filename = self.controller.get_suggested_export_filename(self.params)
+        elif hasattr(self.controller, 'export_analysis'):
+            # It's an AnalysisManager
+            if hasattr(self.controller, 'data_manager'):
+                suggested_filename = self.controller.data_manager.suggest_filename(
+                    self.parent().current_file_path if hasattr(self.parent(), 'current_file_path') else "analysis",
+                    "_analyzed",
+                    self.params
+                )
+            else:
+                suggested_filename = "analysis_export.csv"
+        else:
+            suggested_filename = "analysis_export.csv"
         
         # Get path through GUI service
         file_path = self.file_dialog_service.get_export_path(
@@ -140,19 +153,34 @@ class AnalysisPlotDialog(QDialog):
         )
         
         if file_path:
-            # Export through controller
-            result = self.controller.export_analysis_data(self.params, file_path)
-            
-            # Show result
-            if result.success:
-                QMessageBox.information(
-                    self, 
-                    "Export Successful", 
-                    f"Exported {result.records_exported} records"
-                )
-            else:
-                QMessageBox.warning(
+            try:
+                # Export based on what we have
+                if hasattr(self.controller, 'export_analysis_data'):
+                    # ApplicationController
+                    result = self.controller.export_analysis_data(self.params, file_path)
+                elif hasattr(self.controller, 'export_analysis') and self.dataset:
+                    # AnalysisManager with dataset
+                    result = self.controller.export_analysis(self.dataset, self.params, file_path)
+                else:
+                    QMessageBox.warning(self, "Export Error", "Export not available")
+                    return
+                
+                # Show result
+                if result.success:
+                    QMessageBox.information(
+                        self, 
+                        "Export Successful", 
+                        f"Exported {result.records_exported} records"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Export Failed",
+                        f"Export failed: {result.error_message}"
+                    )
+            except Exception as e:
+                QMessageBox.critical(
                     self,
-                    "Export Failed",
-                    f"Export failed: {result.error_message}"
+                    "Export Error",
+                    f"Export failed: {str(e)}"
                 )

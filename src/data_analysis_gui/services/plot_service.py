@@ -1,295 +1,229 @@
 """
-Plot Service - Handles all plotting operations for the application.
-Separates visualization logic from business logic.
+Simplified plotting service for creating visualizations.
+
+This module provides straightforward plotting functionality without
+complex backend abstractions.
+
+Author: Data Analysis GUI Contributors
+License: MIT
 """
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
-from io import BytesIO
-import base64
-
-from data_analysis_gui.core.plotting_interface import PlotBackend, PlotBackendFactory
-from data_analysis_gui.services.batch_service import BatchService
-from data_analysis_gui.core.params import AnalysisParameters
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend by default
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+
+from data_analysis_gui.core.models import BatchAnalysisResult, FileAnalysisResult
+from data_analysis_gui.core.params import AnalysisParameters
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class PlotService:
     """
-    Service class that handles all plotting operations.
-    Uses the abstract PlotBackend to remain testable in CI environments.
+    Creates plots for analysis results.
+    
+    Simple, direct plotting methods that scientists can easily understand
+    and modify for their specific visualization needs.
     """
     
-    def __init__(self, backend: Optional[PlotBackend] = None):
-        """
-        Initialize the plot service.
-        
-        Args:
-            backend: Optional PlotBackend instance. If None, creates one using factory.
-        """
-        self.backend = backend or PlotBackendFactory.create_backend()
+    def __init__(self):
+        """Initialize the plot service."""
+        logger.info("PlotService initialized")
     
-    def create_batch_plot(
-        self,
-        batch_result: BatchService,
-        params: AnalysisParameters,
-        x_label: str,
-        y_label: str,
-        figsize: Tuple[float, float] = (12, 8)
-    ) -> Dict[str, Any]:
+    def create_analysis_plot(self,
+                            x_data: np.ndarray,
+                            y_data: np.ndarray,
+                            x_label: str,
+                            y_label: str,
+                            title: str = None,
+                            y_data2: np.ndarray = None,
+                            figsize: Tuple[int, int] = (10, 6)) -> Figure:
         """
-        Create a batch analysis plot and return it as serialized data.
-        """
-        # Create figure using backend
-        fig = self.backend.create_figure(figsize)
-        ax = self._add_axes_to_figure(fig)
-        
-        # Set up axes
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        ax.grid(True, alpha=0.3)
-        
-        # Get default color cycle
-        import matplotlib.pyplot as plt
-        prop_cycle = plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        
-        # Plot each successful file result
-        plot_count = 0
-        color_idx = 0
-        
-        for result in batch_result.successful_results:
-            if len(result.x_data) > 0 and len(result.y_data) > 0:
-                # Get color for this file
-                file_color = colors[color_idx % len(colors)]
-                
-                # Plot Range 1 data
-                ax.plot(result.x_data, result.y_data,
-                    'o-', label=f"{result.base_name} (Range 1)",
-                    markersize=4, alpha=0.7, color=file_color)
-                plot_count += 1
-                
-                # Plot Range 2 data with SAME color
-                if params.use_dual_range and len(result.y_data2) > 0:
-                    ax.plot(result.x_data, result.y_data2,
-                        's--', label=f"{result.base_name} (Range 2)",
-                        markersize=4, alpha=0.7, color=file_color)
-                
-                # Only increment color after both ranges
-                color_idx += 1
-        
-        # Add legend if there's data
-        if plot_count > 0:
-            ax.legend(loc='best', fontsize=8)
-        
-        # Finalize layout
-        self._tight_layout(fig)
-        
-        # Serialize figure to base64
-        figure_bytes = self.backend.save_figure(fig, format='png')
-        figure_data = base64.b64encode(figure_bytes).decode('utf-8')
-        
-        return {
-            'figure_data': figure_data,
-            'figure_size': figsize,
-            'plot_count': plot_count
-        }
-    
-    def create_analysis_plot(
-        self,
-        x_data: np.ndarray,
-        y_data: np.ndarray,
-        x_label: str,
-        y_label: str,
-        y_data2: Optional[np.ndarray] = None,
-        y_label2: Optional[str] = None,
-        title: Optional[str] = None,
-        figsize: Tuple[float, float] = (10, 6)
-    ) -> Dict[str, Any]:
-        """
-        Create a single analysis plot.
+        Create a simple analysis plot.
         
         Args:
             x_data: X-axis data
             y_data: Y-axis data
             x_label: X-axis label
             y_label: Y-axis label
-            y_data2: Optional second Y-axis dataset
-            y_label2: Optional label for second dataset
             title: Optional plot title
-            figsize: Figure size
+            y_data2: Optional second dataset for dual range
+            figsize: Figure size in inches
             
         Returns:
-            Dictionary containing figure_data and metadata
+            Matplotlib Figure object
         """
-        # Create figure
-        fig = self.backend.create_figure(figsize)
-        ax = self._add_axes_to_figure(fig)
+        fig = Figure(figsize=figsize)
+        ax = fig.add_subplot(111)
         
         # Plot primary data
-        ax.plot(x_data, y_data, 'o-', label=y_label, markersize=6)
+        ax.plot(x_data, y_data, 'o-', label="Range 1", markersize=6)
         
         # Plot secondary data if provided
         if y_data2 is not None:
-            label2 = y_label2 or f"{y_label} (Range 2)"
-            ax.plot(x_data, y_data2, 's--', label=label2, markersize=6)
+            ax.plot(x_data, y_data2, 's--', label="Range 2", markersize=6)
+            ax.legend()
         
-        # Set labels and title
+        # Labels and formatting
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         if title:
             ax.set_title(title)
-        
-        # Add grid and legend
         ax.grid(True, alpha=0.3)
-        if y_data2 is not None:
-            ax.legend()
         
-        # Finalize layout
-        self._tight_layout(fig)
-        
-        # Serialize
-        figure_bytes = self.backend.save_figure(fig, format='png')
-        figure_data = base64.b64encode(figure_bytes).decode('utf-8')
-        
-        return {
-            'figure_data': figure_data,
-            'figure_size': figsize
-        }
+        fig.tight_layout()
+        return fig
     
-    def create_sweep_plot(
-        self,
-        time_ms: np.ndarray,
-        data: np.ndarray,
-        channel_type: str,
-        sweep_index: int,
-        figsize: Tuple[float, float] = (8, 6)
-    ) -> Dict[str, Any]:
+    def create_batch_plot(self,
+                         results: List[FileAnalysisResult],
+                         params: AnalysisParameters,
+                         x_label: str,
+                         y_label: str,
+                         figsize: Tuple[int, int] = (12, 8)) -> Figure:
+        """
+        Create a plot showing multiple file results.
+        
+        Args:
+            results: List of file analysis results
+            params: Analysis parameters
+            x_label: X-axis label
+            y_label: Y-axis label
+            figsize: Figure size
+            
+        Returns:
+            Matplotlib Figure object
+        """
+        fig = Figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        
+        # Get color cycle
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        
+        # Plot each result
+        for i, result in enumerate(results):
+            if not result.success or len(result.x_data) == 0:
+                continue
+            
+            color = colors[i % len(colors)]
+            
+            # Plot Range 1
+            ax.plot(result.x_data, result.y_data,
+                   'o-', label=f"{result.base_name}",
+                   markersize=4, alpha=0.7, color=color)
+            
+            # Plot Range 2 if available
+            if params.use_dual_range and result.y_data2 is not None:
+                ax.plot(result.x_data, result.y_data2,
+                       's--', label=f"{result.base_name} (R2)",
+                       markersize=4, alpha=0.7, color=color)
+        
+        # Formatting
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.grid(True, alpha=0.3)
+        
+        # Add legend if there's data
+        if ax.has_data():
+            ax.legend(loc='best', fontsize=8)
+        
+        fig.tight_layout()
+        return fig
+    
+    def create_sweep_plot(self,
+                         time_ms: np.ndarray,
+                         data: np.ndarray,
+                         channel_type: str,
+                         sweep_index: int,
+                         figsize: Tuple[int, int] = (8, 6)) -> Figure:
         """
         Create a plot for a single sweep.
         
         Args:
             time_ms: Time array in milliseconds
             data: Data array
-            channel_type: Type of channel ("Voltage" or "Current")
-            sweep_index: Index of the sweep
+            channel_type: "Voltage" or "Current"
+            sweep_index: Sweep number
             figsize: Figure size
             
         Returns:
-            Dictionary containing figure_data and metadata
+            Matplotlib Figure object
         """
-        fig = self.backend.create_figure(figsize)
-        ax = self._add_axes_to_figure(fig)
+        fig = Figure(figsize=figsize)
+        ax = fig.add_subplot(111)
         
-        # Plot the data
+        # Plot the sweep
         ax.plot(time_ms, data, linewidth=2)
         
-        # Set labels and title
+        # Labels
         ax.set_title(f"Sweep {sweep_index} - {channel_type}")
         ax.set_xlabel("Time (ms)")
         
-        # Use proper units based on channel type
         unit = "mV" if channel_type == "Voltage" else "pA"
         ax.set_ylabel(f"{channel_type} ({unit})")
         
         ax.grid(True, alpha=0.3)
         
-        # Auto-scale with padding
-        self._autoscale_with_padding(ax, time_ms, data)
+        # Add some padding to axes
+        if len(time_ms) > 0:
+            x_margin = (time_ms[-1] - time_ms[0]) * 0.02
+            ax.set_xlim(time_ms[0] - x_margin, time_ms[-1] + x_margin)
         
-        # Finalize
-        self._tight_layout(fig)
+        if len(data) > 0:
+            y_margin = (np.max(data) - np.min(data)) * 0.05
+            ax.set_ylim(np.min(data) - y_margin, np.max(data) + y_margin)
         
-        # Serialize
-        figure_bytes = self.backend.save_figure(fig, format='png')
-        figure_data = base64.b64encode(figure_bytes).decode('utf-8')
-        
-        return {
-            'figure_data': figure_data,
-            'figure_size': figsize,
-            'sweep_index': sweep_index,
-            'channel_type': channel_type
-        }
+        fig.tight_layout()
+        return fig
     
-    def build_batch_figure(
-        self,
-        batch_result: BatchService,
-        params: AnalysisParameters,
-        x_label: str,
-        y_label: str,
-        figsize: Tuple[float, float] = (12, 8)
-    ) -> Tuple[Figure, int]:
+    def save_figure(self, figure: Figure, filepath: str, dpi: int = 300):
         """
-        Build and return the actual matplotlib Figure for batch results.
+        Save a figure to file.
         
+        Args:
+            figure: Matplotlib Figure to save
+            filepath: Output file path
+            dpi: Resolution in dots per inch
+        """
+        try:
+            figure.savefig(filepath, dpi=dpi, bbox_inches='tight')
+            logger.info(f"Saved figure to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save figure: {e}")
+            raise
+    
+    @staticmethod
+    def get_axis_labels(params: AnalysisParameters) -> Tuple[str, str]:
+        """
+        Get axis labels from analysis parameters.
+        
+        Args:
+            params: Analysis parameters
+            
         Returns:
-            Tuple of (Figure object, plot_count)
+            Tuple of (x_label, y_label)
         """
-        # Create figure using backend
-        fig = self.backend.create_figure(figsize)
-        ax = self._add_axes_to_figure(fig)
+        # X-axis label
+        if params.x_axis.measure == "Time":
+            x_label = "Time (s)"
+        elif params.x_axis.measure == "Average":
+            unit = "mV" if params.x_axis.channel == "Voltage" else "pA"
+            x_label = f"Average {params.x_axis.channel} ({unit})"
+        else:  # Peak
+            unit = "mV" if params.x_axis.channel == "Voltage" else "pA"
+            x_label = f"Peak {params.x_axis.channel} ({unit})"
         
-        # Set up axes
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        ax.grid(True, alpha=0.3)
+        # Y-axis label
+        if params.y_axis.measure == "Time":
+            y_label = "Time (s)"
+        elif params.y_axis.measure == "Average":
+            unit = "mV" if params.y_axis.channel == "Voltage" else "pA"
+            y_label = f"Average {params.y_axis.channel} ({unit})"
+        else:  # Peak
+            unit = "mV" if params.y_axis.channel == "Voltage" else "pA"
+            y_label = f"Peak {params.y_axis.channel} ({unit})"
         
-        # Get default color cycle
-        import matplotlib.pyplot as plt
-        prop_cycle = plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        
-        # Plot each successful file result
-        plot_count = 0
-        color_idx = 0
-        
-        for result in batch_result.successful_results:
-            if len(result.x_data) > 0 and len(result.y_data) > 0:
-                # Get color for this file (both ranges use the same color)
-                file_color = colors[color_idx % len(colors)]
-                
-                # Plot Range 1 data
-                ax.plot(result.x_data, result.y_data,
-                    'o-', label=f"{result.base_name} (Range 1)",
-                    markersize=4, alpha=0.7, color=file_color)
-                plot_count += 1
-                
-                # Plot Range 2 data with SAME color but different style
-                if params.use_dual_range and len(result.y_data2) > 0:
-                    ax.plot(result.x_data, result.y_data2,
-                        's--', label=f"{result.base_name} (Range 2)",
-                        markersize=4, alpha=0.7, color=file_color)  # Same color!
-                
-                # Only increment color index after both ranges are plotted
-                color_idx += 1
-        
-        if plot_count > 0:
-            ax.legend(loc='best', fontsize=8)
-        
-        self._tight_layout(fig)
-        
-        return fig, plot_count
-    
-    # ============ Helper Methods ============
-    
-    def _add_axes_to_figure(self, fig):
-        """Add axes to figure (backend-agnostic)"""
-        # This is a simplified version - the actual implementation
-        # would depend on the backend
-        return fig.add_subplot(111)
-    
-    def _tight_layout(self, fig):
-        """Apply tight layout if supported by backend"""
-        if hasattr(fig, 'tight_layout'):
-            fig.tight_layout()
-    
-    def _autoscale_with_padding(self, ax, x_data, y_data, padding=0.05):
-        """Auto-scale axes with padding"""
-        if len(x_data) > 0 and len(y_data) > 0:
-            x_range = np.max(x_data) - np.min(x_data)
-            y_range = np.max(y_data) - np.min(y_data)
-            
-            x_pad = x_range * padding
-            y_pad = y_range * padding
-            
-            ax.set_xlim(np.min(x_data) - x_pad, np.max(x_data) + x_pad)
-            ax.set_ylim(np.min(y_data) - y_pad, np.max(y_data) + y_pad)
+        return x_label, y_label
