@@ -1,6 +1,7 @@
 """
 Formats analysis data for plots and exports.
 PHASE 5: Pure transformation logic with no side effects.
+FIXED: Added validation and logging for peak mode handling.
 """
 
 from typing import Dict, List, Any, Tuple, Optional
@@ -27,6 +28,13 @@ class PlotFormatter:
         """Format metrics for plotting."""
         if not metrics:
             return self.empty_plot_data()
+        
+        # Log the parameters for debugging
+        logger.debug(f"Formatting plot with X-axis: {params.x_axis.measure}, Y-axis: {params.y_axis.measure}")
+        if params.x_axis.measure == "Peak":
+            logger.debug(f"X-axis peak type: {params.x_axis.peak_type}")
+        if params.y_axis.measure == "Peak":
+            logger.debug(f"Y-axis peak type: {params.y_axis.peak_type}")
         
         # Extract data
         x_data, x_label = self._extract_axis_data(metrics, params.x_axis, 1)
@@ -90,6 +98,8 @@ class PlotFormatter:
         peak_data = {}
         
         for peak_type in peak_types:
+            logger.debug(f"Processing peak analysis for type: {peak_type}")
+            
             # Create modified y-axis config for this peak type
             y_axis_config = AxisConfig(
                 measure="Peak",
@@ -137,37 +147,95 @@ class PlotFormatter:
         axis_config: AxisConfig,
         range_num: int
     ) -> Tuple[List[float], str]:
-        """Extract data for specific axis."""
+        """
+        Extract data for specific axis with proper peak mode handling.
+        
+        FIXED: Added validation and logging for peak type handling.
+        """
         if axis_config.measure == "Time":
             return [m.time_s for m in metrics], "Time (s)"
         
-        # Build metric name
+        # Determine channel and unit
         channel_prefix = "voltage" if axis_config.channel == "Voltage" else "current"
         unit = "mV" if axis_config.channel == "Voltage" else "pA"
         
         if axis_config.measure == "Average":
             metric_name = f"{channel_prefix}_mean_r{range_num}"
             label = f"Average {axis_config.channel} ({unit})"
-        else:  # Peak
+            logger.debug(f"Extracting average data from metric: {metric_name}")
+            
+        elif axis_config.measure == "Peak":
+            # FIXED: Validate peak_type is set and valid
+            if axis_config.peak_type is None:
+                logger.warning(f"Peak type not specified for {axis_config.channel}, defaulting to Absolute")
+                peak_type = "Absolute"
+            else:
+                peak_type = axis_config.peak_type
+                logger.debug(f"Using peak type: {peak_type} for {axis_config.channel}")
+            
+            # Map user-friendly names to metric field names
             peak_map = {
                 "Absolute": "absolute",
                 "Positive": "positive",
                 "Negative": "negative",
                 "Peak-Peak": "peakpeak"
             }
-            metric_base = peak_map.get(axis_config.peak_type, "absolute")
+            
+            # FIXED: Validate peak_type is in our map
+            if peak_type not in peak_map:
+                logger.error(f"Invalid peak type: {peak_type}. Using Absolute as fallback.")
+                peak_type = "Absolute"
+            
+            metric_base = peak_map[peak_type]
             metric_name = f"{channel_prefix}_{metric_base}_r{range_num}"
             
+            # Create descriptive label
             peak_labels = {
                 "Absolute": "Peak",
                 "Positive": "Peak (+)",
                 "Negative": "Peak (-)",
                 "Peak-Peak": "Peak-Peak"
             }
-            label = f"{peak_labels.get(axis_config.peak_type, 'Peak')} {axis_config.channel} ({unit})"
+            peak_label = peak_labels.get(peak_type, "Peak")
+            label = f"{peak_label} {axis_config.channel} ({unit})"
+            
+            logger.debug(f"Extracting peak data from metric: {metric_name}")
         
-        # Extract data
-        data = [getattr(m, metric_name, np.nan) for m in metrics]
+        else:
+            # Shouldn't happen with current UI, but handle gracefully
+            logger.warning(f"Unknown measure type: {axis_config.measure}, defaulting to Average")
+            metric_name = f"{channel_prefix}_mean_r{range_num}"
+            label = f"{axis_config.measure} {axis_config.channel} ({unit})"
+        
+        # Extract data with error handling
+        data = []
+        missing_count = 0
+        
+        for i, m in enumerate(metrics):
+            try:
+                value = getattr(m, metric_name)
+                if value is None:
+                    logger.warning(f"None value in metric {metric_name} for sweep {m.sweep_index}")
+                    value = np.nan
+                data.append(value)
+            except AttributeError:
+                missing_count += 1
+                if missing_count <= 3:  # Only log first few to avoid spam
+                    logger.error(f"Metric {metric_name} not found in SweepMetrics for sweep {m.sweep_index}")
+                data.append(np.nan)
+        
+        if missing_count > 0:
+            logger.error(f"Total {missing_count} missing values for metric {metric_name}")
+        
+        # Log summary statistics for debugging
+        valid_data = [d for d in data if not np.isnan(d)]
+        if valid_data:
+            logger.debug(f"Extracted {len(valid_data)} valid values for {metric_name}: "
+                        f"min={min(valid_data):.2f}, max={max(valid_data):.2f}, "
+                        f"mean={np.mean(valid_data):.2f}")
+        else:
+            logger.warning(f"No valid data extracted for {metric_name}")
+        
         return data, label
     
     def _format_range_label(self, base_label: str, voltage: float) -> str:
