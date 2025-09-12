@@ -188,15 +188,42 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
 
+            # File Information Labels
+        self.file_label = QLabel("No file loaded")
+        self.file_label.setStyleSheet("QLabel { margin-left: 5px; }") # Optional styling
+        toolbar.addWidget(self.file_label)
+        
+        self.sweep_count_label = QLabel("") # Start empty
+        self.sweep_count_label.setStyleSheet("QLabel { margin-left: 5px; }") # Optional styling
+        toolbar.addWidget(self.sweep_count_label)
+
+        toolbar.addSeparator()
+
+        # Swap Channels Button
+        self.swap_channels_btn = QPushButton("Swap Channels")
+        self.swap_channels_btn.setToolTip("Swap voltage and current channel assignments (Ctrl+Shift+S)")
+        self.swap_channels_btn.setEnabled(False)
+        self.swap_channels_btn.clicked.connect(self._swap_channels)
+        toolbar.addWidget(self.swap_channels_btn)
+        
+        # Center Cursor Button
+        center_cursor_btn = QPushButton("Center Nearest Cursor")
+        center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
+        # Direct connection to the function that was previously called by the signal
+        center_cursor_btn.clicked.connect(
+            lambda: self._sync_cursor_to_control(*self.plot_manager.center_nearest_cursor())
+        )
+        center_cursor_btn.setEnabled(False) # Will be enabled on file load
+        self.center_cursor_btn = center_cursor_btn # Store reference if needed
+        toolbar.addWidget(self.center_cursor_btn)
+
+        toolbar.addSeparator()
+
     def _connect_signals(self):
         """Connect all signals"""
         # Control panel
         self.control_panel.analysis_requested.connect(self._generate_analysis)
         self.control_panel.export_requested.connect(self._export_data)
-        self.control_panel.swap_channels_requested.connect(self._swap_channels)
-        self.control_panel.center_cursor_requested.connect(
-            lambda: self._sync_cursor_to_control(*self.plot_manager.center_nearest_cursor())
-        )
         self.control_panel.dual_range_toggled.connect(self._toggle_dual_range)
         self.control_panel.range_values_changed.connect(self._sync_cursors_to_plot)
         
@@ -230,7 +257,8 @@ class MainWindow(QMainWindow):
     def _on_file_loaded(self, file_info: FileInfo):
         """Handle successful file load"""
         # Update control panel
-        self.control_panel.update_file_info(file_info.name, file_info.sweep_count)
+        self.file_label.setText(f"File: {file_info.name}")
+        self.sweep_count_label.setText(f"Sweeps: {file_info.sweep_count}")
         self.control_panel.set_controls_enabled(True)
         
         if file_info.max_sweep_time:
@@ -238,6 +266,8 @@ class MainWindow(QMainWindow):
         
         # Enable UI elements
         self.swap_action.setEnabled(True)
+        self.swap_channels_btn.setEnabled(True)
+        self.center_cursor_btn.setEnabled(True)
         self.prev_btn.setEnabled(True)
         self.next_btn.setEnabled(True)
         self.sweep_combo.setEnabled(True)
@@ -375,7 +405,7 @@ class MainWindow(QMainWindow):
         
         if result['success']:
             # Update UI
-            self.control_panel.update_swap_button_state(result['is_swapped'])
+            self.update_swap_button_state(result['is_swapped'])
             
             # Update current plot
             self._update_plot()

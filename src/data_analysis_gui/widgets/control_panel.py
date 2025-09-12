@@ -26,8 +26,7 @@ class ControlPanel(QWidget):
     # Define signals for communication with main window
     analysis_requested = pyqtSignal()  # User wants to generate analysis plot
     export_requested = pyqtSignal()  # User wants to export data
-    swap_channels_requested = pyqtSignal()  # User wants to swap channels
-    center_cursor_requested = pyqtSignal()  # User wants to center cursor
+
     dual_range_toggled = pyqtSignal(bool)  # Dual range checkbox changed
     range_values_changed = pyqtSignal()  # Any range spinbox value changed
 
@@ -80,7 +79,6 @@ class ControlPanel(QWidget):
         layout = QVBoxLayout(control_widget)
 
         # Add all control groups
-        layout.addWidget(self._create_file_info_group())
         layout.addWidget(self._create_analysis_settings_group())
         layout.addWidget(self._create_plot_settings_group())
 
@@ -95,21 +93,8 @@ class ControlPanel(QWidget):
         # Set main layout for this widget
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
+        layout.setSpacing(2)
         main_layout.setContentsMargins(0, 0, 0, 0)
-
-    def _create_file_info_group(self):
-        """Create the file information group"""
-        file_group = QGroupBox("File Information")
-        file_layout = QVBoxLayout(file_group)
-
-        self.file_label = QLabel("No file loaded")
-        self.file_label.setWordWrap(True)
-        file_layout.addWidget(self.file_label)
-
-        self.sweep_count_label = QLabel("Sweeps: 0")
-        file_layout.addWidget(self.sweep_count_label)
-
-        return file_group
 
     def _create_analysis_settings_group(self):
         """Create the analysis settings group"""
@@ -134,19 +119,6 @@ class ControlPanel(QWidget):
         self.period_spin.setValue(DEFAULT_SETTINGS['stimulus_period'])
         self.period_spin.setSingleStep(100)
         analysis_layout.addWidget(self.period_spin, 5, 1)
-
-        # Swap Channels button
-        self.swap_channels_btn = QPushButton("Swap Channels")
-        self.swap_channels_btn.setToolTip("Swap voltage and current channel assignments")
-        self.swap_channels_btn.clicked.connect(self.swap_channels_requested.emit)
-        self.swap_channels_btn.setEnabled(False) # Initially disabled
-        analysis_layout.addWidget(self.swap_channels_btn, 6, 0, 1, 2)
-
-        # Center Nearest Cursor button
-        center_cursor_btn = QPushButton("Center Nearest Cursor")
-        center_cursor_btn.setToolTip("Moves the nearest cursor to the center of the view")
-        center_cursor_btn.clicked.connect(self.center_cursor_requested.emit)
-        analysis_layout.addWidget(center_cursor_btn, 7, 0, 1, 2)
 
         return analysis_group
 
@@ -339,8 +311,6 @@ class ControlPanel(QWidget):
         # Use a custom property to track if buttons *should* be enabled
         self.update_plot_btn.setProperty("enabled_by_file", enabled)
         self.export_plot_btn.setProperty("enabled_by_file", enabled)
-        
-        self.swap_channels_btn.setEnabled(enabled)
 
         if enabled:
             # If enabling, run validation to set the correct state of the buttons
@@ -398,11 +368,6 @@ class ControlPanel(QWidget):
 
     # --- Public methods for data access and updates ---
 
-    def update_file_info(self, file_name: str, sweep_count: int):
-        """Update file information labels"""
-        self.file_label.setText(f"File: {file_name}")
-        self.sweep_count_label.setText(f"Sweeps: {sweep_count}")
-
     def set_controls_enabled(self, enabled: bool):
         """Enable or disable analysis controls"""
         self.update_plot_btn.setEnabled(enabled)
@@ -412,16 +377,6 @@ class ControlPanel(QWidget):
         if enabled and self._pending_swap_state:
             self._is_swapped = self._pending_swap_state
             self._pending_swap_state = False
-
-    def update_swap_button_state(self, is_swapped: bool):
-        """Update the swap channels button appearance"""
-        self._is_swapped = is_swapped
-        if is_swapped:
-            self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
-            self.swap_channels_btn.setText("Channels Swapped ⇄")
-        else:
-            self.swap_channels_btn.setStyleSheet("")
-            self.swap_channels_btn.setText("Swap Channels")
 
     def get_range_values(self) -> dict:
         """Get current range values"""
