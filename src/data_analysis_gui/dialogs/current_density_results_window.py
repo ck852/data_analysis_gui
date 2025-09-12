@@ -240,6 +240,9 @@ class CurrentDensityResultsWindow(QMainWindow):
         main_layout.addWidget(splitter)
 
         self._add_export_controls(main_layout)
+
+        self._apply_initial_current_density()
+
         self._populate_file_list()
         self._update_plot()
 
@@ -349,11 +352,22 @@ class CurrentDensityResultsWindow(QMainWindow):
             logger.error(f"Could not find original result for {file_name}.")
             return
             
-        # Calculate the new y_data
+        # Calculate the new y_data for Range 1
         new_y_data = np.array(original_result.y_data) / new_cslow
 
         # Create a new, updated result object
-        updated_result = dataclasses.replace(results_list[target_index], y_data=new_y_data)
+        updated_result = dataclasses.replace(
+            results_list[target_index], 
+            y_data=new_y_data
+        )
+        
+        # Handle Range 2 if present
+        if self.active_batch_result.parameters.use_dual_range and original_result.y_data2 is not None:
+            new_y_data2 = np.array(original_result.y_data2) / new_cslow
+            updated_result = dataclasses.replace(
+                updated_result,
+                y_data2=new_y_data2
+            )
 
         # Replace the old object in the list with the new one
         results_list[target_index] = updated_result
@@ -509,6 +523,42 @@ class CurrentDensityResultsWindow(QMainWindow):
                 if state != QDoubleValidator.Acceptable:
                     return False
         return True
+
+    def _apply_initial_current_density(self):
+        """Apply initial current density calculations to all files."""
+        # Get the original results for reference
+        original_results = {r.base_name: r for r in self.original_batch_result.successful_results}
+        
+        # Calculate current density for each file
+        for i, result in enumerate(self.active_batch_result.successful_results):
+            file_name = result.base_name
+            cslow = self.cslow_mapping.get(file_name, 0.0)
+            
+            if cslow > 0 and file_name in original_results:
+                # Get original current data
+                original_result = original_results[file_name]
+                
+                # Calculate current density for Range 1
+                new_y_data = np.array(original_result.y_data) / cslow
+                
+                # Create updated result with current density values
+                updated_result = dataclasses.replace(
+                    result,
+                    y_data=new_y_data
+                )
+                
+                # Handle Range 2 if present
+                if self.active_batch_result.parameters.use_dual_range and original_result.y_data2 is not None:
+                    new_y_data2 = np.array(original_result.y_data2) / cslow
+                    updated_result = dataclasses.replace(
+                        updated_result,
+                        y_data2=new_y_data2
+                    )
+                
+                # Replace in the list
+                self.active_batch_result.successful_results[i] = updated_result
+                
+        logger.debug(f"Applied initial current density calculations to {len(self.active_batch_result.successful_results)} files")
 
     def _export_summary(self):
         """Export current density summary after validating inputs."""

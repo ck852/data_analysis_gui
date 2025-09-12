@@ -21,8 +21,8 @@ def main():
 
     # Set a reasonable default font size
     font = app.font()
-    if font.pointSize() < 8:  # If system font is too small
-        font.setPointSize(8)  # Set to readable size
+    if font.pointSize() < 7:  # If system font is too small
+        font.setPointSize(7)  # Set to readable size
         app.setFont(font)
 
     # Apply modern theme
@@ -44,8 +44,8 @@ def main():
 
     if avail:
         # Target at most 90% of available screen
-        target_w = int(avail.width() * 0.90)
-        target_h = int(avail.height() * 0.90)
+        target_w = int(avail.width())
+        target_h = int(avail.height())
 
         # Respect sizeHint but clamp to [min, target]
         w = max(min_w, min(window.sizeHint().width(), target_w))
