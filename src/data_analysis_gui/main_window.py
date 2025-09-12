@@ -420,6 +420,15 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "Cannot Swap", result['reason'])
 
+    def _update_swap_button_state(self, is_swapped: bool):
+        """Update the swap channels button appearance in the toolbar."""
+        if is_swapped:
+            self.swap_channels_btn.setStyleSheet("QPushButton { background-color: #ffcc99; }")
+            self.swap_channels_btn.setText("Channels Swapped ⇄")
+        else:
+            self.swap_channels_btn.setStyleSheet("")
+            self.swap_channels_btn.setText("Swap Channels")
+
     def _batch_analyze(self):
         """Open batch analysis dialog"""
         # Get current parameters

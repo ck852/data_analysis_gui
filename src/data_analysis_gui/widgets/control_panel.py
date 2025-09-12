@@ -83,7 +83,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self._create_plot_settings_group())
 
         # Export Plot Data button
-        self.export_plot_btn = QPushButton("Export Plot Data")
+        self.export_plot_btn = QPushButton("Export Analysis Data")
         self.export_plot_btn.clicked.connect(self.export_requested.emit)
         self.export_plot_btn.setEnabled(False)
         layout.addWidget(self.export_plot_btn)
@@ -372,7 +372,7 @@ class ControlPanel(QWidget):
         """Enable or disable analysis controls"""
         self.update_plot_btn.setEnabled(enabled)
         self.export_plot_btn.setEnabled(enabled)
-        self.swap_channels_btn.setEnabled(enabled)
+        
 
         if enabled and self._pending_swap_state:
             self._is_swapped = self._pending_swap_state

@@ -49,8 +49,8 @@ class AnalysisManager:
         logger.info("AnalysisManager initialized")
     
     def analyze(self, 
-               dataset: ElectrophysiologyDataset,
-               params: AnalysisParameters) -> AnalysisResult:
+            dataset: ElectrophysiologyDataset,
+            params: AnalysisParameters) -> AnalysisResult:
         """
         Perform analysis on a dataset.
         
@@ -75,22 +75,38 @@ class AnalysisManager:
         if not plot_data or 'x_data' not in plot_data:
             raise DataError("Analysis produced no results")
         
-        # Create result
+        # Prepare all data before creating the frozen AnalysisResult
+        x_data = np.array(plot_data['x_data'])
+        y_data = np.array(plot_data['y_data'])
+        x_label = plot_data.get('x_label', '')
+        y_label = plot_data.get('y_label', '')
+        sweep_indices = plot_data.get('sweep_indices', [])
+        
+        # Prepare dual range data if needed
+        x_data2 = None
+        y_data2 = None
+        y_label_r1 = None
+        y_label_r2 = None
+        
+        if params.use_dual_range:
+            x_data2 = np.array(plot_data.get('x_data2', []))
+            y_data2 = np.array(plot_data.get('y_data2', []))
+            y_label_r1 = plot_data.get('y_label_r1')
+            y_label_r2 = plot_data.get('y_label_r2')
+        
+        # Create result with all data at once
         result = AnalysisResult(
-            x_data=np.array(plot_data['x_data']),
-            y_data=np.array(plot_data['y_data']),
-            x_label=plot_data.get('x_label', ''),
-            y_label=plot_data.get('y_label', ''),
-            sweep_indices=plot_data.get('sweep_indices', []),
+            x_data=x_data,
+            y_data=y_data,
+            x_label=x_label,
+            y_label=y_label,
+            x_data2=x_data2,
+            y_data2=y_data2,
+            y_label_r1=y_label_r1,
+            y_label_r2=y_label_r2,
+            sweep_indices=sweep_indices,
             use_dual_range=params.use_dual_range
         )
-        
-        # Add dual range data if present
-        if params.use_dual_range and 'y_data2' in plot_data:
-            result.x_data2 = np.array(plot_data.get('x_data2', []))
-            result.y_data2 = np.array(plot_data['y_data2'])
-            result.y_label_r1 = plot_data.get('y_label_r1')
-            result.y_label_r2 = plot_data.get('y_label_r2')
         
         logger.info(f"Analysis complete: {len(result.x_data)} data points")
         return result
