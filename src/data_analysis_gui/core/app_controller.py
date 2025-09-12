@@ -375,7 +375,7 @@ class ApplicationController:
         """
         source_path = self.loaded_file_path or "analysis"
         try:
-            return self.data_manager.suggest_filename(source_path, "_analyzed", params)
+            return self.data_manager.suggest_filename(source_path, "", params)
         except Exception as e:
             logger.error(f"Error generating filename: {e}")
             return "analysis_export.csv"

@@ -34,7 +34,9 @@ streamlining/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
 |       |   |-- batch_dialog.py
-|       |   `-- batch_results_window.py
+|       |   |-- batch_results_window.py
+|       |   |-- current_density_dialog.py
+|       |   `-- current_density_results_window.py
 |       |-- gui_services/
 |       |   |-- __init__.py
 |       |   `-- file_dialog_service.py
@@ -42,19 +44,20 @@ streamlining/
 |       |   `-- file_io.py
 |       |-- services/
 |       |   |-- __init__.py
-|       |   |-- analysis_service.py
-|       |   |-- batch_service.py
-|       |   |-- dataset_service.py
-|       |   |-- export_service.py
-|       |   |-- plot_service.py
-|       |   `-- service_factory.py
+|       |   |-- analysis_manager.py
+|       |   |-- batch_processor.py
+|       |   |-- current_density_service.py
+|       |   |-- data_manager.py
+|       |   `-- plot_service.py
 |       |-- widgets/
 |       |   |-- __init__.py
 |       |   |-- control_panel.py
-|       |   |-- custom_combos.py
-|       |   `-- custom_inputs.py
+|       |   |-- custom_inputs.py
+|       |   `-- shared_widgets.py
 |       |-- __init__.py
 |       |-- cli.py
+|       |-- filetree.txt
+|       |-- filetree_full.py
 |       |-- main.py
 |       |-- main_window.py
 |       `-- plot_manager.py
@@ -235,6 +238,7 @@ streamlining/
 |   |               |-- 240809_002[1-12].mat
 |   |               `-- 240809_003[1-12].mat
 |   |-- test_batch_analysis.py
+|   |-- test_current_density.py
 |   `-- test_single_export.py
 |-- filetree.txt
 |-- filetree_full.py

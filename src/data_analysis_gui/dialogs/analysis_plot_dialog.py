@@ -137,7 +137,7 @@ class AnalysisPlotDialog(QDialog):
             if hasattr(self.controller, 'data_manager'):
                 suggested_filename = self.controller.data_manager.suggest_filename(
                     self.parent().current_file_path if hasattr(self.parent(), 'current_file_path') else "analysis",
-                    "_analyzed",
+                    "",
                     self.params
                 )
             else:

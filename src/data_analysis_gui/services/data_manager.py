@@ -195,7 +195,7 @@ class DataManager:
     
     def suggest_filename(self,
                         source_path: str,
-                        suffix: str = "_analyzed",
+                        suffix: str = "_",
                         params: Optional[Any] = None) -> str:
         """
         Generate a suggested filename for export.

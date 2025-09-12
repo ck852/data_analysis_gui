@@ -201,7 +201,7 @@ class PathUtilities:
         except (IndexError, ValueError):
             return 0
     
-    def create_export_path(self, base_path: str, suffix: str = "_analyzed", 
+    def create_export_path(self, base_path: str, suffix: str = "", 
                           extension: str = ".csv") -> str:
         """Create an export path based on input file."""
         base_name = Path(base_path).stem

@@ -50,7 +50,8 @@ data_analysis_gui/
 |-- widgets/
 |   |-- __init__.py
 |   |-- control_panel.py
-|   `-- custom_inputs.py
+|   |-- custom_inputs.py
+|   `-- shared_widgets.py
 |-- __init__.py
 |-- cli.py
 |-- filetree.txt
