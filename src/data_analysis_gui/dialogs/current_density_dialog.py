@@ -98,6 +98,10 @@ class CurrentDensityDialog(QDialog):
             key=lambda r: self._extract_number(r.base_name)
         )
         
+        # Filter to only show selected files if selection state exists
+        if hasattr(self.batch_result, 'selected_files') and self.batch_result.selected_files:
+            results = [r for r in results if r.base_name in self.batch_result.selected_files]
+
         self.table.setRowCount(len(results))
         
         for row, result in enumerate(results):

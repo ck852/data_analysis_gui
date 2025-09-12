@@ -13,7 +13,7 @@ typed models.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 import numpy as np
 from pathlib import Path
 from data_analysis_gui.core.params import AnalysisParameters
@@ -291,6 +291,14 @@ class BatchAnalysisResult:
     parameters: 'AnalysisParameters'  # The params used for all files
     start_time: float
     end_time: float
+    selected_files: Optional[Set[str]] = None
+
+    def __post_init__(self):
+        """Initialize selected_files if not provided."""
+        if self.selected_files is None:
+            # Initialize with all successful file names
+            object.__setattr__(self, 'selected_files', 
+                             {r.base_name for r in self.successful_results})
     
     @property
     def total_files(self) -> int:

@@ -46,6 +46,14 @@ class BatchAnalysisWorker(QThread):
                 DEFAULT_MAX_WORKERS  # Use hardcoded default
             )
             
+            # Ensure result has selection state initialized
+            if not hasattr(result, 'selected_files') or result.selected_files is None:
+                from dataclasses import replace
+                result = replace(
+                    result,
+                    selected_files={r.base_name for r in result.successful_results}
+                )
+            
             self.finished.emit(result)
         except Exception as e:
             logger.error(f"Batch analysis failed: {e}", exc_info=True)
