@@ -56,11 +56,11 @@ class TestPeakAnalysis:
         Returns:
             AnalysisParameters configured for the specified peak mode
         """
-        # X-axis: Average Voltage
+        # X-axis: Peak Voltage with matching peak type
         x_axis = AxisConfig(
             measure="Peak",
             channel="Voltage",
-            peak_type=None  # Not used for Average
+            peak_type=peak_type  # Use the same peak_type as Y-axis for consistent labeling
         )
         
         # Y-axis: Peak Current with specified peak type
@@ -71,8 +71,8 @@ class TestPeakAnalysis:
         )
         
         return AnalysisParameters(
-            range1_start=150.1,
-            range1_end=649.2,
+            range1_start=50.2,
+            range1_end=164.9,
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
