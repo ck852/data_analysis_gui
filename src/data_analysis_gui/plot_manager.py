@@ -21,6 +21,12 @@ from matplotlib.lines import Line2D
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 
+from data_analysis_gui.config.plot_style import (
+    apply_plot_style, format_sweep_plot, get_line_styles
+)
+from data_analysis_gui.widgets.custom_toolbar import StreamlinedNavigationToolbar
+
+
 # Set up a logger for better debugging
 logger = logging.getLogger(__name__)
 
@@ -44,28 +50,37 @@ class PlotManager(QObject):
 
     def __init__(self, figure_size: Tuple[int, int] = (8, 6)):
         """
-        Initializes the plot manager.
-
-        Args:
-            figure_size: A tuple representing the (width, height) of the figure in inches.
+        Initializes the plot manager with modern styling.
         """
-        super().__init__()  # Initialize QObject for signals
+        super().__init__()
         
-        # 1. Matplotlib components setup
-        self.figure: Figure = Figure(figsize=figure_size, tight_layout=True)
+        # Apply modern plot style globally
+        apply_plot_style()
+        
+        # Get line styles for consistent appearance
+        self.line_styles = get_line_styles()
+        
+        # 1. Matplotlib components setup with styled figure
+        self.figure: Figure = Figure(figsize=figure_size, facecolor='#FAFAFA')
         self.canvas: FigureCanvas = FigureCanvas(self.figure)
         self.ax: Axes = self.figure.add_subplot(111)
-        self.toolbar: NavigationToolbar = NavigationToolbar(self.canvas, None)  # No parent
+        
+        # Use the streamlined toolbar instead of standard NavigationToolbar
+        self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
+            self.canvas, None
+        )
 
-        # Create the plot widget that will be returned to the GUI
+        # Create the plot widget
         self.plot_widget: QWidget = QWidget()
         plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
+        plot_layout.setContentsMargins(0, 0, 0, 0)
+        plot_layout.setSpacing(0)
         plot_layout.addWidget(self.toolbar)
         plot_layout.addWidget(self.canvas)
 
         # 2. Range lines management
         self.range_lines: List[Line2D] = []
-        self._line_ids: Dict[Line2D, str] = {}  # Map lines to their IDs
+        self._line_ids: Dict[Line2D, str] = {}
         self._initialize_range_lines()
 
         # 3. Interactivity state
@@ -73,6 +88,31 @@ class PlotManager(QObject):
 
         # 4. Connect interactive events
         self._connect_events()
+        
+        # 5. Apply initial styling to axes
+        self._style_axes()
+
+    def _style_axes(self):
+        """Apply modern styling to the axes."""
+        self.ax.set_facecolor('#FAFBFC')
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+        self.ax.spines['left'].set_linewidth(0.8)
+        self.ax.spines['bottom'].set_linewidth(0.8)
+        self.ax.spines['left'].set_color('#B0B0B0')
+        self.ax.spines['bottom'].set_color('#B0B0B0')
+        
+        self.ax.tick_params(
+            axis='both',
+            which='major',
+            labelsize=9,
+            colors='#606060',
+            length=4,
+            width=0.8
+        )
+        
+        self.ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E1E5E8')
+        self.ax.set_axisbelow(True)
 
     def get_plot_widget(self) -> QWidget:
         """Returns the QWidget containing the plot canvas and toolbar."""
@@ -85,25 +125,38 @@ class PlotManager(QObject):
         self.canvas.mpl_connect("button_release_event", self._on_release)
 
     def _initialize_range_lines(self) -> None:
-        """Initializes default range lines on the plot."""
-        # Clear existing lines WITHOUT trying to remove them from axes
-        # (they may not be attached, causing the error)
+        """Initializes range lines with modern styling."""
         self.range_lines.clear()
         self._line_ids.clear()
 
-        # Add two default green lines with IDs
-        line1 = self.ax.axvline(150, color='green', linestyle='-', picker=5, linewidth=2)
-        line2 = self.ax.axvline(500, color='green', linestyle='-', picker=5, linewidth=2)
+        # Use styled colors for range lines
+        range1_style = self.line_styles['range1']
+        
+        line1 = self.ax.axvline(
+            150, 
+            color=range1_style['color'],
+            linestyle=range1_style['linestyle'],
+            linewidth=range1_style['linewidth'],
+            alpha=range1_style['alpha'],
+            picker=5
+        )
+        line2 = self.ax.axvline(
+            500,
+            color=range1_style['color'],
+            linestyle=range1_style['linestyle'],
+            linewidth=range1_style['linewidth'],
+            alpha=range1_style['alpha'],
+            picker=5
+        )
         
         self.range_lines.extend([line1, line2])
         self._line_ids[line1] = 'range1_start'
         self._line_ids[line2] = 'range1_end'
         
-        # Emit signals for initial lines
         self.line_state_changed.emit('added', 'range1_start', 150)
         self.line_state_changed.emit('added', 'range1_end', 500)
         
-        logger.debug("Initialized default range lines.")
+        logger.debug("Initialized styled range lines.")
 
     def update_sweep_plot(
         self,
@@ -115,35 +168,32 @@ class PlotManager(QObject):
         channel_config: Optional[dict] = None,
     ) -> None:
         """
-        Updates the plot with new sweep data.
-
-        Args:
-            t: Time data array (X-axis).
-            y: Voltage/Current data array (Y-axis).
-            channel: The index of the channel to plot from the `y` array.
-            sweep_index: The index/number of the sweep.
-            channel_type: The type of channel ("Voltage" or "Current").
-            channel_config: (Ignored) Maintained for compatibility.
+        Updates the plot with new sweep data using modern styling.
         """
         self.ax.clear()
 
-        self.ax.plot(t, y[:, channel], linewidth=2)
+        # Plot with modern styling
+        line_style = self.line_styles['primary']
+        self.ax.plot(
+            t, y[:, channel],
+            color=line_style['color'],
+            linewidth=line_style['linewidth'],
+            alpha=line_style['alpha']
+        )
 
-        unit = "mV" if channel_type == "Voltage" else "pA"
-        self.ax.set_title(f"Sweep {sweep_index} - {channel_type}")
-        self.ax.set_xlabel("Time (ms)")
-        self.ax.set_ylabel(f"{channel_type} ({unit})")
-        self.ax.grid(True, which='both', linestyle='--', alpha=0.5)
+        # Apply sweep-specific formatting
+        format_sweep_plot(self.ax, sweep_index, channel_type)
 
-        # Restore range lines, which are removed by ax.clear()
+        # Restore range lines with consistent styling
         for line in self.range_lines:
             self.ax.add_line(line)
 
-        # Autoscale and add padding for better visualization
+        # Apply padding for better visualization
         self.ax.relim()
         self.ax.autoscale_view(tight=True)
         self.ax.margins(x=0.02, y=0.05)
 
+        self.figure.tight_layout(pad=1.5)
         self.redraw()
         self.plot_updated.emit()
         logger.info(f"Updated plot for sweep {sweep_index}, channel {channel}.")
@@ -156,19 +206,42 @@ class PlotManager(QObject):
         start2: Optional[float] = None,
         end2: Optional[float] = None,
     ) -> None:
-        """Updates the positions of the draggable range lines."""
-        # Make sure we have at least 2 lines
+        """Updates range lines with proper styling."""
+        # Get style configurations
+        range1_style = self.line_styles['range1']
+        range2_style = self.line_styles['range2']
+        
+        # Ensure we have at least 2 lines for Range 1
         if len(self.range_lines) < 2:
-            # Don't call _initialize_range_lines since it might cause issues
-            # Just add the missing lines directly
             if len(self.range_lines) == 0:
-                line1 = self.ax.axvline(start1, color='green', linestyle='-', picker=5, linewidth=2)
-                line2 = self.ax.axvline(end1, color='green', linestyle='-', picker=5, linewidth=2)
+                line1 = self.ax.axvline(
+                    start1,
+                    color=range1_style['color'],
+                    linestyle=range1_style['linestyle'],
+                    linewidth=range1_style['linewidth'],
+                    alpha=range1_style['alpha'],
+                    picker=5
+                )
+                line2 = self.ax.axvline(
+                    end1,
+                    color=range1_style['color'],
+                    linestyle=range1_style['linestyle'],
+                    linewidth=range1_style['linewidth'],
+                    alpha=range1_style['alpha'],
+                    picker=5
+                )
                 self.range_lines.extend([line1, line2])
                 self._line_ids[line1] = 'range1_start'
                 self._line_ids[line2] = 'range1_end'
             elif len(self.range_lines) == 1:
-                line2 = self.ax.axvline(end1, color='green', linestyle='-', picker=5, linewidth=2)
+                line2 = self.ax.axvline(
+                    end1,
+                    color=range1_style['color'],
+                    linestyle=range1_style['linestyle'],
+                    linewidth=range1_style['linewidth'],
+                    alpha=range1_style['alpha'],
+                    picker=5
+                )
                 self.range_lines.append(line2)
                 self._line_ids[line2] = 'range1_end'
         else:
@@ -180,9 +253,23 @@ class PlotManager(QObject):
         
         if use_dual_range and start2 is not None and end2 is not None:
             if not has_second_range:
-                # Add Range 2 lines
-                line3 = self.ax.axvline(start2, color='red', linestyle='-', picker=5, linewidth=2)
-                line4 = self.ax.axvline(end2, color='red', linestyle='-', picker=5, linewidth=2)
+                # Add Range 2 lines with different styling
+                line3 = self.ax.axvline(
+                    start2,
+                    color=range2_style['color'],
+                    linestyle=range2_style['linestyle'],
+                    linewidth=range2_style['linewidth'],
+                    alpha=range2_style['alpha'],
+                    picker=5
+                )
+                line4 = self.ax.axvline(
+                    end2,
+                    color=range2_style['color'],
+                    linestyle=range2_style['linestyle'],
+                    linewidth=range2_style['linewidth'],
+                    alpha=range2_style['alpha'],
+                    picker=5
+                )
                 
                 self.range_lines.extend([line3, line4])
                 self._line_ids[line3] = 'range2_start'
@@ -195,28 +282,25 @@ class PlotManager(QObject):
                 self.range_lines[2].set_xdata([start2, start2])
                 self.range_lines[3].set_xdata([end2, end2])
         elif not use_dual_range and has_second_range:
-            # Remove Range 2 lines safely
+            # Remove Range 2 lines
             line4 = self.range_lines.pop()
             line3 = self.range_lines.pop()
             
-            # Emit removal signals before removing
             self.line_state_changed.emit('removed', self._line_ids.get(line3, 'range2_start'), line3.get_xdata()[0])
             self.line_state_changed.emit('removed', self._line_ids.get(line4, 'range2_end'), line4.get_xdata()[0])
             
-            # Remove from tracking
             if line3 in self._line_ids:
                 del self._line_ids[line3]
             if line4 in self._line_ids:
                 del self._line_ids[line4]
             
-            # Remove from axes if they're attached
             if line3.axes:
                 line3.remove()
             if line4.axes:
                 line4.remove()
 
         self.redraw()
-        logger.debug("Updated range lines.")
+        logger.debug("Updated range lines with modern styling.")
 
     def center_nearest_cursor(self) -> Tuple[Optional[str], Optional[float]]:
         """

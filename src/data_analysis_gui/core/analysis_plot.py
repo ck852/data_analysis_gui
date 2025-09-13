@@ -18,6 +18,10 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
+from data_analysis_gui.config.plot_style import (
+    apply_plot_style, format_analysis_plot, get_line_styles, COLORS
+)
+
 
 @dataclass
 class AnalysisPlotData:
@@ -71,26 +75,24 @@ class AnalysisPlotter:
                      title: str,
                      figsize: Tuple[int, int] = (8, 6)) -> Tuple[Figure, Axes]:
         """
-        Create and configure a matplotlib figure with the analysis plot.
-        
-        This is a pure function that creates a new figure each time it's called.
-        Thread-safe when using 'Agg' backend.
-        
-        Args:
-            plot_data: Data structure containing arrays to plot
-            x_label: Label for x-axis
-            y_label: Label for y-axis
-            title: Plot title
-            figsize: Figure size as (width, height) in inches
-            
-        Returns:
-            Tuple of (Figure, Axes) objects
-            
-        Thread Safety: Safe with 'Agg' backend, no shared state
+        Create and configure a matplotlib figure with modern styling.
         """
-        figure = Figure(figsize=figsize)
+        # Apply global style
+        apply_plot_style()
+        
+        # Create figure with styled background
+        figure = Figure(figsize=figsize, facecolor='#FAFAFA')
         ax = figure.add_subplot(111)
+        
+        # Configure plot with modern styling
         AnalysisPlotter._configure_plot(ax, plot_data, x_label, y_label, title)
+        
+        # Apply analysis-specific formatting
+        format_analysis_plot(ax, x_label, y_label, title)
+        
+        # Ensure proper layout
+        figure.tight_layout(pad=1.5)
+        
         return figure, ax
     
     @staticmethod
@@ -100,53 +102,74 @@ class AnalysisPlotter:
                        y_label: str, 
                        title: str) -> None:
         """
-        Configure the plot on the given axes.
-        
-        Pure function that modifies only the provided axes object.
-        
-        Args:
-            ax: Matplotlib axes to configure
-            plot_data: Data to plot
-            x_label: X-axis label
-            y_label: Y-axis label
-            title: Plot title
-            
-        Thread Safety: Safe, modifies only provided axes
+        Configure the plot with modern styling.
         """
         x_data = plot_data.x_data
         y_data = plot_data.y_data
         sweep_indices = plot_data.sweep_indices
         
+        # Get line styles
+        line_styles = get_line_styles()
+        
         if len(x_data) > 0 and len(y_data) > 0:
-            # Create scatter plot with connecting lines for Range 1
-            ax.plot(x_data, y_data, 'o-', linewidth=2, markersize=6, label="Range 1")
+            # Create plot with modern styling for Range 1
+            primary_style = line_styles['primary']
+            line1 = ax.plot(
+                x_data, y_data,
+                marker=primary_style['marker'],
+                markersize=primary_style['markersize'],
+                markeredgewidth=primary_style['markeredgewidth'],
+                linewidth=primary_style['linewidth'],
+                color=primary_style['color'],
+                alpha=primary_style['alpha'],
+                label="Range 1"
+            )[0]
             
-            # Add sweep labels to the points
+            # Add subtle sweep labels with better positioning
             for i, sweep_idx in enumerate(sweep_indices):
                 if i < len(x_data) and i < len(y_data):
-                    ax.annotate(f"{sweep_idx}",
-                                (x_data[i], y_data[i]),
-                                textcoords="offset points",
-                                xytext=(0, 5),
-                                ha='center')
+                    ax.annotate(
+                        f"{sweep_idx}",
+                        (x_data[i], y_data[i]),
+                        textcoords="offset points",
+                        xytext=(0, 8),
+                        ha='center',
+                        fontsize=8,
+                        color='#606060',
+                        alpha=0.8
+                    )
         
-        # Plot Range 2 if available
+        # Plot Range 2 if available with contrasting style
         if plot_data.use_dual_range and plot_data.y_data2 is not None:
             y_data2 = plot_data.y_data2
             if len(x_data) > 0 and len(y_data2) > 0:
-                ax.plot(x_data, y_data2, 's--', linewidth=2, markersize=6, label="Range 2")
+                secondary_style = line_styles['secondary']
+                line2 = ax.plot(
+                    x_data, y_data2,
+                    marker=secondary_style['marker'],
+                    markersize=secondary_style['markersize'],
+                    markeredgewidth=secondary_style['markeredgewidth'],
+                    linewidth=secondary_style['linewidth'],
+                    linestyle=secondary_style.get('linestyle', '-'),
+                    color=secondary_style['color'],
+                    alpha=secondary_style['alpha'],
+                    label="Range 2"
+                )[0]
         
-        # Format plot
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        ax.set_title(title)
-        ax.grid(True, alpha=0.3)
-        
-        # Add legend if needed
+        # Modern legend styling if dual range
         if plot_data.use_dual_range:
-            ax.legend()
+            ax.legend(
+                loc='best',
+                frameon=True,
+                fancybox=False,
+                shadow=False,
+                framealpha=0.95,
+                edgecolor='#D0D0D0',
+                facecolor='white',
+                fontsize=9
+            )
         
-        # Apply padding
+        # Apply axis padding with subtle animation-ready margins
         AnalysisPlotter._apply_axis_padding(ax, x_data, y_data)
     
     @staticmethod
@@ -156,16 +179,6 @@ class AnalysisPlotter:
                            padding_factor: float = 0.05) -> None:
         """
         Apply padding to both axes for better visualization.
-        
-        Pure function that modifies only the provided axes limits.
-        
-        Args:
-            ax: Matplotlib axes to modify
-            x_data: X-axis data array
-            y_data: Y-axis data array
-            padding_factor: Fraction of range to use as padding
-            
-        Thread Safety: Safe, modifies only provided axes
         """
         ax.relim()
         ax.autoscale_view()
@@ -177,11 +190,13 @@ class AnalysisPlotter:
             x_range = x_max - x_min
             y_range = y_max - y_min
             
+            # Slightly asymmetric padding for visual balance
             x_padding = x_range * padding_factor if x_range > 0 else 0.1
-            y_padding = y_range * padding_factor if y_range > 0 else 0.1
+            y_padding_bottom = y_range * padding_factor if y_range > 0 else 0.1
+            y_padding_top = y_range * (padding_factor * 1.2) if y_range > 0 else 0.1
             
             ax.set_xlim(x_min - x_padding, x_max + x_padding)
-            ax.set_ylim(y_min - y_padding, y_max + y_padding)
+            ax.set_ylim(y_min - y_padding_bottom, y_max + y_padding_top)
     
     @staticmethod
     def save_figure(figure: Figure, 

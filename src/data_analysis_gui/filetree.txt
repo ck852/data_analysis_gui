@@ -3,6 +3,7 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- environment.py
 |   |-- logging.py
+|   |-- plot_style.py
 |   |-- settings.py
 |   `-- themes.py
 |-- core/
@@ -51,6 +52,7 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- control_panel.py
 |   |-- custom_inputs.py
+|   |-- custom_toolbar.py
 |   `-- shared_widgets.py
 |-- __init__.py
 |-- cli.py

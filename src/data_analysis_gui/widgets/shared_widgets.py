@@ -29,6 +29,11 @@ import matplotlib.pyplot as plt
 from data_analysis_gui.core.models import FileAnalysisResult
 from data_analysis_gui.config.logging import get_logger
 
+from data_analysis_gui.config.plot_style import (
+    apply_plot_style, format_batch_plot, COLOR_CYCLE
+)
+from data_analysis_gui.widgets.custom_toolbar import MinimalNavigationToolbar
+
 logger = get_logger(__name__)
 
 
@@ -105,17 +110,20 @@ class DynamicBatchPlotWidget(QWidget):
     plot_updated = pyqtSignal()
     
     def __init__(self, parent=None):
-        """Initialize the plot widget."""
+        """Initialize the plot widget with modern styling."""
         super().__init__(parent)
+        
+        # Apply global plot style
+        apply_plot_style()
         
         # Plot components (created lazily)
         self.figure: Optional[Figure] = None
         self.canvas: Optional[FigureCanvas] = None
         self.ax = None
-        self.toolbar: Optional[NavigationToolbar] = None
+        self.toolbar: Optional[MinimalNavigationToolbar] = None
         
         # Data management
-        self.line_objects: Dict[str, Dict[str, Line2D]] = {}  # {filename: {range: Line2D}}
+        self.line_objects: Dict[str, Dict[str, Line2D]] = {}
         self.file_colors: Dict[str, Tuple[float, ...]] = {}
         self.plot_initialized = False
         
@@ -129,10 +137,22 @@ class DynamicBatchPlotWidget(QWidget):
         # Layout
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
         
-        # Initialize with empty message
+        # Initialize with styled empty message
         self.empty_label = QLabel("No data to display")
         self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.setStyleSheet("""
+            QLabel {
+                color: #808080;
+                font-size: 12px;
+                font-style: italic;
+                background-color: #FAFAFA;
+                border: 1px solid #E0E0E0;
+                border-radius: 4px;
+                padding: 20px;
+            }
+        """)
         self.layout.addWidget(self.empty_label)
     
     def initialize_plot(self, x_label: str, y_label: str, title: str = "") -> None:
@@ -152,46 +172,44 @@ class DynamicBatchPlotWidget(QWidget):
             self._create_plot_components()
     
     def _create_plot_components(self) -> None:
-        """Create matplotlib figure, canvas, and toolbar once."""
+        """Create matplotlib figure, canvas, and toolbar with modern styling."""
         # Remove empty label
         if self.empty_label:
             self.empty_label.setParent(None)
             self.empty_label = None
         
-        # Create figure with constrained layout for better sizing
-        self.figure = Figure(figsize=(12, 8), constrained_layout=True)
+        # Create figure with modern style
+        self.figure = Figure(figsize=(12, 8), facecolor='#FAFAFA')
         self.ax = self.figure.add_subplot(111)
+        
+        # Apply batch plot formatting
+        format_batch_plot(self.ax, self.x_label, self.y_label)
         
         # Create canvas
         self.canvas = FigureCanvas(self.figure)
         
-        # Create toolbar
-        self.toolbar = NavigationToolbar(self.canvas, self)
+        # Create minimal toolbar for batch plots
+        self.toolbar = MinimalNavigationToolbar(self.canvas, self)
         
-        # Add to layout
+        # Add to layout with proper spacing
         self.layout.addWidget(self.toolbar)
         self.layout.addWidget(self.canvas)
-        
-        # Configure axes
-        self.ax.set_xlabel(self.x_label)
-        self.ax.set_ylabel(self.y_label)
-        if self.title:
-            self.ax.set_title(self.title)
-        self.ax.grid(True, alpha=0.3)
         
         self.plot_initialized = True
         logger.debug("Plot components created")
     
     def set_data(self, results: List[FileAnalysisResult], 
-                 use_dual_range: bool = False,
-                 color_mapping: Optional[Dict[str, Tuple[float, ...]]] = None) -> None:
+             use_dual_range: bool = False,
+             color_mapping: Optional[Dict[str, Tuple[float, ...]]] = None,
+             auto_scale: bool = True) -> None:  # Add auto_scale parameter
         """
-        Set the data to be plotted.
+        Set the data to be plotted with optional auto-scaling.
         
         Args:
             results: List of analysis results
             use_dual_range: Whether dual range data should be shown
             color_mapping: Optional pre-defined color mapping
+            auto_scale: Whether to automatically scale axes to fit data (default: True)
         """
         if not self.plot_initialized:
             logger.warning("Plot not initialized. Call initialize_plot first.")
@@ -217,54 +235,68 @@ class DynamicBatchPlotWidget(QWidget):
         # Update plot appearance
         self._update_plot_appearance()
         
+        # Auto-scale if requested (especially important for current density)
+        if auto_scale:
+            self._auto_scale_axes()
+        
         # Draw
         self.canvas.draw_idle()
         self.plot_updated.emit()
     
     def _generate_color_mapping(self, results: List[FileAnalysisResult]) -> Dict[str, Tuple[float, ...]]:
-        """Generate consistent color mapping for files."""
-        # Use matplotlib color cycle
-        prop_cycle = plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        
+        """Generate color mapping using the modern color palette."""
         color_mapping = {}
+        
         for idx, result in enumerate(results):
-            color_str = colors[idx % len(colors)]
-            # Convert to RGB tuple
-            if color_str.startswith('#'):
-                color = tuple(int(color_str[i:i+2], 16)/255 for i in (1, 3, 5))
+            # Use the modern color cycle
+            color_hex = COLOR_CYCLE[idx % len(COLOR_CYCLE)]
+            
+            # Convert hex to RGB tuple
+            if color_hex.startswith('#'):
+                color = tuple(int(color_hex[i:i+2], 16)/255 for i in (1, 3, 5))
             else:
                 import matplotlib.colors as mcolors
-                color = mcolors.to_rgb(color_str)
+                color = mcolors.to_rgb(color_hex)
+            
             color_mapping[result.base_name] = color
         
         return color_mapping
     
     def _create_lines_for_result(self, result: FileAnalysisResult) -> None:
-        """Create line objects for a single result."""
+        """Create line objects with modern styling."""
         color = self.file_colors.get(result.base_name, (0, 0, 0))
         
-        # Range 1 line
+        # Range 1 line with modern styling
         if len(result.x_data) > 0 and len(result.y_data) > 0:
             line_r1, = self.ax.plot(
                 result.x_data, result.y_data,
-                'o-', label=f"{result.base_name}",
-                markersize=4, alpha=0.8, color=color,
-                visible=True  # Start visible
+                'o-',
+                label=f"{result.base_name}",
+                markersize=4,
+                markeredgewidth=0,
+                linewidth=1.5,
+                alpha=0.85,
+                color=color,
+                visible=True
             )
             
             if result.base_name not in self.line_objects:
                 self.line_objects[result.base_name] = {}
             self.line_objects[result.base_name]['range1'] = line_r1
         
-        # Range 2 line if applicable
+        # Range 2 line with dashed style
         if self.use_dual_range and result.y_data2 is not None:
             if len(result.x_data) > 0 and len(result.y_data2) > 0:
                 line_r2, = self.ax.plot(
                     result.x_data if result.x_data2 is None else result.x_data2, 
                     result.y_data2,
-                    's--', label=f"{result.base_name} (Range 2)",
-                    markersize=4, alpha=0.8, color=color,
+                    's--',
+                    label=f"{result.base_name} (Range 2)",
+                    markersize=4,
+                    markeredgewidth=0,
+                    linewidth=1.5,
+                    alpha=0.85,
+                    color=color,
                     visible=True
                 )
                 self.line_objects[result.base_name]['range2'] = line_r2
@@ -287,6 +319,9 @@ class DynamicBatchPlotWidget(QWidget):
         
         # Update legend to show only visible lines
         self._update_plot_appearance()
+        
+        # Re-scale to fit only visible data
+        self._auto_scale_axes()
         
         # Redraw
         self.canvas.draw_idle()
@@ -325,7 +360,7 @@ class DynamicBatchPlotWidget(QWidget):
         self.plot_updated.emit()
     
     def _update_plot_appearance(self) -> None:
-        """Update legend and other plot appearance elements."""
+        """Update legend and plot appearance with modern styling."""
         # Get visible lines for legend
         visible_lines = []
         visible_labels = []
@@ -336,10 +371,26 @@ class DynamicBatchPlotWidget(QWidget):
                     visible_lines.append(line)
                     visible_labels.append(line.get_label())
         
-        # Update legend with only visible lines
+        # Update legend with modern styling
         if visible_lines:
-            self.ax.legend(visible_lines, visible_labels, 
-                          loc='best', fontsize=self.legend_fontsize)
+            legend = self.ax.legend(
+                visible_lines, visible_labels,
+                loc='best',
+                frameon=True,
+                fancybox=False,
+                shadow=False,
+                framealpha=0.95,
+                edgecolor='#D0D0D0',
+                facecolor='white',
+                fontsize=self.legend_fontsize,
+                borderpad=0.5,
+                columnspacing=1.2,
+                handlelength=2
+            )
+            
+            # Make legend draggable for better user experience
+            if legend:
+                legend.set_draggable(True)
         else:
             # Remove legend if no lines visible
             legend = self.ax.get_legend()
@@ -358,10 +409,110 @@ class DynamicBatchPlotWidget(QWidget):
             self.canvas.draw_idle()
     
     def export_figure(self, filepath: str, dpi: int = 300) -> None:
-        """Export the current figure to a file."""
+        """Export the current figure with high quality."""
         if self.figure:
-            self.figure.savefig(filepath, dpi=dpi, bbox_inches='tight')
+            # Ensure the figure looks good when exported
+            self.figure.savefig(
+                filepath,
+                dpi=dpi,
+                bbox_inches='tight',
+                facecolor='white',
+                edgecolor='none',
+                pad_inches=0.1
+            )
 
+    def _auto_scale_axes(self):
+        """
+        Automatically scale axes to fit the visible data with appropriate padding.
+        Specifically useful for current density plots where scale differs from raw current.
+        """
+        if not self.ax or not self.line_objects:
+            return
+        
+        # Collect all visible y-data
+        all_y_data = []
+        all_x_data = []
+        
+        for filename, lines_dict in self.line_objects.items():
+            for line in lines_dict.values():
+                if line.get_visible():
+                    y_data = line.get_ydata()
+                    x_data = line.get_xdata()
+                    if len(y_data) > 0:
+                        all_y_data.extend(y_data)
+                        all_x_data.extend(x_data)
+        
+        if all_y_data and all_x_data:
+            # Calculate data ranges
+            y_min, y_max = np.nanmin(all_y_data), np.nanmax(all_y_data)
+            x_min, x_max = np.nanmin(all_x_data), np.nanmax(all_x_data)
+            
+            # Add smart padding based on data range
+            y_range = y_max - y_min
+            if y_range > 0:
+                # Use 5% padding, but ensure minimum padding for very small ranges
+                y_padding = max(y_range * 0.05, abs(y_max) * 0.01)
+            else:
+                # If all values are the same, add 10% of the value as padding
+                y_padding = abs(y_max) * 0.1 if y_max != 0 else 1.0
+            
+            x_range = x_max - x_min
+            x_padding = x_range * 0.02 if x_range > 0 else 1.0
+            
+            # Set the limits
+            self.ax.set_ylim(y_min - y_padding, y_max + y_padding)
+            self.ax.set_xlim(x_min - x_padding, x_max + x_padding)
+        
+        # Refresh the canvas
+        self.canvas.draw_idle()
+
+    def auto_scale_to_data(self):
+        """
+        Automatically scale axes to fit the visible data.
+        Call this after set_data() or update_visibility() for current density plots.
+        """
+        if not self.ax or not self.line_objects:
+            return
+        
+        # Collect all visible y-data
+        all_y_data = []
+        all_x_data = []
+        
+        for filename, lines_dict in self.line_objects.items():
+            for line in lines_dict.values():
+                if line.get_visible():
+                    y_data = line.get_ydata()
+                    x_data = line.get_xdata()
+                    if len(y_data) > 0:
+                        # Filter out NaN values
+                        valid_mask = ~np.isnan(y_data)
+                        if np.any(valid_mask):
+                            all_y_data.extend(y_data[valid_mask])
+                            all_x_data.extend(x_data[valid_mask])
+        
+        if all_y_data and all_x_data:
+            # Calculate data ranges
+            y_min, y_max = np.min(all_y_data), np.max(all_y_data)
+            x_min, x_max = np.min(all_x_data), np.max(all_x_data)
+            
+            # Add smart padding based on data range
+            y_range = y_max - y_min
+            if y_range > 0:
+                # Use 5% padding for y-axis
+                y_padding = y_range * 0.05
+            else:
+                # If all values are the same, add 10% of the value as padding
+                y_padding = abs(y_max) * 0.1 if y_max != 0 else 1.0
+            
+            x_range = x_max - x_min
+            x_padding = x_range * 0.02 if x_range > 0 else 1.0
+            
+            # Set the limits
+            self.ax.set_ylim(y_min - y_padding, y_max + y_padding)
+            self.ax.set_xlim(x_min - x_padding, x_max + x_padding)
+            
+            # Refresh the canvas
+            self.canvas.draw_idle()
 
 class BatchFileListWidget(QTableWidget):
     """

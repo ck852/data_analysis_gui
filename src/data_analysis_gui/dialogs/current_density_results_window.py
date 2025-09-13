@@ -200,13 +200,15 @@ class CurrentDensityResultsWindow(QMainWindow):
             self._recalculate_cd_for_file(file_name, new_cslow)
             # Update specific line in plot
             result = next((r for r in self.active_batch_result.successful_results 
-                          if r.base_name == file_name), None)
+                        if r.base_name == file_name), None)
             if result:
                 self.plot_widget.update_line_data(
                     file_name, 
                     result.y_data,
                     result.y_data2 if self.active_batch_result.parameters.use_dual_range else None
                 )
+                # Re-scale after updating data
+                self.plot_widget.auto_scale_to_data()
         except (ValueError, ZeroDivisionError) as e:
             logger.warning(f"Invalid Cslow value for {file_name}: {e}")
 
@@ -267,7 +269,11 @@ class CurrentDensityResultsWindow(QMainWindow):
         # Update visibility based on selection
         self.plot_widget.update_visibility(self.selection_state.get_selected_files())
         
+        # Auto-scale to fit current density data
+        self.plot_widget.auto_scale_to_data()
+        
         self._update_summary()
+
 
     def _update_summary(self):
         """Update the summary label text."""
