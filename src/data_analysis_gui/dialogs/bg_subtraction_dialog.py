@@ -79,7 +79,7 @@ class BackgroundSubtractionDialog(QDialog):
             self.reject()
             return
             
-        # Validate and set default ranges
+        # These are defined and overriden by MainWindow in _background_subtraction
         self.default_start = float(default_start)
         self.default_end = float(default_end) 
         self.max_time = self.time_ms[-1] if len(self.time_ms) > 0 else 10000
