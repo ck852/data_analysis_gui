@@ -143,12 +143,12 @@ def load_abf(
 
     # Performance warning for large datasets
     total_samples = abf.sweepCount * abf.sweepPointCount * abf.channelCount
-    if abf.sweepCount > LARGE_FILE_SWEEP_THRESHOLD:
-        warnings.warn(
-            f"ABF file contains {abf.sweepCount} sweeps. "
-            "Consider processing in batches for better performance.",
-            UserWarning,
-        )
+    # if abf.sweepCount > LARGE_FILE_SWEEP_THRESHOLD:
+    #     warnings.warn(
+    #         f"ABF file contains {abf.sweepCount} sweeps. "
+    #         "Consider processing in batches for better performance.",
+    #         UserWarning,
+    #     )
 
     if total_samples > LARGE_FILE_SAMPLE_THRESHOLD:
         warnings.warn(
@@ -475,10 +475,10 @@ def _convert_units(
                     unit in ["µA", "uA", "μA", "ua"]
                     and np.abs(data).max() < REASONABLE_CURRENT_RANGE_PA
                 ):
-                    logger.warning(
-                        f"Current metadata indicates {unit} but values suggest data is already in pA. "
-                        f"Skipping conversion (max value: {np.abs(data).max():.0f})."
-                    )
+                    # logger.warning(
+                    #     f"Current metadata indicates {unit} but values suggest data is already in pA. "
+                    #     f"Skipping conversion (max value: {np.abs(data).max():.0f})."
+                    # )
                     return data, "pA"  # Data is already in pA, just fix the unit label
                 else:
                     logger.warning(

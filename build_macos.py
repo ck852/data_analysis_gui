@@ -103,7 +103,7 @@ app = BUNDLE(
         'NSPrincipalClass': 'NSApplication',
         'NSAppleScriptEnabled': False,
         'CFBundleDisplayName': 'PatchBatch',
-        'CFBundleShortVersionString': '0.9.0-beta.3',
+        'CFBundleShortVersionString': '0.9.0-beta.4',
         'CFBundleVersion': '0.9.0.3',
         'CFBundleDocumentTypes': [
             {

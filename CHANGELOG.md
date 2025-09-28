@@ -2,21 +2,33 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.0.0-beta.4] - 2025-09-28
+### Added
+- Background subtraction
+- Ramp IV
+
+### Changed
+- Removed unhelpful current units error messages
+
+### Known Issues
+- parameter settings don't all save between sessions
+- MAT file support is not confirmed due to mat version issues. May deprecate
+
 ## [0.9.0-beta.3] - 2025-09-21
 ### Added
--Mac Support
+- Mac Support
 
 ## [0.9.0-beta.2] - 2025-09-21
 ### Added
--More comprehensive documentation
--Peak mode and swapped channel validation
+- More comprehensive documentation
+- Peak mode and swapped channel validation
 
 ### Changed
--Export headers updated for consistency
+- Export headers updated for consistency
 
 ### Known Issues
--Plot styling has display issues
--Current unit adjustment has not been tested
+- Plot styling has display issues
+- Current unit adjustment has not been tested
 
 ## [0.9.0-beta.1] - 2025-09-19
 ### Added

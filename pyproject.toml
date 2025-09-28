@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "patchbatch"
-version = "0.9.0b3"
+version = "0.9.0b4"
 description = "Batch analysis tool for patch-clamp electrophysiology data"
 authors = [
   { name="Charles Kissell", email="kissell.r@northeastern.edu" }

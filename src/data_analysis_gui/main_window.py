@@ -29,6 +29,8 @@ Key design principles:
 from pathlib import Path
 from typing import Optional
 
+from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
+
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -259,6 +261,13 @@ class MainWindow(QMainWindow):
         self.batch_action.triggered.connect(self._batch_analyze)
         self.batch_action.setEnabled(True)
         analysis_menu.addAction(self.batch_action)
+
+        # Add ramp IV analysis action
+        self.ramp_iv_action = QAction("&Ramp IV Analysis...", self)
+        self.ramp_iv_action.setShortcut("Ctrl+R")
+        self.ramp_iv_action.triggered.connect(self._ramp_iv_analysis)
+        self.ramp_iv_action.setEnabled(True)
+        analysis_menu.addAction(self.ramp_iv_action)
 
     def _create_toolbar(self):
         """
@@ -688,6 +697,61 @@ class MainWindow(QMainWindow):
         )
         self.analysis_dialog.show()
         self.analysis_completed.emit()
+
+    def _ramp_iv_analysis(self):
+        """
+        Open the ramp IV analysis dialog for the current dataset.
+        """
+        # Check if data is loaded
+        if not self.controller.has_data():
+            QMessageBox.warning(
+                self, 
+                "No Data", 
+                "Please load a data file before performing ramp IV analysis."
+            )
+            return
+        
+        # Get current analysis range from control panel
+        range_values = self.control_panel.get_range_values()
+        start_ms = range_values["range1_start"]
+        end_ms = range_values["range1_end"]
+        
+        # Validate range
+        if start_ms >= end_ms:
+            QMessageBox.warning(
+                self,
+                "Invalid Range",
+                "Please set a valid analysis range (Range 1) before performing ramp IV analysis."
+            )
+            return
+        
+        # Get current units
+        current_units = self.current_units
+        
+        # Open the ramp IV analysis dialog
+        try:
+            dialog = RampIVDialog(
+                dataset=self.controller.current_dataset,
+                channel_definitions=self.channel_definitions,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                current_units=current_units,
+                parent=self
+            )
+            
+            # Show dialog (non-blocking)
+            dialog.show_with_voltage_input()
+            
+            # Log the action
+            logger.info(f"Opened ramp IV analysis dialog with range [{start_ms}, {end_ms}] ms")
+            
+        except Exception as e:
+            logger.error(f"Error opening ramp IV dialog: {e}")
+            QMessageBox.critical(
+                self, 
+                "Dialog Error", 
+                f"Failed to open ramp IV analysis dialog:\n{str(e)}"
+            )
 
     def _export_data(self):
         """
