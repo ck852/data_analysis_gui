@@ -1,6 +1,4 @@
 streamlining/
-|-- data_analysis_gui/
-|   `-- services/
 |-- images/
 |   |-- ba_results.PNG
 |   |-- batch_analysis.PNG
@@ -51,6 +49,7 @@ streamlining/
 |       |   |-- analysis_plot_dialog.py
 |       |   |-- batch_dialog.py
 |       |   |-- batch_results_window.py
+|       |   |-- bg_subtraction_dialog.py
 |       |   |-- current_density_dialog.py
 |       |   `-- current_density_results_window.py
 |       |-- gui_services/
@@ -62,6 +61,7 @@ streamlining/
 |       |   |-- __init__.py
 |       |   |-- analysis_manager.py
 |       |   |-- batch_processor.py
+|       |   |-- bg_subtraction_service.py
 |       |   |-- current_density_service.py
 |       |   |-- data_manager.py
 |       |   `-- plot_service.py
@@ -243,21 +243,35 @@ streamlining/
 |   |       |-- peak_modes/
 |   |       |   |-- 250514_012[1-11].abf
 |   |       |   `-- 250514_012[1-11].mat
-|   |       `-- swapped/
-|   |           |-- abf/
-|   |           |   |-- 240809_001[1-12].abf
-|   |           |   |-- 240809_002[1-12].abf
-|   |           |   `-- 240809_003[1-12].abf
-|   |           `-- mat/
-|   |               |-- 240809_001[1-12].mat
-|   |               |-- 240809_002[1-12].mat
-|   |               `-- 240809_003[1-12].mat
+|   |       |-- swapped/
+|   |       |   |-- abf/
+|   |       |   |   |-- 240809_001[1-12].abf
+|   |       |   |   |-- 240809_002[1-12].abf
+|   |       |   |   `-- 240809_003[1-12].abf
+|   |       |   `-- mat/
+|   |       |       |-- 240809_001[1-12].mat
+|   |       |       |-- 240809_002[1-12].mat
+|   |       |       `-- 240809_003[1-12].mat
+|   |       `-- WinWCP files/
+|   |           |-- 250514_001.wcp
+|   |           |-- 250514_002.wcp
+|   |           |-- 250514_003.wcp
+|   |           |-- 250514_004.wcp
+|   |           |-- 250514_005.wcp
+|   |           |-- 250514_006.wcp
+|   |           |-- 250514_007.wcp
+|   |           |-- 250514_008.wcp
+|   |           |-- 250514_009.wcp
+|   |           |-- 250514_010.wcp
+|   |           |-- 250514_011.wcp
+|   |           `-- 250514_012.wcp
 |   |-- test_batch_analysis.py
 |   |-- test_current_density.py
 |   |-- test_dual_batch.py
 |   |-- test_dual_range.py
 |   |-- test_peak.py
 |   `-- test_swapped.py
+|-- build_macos.py
 |-- build_windows.py
 |-- CHANGELOG.md
 |-- filetree.txt

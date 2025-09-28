@@ -40,7 +40,7 @@ class BackgroundSubtractionDialog(QDialog):
     
     def __init__(self, dataset: ElectrophysiologyDataset, sweep_index: str, 
                  channel_definitions: ChannelDefinitions, 
-                 default_start: float = 0, default_end: float = 50,
+                 
                  parent=None):
         """
         Initialize the background subtraction dialog with centralized styling.
@@ -80,8 +80,8 @@ class BackgroundSubtractionDialog(QDialog):
             return
             
         # These are defined and overriden by MainWindow in _background_subtraction
-        self.default_start = float(default_start)
-        self.default_end = float(default_end) 
+        # self.default_start = float(default_start)
+        # self.default_end = float(default_end) 
         self.max_time = self.time_ms[-1] if len(self.time_ms) > 0 else 10000
         
         self._init_ui()
@@ -105,6 +105,9 @@ class BackgroundSubtractionDialog(QDialog):
         range_widget = QWidget()
         range_layout = QFormLayout(range_widget)
         range_layout.setSpacing(8)
+
+        self.default_start = 5  # Default start time for background range (ms)
+        self.default_end = 45  # Default end time for background range (ms)
         
         self.start_spinbox = SelectAllSpinBox()
         self.start_spinbox.setDecimals(1)

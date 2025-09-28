@@ -836,8 +836,8 @@ class MainWindow(QMainWindow):
             dataset=self.controller.current_dataset,
             sweep_index=current_sweep,
             channel_definitions=self.channel_definitions,
-            default_start=default_start,
-            default_end=default_end,
+            # default_start=default_start,
+            # default_end=default_end,
             parent=self
         )
         
