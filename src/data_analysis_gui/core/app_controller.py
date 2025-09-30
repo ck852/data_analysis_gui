@@ -279,10 +279,16 @@ class ApplicationController:
             file_path (str): Path to the data file to load.
 
         Returns:
-            FileLoadResult: Object containing file information if successful, or error details if failed. Always returns a FileLoadResult (never None).
+            FileLoadResult: Object containing file information if successful, or error details if failed.
         """
         try:
             logger.info(f"Loading file: {file_path}")
+
+            # === NEW: Reset to manual mode before loading ===
+            # WCP files will override this in their loader via set_from_wcp_detection()
+            # ABF/MAT files will remain in manual mode to use GUI settings
+            self.channel_definitions.reset_to_manual()
+            # === END NEW ===
 
             # Will raise on failure
             dataset = self.data_manager.load_dataset(

@@ -65,6 +65,11 @@ class ChannelDefinitions:
         # Validate initial configuration
         self.validate()
 
+        # Auto-detection support for WCP files
+        self._auto_detected = False
+        self._detected_voltage_units: Optional[str] = None
+        self._detected_current_units: Optional[str] = None
+
     def get_available_types(self):
         """
         Get the list of selectable channel types for UI components.
@@ -195,31 +200,15 @@ class ChannelDefinitions:
     def get_channel_label(self, channel_id: int, include_units: bool = True) -> str:
         """
         Get the label for a specific channel based on its assignment.
-
-        Args:
-            channel_id (int): Channel ID to get the label for.
-            include_units (bool, optional): Whether to include units in the label (default: True).
-
-        Returns:
-            str: Channel label, e.g., "Voltage (mV)" or "Current (pA)". If channel is not assigned, returns "Channel {id}".
-
-        Example:
-            >>> channels = ChannelDefinitions()
-            >>> channels.get_channel_label(0)
-            'Voltage (mV)'
-            >>> channels.get_channel_label(0, include_units=False)
-            'Voltage'
-            >>> channels.get_channel_label(2)
-            'Channel 2'
+        Uses auto-detected units if available, otherwise defaults.
         """
         if channel_id == self._voltage_channel:
             label = "Voltage"
-            unit = "mV"
+            unit = self._detected_voltage_units or "mV"  # MODIFIED: Use detected or default
         elif channel_id == self._current_channel:
             label = "Current"
-            unit = "pA"
+            unit = self._detected_current_units or "pA"  # MODIFIED: Use detected or default
         else:
-            # Channel not assigned to voltage or current
             return f"Channel {channel_id}"
 
         if include_units:
@@ -392,6 +381,66 @@ class ChannelDefinitions:
             return "current"
         else:
             return None
+
+# =========================================================================
+# WCP Auto-Detection Support
+# =========================================================================
+
+    def set_from_wcp_detection(
+        self,
+        voltage_channel: int,
+        current_channel: int,
+        voltage_units: str,
+        current_units: str,
+    ) -> None:
+        """
+        Configure channels from WCP file auto-detection.
+
+        This method is called when WCP metadata has been analyzed and
+        channel assignments have been automatically determined.
+
+        Args:
+            voltage_channel: Detected voltage channel index
+            current_channel: Detected current channel index
+            voltage_units: Detected voltage units (e.g., "mV")
+            current_units: Detected current units (e.g., "pA", "µA")
+        """
+        self._voltage_channel = voltage_channel
+        self._current_channel = current_channel
+        self._detected_voltage_units = voltage_units
+        self._detected_current_units = current_units
+        self._auto_detected = True
+
+    def is_auto_detected(self) -> bool:
+        """
+        Check if channel configuration was auto-detected from file metadata.
+
+        Returns:
+            True if auto-detected from WCP file, False if manual configuration
+        """
+        return self._auto_detected
+
+    def get_detected_units(self) -> Dict[str, Optional[str]]:
+        """
+        Get the auto-detected units for voltage and current.
+
+        Returns:
+            Dictionary with 'voltage' and 'current' keys, or None if not detected
+        """
+        return {
+            "voltage": self._detected_voltage_units,
+            "current": self._detected_current_units,
+        }
+
+    def reset_to_manual(self) -> None:
+        """
+        Reset to manual configuration mode.
+
+        Called when loading ABF/MAT files to use manual GUI settings.
+        """
+        self._auto_detected = False
+        self._detected_voltage_units = None
+        self._detected_current_units = None
 
     def __repr__(self) -> str:
         """

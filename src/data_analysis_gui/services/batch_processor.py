@@ -136,13 +136,27 @@ class BatchProcessor:
         start_time = time.time()
 
         try:
-            # Load dataset
+            # === NEW: Create per-file ChannelDefinitions for WCP files ===
+            # Each WCP file may have different channel assignments and units
+            # ABF/MAT files share the GUI's channel definitions
+            file_path_obj = Path(file_path)
+            if file_path_obj.suffix.lower() == '.wcp':
+                # Create fresh ChannelDefinitions for this WCP file
+                # The WCP loader will populate it via set_from_wcp_detection()
+                file_channel_defs = ChannelDefinitions()
+                logger.debug(f"Created per-file channel definitions for WCP: {base_name}")
+            else:
+                # Use shared channel definitions for ABF/MAT (from GUI settings)
+                file_channel_defs = self.channel_definitions
+            # === END NEW ===
+
+            # Load dataset with appropriate channel definitions
             dataset = self.data_manager.load_dataset(
-                file_path, self.channel_definitions
+                file_path, file_channel_defs
             )
 
-            # Create analysis manager for this file
-            analysis_manager = AnalysisManager(self.channel_definitions)
+            # Create analysis manager with file-specific channel definitions
+            analysis_manager = AnalysisManager(file_channel_defs)
 
             # Perform analysis
             analysis_result = analysis_manager.analyze(dataset, params)
