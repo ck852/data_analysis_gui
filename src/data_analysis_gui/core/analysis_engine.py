@@ -287,6 +287,13 @@ class AnalysisEngine:
         metrics = []
         failed_sweeps = []
 
+        # Check if dataset has actual sweep times (from WCP files)
+        sweep_times = dataset.metadata.get('sweep_times', {})
+        has_actual_times = bool(sweep_times)  # True if WCP, False if ABF/MAT
+        
+        if has_actual_times:
+            logger.info("Using actual sweep times from WCP file")
+
         # Process sweeps in sorted order
         sweep_list = sorted(
             dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0
@@ -299,6 +306,9 @@ class AnalysisEngine:
                     dataset, sweep_index
                 )
 
+                # Get actual time if available (WCP), otherwise None (ABF/MAT)
+                actual_time = sweep_times.get(sweep_index) if has_actual_times else None
+
                 # Compute metrics
                 metric = self.metrics_calculator.compute_sweep_metrics(
                     time_ms=sweep_data["time_ms"],
@@ -309,6 +319,7 @@ class AnalysisEngine:
                     range1_start=params.range1_start,
                     range1_end=params.range1_end,
                     stimulus_period=params.stimulus_period,
+                    actual_sweep_time=actual_time,  # Pass actual time from WCP
                     range2_start=params.range2_start if params.use_dual_range else None,
                     range2_end=params.range2_end if params.use_dual_range else None,
                 )

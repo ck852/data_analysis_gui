@@ -64,6 +64,7 @@ class ElectrophysiologyDataset:
             "source_file": None,  # Path to source file
             "channel_count": 0,  # Number of channels
             "sweep_count": 0,  # Number of sweeps
+            "sweep_times": {},  # Optional dict of sweep times (if available)
         }
 
     def add_sweep(
@@ -358,6 +359,7 @@ class DatasetLoader:
     FORMAT_EXTENSIONS = {
         ".mat": "matlab",
         ".abf": "axon",  # Axon Binary Format
+        ".wcp": "wcp",  # WinWCP format
         ".h5": "hdf5",  # HDF5 format (future)
         ".csv": "csv",  # CSV export (future)
         ".txt": "text",  # Text export (future)
@@ -410,12 +412,14 @@ class DatasetLoader:
             return DatasetLoader.load_mat(file_path, channel_map)
         elif format_type == "axon":
             return DatasetLoader.load_abf(file_path, channel_map)
-        elif format_type == "csv":
-            # Future implementation
-            raise NotImplementedError("CSV loading not yet implemented")
-        elif format_type == "hdf5":
-            # Future implementation
-            raise NotImplementedError("HDF5 loading not yet implemented")
+        elif format_type == "wcp":
+            return DatasetLoader.load_wcp(file_path, channel_map)
+        # elif format_type == "csv":
+        #     # Future implementation
+        #     raise NotImplementedError("CSV loading not yet implemented")
+        # elif format_type == "hdf5":
+        #     # Future implementation
+        #     raise NotImplementedError("HDF5 loading not yet implemented")
         else:
             raise ValueError(
                 f"Unsupported file format: {file_path.suffix}. "
@@ -541,6 +545,27 @@ class DatasetLoader:
             DatasetLoader._apply_channel_mapping(dataset, channel_map)
 
         return dataset
+
+    @staticmethod
+    def load_wcp(file_path: Union[str, Path], channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
+        """
+        Load a WCP (WinWCP) file containing electrophysiology data.
+        
+        Args:
+            file_path (Union[str, Path]): Path to the WCP file.
+            channel_map (Any, optional): ChannelDefinitions instance for channel mapping.
+        
+        Returns:
+            ElectrophysiologyDataset: Loaded dataset with actual sweep times.
+        """
+        try:
+            from data_analysis_gui.core.loaders.wcp_loader import load_wcp
+        except ImportError as e:
+            raise ImportError(
+                "WCP loader not found. Ensure wcp_loader.py is in core/loaders/"
+            ) from e
+        
+        return load_wcp(file_path, channel_map)
 
     @staticmethod
     def _apply_channel_mapping(

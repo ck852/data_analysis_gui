@@ -140,7 +140,8 @@ class MetricsCalculator:
         sweep_number: int,
         range1_start: float,
         range1_end: float,
-        stimulus_period: float,
+        stimulus_period: Optional[float],
+        actual_sweep_time: Optional[float] = None,
         range2_start: Optional[float] = None,
         range2_end: Optional[float] = None,
     ) -> SweepMetrics:
@@ -182,10 +183,16 @@ class MetricsCalculator:
 
         v1, i1 = voltage[mask1], current[mask1]
 
+        # Use actual sweep time if provided (WCP), otherwise calculate (ABF/MAT)
+        if actual_sweep_time is not None:
+            time_s = actual_sweep_time
+        else:
+            time_s = sweep_number * (stimulus_period / 1000.0)
+
         # Compute range 1 metrics
         metrics = SweepMetrics(
             sweep_index=sweep_index,
-            time_s=sweep_number * (stimulus_period / 1000.0),
+            time_s=time_s,
             voltage_mean_r1=MetricsCalculator._safe_mean(v1),
             voltage_absolute_r1=MetricsCalculator._absolute_peak(v1),
             voltage_positive_r1=MetricsCalculator._safe_max(v1),

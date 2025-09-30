@@ -24,6 +24,7 @@ from data_analysis_gui.core.models import (
 )
 from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.config.logging import get_logger
+from data_analysis_gui.core.exceptions import ValidationError
 
 # Direct imports of managers
 from data_analysis_gui.services.data_manager import DataManager
@@ -74,6 +75,9 @@ class BatchProcessor:
         """
         if not file_paths:
             raise ValueError("No files provided")
+
+        # Validate file formats before processing
+        self._validate_file_formats(file_paths)
 
         logger.info(f"Processing {len(file_paths)} files")
         start_time = time.time()
@@ -208,6 +212,30 @@ class BatchProcessor:
             output_directory=output_dir,
             total_records=total_records,
         )
+
+    def _validate_file_formats(self, file_paths: List[str]) -> None:
+        """
+        Validate that all files in batch have the same format.
+        
+        Args:
+            file_paths: List of file paths to validate
+            
+        Raises:
+            ValidationError: If mixed file formats are detected
+        """
+        if not file_paths:
+            return
+        
+        # Get extensions
+        extensions = set(Path(fp).suffix.lower() for fp in file_paths)
+        
+        if len(extensions) > 1:
+            raise ValidationError(
+                f"Mixed file formats detected in batch: {extensions}. "
+                "All files in a batch must have the same format (.wcp, .abf, or .mat)."
+            )
+        
+        logger.debug(f"Batch format validated: {extensions.pop()}")
 
     @staticmethod
     def _clean_filename(file_path: str) -> str:
