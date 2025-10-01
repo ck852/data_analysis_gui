@@ -13,7 +13,7 @@ electrophysiology data. It serves as the central coordinator between:
 - Visualization components (plot manager, analysis dialogs)
 
 The MainWindow class handles:
-1. File I/O operations for ABF and MAT format data files
+1. File I/O operations for ABF and WCP format data files
 2. Real-time sweep visualization with adjustable analysis ranges
 3. Parameter configuration for various analysis modes (IV curves, peaks, time series)
 4. Batch processing coordination for multiple file analysis
@@ -68,7 +68,6 @@ from data_analysis_gui.core.plot_formatter import PlotFormatter
 # Widget imports
 from data_analysis_gui.widgets.control_panel import ControlPanel
 from data_analysis_gui.plot_manager import PlotManager
-from data_analysis_gui.widgets.channel_toggle import ChannelToggleSwitch
 
 # Dialog imports
 from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
@@ -139,7 +138,7 @@ class MainWindow(QMainWindow):
         self.last_channel_view = "Voltage"
         self.last_directory = None
 
-        self.current_units = "pA"  # Default current units
+        # self.current_units = "pA"  # Default current units
 
         # Build UI
         self._init_ui()
@@ -223,13 +222,6 @@ class MainWindow(QMainWindow):
         # Analysis menu
         analysis_menu = menubar.addMenu("&Analysis")
 
-        self.swap_action = QAction("&Swap Channels", self)
-        self.swap_action.setShortcut("Ctrl+Shift+S")
-        self.swap_action.triggered.connect(self._swap_channels)
-        # Always enabled - no dependency on file loading
-        self.swap_action.setEnabled(True)
-        analysis_menu.addAction(self.swap_action)
-
         self.batch_action = QAction("&Batch Analyze...", self)
         self.batch_action.setShortcut("Ctrl+B")
         self.batch_action.triggered.connect(self._batch_analyze)
@@ -291,28 +283,12 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Add Current Units dropdown
-        units_label = QLabel("Current Units:")
-        style_label(units_label, "normal")
-        toolbar.addWidget(units_label)
-
-        self.current_units_combo = QComboBox()
-        self.current_units_combo.addItems(["pA", "nA", "μA"])  # Using Greek mu (μ)
-        self.current_units_combo.setCurrentText(self.current_units)
-        self.current_units_combo.setEnabled(True)
-        self.current_units_combo.setToolTip("Select the units for current measurements")
-        self.current_units_combo.currentTextChanged.connect(
-            self._on_current_units_changed
-        )
-        style_combo_box(self.current_units_combo)
-        toolbar.addWidget(self.current_units_combo)
-
-        toolbar.addSeparator()
-
         # File Information Labels with theme styling
         self.file_label = QLabel("No file loaded")
         style_label(self.file_label, "muted")
         toolbar.addWidget(self.file_label)
+
+        toolbar.addSeparator()
 
         self.sweep_count_label = QLabel("")
         self.sweep_count_label.setMaximumWidth(80)
@@ -339,18 +315,8 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Channel toggle - always enabled
-        self.channel_toggle = ChannelToggleSwitch()
-        # Always enabled - can be toggled at any time
-        self.channel_toggle.set_enabled(True)
-        self.channel_toggle.toggled.connect(self._on_channel_toggle)
-        toolbar.addWidget(self.channel_toggle)
-
         # Connect toolbar controls to auto-save
         self.channel_combo.currentTextChanged.connect(self._auto_save_settings)
-        self.current_units_combo.currentTextChanged.connect(self._auto_save_settings)
-
-        toolbar.addSeparator()
 
     def _connect_signals(self):
         """
@@ -386,9 +352,6 @@ class MainWindow(QMainWindow):
             self._auto_save_settings
         )
 
-        # Connect channel toggle to auto-save
-        self.channel_toggle.toggled.connect(self._auto_save_settings)
-
         # Plot manager
         self.plot_manager.line_state_changed.connect(self._on_cursor_moved)
 
@@ -400,8 +363,7 @@ class MainWindow(QMainWindow):
         and updates the UI. Emits file_loaded signal on success.
         """
         file_types = (
-            "Data files (*.mat *.abf *.wcp);;"
-            "MAT files (*.mat);;"
+            "Data files (*.wcp *.abf);;"
             "ABF files (*.abf);;"
             "WCP files (*.wcp);;"
             "All files (*.*)"
@@ -450,14 +412,6 @@ class MainWindow(QMainWindow):
         if file_info.max_sweep_time:
             revalidate_ranges_for_file(self, file_info.max_sweep_time)
 
-        # Sync channel swap state between controller and control panel
-        current_swapped = (
-            self.channel_definitions.is_swapped()
-            if hasattr(self.channel_definitions, "is_swapped")
-            else False
-        )
-        self.control_panel.set_swap_state(current_swapped)
-
         # Apply saved channel view preference
         if hasattr(self, "last_channel_view"):
             self.channel_combo.setCurrentText(self.last_channel_view)
@@ -476,52 +430,6 @@ class MainWindow(QMainWindow):
         if file_info.sweep_names:
             self.sweep_combo.setCurrentIndex(0)
 
-    def _on_channel_toggle(self, is_swapped):
-        """
-        Handle channel toggle switch state changes.
-
-        Attempts to swap channel assignments via the controller. Updates control panel,
-        plot, and UI state accordingly. Displays warnings if swap fails.
-
-        Args:
-            is_swapped (bool): True if toggle is in swapped position, False otherwise.
-        """
-        # Always try to swap - the controller will handle the state
-        result = self.controller.swap_channels()
-
-        if result["success"]:
-            # Update control panel state
-            self.control_panel.set_swap_state(result["is_swapped"])
-
-            # Update current plot if we have data
-            if self.controller.has_data():
-                self._update_plot()
-
-                # Switch displayed channel to show the effect
-                current = self.channel_combo.currentText()
-                self.channel_combo.setCurrentText(
-                    "Current" if current == "Voltage" else "Voltage"
-                )
-
-                # Auto-save settings after swap
-                self._auto_save_settings()
-
-            self.status_bar.showMessage(
-                f"Channel assignments {'swapped' if result['is_swapped'] else 'normal'}",
-                3000,
-            )
-        else:
-            # Revert toggle if swap failed
-            current_swapped = (
-                self.channel_definitions.is_swapped()
-                if hasattr(self.channel_definitions, "is_swapped")
-                else False
-            )
-            self.channel_toggle.set_swapped(current_swapped)
-            if "no data" not in result.get("reason", "").lower():
-                # Only show warning if it's not just because there's no data
-                QMessageBox.warning(self, "Cannot Update Channels", result["reason"])
-
     def _on_sweep_changed(self):
         """
         Update the plot when the sweep selection changes.
@@ -534,30 +442,9 @@ class MainWindow(QMainWindow):
         """
         self._update_plot()
 
-    def _on_current_units_changed(self):
-        """
-        Handle changes to the current units selection.
-
-        Updates the control panel and plot to reflect the selected units.
-        Displays a status message indicating the new units.
-        """
-        self.current_units = self.current_units_combo.currentText()
-
-        # Update the control panel with new units
-        self.control_panel.set_current_units(self.current_units)
-
-        # Update current plot if we have data and showing current
-        if self.controller.has_data() and self.channel_combo.currentText() == "Current":
-            self._update_plot()
-
-        self.status_bar.showMessage(f"Current units set to {self.current_units}", 3000)
-
     def _update_plot(self):
         """
         Refresh the sweep plot using controller data and centralized formatting.
-
-        Retrieves plot data for the selected sweep and channel, applies formatted labels,
-        and updates the plot manager display.
         """
         if not self.controller.has_data():
             return
@@ -574,11 +461,17 @@ class MainWindow(QMainWindow):
         if result.success:
             plot_data = result.data
 
+            # Get current units from loaded file metadata
+            dataset = self.controller.current_dataset
+            current_units = "pA"  # Default fallback
+            if dataset and dataset.metadata.get("channel_config"):
+                current_units = dataset.metadata["channel_config"].get("current_units", "pA")
+
             # Use centralized formatter for consistent labels
             sweep_info = {
                 "sweep_index": int(sweep) if sweep.isdigit() else 0,
                 "channel_type": channel_type,
-                "current_units": self.current_units,  # Pass current units
+                "current_units": current_units,
             }
             plot_labels = self.plot_formatter.get_plot_titles_and_labels(
                 "sweep", sweep_info=sweep_info
@@ -601,67 +494,73 @@ class MainWindow(QMainWindow):
             logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
     def _generate_analysis(self):
-        """
-        Generate and display an analysis plot using the controller.
+            """
+            Generate and display an analysis plot using the controller.
 
-        Validates data availability, retrieves analysis parameters, performs analysis,
-        and displays results in a dedicated dialog. Handles errors and empty results gracefully.
-        """
-        if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
-            return
+            Validates data availability, retrieves analysis parameters, performs analysis,
+            and displays results in a dedicated dialog. Handles errors and empty results gracefully.
+            """
+            if not self.controller.has_data():
+                QMessageBox.warning(self, "No Data", "Please load a data file first.")
+                return
 
-        params = self.control_panel.get_parameters()
+            params = self.control_panel.get_parameters()
 
-        # Add current units to parameters
-        params = params.with_updates(
-            channel_config={
-                **params.channel_config,
-                "current_units": self.current_units,
+            # Get current units from loaded file metadata (same pattern as _update_plot)
+            dataset = self.controller.current_dataset
+            current_units = "pA"  # Default fallback
+            if dataset and dataset.metadata.get("channel_config"):
+                current_units = dataset.metadata["channel_config"].get("current_units", "pA")
+
+            # Add current units from metadata to parameters
+            params = params.with_updates(
+                channel_config={
+                    **params.channel_config,
+                    "current_units": current_units,
+                }
+            )
+
+            result = self.controller.perform_analysis(params)
+
+            if not result.success:
+                QMessageBox.critical(
+                    self, "Analysis Failed", f"Analysis failed:\n{result.error_message}"
+                )
+                return
+
+            analysis_result = result.data
+
+            if not analysis_result or not analysis_result.x_data.size:
+                QMessageBox.warning(
+                    self, "No Results", "No data available for selected parameters."
+                )
+                return
+
+            plot_data = {
+                "x_data": analysis_result.x_data,
+                "y_data": analysis_result.y_data,
+                "sweep_indices": analysis_result.sweep_indices,
+                "use_dual_range": analysis_result.use_dual_range,
             }
-        )
 
-        result = self.controller.perform_analysis(params)
+            if analysis_result.use_dual_range and hasattr(analysis_result, "y_data2"):
+                plot_data["y_data2"] = analysis_result.y_data2
+                plot_data["y_label_r1"] = getattr(
+                    analysis_result, "y_label_r1", analysis_result.y_label
+                )
+                plot_data["y_label_r2"] = getattr(
+                    analysis_result, "y_label_r2", analysis_result.y_label
+                )
 
-        if not result.success:
-            QMessageBox.critical(
-                self, "Analysis Failed", f"Analysis failed:\n{result.error_message}"
+            if self.analysis_dialog:
+                self.analysis_dialog.close()
+
+            # Pass the parameters with units and file path to the dialog
+            self.analysis_dialog = AnalysisPlotDialog(
+                self, plot_data, params, self.current_file_path, self.controller
             )
-            return
-
-        analysis_result = result.data
-
-        if not analysis_result or not analysis_result.x_data.size:
-            QMessageBox.warning(
-                self, "No Results", "No data available for selected parameters."
-            )
-            return
-
-        plot_data = {
-            "x_data": analysis_result.x_data,
-            "y_data": analysis_result.y_data,
-            "sweep_indices": analysis_result.sweep_indices,
-            "use_dual_range": analysis_result.use_dual_range,
-        }
-
-        if analysis_result.use_dual_range and hasattr(analysis_result, "y_data2"):
-            plot_data["y_data2"] = analysis_result.y_data2
-            plot_data["y_label_r1"] = getattr(
-                analysis_result, "y_label_r1", analysis_result.y_label
-            )
-            plot_data["y_label_r2"] = getattr(
-                analysis_result, "y_label_r2", analysis_result.y_label
-            )
-
-        if self.analysis_dialog:
-            self.analysis_dialog.close()
-
-        # Pass the parameters with units and file path to the dialog
-        self.analysis_dialog = AnalysisPlotDialog(
-            self, plot_data, params, self.current_file_path, self.controller
-        )
-        self.analysis_dialog.show()
-        self.analysis_completed.emit()
+            self.analysis_dialog.show()
+            self.analysis_completed.emit()
 
     def _export_data(self):
         """
@@ -700,42 +599,6 @@ class MainWindow(QMainWindow):
             )
         else:
             QMessageBox.critical(self, "Export Failed", result.error_message)
-
-    def _swap_channels(self):
-        """
-        Swap channel assignments using the controller.
-
-        Updates toggle, control panel, and plot to reflect new state. Auto-saves settings and displays status.
-        Handles errors if swap is not possible.
-        """
-        result = self.controller.swap_channels()
-
-        if result["success"]:
-            # Update toggle to reflect new state
-            self.channel_toggle.set_swapped(result["is_swapped"])
-            # Update control panel state
-            self.control_panel.set_swap_state(result["is_swapped"])
-
-            # Update current plot if we have data
-            if self.controller.has_data():
-                self._update_plot()
-
-                # Switch displayed channel
-                current = self.channel_combo.currentText()
-                self.channel_combo.setCurrentText(
-                    "Current" if current == "Voltage" else "Voltage"
-                )
-
-                # Auto-save settings after channel swap
-                self._auto_save_settings()
-
-            self.status_bar.showMessage(
-                f"Channel assignments {'swapped' if result['is_swapped'] else 'normal'}",
-                3000,
-            )
-        else:
-            if "no data" not in result.get("reason", "").lower():
-                QMessageBox.warning(self, "Cannot Update Channels", result["reason"])
 
     def _batch_analyze(self):
         """

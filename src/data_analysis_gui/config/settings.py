@@ -16,7 +16,6 @@ DEFAULT_SETTINGS = {
     "range1_end": 400,
     "range2_start": 100,
     "range2_end": 500,
-    "stimulus_period": 1000,
     "cslow_default": 18.0,
     "plot_figsize": (10, 6),
     "window_geometry": (100, 100, 1400, 900),
@@ -29,7 +28,6 @@ Keys:
     range1_end (int): End index for analysis range 1.
     range2_start (int): Start index for analysis range 2.
     range2_end (int): End index for analysis range 2.
-    stimulus_period (int): Default stimulus period in ms.
     cslow_default (float): Default Cslow value in pF.
     plot_figsize (tuple): Default figure size for plots (width, height).
     window_geometry (tuple): Default main window geometry (x, y, width, height).
@@ -61,7 +59,6 @@ Keys:
 
 
 FILE_PATTERNS = {
-    "mat_files": "MAT files (*.mat)",
     "csv_files": "CSV files (*.csv)",
     "png_files": "PNG files (*.png)",
 }
@@ -69,7 +66,6 @@ FILE_PATTERNS = {
 dict: File dialog patterns and extensions for supported file types.
 
 Keys:
-    mat_files (str): Pattern for MATLAB files.
     csv_files (str): Pattern for CSV files.
     png_files (str): Pattern for PNG image files.
 """

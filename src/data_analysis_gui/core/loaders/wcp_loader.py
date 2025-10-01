@@ -4,16 +4,7 @@ WCP (WinWCP) File Loader for PatchBatch
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-WCP file loader for electrophysiology data.
-
-This module provides functionality to load WCP files and convert them
-to the standardized ElectrophysiologyDataset format.
-
-Features:
-    - Automatic channel detection and labeling
-    - Extraction of actual sweep times from file headers
-    - Unit conversion to mV and pA
-    - Metadata preservation
+PHASE 1 ENHANCEMENT: Auto-detection of channel configuration from WCP metadata
 """
 
 import struct
@@ -28,22 +19,127 @@ logger = logging.getLogger(__name__)
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 
 
+# =============================================================================
+# Channel Auto-Detection
+# =============================================================================
+
+def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
+    """
+    Analyze WCP channel info and determine voltage/current channel assignments.
+    
+    Args:
+        channels: List of WCPChannel objects with 'name' and 'units' attributes
+    
+    Returns:
+        Dict with keys:
+            - voltage_channel: int (channel index for voltage)
+            - current_channel: int (channel index for current)
+            - voltage_units: str (detected units for voltage)
+            - current_units: str (detected units for current)
+            - valid: bool (True if detection was successful)
+            - message: str (description of detection result)
+    """
+    voltage_channels = []
+    current_channels = []
+    
+    for i, ch in enumerate(channels):
+        units_lower = ch.units.lower()
+        
+        # Identify voltage channels
+        if 'mv' in units_lower or units_lower == 'v':
+            voltage_channels.append({
+                'index': i,
+                'name': ch.name,
+                'units': ch.units,
+                'signal_type': 'voltage'
+            })
+        # Identify current channels
+        elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
+            current_channels.append({
+                'index': i,
+                'name': ch.name,
+                'units': ch.units,
+                'signal_type': 'current'
+            })
+    
+    # Case 1: Perfect detection - exactly 1 voltage and 1 current
+    if len(voltage_channels) == 1 and len(current_channels) == 1:
+        return {
+            'voltage_channel': voltage_channels[0]['index'],
+            'current_channel': current_channels[0]['index'],
+            'voltage_units': voltage_channels[0]['units'],
+            'current_units': current_channels[0]['units'],
+            'valid': True,
+            'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
+                      f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
+        }
+    
+    # Case 2: Multiple voltage or current channels - use first of each
+    if len(voltage_channels) >= 1 and len(current_channels) >= 1:
+        logger.warning(
+            f"Multiple channels detected: {len(voltage_channels)} voltage, {len(current_channels)} current. "
+            f"Using first of each."
+        )
+        return {
+            'voltage_channel': voltage_channels[0]['index'],
+            'current_channel': current_channels[0]['index'],
+            'voltage_units': voltage_channels[0]['units'],
+            'current_units': current_channels[0]['units'],
+            'valid': True,
+            'message': f"Auto-detected (multiple channels): Ch.{voltage_channels[0]['index']} (voltage), "
+                      f"Ch.{current_channels[0]['index']} (current)"
+        }
+    
+    # Case 3: Missing voltage or current channel
+    if len(voltage_channels) == 0:
+        logger.error("No voltage channel detected in WCP file")
+        return {
+            'voltage_channel': 0,
+            'current_channel': 1,
+            'voltage_units': 'mV',
+            'current_units': 'pA',
+            'valid': False,
+            'message': "Could not detect voltage channel - using default configuration"
+        }
+    
+    if len(current_channels) == 0:
+        logger.error("No current channel detected in WCP file")
+        return {
+            'voltage_channel': 0,
+            'current_channel': 1,
+            'voltage_units': 'mV',
+            'current_units': 'pA',
+            'valid': False,
+            'message': "Could not detect current channel - using default configuration"
+        }
+    
+    # Fallback - should not reach here
+    logger.error("Unexpected channel configuration")
+    return {
+        'voltage_channel': 0,
+        'current_channel': 1,
+        'voltage_units': 'mV',
+        'current_units': 'pA',
+        'valid': False,
+        'message': "Channel detection failed - using default configuration"
+    }
+
+
 def load_wcp(
     file_path: Union[str, Path],
     channel_map: Optional[Any] = None,
     validate_data: bool = True,
 ) -> "ElectrophysiologyDataset":
     """
-    Load a WCP (WinWCP) file into a standardized dataset.
+    Load a WCP (WinWCP) file into a standardized dataset with auto-detected channel configuration.
 
     This function reads WCP files and converts them to the ElectrophysiologyDataset
     format used throughout the application. Unlike ABF/MAT files, WCP files contain
-    actual sweep times and channel metadata that are extracted and used for automatic
-    channel detection.
+    actual sweep times which are extracted and stored.
 
     Args:
         file_path: Path to the WCP file
-        channel_map: Optional ChannelDefinitions instance for custom channel mapping
+        channel_map: Optional ChannelDefinitions instance for auto-configuration
         validate_data: If True, check for NaN/Inf values and warn about anomalies
 
     Returns:
@@ -53,6 +149,11 @@ def load_wcp(
         FileNotFoundError: If the specified file doesn't exist
         IOError: If file cannot be read or is corrupted
         ValueError: If file structure is invalid or contains no data
+
+    Example:
+        >>> dataset = load_wcp('recording.wcp')
+        >>> print(f"Loaded {dataset.sweep_count()} sweeps")
+        >>> time_ms, data = dataset.get_sweep('1')
     """
     file_path = Path(file_path)
 
@@ -65,45 +166,35 @@ def load_wcp(
     
     try:
         with WCPParser(str(file_path)) as wcp:
+            # Auto-detect channel configuration
+            channel_config = _detect_channel_configuration_wcp(wcp.file_header.channels)
+            logger.info(channel_config['message'])
+            
             # Create dataset
             dataset = ElectrophysiologyDataset()
             
-            # Extract and store basic metadata
+            # Extract and store metadata
             dataset.metadata["format"] = "wcp"
             dataset.metadata["source_file"] = str(file_path)
-            dataset.metadata["sampling_rate_hz"] = (
-                1000.0 / wcp.file_header.dt if wcp.file_header.dt > 0 else None
-            )
+            dataset.metadata["sampling_rate_hz"] = 1000.0 / wcp.file_header.dt if wcp.file_header.dt > 0 else None
             dataset.metadata["wcp_version"] = wcp.file_header.version
             dataset.metadata["channel_count"] = wcp.file_header.num_channels
             dataset.metadata["sweep_count"] = wcp.file_header.num_records
             
-            # Store channel information (original from file)
+            # Store channel information
             channel_labels = [ch.name for ch in wcp.file_header.channels]
             channel_units = [ch.units for ch in wcp.file_header.channels]
             dataset.metadata["channel_labels"] = channel_labels
             dataset.metadata["channel_units"] = channel_units
             
-            # === NEW: Auto-detect channel assignments ===
-            detection_results = _detect_channel_assignments(wcp.file_header.channels)
-            dataset.metadata["wcp_channel_detection"] = detection_results
-            dataset.metadata["auto_detected_channels"] = True
-            
-            logger.info(
-                f"Auto-detected channels: "
-                f"Voltage=Ch{detection_results['voltage_channel']}, "
-                f"Current=Ch{detection_results['current_channel']}"
-            )
-            # === END NEW ===
+            # Store auto-detected channel configuration
+            dataset.metadata["channel_config"] = channel_config
             
             # Initialize sweep_times dictionary
             dataset.metadata["sweep_times"] = {}
             
             # Load all sweeps
-            logger.debug(
-                f"Loading {wcp.file_header.num_records} sweeps with "
-                f"{wcp.file_header.num_channels} channel(s)"
-            )
+            logger.debug(f"Loading {wcp.file_header.num_records} sweeps with {wcp.file_header.num_channels} channel(s)")
             
             for record_num in range(1, wcp.file_header.num_records + 1):
                 try:
@@ -141,19 +232,17 @@ def load_wcp(
             if dataset.is_empty():
                 raise ValueError("No valid sweeps could be loaded from WCP file")
             
-            # === NEW: Apply auto-detection to channel_map if provided ===
-            if channel_map is not None:
+            # Apply auto-detected channel configuration
+            if channel_map is not None and channel_config['valid']:
+                logger.info(f"Configuring channel map with auto-detected settings")
                 channel_map.set_from_wcp_detection(
-                    voltage_channel=detection_results['voltage_channel'],
-                    current_channel=detection_results['current_channel'],
-                    voltage_units=detection_results['voltage_units'],
-                    current_units=detection_results['current_units']
+                    voltage_channel=channel_config['voltage_channel'],
+                    current_channel=channel_config['current_channel'],
+                    voltage_units=channel_config['voltage_units'],
+                    current_units=channel_config['current_units']
                 )
-            # === END NEW ===
             
-            logger.info(
-                f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}"
-            )
+            logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
             
             return dataset
             
@@ -161,135 +250,13 @@ def load_wcp(
         logger.error(f"Failed to load WCP file: {e}")
         raise IOError(f"Failed to load WCP file: {e}")
 
-def _detect_channel_assignments(wcp_channels: List['WCPChannel']) -> Dict[str, any]:
-    """
-    Automatically detect voltage and current channel assignments from WCP metadata.
-    
-    Detection strategy:
-    1. Check channel names for patterns (Vm, Im1, Im, I)
-    2. Check units as fallback/confirmation (mV/V, pA/µA/uA)
-    3. Use default assignment if detection fails (Ch0=voltage, Ch1=current)
-    
-    Args:
-        wcp_channels: List of WCPChannel objects from file header
-        
-    Returns:
-        Dictionary containing:
-            - voltage_channel: int (channel index)
-            - current_channel: int (channel index)
-            - voltage_units: str (detected units)
-            - current_units: str (detected units)
-    """
-    voltage_ch = None
-    current_ch = None
-    
-    # Expected patterns
-    VOLTAGE_NAME_PATTERNS = ['vm', 'v_m']  # Case-insensitive
-    CURRENT_NAME_PATTERNS = ['im1', 'im', 'i_m']  # Prioritize longer matches first
-    
-    VOLTAGE_UNITS = {'mV', 'V'}
-    # Include both µ (micro sign) and u (letter u) variants
-    CURRENT_UNITS = {'pA', 'µA', 'uA', 'Î¼A'}  # Î¼ is Greek mu
-    
-    # Strategy 1: Check channel names
-    for i, ch in enumerate(wcp_channels):
-        name_lower = ch.name.lower().strip()
-        
-        # Check for voltage patterns
-        if any(pattern in name_lower for pattern in VOLTAGE_NAME_PATTERNS):
-            voltage_ch = i
-            logger.debug(f"Detected voltage channel {i} from name: {ch.name}")
-        
-        # Check for current patterns (prioritize longer matches)
-        elif any(pattern in name_lower for pattern in CURRENT_NAME_PATTERNS):
-            current_ch = i
-            logger.debug(f"Detected current channel {i} from name: {ch.name}")
-    
-    # Strategy 2: Check units as fallback or confirmation
-    if voltage_ch is None or current_ch is None:
-        for i, ch in enumerate(wcp_channels):
-            units = ch.units.strip()
-            
-            if voltage_ch is None and units in VOLTAGE_UNITS:
-                voltage_ch = i
-                logger.debug(f"Detected voltage channel {i} from units: {units}")
-            
-            if current_ch is None and units in CURRENT_UNITS:
-                current_ch = i
-                logger.debug(f"Detected current channel {i} from units: {units}")
-    
-    # Strategy 3: Default fallback
-    if voltage_ch is None:
-        voltage_ch = 0
-        logger.warning(
-            "Could not detect voltage channel from metadata, using default Ch0"
-        )
-    
-    if current_ch is None:
-        current_ch = 1
-        logger.warning(
-            "Could not detect current channel from metadata, using default Ch1"
-        )
-    
-    # Validate that we have different channels
-    if voltage_ch == current_ch:
-        logger.error(
-            f"Detection error: Both channels mapped to Ch{voltage_ch}. "
-            "Using default Ch0=voltage, Ch1=current"
-        )
-        voltage_ch = 0
-        current_ch = 1
-    
-    # Extract units from detected channels
-    voltage_units = wcp_channels[voltage_ch].units.strip()
-    current_units = wcp_channels[current_ch].units.strip()
-    
-    # Normalize current units to handle different representations
-    current_units = _normalize_current_units(current_units)
-    
-    result = {
-        'voltage_channel': voltage_ch,
-        'current_channel': current_ch,
-        'voltage_units': voltage_units,
-        'current_units': current_units,
-    }
-    
-    logger.info(
-        f"WCP channel detection complete: "
-        f"V=Ch{voltage_ch} ({voltage_units}), "
-        f"I=Ch{current_ch} ({current_units})"
-    )
-    
-    return result
-
-def _normalize_current_units(units: str) -> str:
-    """
-    Normalize current units to handle different micro symbol representations.
-    
-    Args:
-        units: Raw units string from WCP file
-        
-    Returns:
-        Normalized units string (prefers µ over u)
-    """
-    # Map all variants to preferred representation
-    if units in ['uA', 'Î¼A']:  # Î¼ is Greek mu
-        return 'µA'  # Use micro sign
-    elif units == 'pA':
-        return 'pA'
-    else:
-        # Return as-is for any unexpected units
-        return units
 
 def _apply_channel_mapping_wcp(
     dataset: "ElectrophysiologyDataset", channel_map: Any
 ) -> None:
     """
     Apply custom channel definitions to dataset metadata.
-
-    Args:
-        dataset: Dataset to update
-        channel_map: ChannelDefinitions instance
+    NOTE: This function is now deprecated in favor of auto-detection.
     """
     if not hasattr(channel_map, "get_channel_label"):
         logger.warning(
@@ -336,7 +303,7 @@ def _apply_channel_mapping_wcp(
 
 
 # =============================================================================
-# WCP Parser Classes (from wcp_sweep.py)
+# WCP Parser Classes (unchanged from original)
 # =============================================================================
 
 from dataclasses import dataclass

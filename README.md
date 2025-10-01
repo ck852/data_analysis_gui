@@ -88,7 +88,7 @@ If you are starting with WCP files, start by converting them to .abf using the n
 <img src="images/winwcp_export.PNG" alt="winwcp_export" width="900"/>
 
 
-**IMPORTANT NOTE FOR TIME-COURSE ANALYSIS: Due to file constraints with the ABF1 file format (as well as .mat format), sweep times cannot be derived from these files. To circumvent this, if you are doing a time-course analysis, it is necessary to fill in the "Stimulus Period (ms)" box. You can find this information as the "Stimulus Repeat Period" within the WinWCP protocol used for recording. Read on for more information. This is only necessary if you are analyzing time course data.**
+<!-- **IMPORTANT NOTE FOR TIME-COURSE ANALYSIS: Due to file constraints with the ABF1 file format (as well as .mat format), sweep times cannot be derived from these files. To circumvent this, if you are doing a time-course analysis, it is necessary to fill in the "Stimulus Period (ms)" box. You can find this information as the "Stimulus Repeat Period" within the WinWCP protocol used for recording. Read on for more information. This is only necessary if you are analyzing time course data.** -->
 
 
 <img src="images/repeat_period.PNG" alt="repeat_period" width="1000"/>

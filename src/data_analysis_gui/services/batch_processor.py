@@ -246,7 +246,7 @@ class BatchProcessor:
         if len(extensions) > 1:
             raise ValidationError(
                 f"Mixed file formats detected in batch: {extensions}. "
-                "All files in a batch must have the same format (.wcp, .abf, or .mat)."
+                "All files in a batch must have the same format."
             )
         
         logger.debug(f"Batch format validated: {extensions.pop()}")

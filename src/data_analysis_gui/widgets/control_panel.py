@@ -73,8 +73,8 @@ class ControlPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._is_swapped = False
-        self._current_units = "pA"
+        # self._is_swapped = False
+        # self._current_units = "pA"
 
         # Dictionary to track previous valid values
         self._previous_valid_values = {}
@@ -147,23 +147,23 @@ class ControlPanel(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-    def set_current_units(self, units: str):
-        """
-        Set the current units for display and export.
+    # def set_current_units(self, units: str):
+    #     """
+    #     Set the current units for display and export.
 
-        Args:
-            units (str): The units to use ('pA', 'nA', or 'μA').
-        """
-        self._current_units = units
+    #     Args:
+    #         units (str): The units to use ('pA', 'nA', or 'μA').
+    #     """
+    #     self._current_units = units
 
-    def get_current_units(self) -> str:
-        """
-        Get the current units setting.
+    # def get_current_units(self) -> str:
+    #     """
+    #     Get the current units setting.
 
-        Returns:
-            str: The current units string.
-        """
-        return self._current_units
+    #     Returns:
+    #         str: The current units string.
+    #     """
+    #     return self._current_units
 
     def _create_analysis_settings_group(self):
         """
@@ -190,18 +190,18 @@ class ControlPanel(QWidget):
         # Range 2 settings
         self._add_range2_settings(analysis_layout)
 
-        # Stimulus period
-        stim_label = QLabel("Stimulus Period (ms):")
-        style_label(stim_label, "normal")
-        analysis_layout.addWidget(stim_label, 5, 0)
+        # # Stimulus period
+        # stim_label = QLabel("Stimulus Period (ms):")
+        # style_label(stim_label, "normal")
+        # analysis_layout.addWidget(stim_label, 5, 0)
 
-        self.period_spin = SelectAllSpinBox()
-        self.period_spin.setRange(1, 100000)
-        self.period_spin.setValue(DEFAULT_SETTINGS["stimulus_period"])
-        self.period_spin.setSingleStep(100)
-        self.period_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.period_spin)
-        analysis_layout.addWidget(self.period_spin, 5, 1)
+        # self.period_spin = SelectAllSpinBox()
+        # self.period_spin.setRange(1, 100000)
+        # self.period_spin.setValue(DEFAULT_SETTINGS["stimulus_period"])
+        # self.period_spin.setSingleStep(100)
+        # self.period_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
+        # style_spinbox_with_arrows(self.period_spin)
+        # analysis_layout.addWidget(self.period_spin, 5, 1)
 
         return analysis_group
 
@@ -496,14 +496,14 @@ class ControlPanel(QWidget):
         self.dual_range_toggled.emit(enabled)
         # The validation is handled by the connected signal
 
-    def set_swap_state(self, is_swapped: bool):
-        """
-        Set the channel swap state.
+    # def set_swap_state(self, is_swapped: bool):
+    #     """
+    #     Set the channel swap state.
 
-        Args:
-            is_swapped (bool): True if channels are swapped, False otherwise.
-        """
-        self._is_swapped = is_swapped
+    #     Args:
+    #         is_swapped (bool): True if channels are swapped, False otherwise.
+    #     """
+    #     self._is_swapped = is_swapped
 
     def get_parameters(self) -> AnalysisParameters:
         """
@@ -533,7 +533,7 @@ class ControlPanel(QWidget):
             peak_type=peak_mode if y_measure == "Peak" else None,
         )
 
-        # Return clean parameters object with current units
+        # Return clean parameters object (no current_units, no channels_swapped)
         return AnalysisParameters(
             range1_start=self.start_spin.value(),
             range1_end=self.end_spin.value(),
@@ -544,13 +544,9 @@ class ControlPanel(QWidget):
             range2_end=(
                 self.end_spin2.value() if self.dual_range_cb.isChecked() else None
             ),
-            stimulus_period=self.period_spin.value(),
             x_axis=x_axis,
             y_axis=y_axis,
-            channel_config={
-                "channels_swapped": self._is_swapped,
-                "current_units": self._current_units,  # Include current units
-            },
+            channel_config={},  # No longer needed from UI
         )
 
     # --- Public methods for data access and updates ---
@@ -649,7 +645,7 @@ class ControlPanel(QWidget):
             self.start_spin2.blockSignals(True),
             self.end_spin2.blockSignals(True),
             self.dual_range_cb.blockSignals(True),
-            self.period_spin.blockSignals(True),
+            # self.period_spin.blockSignals(True),
         ]
 
         try:
@@ -674,13 +670,13 @@ class ControlPanel(QWidget):
                 if "range2_end" in params and params["range2_end"] is not None:
                     self.end_spin2.setValue(params["range2_end"])
 
-            # Set stimulus period
-            if "stimulus_period" in params:
-                self.period_spin.setValue(params["stimulus_period"])
+            # # Set stimulus period
+            # if "stimulus_period" in params:
+            #     self.period_spin.setValue(params["stimulus_period"])
 
-            # Set current units if present
-            if "current_units" in params:
-                self._current_units = params["current_units"]
+            # # Set current units if present
+            # if "current_units" in params:
+            #     self._current_units = params["current_units"]
 
         finally:
             # Restore signal states
@@ -689,7 +685,7 @@ class ControlPanel(QWidget):
             self.start_spin2.blockSignals(signals_were_blocked[2])
             self.end_spin2.blockSignals(signals_were_blocked[3])
             self.dual_range_cb.blockSignals(signals_were_blocked[4])
-            self.period_spin.blockSignals(signals_were_blocked[5])
+            #self.period_spin.blockSignals(signals_were_blocked[5])
 
             # Re-apply styling to ensure correct appearance
             style_spinbox_with_arrows(self.start_spin2)
@@ -774,8 +770,8 @@ class ControlPanel(QWidget):
                 "range2_end": (
                     self.end_spin2.value() if self.dual_range_cb.isChecked() else None
                 ),
-                "stimulus_period": self.period_spin.value(),
-                "current_units": self._current_units,  # Add current units to saved settings
+                # "stimulus_period": self.period_spin.value(),
+                # "current_units": self._current_units,  # Add current units to saved settings
             },
             "plot": {
                 "x_measure": self.x_measure_combo.currentText(),

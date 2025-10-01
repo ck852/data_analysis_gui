@@ -283,16 +283,22 @@ class AnalysisEngine:
 
         Raises:
             ProcessingError: If no valid metrics could be computed.
+            DataError: If sweep time metadata is missing from file.
         """
         metrics = []
         failed_sweeps = []
 
-        # Check if dataset has actual sweep times (from WCP files)
+        # Get sweep times from metadata (required for all files)
         sweep_times = dataset.metadata.get('sweep_times', {})
-        has_actual_times = bool(sweep_times)  # True if WCP, False if ABF/MAT
+        file_format = dataset.metadata.get('format', 'unknown')
         
-        if has_actual_times:
-            logger.info("Using actual sweep times from WCP file")
+        if not sweep_times:
+            raise DataError(
+                f"No sweep time metadata found in {file_format.upper()} file. "
+                "File may be corrupted or incompletely loaded."
+            )
+        
+        logger.info(f"Using sweep times from {file_format.upper()} file metadata")
 
         # Process sweeps in sorted order
         sweep_list = sorted(
@@ -306,8 +312,14 @@ class AnalysisEngine:
                     dataset, sweep_index
                 )
 
-                # Get actual time if available (WCP), otherwise None (ABF/MAT)
-                actual_time = sweep_times.get(sweep_index) if has_actual_times else None
+                # Get actual sweep time from metadata (required)
+                actual_time = sweep_times.get(sweep_index)
+                
+                if actual_time is None:
+                    raise DataError(
+                        f"Sweep {sweep_index}: Missing sweep time in metadata. "
+                        f"File may be corrupted or incompletely loaded."
+                    )
 
                 # Compute metrics
                 metric = self.metrics_calculator.compute_sweep_metrics(
@@ -318,8 +330,7 @@ class AnalysisEngine:
                     sweep_number=sweep_number,
                     range1_start=params.range1_start,
                     range1_end=params.range1_end,
-                    stimulus_period=params.stimulus_period,
-                    actual_sweep_time=actual_time,  # Pass actual time from WCP
+                    actual_sweep_time=actual_time,
                     range2_start=params.range2_start if params.use_dual_range else None,
                     range2_end=params.range2_end if params.use_dual_range else None,
                 )
