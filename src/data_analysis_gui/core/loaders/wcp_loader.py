@@ -318,6 +318,7 @@ class WCPChannel:
     calibration_factor: float
     amplifier_gain: float
     adc_zero: int
+    adc_zero_at: int
     channel_offset: int
 
 
@@ -348,6 +349,7 @@ class WCPFileHeader:
     num_analysis_bytes_per_record: int
     num_data_bytes_per_record: int
     num_bytes_per_record: int
+    num_zero_avg: int
     channels: List[WCPChannel]
 
 
@@ -425,6 +427,9 @@ class WCPParser:
         num_records = self._get_param_int(params, 'NR', 0)
         dt = self._get_param_float(params, 'DT', 0.001)
         adc_voltage_range = self._get_param_float(params, 'AD', 5.0)
+
+        num_zero_avg = self._get_param_int(params, 'NZ', 20)  # Default = 20
+        num_zero_avg = max(num_zero_avg, 1)  # Ensure at least 1
         
         channels = []
         for ch in range(num_channels):
@@ -433,6 +438,7 @@ class WCPParser:
             calibration_factor = self._get_param_float(params, f'YG{ch}', 0.001)
             amplifier_gain = 1.0
             adc_zero = self._get_param_int(params, f'YZ{ch}', 0)
+            adc_zero_at = self._get_param_int(params, f'YR{ch}', -1)
             channel_offset = self._get_param_int(params, f'YO{ch}', ch)
             
             channels.append(WCPChannel(
@@ -441,6 +447,7 @@ class WCPParser:
                 calibration_factor=calibration_factor,
                 amplifier_gain=amplifier_gain,
                 adc_zero=adc_zero,
+                adc_zero_at=adc_zero_at,
                 channel_offset=channel_offset
             ))
         
@@ -457,6 +464,7 @@ class WCPParser:
             num_analysis_bytes_per_record=num_analysis_bytes_per_record,
             num_data_bytes_per_record=num_data_bytes_per_record,
             num_bytes_per_record=num_bytes_per_record,
+            num_zero_avg=num_zero_avg,
             channels=channels
         )
     
@@ -516,9 +524,10 @@ class WCPParser:
         
         header = self._parse_record_header(record_num)
         
+        # Read raw data
         data_offset = (fh.num_bytes_in_header + 
-                      (record_num - 1) * fh.num_bytes_per_record + 
-                      fh.num_analysis_bytes_per_record)
+                    (record_num - 1) * fh.num_bytes_per_record + 
+                    fh.num_analysis_bytes_per_record)
         self._file.seek(data_offset)
         
         num_values = fh.num_samples * fh.num_channels
@@ -532,12 +541,72 @@ class WCPParser:
         if calibrated:
             data = data.astype(np.float64)
             
+            # Calculate dynamic zero levels (if applicable) and apply calibration
             for ch_idx, channel in enumerate(fh.channels):
+                # Determine the zero level for this channel in this sweep
+                if channel.adc_zero_at >= 0:
+                    # Calculate zero from baseline region in THIS sweep
+                    zero_level = self._calculate_dynamic_zero(
+                        data[:, ch_idx], 
+                        channel.adc_zero_at, 
+                        fh.num_zero_avg, 
+                        fh.num_samples
+                    )
+                else:
+                    # Use fixed zero from file header
+                    zero_level = channel.adc_zero
+                
+                # Calculate scale factor (same as before)
                 adc_scale = (abs(header.adc_voltage_range[ch_idx]) / 
-                           (channel.calibration_factor * (fh.max_adc_value + 1)))
-                data[:, ch_idx] = data[:, ch_idx] * adc_scale
+                        (channel.calibration_factor * (fh.max_adc_value + 1)))
+                
+                # Apply calibration: Physical = (Raw - Zero) * Scale
+                data[:, ch_idx] = (data[:, ch_idx] - zero_level) * adc_scale
         
         return header, data
+    
+    def _calculate_dynamic_zero(
+        self, 
+        raw_channel_data: np.ndarray, 
+        adc_zero_at: int, 
+        num_zero_avg: int,
+        num_samples: int
+    ) -> float:
+        """
+        Calculate dynamic zero level from baseline region in sweep.
+        
+        This matches WinWCP's logic exactly:
+        - Average num_zero_avg samples starting at adc_zero_at
+        - Ensure indices are within valid bounds
+        - Return the mean of raw ADC values
+        
+        Parameters:
+        -----------
+        raw_channel_data : np.ndarray
+            Raw ADC values for single channel (BEFORE calibration)
+        adc_zero_at : int
+            Starting sample index for baseline region
+        num_zero_avg : int
+            Number of samples to average
+        num_samples : int
+            Total number of samples in sweep
+            
+        Returns:
+        --------
+        zero_level : float
+            Calculated baseline (mean of raw ADC values)
+        """
+        # Bound the start index
+        i0 = max(0, min(adc_zero_at, num_samples - 1))
+        
+        # Bound the end index
+        i1 = i0 + num_zero_avg - 1
+        i1 = max(0, min(i1, num_samples - 1))
+        
+        # Calculate mean of baseline region (raw ADC values)
+        zero_level = np.mean(raw_channel_data[i0:i1+1])
+        
+        return zero_level
     
     def get_time_axis(self) -> np.ndarray:
         """Get time axis for a record in seconds"""

@@ -1,7 +1,6 @@
 data_analysis_gui/
 |-- config/
 |   |-- __init__.py
-|   |-- environment.py
 |   |-- logging.py
 |   |-- plot_style.py
 |   |-- settings.py
@@ -9,7 +8,8 @@ data_analysis_gui/
 |-- core/
 |   |-- loaders/
 |   |   |-- __init__.py
-|   |   `-- abf_loader.py
+|   |   |-- abf_loader.py
+|   |   `-- wcp_loader.py
 |   |-- __init__.py
 |   |-- analysis_engine.py
 |   |-- analysis_plot.py
