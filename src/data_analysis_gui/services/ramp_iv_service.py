@@ -60,7 +60,7 @@ class RampIVService:
         target_voltage: float,
         start_ms: float,
         end_ms: float,
-        tolerance_mv: float = 2.0
+        tolerance_mv: float = 1.0
     ) -> Tuple[Optional[int], Optional[float]]:
         """
         Find the data point within analysis range with voltage closest to target.
