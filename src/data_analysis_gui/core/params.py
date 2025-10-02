@@ -72,9 +72,6 @@ class AnalysisParameters:
     range2_start: Optional[float]  # Start time in ms for Range 2 (if dual range)
     range2_end: Optional[float]  # End time in ms for Range 2 (if dual range)
 
-    # Timing
-    # stimulus_period: float  # Period between stimuli in ms
-
     # Axis configurations
     x_axis: AxisConfig  # Configuration for X-axis
     y_axis: AxisConfig  # Configuration for Y-axis
@@ -107,11 +104,6 @@ class AnalysisParameters:
                 raise ValueError(
                     f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})"
                 )
-            # Optionally validate that ranges don't overlap
-            # (uncomment if this is a requirement)
-            # if not (self.range2_start >= self.range1_end or self.range2_end <= self.range1_start):
-            #     if not (self.range1_start >= self.range2_end or self.range1_end <= self.range2_start):
-            #         raise ValueError("Range 1 and Range 2 overlap")
 
     def cache_key(self) -> Tuple:
         """
