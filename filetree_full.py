@@ -45,6 +45,7 @@ DEFAULT_EXCLUDES = [
     "desktop.ini",
     # Other big vendor dirs (optional but common)
     "node_modules",
+    "wcp-format",
 ]
 DEFAULT_OUTPUT = "filetree.txt"
 

@@ -8,7 +8,7 @@ License: MIT (see LICENSE file for details)
 """
 Test dual range batch analysis workflow following the exact GUI workflow.
 
-This module tests the dual range batch analysis workflow using both ABF and MAT file formats.
+This module tests the dual range batch analysis workflow using both ABF and WCP file formats.
 It follows the same function calls as the GUI and compares results against golden reference files.
 """
 
@@ -47,8 +47,6 @@ class TestDualRangeBatchWorkflow:
             use_dual_range=True,
             range2_start=250.45,
             range2_end=449.5,
-            # Stimulus period
-            stimulus_period=1000.0,
             # X-Axis: Time (no channel needed for Time)
             x_axis=AxisConfig(measure="Time", channel=None, peak_type=None),
             # Y-Axis: Average Current
@@ -84,7 +82,7 @@ class TestDualRangeBatchWorkflow:
         Retrieve sample files for testing from the filetree structure.
 
         Args:
-            file_format (str): 'abf' or 'mat'
+            file_format (str): 'abf' or 'wcp'
 
         Returns:
             List[str]: List of file paths in the sample_data/dual_range/{format} directory.
@@ -319,18 +317,30 @@ class TestDualRangeABF(TestDualRangeBatchWorkflow):
             controller, batch_processor, analysis_parameters, file_format, tmp_path
         )
 
+class TestDualRangeWCP(TestDualRangeBatchWorkflow):
+    @pytest.fixture
+    def file_format(self):
+        """
+        Specify the file format for this test.
 
-# class TestDualRangeMAT(TestDualRangeBatchWorkflow):
-#     """
-#     Test dual range batch workflow with MAT files.
-#
-#     Inherits from TestDualRangeBatchWorkflow and sets file format to MAT.
-#     """
-#     # ...existing code...
+        Returns:
+            str: 'wcp'
+        """
+        return "wcp"
 
+    def test_wcp_dual_range_workflow(
+        self, controller, batch_processor, analysis_parameters, file_format, tmp_path
+    ):
+        """
+        Test the complete dual range batch workflow with WCP files.
 
-if __name__ == "__main__":
-    """
-    Run the tests if this script is executed directly.
-    """
-    # ...existing code...
+        Args:
+            controller (ApplicationController): Controller fixture.
+            batch_processor (BatchProcessor): Batch processor instance.
+            analysis_parameters (AnalysisParameters): Dual range analysis parameters.
+            file_format (str): 'wcp'.
+            tmp_path (Path): Pytest temporary directory fixture.
+        """
+        self._run_dual_range_batch_workflow(
+            controller, batch_processor, analysis_parameters, file_format, tmp_path
+        )

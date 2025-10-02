@@ -109,7 +109,6 @@ class TestPeakAnalysis:
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
-            stimulus_period=1000.0,
             x_axis=x_axis,
             y_axis=y_axis,
             channel_config={},
@@ -312,7 +311,6 @@ class TestPeakAnalysis:
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
-            stimulus_period=1000.0,
             x_axis=AxisConfig(
                 measure="Average", channel="Voltage", peak_type="Absolute"
             ),
@@ -329,7 +327,6 @@ class TestPeakAnalysis:
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
-            stimulus_period=1000.0,
             x_axis=AxisConfig(measure="Average", channel="Voltage", peak_type=None),
             y_axis=AxisConfig(measure="Average", channel="Current", peak_type=None),
             channel_config={},

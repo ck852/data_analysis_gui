@@ -285,7 +285,7 @@ class BatchIVAnalysisTestBase:
         """
         # Using uppercase directory names as shown in filetree
         if self.FILE_TYPE == "abf":
-            return Path("tests/fixtures/sample_data/IV+CD/ABF")
+            return Path("tests/fixtures/sample_data/IV+CD/abf")
         else:
             return Path(f"tests/fixtures/sample_data/IV+CD/{self.FILE_TYPE}")
 
@@ -313,7 +313,6 @@ class BatchIVAnalysisTestBase:
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
-            stimulus_period=1000.0,
             x_axis=AxisConfig(measure="Average", channel="Voltage"),
             y_axis=AxisConfig(measure="Average", channel="Current"),
             channel_config={"voltage": 0, "current": 1, "current_units": "pA"},
@@ -607,14 +606,10 @@ class TestBatchIVAnalysisABF(BatchIVAnalysisTestBase):
     FILE_EXTENSION = "*.abf"
 
 
-# class TestBatchIVAnalysisMAT(BatchIVAnalysisTestBase):
-#     """
-#     Test batch IV analysis workflow with MAT files.
-#
-#     Inherits from BatchIVAnalysisTestBase.
-#     """
-#     FILE_TYPE = 'mat'
-#     FILE_EXTENSION = '*.mat'
+class TestBatchIVAnalysisWCP(BatchIVAnalysisTestBase):
+    FILE_TYPE = "wcp" 
+    FILE_EXTENSION = "*.wcp"
+    # Uses auto-detected channel config per file
 
 
 if __name__ == "__main__":
