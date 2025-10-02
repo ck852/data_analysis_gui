@@ -66,6 +66,7 @@ from data_analysis_gui.plot_manager import PlotManager
 from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
+from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
@@ -221,9 +222,15 @@ class MainWindow(QMainWindow):
         self.batch_action.setEnabled(True)
         analysis_menu.addAction(self.batch_action)
 
+        # Background Subtraction
         self.bg_subtract_action = QAction("&Background Subtraction...", self)
         self.bg_subtract_action.triggered.connect(self._background_subtraction)
         analysis_menu.addAction(self.bg_subtract_action)
+
+        # Ramp IV Analysis
+        self.ramp_iv_action = QAction("&Ramp IV Analysis...", self)
+        self.ramp_iv_action.triggered.connect(self._ramp_iv_analysis)
+        analysis_menu.addAction(self.ramp_iv_action)
 
     def _background_subtraction(self):
         if not self.controller.has_data():
@@ -246,6 +253,37 @@ class MainWindow(QMainWindow):
             if hasattr(self.analysis_manager, "clear_caches"):
                 self.analysis_manager.clear_caches()
             self.status_bar.showMessage("Background subtraction applied", 3000)
+
+    def _ramp_iv_analysis(self):
+        """Open the ramp IV analysis dialog."""
+        if not self.controller.has_data():
+            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            return
+        
+        # Get current analysis range from control panel
+        params = self.control_panel.get_parameters()
+        
+        # Get current units from loaded file metadata
+        dataset = self.controller.current_dataset
+        channel_config = dataset.metadata.get("channel_config")
+        if not channel_config:
+            logger.warning("No channel configuration found - using default units")
+            current_units = "pA"
+        else:
+            current_units = channel_config.get("current_units", "pA")
+        
+        # Create dialog with Range 1 parameters
+        dialog = RampIVDialog(
+            dataset=dataset,
+            start_ms=params.range1_start,
+            end_ms=params.range1_end,
+            current_units=current_units,
+            parent=self
+        )
+        
+        # Use the special show method that gets voltage targets first
+        # This will show voltage input dialog, then main dialog if user doesn't cancel
+        dialog.show_with_voltage_input()
 
     def _create_toolbar(self):
         """

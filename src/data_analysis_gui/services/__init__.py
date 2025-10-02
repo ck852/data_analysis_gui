@@ -9,6 +9,7 @@ from .analysis_manager import AnalysisManager
 from .batch_processor import BatchProcessor
 from .plot_service import PlotService
 from .current_density_service import CurrentDensityService
+from .ramp_iv_service import RampIVService, RampIVResult
 
 __all__ = [
     "DataManager",
@@ -16,4 +17,6 @@ __all__ = [
     "BatchProcessor",
     "PlotService",
     "CurrentDensityService",
+    "RampIVService",
+    "RampIVResult",
 ]
