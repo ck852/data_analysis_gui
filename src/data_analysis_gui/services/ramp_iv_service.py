@@ -118,7 +118,7 @@ class RampIVService:
         start_ms: float,
         end_ms: float,
         current_units: str = "pA",
-        voltage_tolerance_mv: float = 10.0
+        voltage_tolerance_mv: float = 1.0
     ) -> RampIVResult:
         """
         Extract IV data from multiple sweeps using voltage ramp analysis.
