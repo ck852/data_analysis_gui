@@ -14,7 +14,6 @@ data_analysis_gui/
 |   |-- analysis_engine.py
 |   |-- analysis_plot.py
 |   |-- app_controller.py
-|   |-- channel_definitions.py
 |   |-- data_extractor.py
 |   |-- dataset.py
 |   |-- exceptions.py

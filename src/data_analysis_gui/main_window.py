@@ -29,16 +29,9 @@ Key design principles:
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QHBoxLayout,
-    QMessageBox,
-    QSplitter,
-    QToolBar,
-    QStatusBar,
-    QLabel,
-    QComboBox,
+from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
+    QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel,
+    QComboBox, QDialog
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QAction
@@ -72,6 +65,7 @@ from data_analysis_gui.plot_manager import PlotManager
 # Dialog imports
 from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
+from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
@@ -226,6 +220,32 @@ class MainWindow(QMainWindow):
         self.batch_action.triggered.connect(self._batch_analyze)
         self.batch_action.setEnabled(True)
         analysis_menu.addAction(self.batch_action)
+
+        self.bg_subtract_action = QAction("&Background Subtraction...", self)
+        self.bg_subtract_action.triggered.connect(self._background_subtraction)
+        analysis_menu.addAction(self.bg_subtract_action)
+
+    def _background_subtraction(self):
+        if not self.controller.has_data():
+            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            return
+        
+        sweep = self.sweep_combo.currentText()
+        if not sweep:
+            return
+        
+        dialog = BackgroundSubtractionDialog(
+            dataset=self.controller.current_dataset,
+            sweep_index=sweep,
+            parent=self
+        )
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Refresh plot and clear caches
+            self._update_plot()
+            if hasattr(self.analysis_manager, "clear_caches"):
+                self.analysis_manager.clear_caches()
+            self.status_bar.showMessage("Background subtraction applied", 3000)
 
     def _create_toolbar(self):
         """
