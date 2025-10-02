@@ -127,23 +127,23 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
 
 def load_wcp(
     file_path: Union[str, Path],
-    channel_map: Optional[Any] = None,
     validate_data: bool = True,
 ) -> "ElectrophysiologyDataset":
     """
     Load a WCP (WinWCP) file into a standardized dataset with auto-detected channel configuration.
 
     This function reads WCP files and converts them to the ElectrophysiologyDataset
-    format used throughout the application. Unlike ABF/MAT files, WCP files contain
-    actual sweep times which are extracted and stored.
+    format used throughout the application. WCP files contain actual sweep times 
+    which are extracted and stored. Channel configuration is automatically detected
+    from file metadata.
 
     Args:
         file_path: Path to the WCP file
-        channel_map: Optional ChannelDefinitions instance for auto-configuration
         validate_data: If True, check for NaN/Inf values and warn about anomalies
 
     Returns:
-        ElectrophysiologyDataset containing all sweeps from the WCP file
+        ElectrophysiologyDataset containing all sweeps from the WCP file with
+        auto-detected channel configuration stored in metadata['channel_config']
 
     Raises:
         FileNotFoundError: If the specified file doesn't exist
@@ -153,8 +153,10 @@ def load_wcp(
     Example:
         >>> dataset = load_wcp('recording.wcp')
         >>> print(f"Loaded {dataset.sweep_count()} sweeps")
+        >>> config = dataset.metadata['channel_config']
         >>> time_ms, data = dataset.get_sweep('1')
     """
+
     file_path = Path(file_path)
 
     # Validate file exists
@@ -232,16 +234,7 @@ def load_wcp(
             if dataset.is_empty():
                 raise ValueError("No valid sweeps could be loaded from WCP file")
             
-            # Apply auto-detected channel configuration
-            if channel_map is not None and channel_config['valid']:
-                logger.info(f"Configuring channel map with auto-detected settings")
-                channel_map.set_from_wcp_detection(
-                    voltage_channel=channel_config['voltage_channel'],
-                    current_channel=channel_config['current_channel'],
-                    voltage_units=channel_config['voltage_units'],
-                    current_units=channel_config['current_units']
-                )
-            
+            # Apply auto-detected channel configuration            
             logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
             
             return dataset
@@ -249,58 +242,6 @@ def load_wcp(
     except Exception as e:
         logger.error(f"Failed to load WCP file: {e}")
         raise IOError(f"Failed to load WCP file: {e}")
-
-
-def _apply_channel_mapping_wcp(
-    dataset: "ElectrophysiologyDataset", channel_map: Any
-) -> None:
-    """
-    Apply custom channel definitions to dataset metadata.
-    NOTE: This function is now deprecated in favor of auto-detection.
-    """
-    if not hasattr(channel_map, "get_channel_label"):
-        logger.warning(
-            "Channel map doesn't have get_channel_label method. Skipping mapping."
-        )
-        return
-
-    num_channels = dataset.channel_count()
-    labels = []
-    units = []
-
-    for ch_id in range(num_channels):
-        # Try to get label from channel_map
-        try:
-            label = channel_map.get_channel_label(ch_id, include_units=False)
-
-            # If channel_map returns a generic label, prefer WCP's label
-            if label.startswith("Channel ") and ch_id < len(
-                dataset.metadata["channel_labels"]
-            ):
-                original_label = dataset.metadata["channel_labels"][ch_id]
-                if not original_label.startswith("Channel "):
-                    label = original_label
-
-            labels.append(label)
-        except Exception as e:
-            logger.warning(
-                f"Failed to get label for channel {ch_id} from channel_map: {e}"
-            )
-            labels.append(
-                dataset.metadata["channel_labels"][ch_id]
-                if ch_id < len(dataset.metadata["channel_labels"])
-                else f"Channel {ch_id}"
-            )
-
-        # Use the channel units from WCP file
-        if ch_id < len(dataset.metadata["channel_units"]):
-            units.append(dataset.metadata["channel_units"][ch_id])
-        else:
-            units.append("")
-
-    dataset.metadata["channel_labels"] = labels
-    dataset.metadata["channel_units"] = units
-
 
 # =============================================================================
 # WCP Parser Classes (unchanged from original)

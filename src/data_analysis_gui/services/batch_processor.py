@@ -22,7 +22,6 @@ from data_analysis_gui.core.models import (
     BatchAnalysisResult,
     BatchExportResult,
 )
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.config.logging import get_logger
 from data_analysis_gui.core.exceptions import ValidationError
 
@@ -41,14 +40,10 @@ class BatchProcessor:
     Designed for clarity and accessibility.
     """
 
-    def __init__(self, channel_definitions: ChannelDefinitions):
+    def __init__(self):
         """
         Initialize the BatchProcessor.
-
-        Args:
-            channel_definitions (ChannelDefinitions): Channel configuration for analysis.
         """
-        self.channel_definitions = channel_definitions
         self.data_manager = DataManager()  # Direct instantiation
 
         # Progress callbacks (optional)
@@ -124,6 +119,8 @@ class BatchProcessor:
     ) -> FileAnalysisResult:
         """
         Process a single file and perform analysis.
+        
+        Channel configuration is automatically detected from each file's metadata.
 
         Args:
             file_path (str): Path to the file to process.
@@ -136,25 +133,11 @@ class BatchProcessor:
         start_time = time.time()
 
         try:
-            # === NEW: Create per-file ChannelDefinitions for WCP files ===
-            # Each file may have different channel assignments and units
-            file_path_obj = Path(file_path)
-            if file_path_obj.suffix.lower() in ['.wcp', '.abf']:
-                # Create fresh ChannelDefinitions for this WCP file
-                # WCP/ABF files
-                file_channel_defs = ChannelDefinitions()
-                logger.debug(f"Created per-file channel definitions for {file_path_obj.suffix.upper()}: {base_name}")
-            else:
-                # Use shared channel definitions for MAT and other formats (from GUI settings)
-                file_channel_defs = self.channel_definitions
+            # Load dataset - channel config auto-detected from file
+            dataset = self.data_manager.load_dataset(file_path)
 
-            # Load dataset with appropriate channel definitions
-            dataset = self.data_manager.load_dataset(
-                file_path, file_channel_defs
-            )
-
-            # Create analysis manager with file-specific channel definitions
-            analysis_manager = AnalysisManager(file_channel_defs)
+            # Create analysis manager (no channel defs needed)
+            analysis_manager = AnalysisManager()
 
             # Perform analysis
             analysis_result = analysis_manager.analyze(dataset, params)

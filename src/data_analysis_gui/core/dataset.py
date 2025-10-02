@@ -298,56 +298,6 @@ class ElectrophysiologyDataset:
             f"format={self.metadata.get('format', 'unknown')})"
         )
 
-    def update_channel_definitions(self, channel_map: Optional[Any]) -> None:
-        """
-        Update the dataset's channel metadata based on new channel definitions.
-
-        This is used when channels are swapped or remapped after the dataset is loaded.
-
-        Args:
-            channel_map (Any): ChannelDefinitions instance with updated mapping.
-        """
-        if channel_map is None:
-            return
-
-        # Update channel labels based on new mapping
-        num_channels = self.channel_count()
-        labels = []
-        units = []
-
-        for ch_id in range(num_channels):
-            # Try to get label from channel_map
-            if hasattr(channel_map, "get_channel_label"):
-                label = channel_map.get_channel_label(ch_id, include_units=False)
-                labels.append(label)
-
-                # Determine units based on type
-                if hasattr(channel_map, "get_type_for_channel"):
-                    ch_type = channel_map.get_type_for_channel(ch_id)
-                    if ch_type == "voltage":
-                        units.append("mV")
-                    elif ch_type == "current":
-                        units.append("pA")
-                    else:
-                        units.append("")
-                else:
-                    # Fallback: guess units from label
-                    if "voltage" in label.lower():
-                        units.append("mV")
-                    elif "current" in label.lower():
-                        units.append("pA")
-                    else:
-                        units.append("")
-            else:
-                # No channel map available
-                labels.append(f"Channel {ch_id}")
-                units.append("")
-
-        # Update metadata
-        self.metadata["channel_labels"] = labels
-        self.metadata["channel_units"] = units
-
-
 class DatasetLoader:
     """
     Static methods for loading electrophysiology data from various file formats.
@@ -357,11 +307,8 @@ class DatasetLoader:
 
     # Supported file extensions and their formats
     FORMAT_EXTENSIONS = {
-        ".abf": "axon",  # Axon Binary Format
+        ".abf": "abf",  # Axon Binary Format
         ".wcp": "wcp",  # WinWCP format
-        ".h5": "hdf5",  # HDF5 format (future)
-        ".csv": "csv",  # CSV export (future)
-        ".txt": "text",  # Text export (future)
     }
 
     @staticmethod
@@ -380,171 +327,32 @@ class DatasetLoader:
         return DatasetLoader.FORMAT_EXTENSIONS.get(extension)
 
     @staticmethod
-    def load(
-        file_path: Union[str, Path], channel_map: Optional[Any] = None
-    ) -> ElectrophysiologyDataset:
+    def load(filepath: str) -> "ElectrophysiologyDataset":
         """
-        Load a dataset from file with automatic format detection and channel mapping.
+        Load a dataset from any supported file format.
+        
+        Channel configuration is automatically detected from file metadata.
 
         Args:
-            file_path (Union[str, Path]): Path to the data file.
-            channel_map (Any, optional): ChannelDefinitions instance for channel mapping.
+            filepath: Path to the data file
 
         Returns:
-            ElectrophysiologyDataset: Loaded dataset.
+            ElectrophysiologyDataset with loaded data and auto-detected
+            channel configuration stored in metadata['channel_config']
 
         Raises:
-            ValueError: If file format is not supported.
-            FileNotFoundError: If file does not exist.
-            NotImplementedError: For recognized but unimplemented formats (e.g., '.csv', '.h5').
+            ValueError: If file format is not supported
         """
-        file_path = Path(file_path)
+        format_type = DatasetLoader.detect_format(filepath)
 
-        # Check file exists
-        if not file_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        # Detect format
-        format_type = DatasetLoader.detect_format(file_path)
-
-        if format_type == "matlab":
-            return DatasetLoader.load_mat(file_path, channel_map)
-        elif format_type == "axon":
-            return DatasetLoader.load_abf(file_path, channel_map)
-        elif format_type == "wcp":
-            return DatasetLoader.load_wcp(file_path, channel_map)
-        # elif format_type == "csv":
-        #     # Future implementation
-        #     raise NotImplementedError("CSV loading not yet implemented")
-        # elif format_type == "hdf5":
-        #     # Future implementation
-        #     raise NotImplementedError("HDF5 loading not yet implemented")
-        else:
-            raise ValueError(
-                f"Unsupported file format: {file_path.suffix}. "
-                f"Supported formats: {list(DatasetLoader.FORMAT_EXTENSIONS.keys())}"
-            )
-
-    @staticmethod
-    def load_abf(
-        file_path: Union[str, Path], channel_map: Optional[Any] = None
-    ) -> ElectrophysiologyDataset:
-        """
-        Load an Axon Binary Format (ABF) file containing electrophysiology data.
-
-        Args:
-            file_path (Union[str, Path]): Path to the ABF file.
-            channel_map (Any, optional): ChannelDefinitions instance for channel mapping.
-
-        Returns:
-            ElectrophysiologyDataset: Loaded dataset.
-
-        Raises:
-            ImportError: If pyabf is not installed.
-        """
-        try:
+        if format_type == "wcp":
+            from data_analysis_gui.core.loaders.wcp_loader import load_wcp
+            return load_wcp(filepath)
+        elif format_type == "abf":
             from data_analysis_gui.core.loaders.abf_loader import load_abf
-        except ImportError as e:
-            raise ImportError(
-                "ABF support requires pyabf. Install with: pip install pyabf"
-            ) from e
-
-        return load_abf(file_path, channel_map)
-
-    # DEPRECATED MAT
-    # @staticmethod
-    # def load_mat(
-    #     file_path: Union[str, Path], channel_map: Optional[Any] = None
-    # ) -> ElectrophysiologyDataset:
-    #     """
-    #     Load a MATLAB (.mat) file containing electrophysiology data.
-
-    #     Expects MAT files with the structure:
-    #         - T{n}: Time vectors for sweep n
-    #         - Y{n}: Data matrices for sweep n
-
-    #     Args:
-    #         file_path (Union[str, Path]): Path to the MAT file.
-    #         channel_map (Any, optional): ChannelDefinitions instance for channel labeling.
-
-    #     Returns:
-    #         ElectrophysiologyDataset: Dataset containing all sweeps from the MAT file.
-
-    #     Raises:
-    #         IOError: If file cannot be read.
-    #         ValueError: If file structure is invalid.
-    #     """
-    #     file_path = Path(file_path)
-
-    #     try:
-    #         mat_data = scipy.io.loadmat(str(file_path))
-    #     except Exception as e:
-    #         raise IOError(f"Failed to load MAT file: {e}")
-
-    #     # Create dataset
-    #     dataset = ElectrophysiologyDataset()
-
-    #     # Find all sweep pairs (T{n}, Y{n})
-    #     sweep_indices = []
-    #     for key in mat_data.keys():
-    #         if key.startswith("T") and not key.startswith("__"):
-    #             index = key[1:]
-    #             if f"Y{index}" in mat_data:
-    #                 sweep_indices.append(index)
-
-    #     if not sweep_indices:
-    #         raise ValueError(
-    #             "No valid sweep data found in MAT file. "
-    #             "Expected T{n} and Y{n} variable pairs."
-    #         )
-
-    #     # Sort sweep indices numerically if possible
-    #     try:
-    #         sweep_indices.sort(key=int)
-    #     except ValueError:
-    #         sweep_indices.sort()
-
-    #     # Load each sweep
-    #     for index in sweep_indices:
-    #         time_key = f"T{index}"
-    #         data_key = f"Y{index}"
-
-    #         # Extract time vector (convert to milliseconds)
-    #         time_s = mat_data[time_key].squeeze()
-    #         time_ms = time_s * 1000.0
-
-    #         # Extract data matrix
-    #         data = mat_data[data_key]
-
-    #         # Ensure data is 2D
-    #         if data.ndim == 1:
-    #             data = data.reshape(-1, 1)
-    #         elif data.ndim > 2:
-    #             # Squeeze out singleton dimensions
-    #             data = np.squeeze(data)
-    #             if data.ndim == 1:
-    #                 data = data.reshape(-1, 1)
-
-    #         # Add sweep to dataset
-    #         dataset.add_sweep(index, time_ms, data)
-
-    #     # Set metadata
-    #     dataset.metadata["format"] = "matlab"
-    #     dataset.metadata["source_file"] = str(file_path)
-
-    #     # Estimate sampling rate from first sweep
-    #     first_index = sweep_indices[0]
-    #     time_ms, _ = dataset.get_sweep(first_index)
-    #     if len(time_ms) >= 2:
-    #         dt_ms = np.mean(np.diff(time_ms))
-    #         if dt_ms > 0:
-    #             dataset.metadata["sampling_rate_hz"] = 1000.0 / dt_ms
-
-    #     # Apply channel mapping if provided
-    #     if channel_map is not None:
-    #         DatasetLoader._apply_channel_mapping(dataset, channel_map)
-
-    #     return dataset
+            return load_abf(filepath)
+        else:
+            raise ValueError(f"Unsupported file format: {format_type}")
 
     @staticmethod
     def load_wcp(file_path: Union[str, Path], channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
@@ -566,50 +374,3 @@ class DatasetLoader:
             ) from e
         
         return load_wcp(file_path, channel_map)
-
-    @staticmethod
-    def _apply_channel_mapping(
-        dataset: ElectrophysiologyDataset, channel_map: Any
-    ) -> None:
-        """
-        Apply channel definitions to dataset metadata, updating channel labels and units.
-
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to update.
-            channel_map (Any): ChannelDefinitions instance.
-        """
-        # Update channel labels based on mapping
-        num_channels = dataset.channel_count()
-        labels = []
-        units = []
-
-        for ch_id in range(num_channels):
-            # Try to get label from channel_map
-            if hasattr(channel_map, "get_channel_label"):
-                label = channel_map.get_channel_label(ch_id, include_units=False)
-                labels.append(label)
-
-                # Determine units based on type
-                if hasattr(channel_map, "get_type_for_channel"):
-                    ch_type = channel_map.get_type_for_channel(ch_id)
-                    if ch_type == "voltage":
-                        units.append("mV")
-                    elif ch_type == "current":
-                        units.append("pA")
-                    else:
-                        units.append("")
-                else:
-                    # Fallback: guess units from label
-                    if "voltage" in label.lower():
-                        units.append("mV")
-                    elif "current" in label.lower():
-                        units.append("pA")
-                    else:
-                        units.append("")
-            else:
-                # No channel map available
-                labels.append(f"Channel {ch_id}")
-                units.append("")
-
-        dataset.metadata["channel_labels"] = labels
-        dataset.metadata["channel_units"] = units

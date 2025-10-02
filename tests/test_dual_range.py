@@ -138,7 +138,7 @@ class TestDualRangeAnalysis:
             ),
             x_axis=x_axis,
             y_axis=y_axis,
-            channel_config=controller.get_channel_configuration(),
+            channel_config={"voltage": 0, "current": 1},
         )
 
     def compare_csv_files(

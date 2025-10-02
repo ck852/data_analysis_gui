@@ -28,7 +28,6 @@ from dataclasses import dataclass
 
 # Core imports
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.models import (
     FileInfo,
@@ -141,7 +140,6 @@ class ApplicationController:
     Services can be injected or created internally. Provides compatibility aliases for legacy code.
 
     Args:
-        channel_definitions (Optional[ChannelDefinitions]): Channel configuration. Created if not provided.
         data_manager (Optional[DataManager]): Data management service. Created if not provided.
         analysis_manager (Optional[AnalysisManager]): Analysis service. Created if not provided.
         batch_processor (Optional[BatchProcessor]): Batch processing service. Created if not provided.
@@ -149,7 +147,6 @@ class ApplicationController:
 
     def __init__(
         self,
-        channel_definitions: Optional[ChannelDefinitions] = None,
         data_manager: Optional[DataManager] = None,
         analysis_manager: Optional[AnalysisManager] = None,
         batch_processor: Optional[BatchProcessor] = None,
@@ -158,7 +155,6 @@ class ApplicationController:
         Initialize controller with optional service injection.
 
         Args:
-            channel_definitions: Channel configuration (created if not provided)
             data_manager: Data management service (created if not provided)
             analysis_manager: Analysis service (created if not provided)
             batch_processor: Batch processing service (created if not provided)
@@ -167,17 +163,10 @@ class ApplicationController:
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
 
-        # Channel management
-        self.channel_definitions = channel_definitions or ChannelDefinitions()
-
         # Services - use provided or create new
         self.data_manager = data_manager or DataManager()
-        self.analysis_manager = analysis_manager or AnalysisManager(
-            self.channel_definitions
-        )
-        self.batch_processor = batch_processor or BatchProcessor(
-            self.channel_definitions
-        )
+        self.analysis_manager = analysis_manager or AnalysisManager()
+        self.batch_processor = batch_processor or BatchProcessor()
 
         # Compatibility aliases (to avoid breaking older code)
         self.data_service = self.data_manager
@@ -185,9 +174,9 @@ class ApplicationController:
         self.dataset_service = self.data_manager
         self.batch_service = self.batch_processor
 
-        # Keep reference to analysis engine from analysis manager if it exists
-        if hasattr(self.analysis_manager, "engine"):
-            self.engine = self.analysis_manager.engine
+        # # Keep reference to analysis engine from analysis manager if it exists
+        # if hasattr(self.analysis_manager, "engine"):
+        #     self.engine = self.analysis_manager.engine
 
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None
@@ -201,13 +190,12 @@ class ApplicationController:
         Retrieve all core services managed by the controller for external use.
 
         Returns:
-            Dict[str, Any]: Dictionary containing references to data_manager, analysis_manager, batch_processor, and channel_definitions.
+            Dict[str, Any]: Dictionary containing references to data_manager, analysis_manager, batch_processor.
         """
         return {
             "data_manager": self.data_manager,
             "analysis_manager": self.analysis_manager,
             "batch_processor": self.batch_processor,
-            "channel_definitions": self.channel_definitions,
         }
 
     # =========================================================================
@@ -284,16 +272,8 @@ class ApplicationController:
         try:
             logger.info(f"Loading file: {file_path}")
 
-            # === NEW: Reset to manual mode before loading ===
-            # WCP files will override this in their loader via set_from_wcp_detection()
-            # ABF/MAT files will remain in manual mode to use GUI settings
-            self.channel_definitions.reset_to_manual()
-            # === END NEW ===
-
-            # Will raise on failure
-            dataset = self.data_manager.load_dataset(
-                file_path, self.channel_definitions
-            )
+            # Load dataset - channel config auto-detected from file
+            dataset = self.data_manager.load_dataset(file_path)
 
             # Update state
             self.current_dataset = dataset
@@ -525,33 +505,3 @@ class ApplicationController:
         except Exception as e:
             logger.error(f"Error generating filename: {e}")
             return "analysis_export.csv"
-
-    def swap_channels(self):
-        """
-        Swap the voltage and current channel definitions.
-        This operation works even if no data is loaded. If data is loaded, updates the dataset with the new definitions.
-
-        Returns:
-            dict: Dictionary with 'success' (bool) and 'is_swapped' (bool) indicating the new state.
-        """
-        # Always swap the channel definitions state
-        self.channel_definitions.swap_channels()
-        is_swapped = self.channel_definitions.is_swapped()
-
-        # If data is loaded, then update the dataset with the new definitions
-        if self.has_data():
-            self.current_dataset.update_channel_definitions(self.channel_definitions)
-
-        return {"success": True, "is_swapped": is_swapped}
-
-    def get_channel_configuration(self) -> Dict[str, int]:
-        """
-        Retrieve the current channel configuration for voltage and current channels.
-
-        Returns:
-            Dict[str, int]: Dictionary with keys 'voltage' and 'current' mapping to their respective channel indices.
-        """
-        return {
-            "voltage": self.channel_definitions.get_voltage_channel(),
-            "current": self.channel_definitions.get_current_channel(),
-        }

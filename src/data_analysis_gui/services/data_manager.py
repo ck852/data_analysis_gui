@@ -18,7 +18,6 @@ from typing import Optional, Dict, Any, List
 import numpy as np
 
 from data_analysis_gui.core.dataset import DatasetLoader, ElectrophysiologyDataset
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.models import ExportResult
 from data_analysis_gui.core.exceptions import ValidationError, FileError, DataError
 from data_analysis_gui.config.logging import get_logger
@@ -47,22 +46,22 @@ class DataManager:
     # Dataset Loading
     # =========================================================================
 
-    def load_dataset(
-        self, filepath: str, channel_config: Optional[ChannelDefinitions] = None
-    ) -> ElectrophysiologyDataset:
+    def load_dataset(self, filepath: str) -> ElectrophysiologyDataset:
         """
         Load and validate an electrophysiology dataset from a file.
+        
+        Channel configuration is automatically detected from file metadata.
 
         To add support for a new file format:
             1. Update DatasetLoader.FORMAT_EXTENSIONS/detect_format() in core/dataset.py.
-            2. Add a corresponding loader in DatasetLoader (e.g., load_mat, load_abf).
+            2. Add a corresponding loader in DatasetLoader (e.g., load_abf, load_wcp).
 
         Args:
             filepath (str): Path to the data file.
-            channel_config (Optional[ChannelDefinitions]): Optional channel configuration.
 
         Returns:
-            ElectrophysiologyDataset: Loaded and validated dataset.
+            ElectrophysiologyDataset: Loaded and validated dataset with auto-detected
+            channel configuration stored in metadata['channel_config'].
 
         Raises:
             FileError: If the file cannot be loaded.
@@ -82,9 +81,9 @@ class DataManager:
 
         logger.info(f"Loading dataset from {Path(filepath).name}")
 
-        # Load using DatasetLoader
+        # Load using DatasetLoader - channel config auto-detected
         try:
-            dataset = DatasetLoader.load(filepath, channel_config)
+            dataset = DatasetLoader.load(filepath)
         except Exception as e:
             logger.error(f"Failed to load dataset: {e}")
             raise FileError(f"Failed to load {filepath}: {str(e)}")

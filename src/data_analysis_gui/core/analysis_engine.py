@@ -367,20 +367,16 @@ class AnalysisEngine:
 # ===========================================================================
 
 
-def create_analysis_engine(channel_definitions) -> AnalysisEngine:
+def create_analysis_engine() -> AnalysisEngine:
     """
     Factory function to create an AnalysisEngine with default components.
 
     Provides a convenient way to create a fully configured engine for production use, while still allowing for dependency injection in tests.
 
-    Args:
-        channel_definitions: Channel configuration object.
-
     Returns:
         AnalysisEngine: Configured AnalysisEngine instance.
 
     Example:
-        >>> from data_analysis_gui.core.channel_definitions import ChannelDefinitions
         >>> channel_defs = ChannelDefinitions()
         >>> engine = create_analysis_engine(channel_defs)
     """
@@ -389,7 +385,7 @@ def create_analysis_engine(channel_definitions) -> AnalysisEngine:
     from data_analysis_gui.core.plot_formatter import PlotFormatter
 
     # Create components
-    data_extractor = DataExtractor(channel_definitions)
+    data_extractor = DataExtractor()
     metrics_calculator = MetricsCalculator()
     plot_formatter = PlotFormatter()
 

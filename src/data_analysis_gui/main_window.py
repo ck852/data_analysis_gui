@@ -110,7 +110,6 @@ class MainWindow(QMainWindow):
 
         # Get shared services from controller
         services = self.controller.get_services()
-        self.channel_definitions = services["channel_definitions"]
         self.data_manager = services["data_manager"]
         self.analysis_manager = services["analysis_manager"]
         self.batch_processor = services["batch_processor"]
@@ -199,7 +198,7 @@ class MainWindow(QMainWindow):
         """
         Create and configure application menus.
 
-        Includes File menu (Open, Exit) and Analysis menu (Swap Channels, Batch Analyze).
+        Includes File menu (Open, Exit) and Analysis menu (Batch Analyze).
         Menu styling is handled by the modern theme system.
         """
         menubar = self.menuBar()
@@ -398,7 +397,7 @@ class MainWindow(QMainWindow):
         """
         Respond to successful file load and update UI components.
 
-        Updates file labels, sweep count, revalidates ranges, synchronizes channel swap state,
+        Updates file labels, sweep count, revalidates ranges,
         and populates the sweep selection combo box.
         """
         # Update file labels with proper theme styling
@@ -443,55 +442,58 @@ class MainWindow(QMainWindow):
         self._update_plot()
 
     def _update_plot(self):
-        """
-        Refresh the sweep plot using controller data and centralized formatting.
-        """
-        if not self.controller.has_data():
-            return
+            """
+            Refresh the sweep plot using controller data and centralized formatting.
+            """
+            if not self.controller.has_data():
+                return
 
-        sweep = self.sweep_combo.currentText()
-        if not sweep:
-            return
+            sweep = self.sweep_combo.currentText()
+            if not sweep:
+                return
 
-        channel_type = self.channel_combo.currentText()
+            channel_type = self.channel_combo.currentText()
 
-        # Get plot data from controller
-        result = self.controller.get_sweep_plot_data(sweep, channel_type)
+            # Get plot data from controller
+            result = self.controller.get_sweep_plot_data(sweep, channel_type)
 
-        if result.success:
-            plot_data = result.data
+            if result.success:
+                plot_data = result.data
 
-            # Get current units from loaded file metadata
-            dataset = self.controller.current_dataset
-            current_units = "pA"  # Default fallback
-            if dataset and dataset.metadata.get("channel_config"):
-                current_units = dataset.metadata["channel_config"].get("current_units", "pA")
+                # Get current units from loaded file metadata
+                dataset = self.controller.current_dataset
+                channel_config = dataset.metadata.get("channel_config")
+                if not channel_config:
+                    logger.warning("No channel configuration found - using default units")
+                    current_units = "pA"
+                else:
+                    current_units = channel_config.get("current_units", "pA")
 
-            # Use centralized formatter for consistent labels
-            sweep_info = {
-                "sweep_index": int(sweep) if sweep.isdigit() else 0,
-                "channel_type": channel_type,
-                "current_units": current_units,
-            }
-            plot_labels = self.plot_formatter.get_plot_titles_and_labels(
-                "sweep", sweep_info=sweep_info
-            )
+                # Use centralized formatter for consistent labels
+                sweep_info = {
+                    "sweep_index": int(sweep) if sweep.isdigit() else 0,
+                    "channel_type": channel_type,
+                    "current_units": current_units,
+                }
+                plot_labels = self.plot_formatter.get_plot_titles_and_labels(
+                    "sweep", sweep_info=sweep_info
+                )
 
-            # Update plot with formatted labels
-            self.plot_manager.update_sweep_plot(
-                t=plot_data.time_ms,
-                y=plot_data.data_matrix,
-                channel=plot_data.channel_id,
-                sweep_index=sweep_info["sweep_index"],
-                channel_type=channel_type,
-                title=plot_labels["title"],
-                x_label=plot_labels["x_label"],
-                y_label=plot_labels["y_label"],
-                channel_config=None,
-            )
-            self._sync_cursors_to_plot()
-        else:
-            logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
+                # Update plot with formatted labels
+                self.plot_manager.update_sweep_plot(
+                    t=plot_data.time_ms,
+                    y=plot_data.data_matrix,
+                    channel=plot_data.channel_id,
+                    sweep_index=sweep_info["sweep_index"],
+                    channel_type=channel_type,
+                    title=plot_labels["title"],
+                    x_label=plot_labels["x_label"],
+                    y_label=plot_labels["y_label"],
+                    channel_config=None,
+                )
+                self._sync_cursors_to_plot()
+            else:
+                logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
     def _generate_analysis(self):
             """
@@ -506,11 +508,14 @@ class MainWindow(QMainWindow):
 
             params = self.control_panel.get_parameters()
 
-            # Get current units from loaded file metadata (same pattern as _update_plot)
+            # Get current units from loaded file metadata
             dataset = self.controller.current_dataset
-            current_units = "pA"  # Default fallback
-            if dataset and dataset.metadata.get("channel_config"):
-                current_units = dataset.metadata["channel_config"].get("current_units", "pA")
+            channel_config = dataset.metadata.get("channel_config")
+            if not channel_config:
+                logger.warning("No channel configuration found - using default units")
+                current_units = "pA"
+            else:
+                current_units = channel_config.get("current_units", "pA")
 
             # Add current units from metadata to parameters
             params = params.with_updates(

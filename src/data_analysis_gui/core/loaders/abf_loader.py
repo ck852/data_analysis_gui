@@ -409,19 +409,21 @@ class ABF2Parser:
 
 def load_abf(
     file_path: Union[str, Path],
-    channel_map: Optional[Any] = None,
     validate_data: bool = True,
 ) -> "ElectrophysiologyDataset":
     """
     Load an ABF file into a standardized dataset with auto-detected channel configuration.
 
+    Channel configuration is automatically detected from ABF metadata based on channel
+    units and stored in the dataset metadata.
+
     Args:
         file_path: Path to the ABF file
-        channel_map: Optional ChannelDefinitions instance for auto-configuration
         validate_data: If True, check for NaN/Inf values
 
     Returns:
-        ElectrophysiologyDataset containing all sweeps from the ABF file
+        ElectrophysiologyDataset containing all sweeps from the ABF file with
+        auto-detected channel configuration stored in metadata['channel_config']
 
     Raises:
         ImportError: If pyabf is not installed
@@ -524,57 +526,6 @@ def load_abf(
     if dataset.is_empty():
         raise ValueError("No valid sweeps loaded")
 
-    # Apply auto-detected channel configuration
-    if channel_map is not None and channel_config['valid']:
-        logger.info(f"Configuring channel map with auto-detected settings")
-        channel_map.set_from_wcp_detection(
-            voltage_channel=channel_config['voltage_channel'],
-            current_channel=channel_config['current_channel'],
-            voltage_units=channel_config['voltage_units'],
-            current_units=channel_config['current_units']
-        )
-
     logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
 
     return dataset
-
-
-def _apply_channel_mapping_abf(
-    dataset: "ElectrophysiologyDataset", 
-    channel_map: Any,
-    channel_info: List[Dict[str, Any]]
-) -> None:
-    """
-    Apply custom channel definitions to dataset metadata.
-    NOTE: This function is now deprecated in favor of auto-detection.
-    """
-    if not hasattr(channel_map, "get_channel_label"):
-        logger.warning("Channel map missing get_channel_label. Using ABF metadata.")
-        return
-
-    num_channels = dataset.channel_count()
-    labels = []
-    units = []
-
-    for ch_id in range(num_channels):
-        # Prefer ABF metadata
-        if ch_id < len(channel_info):
-            labels.append(channel_info[ch_id]['name'])
-            units.append(channel_info[ch_id]['units'])
-        else:
-            label = channel_map.get_channel_label(ch_id, include_units=False)
-            labels.append(label)
-            
-            if hasattr(channel_map, "get_type_for_channel"):
-                ch_type = channel_map.get_type_for_channel(ch_id)
-                if ch_type == "voltage":
-                    units.append("mV")
-                elif ch_type == "current":
-                    units.append("pA")
-                else:
-                    units.append("")
-            else:
-                units.append("")
-
-    dataset.metadata["channel_labels"] = labels
-    dataset.metadata["channel_units"] = units

@@ -13,7 +13,7 @@ Key Features:
 - Designed for extensibility and clarity, making it easy to add new analysis routines.
 
 Typical Usage:
-    manager = AnalysisManager(channel_definitions)
+    manager = AnalysisManager
     result = manager.analyze(dataset, params)
     plot_data = manager.get_sweep_plot_data(dataset, sweep_index, channel_type)
     export_status = manager.export_analysis(dataset, params, filepath)
@@ -52,15 +52,11 @@ class AnalysisManager:
     electrophysiology data analysis. Designed for easy extension and clarity.
     """
 
-    def __init__(self, channel_definitions):
+    def __init__(self):
         """
         Initialize the AnalysisManager.
-
-        Args:
-            channel_definitions: Channel configuration object for analysis.
         """
-        self.channel_definitions = channel_definitions
-        self.engine = create_analysis_engine(channel_definitions)
+        self.engine = create_analysis_engine()
         self.data_manager = DataManager()  # Direct instantiation
 
         logger.info("AnalysisManager initialized")

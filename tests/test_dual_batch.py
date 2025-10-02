@@ -20,7 +20,6 @@ import csv
 # Import the exact same components used in the GUI workflow
 from data_analysis_gui.core.app_controller import ApplicationController
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 
 
 class TestDualRangeBatchWorkflow:
@@ -63,8 +62,8 @@ class TestDualRangeBatchWorkflow:
         Returns:
             ApplicationController: Initialized controller with all services.
         """
-        channel_definitions = ChannelDefinitions()
-        controller = ApplicationController(channel_definitions=channel_definitions)
+        controller = ApplicationController()
+        
         return controller
 
     @pytest.fixture

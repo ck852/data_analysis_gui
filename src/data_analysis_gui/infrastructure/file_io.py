@@ -17,7 +17,6 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 
 from data_analysis_gui.core.dataset import DatasetLoader, ElectrophysiologyDataset
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.exceptions import FileError, DataError
 from data_analysis_gui.config.logging import get_logger
 
@@ -31,18 +30,17 @@ class FileDatasetLoader:
     Wraps DatasetLoader to separate infrastructure from business logic.
     """
 
-    def load(
-        self, filepath: str, channel_config: Optional[ChannelDefinitions]
-    ) -> ElectrophysiologyDataset:
+    def load(self, filepath: str) -> ElectrophysiologyDataset:
         """
         Load a dataset from a file using DatasetLoader.
+        
+        Channel configuration is automatically detected from file metadata.
 
         Args:
             filepath (str): Path to the data file.
-            channel_config (Optional[ChannelDefinitions]): Channel configuration.
 
         Returns:
-            ElectrophysiologyDataset: Loaded dataset.
+            ElectrophysiologyDataset: Loaded dataset with auto-detected channel config.
 
         Raises:
             DataError: If DatasetLoader returns None.
@@ -51,7 +49,7 @@ class FileDatasetLoader:
         logger.debug(f"Loading dataset from {filepath}")
 
         try:
-            dataset = DatasetLoader.load(filepath, channel_config)
+            dataset = DatasetLoader.load(filepath)
 
             if dataset is None:
                 raise DataError(f"DatasetLoader returned None for {filepath}")

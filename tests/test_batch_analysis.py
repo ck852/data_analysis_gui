@@ -28,7 +28,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
+# from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 from data_analysis_gui.services.batch_processor import BatchProcessor
 from data_analysis_gui.services.data_manager import DataManager
@@ -381,8 +381,7 @@ class BatchIVAnalysisTestBase:
         # ==================================================================
         # STEP 2: INITIALIZE SERVICES (as MainWindow does)
         # ==================================================================
-        channel_defs = ChannelDefinitions()
-        batch_processor = BatchProcessor(channel_defs)
+        batch_processor = BatchProcessor()
         data_manager = DataManager()
 
         # ==================================================================
