@@ -1,9 +1,10 @@
+#### Go to https://github.com/ck852/patchbatch?tab=readme-ov-file#patchbatch---electrophysiology-data-analysis-tool for the most up-to-date README
 # PatchBatch - Electrophysiology Data Analysis Tool
 
 ## **Installation** 
 
 ## Option 1: Download Executable
-1. Go to [Releases](https://github.com/ck852/patchbatch/releases)
+1. Go to **[Releases](https://github.com/ck852/patchbatch/releases)**
     
     Windows:
 
@@ -102,8 +103,6 @@ Start by clicking "Open" in the top left corner. Select a single file to analyze
 <img src="images/mainwindow.PNG" alt="main_window" width="1000"/>
 
 
-Note that the screenshot is from a previous version. The program now automatically takes current units, channel assignments, and sweep times from all data files, thus the associated widgets have been removed from the latest release.
-
  If you'd like to preview the output plot, click "Generate Analysis Plot". From there, you can export a CSV file with the analyzed data. If you only want the data without seeing the plot first, just click "Export Analysis Data" at the bottom of the window. 
 
 
@@ -157,6 +156,23 @@ This enables the user to quickly plot both analysis ranges against the sweep tim
 
 During initial testing, it was found that there is not a universal standard of which channel in data files contains current data and which contains voltage data. Even within the same lab, all using WinWCP, some setups produce files with the channel identifications swapped. Whether this applies to your data files can be quickly assessed by loading a single file in the main window and clicking through the sweeps. As long as you know what your voltage protocol looks like, it should be easy to identify which channel contains your true voltage data. In the event that your "Current" sweeps look like your voltage protocol, and vice versa, you can toggle the blue button at the top right of the main window to swap your channels. This should restore the expected presentation of current and voltage channels.  -->
 
+### Background Subtraction **BETA**
+
+You can define a region from any current trace as the background region. The average current in this region will be calculated and subtracted from all current measurements in the sweep. This process repeats for all sweeps in the file.
+
+<img src="images/bg_sub_dialog.png" alt="bg_sub" width="550"/>
+
+### Ramp IV **BETA**
+
+If your data uses ramp voltage protocols to measure IV relationships, you can use the "Ramp IV" option in the "Analysis" menu. First, set the cursors around the ramp.
+
+<img src="images/ramp_iv_setup.png" alt="ramp_iv_setup"/>
+
+Then you can define the voltage range you are analyzing. The script will find the closest measured voltages within your analysis range and extract the current measurements at those time points. It will do this for all sweeps or a selection of sweeps. **This has not been quantitatively tested yet and I highly advise validating against a known data set first.**
+
+<img src="images/ramp_analysis.png" alt="ramp_analysis"/>
+
+Better screenshot pending
 
 ## Validation
 

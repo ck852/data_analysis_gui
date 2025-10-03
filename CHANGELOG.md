@@ -4,7 +4,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.1-beta.2]
 ### Added
-- Enhanced sweep selection UI
+- Enhanced sweep selection UI for ramp_iv
 
 ### Changed
 - overactive error detection in ramp_iv voltage tolerances corrected

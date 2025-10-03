@@ -217,8 +217,7 @@ class SweepSelectionWidget(QWidget):  # Change from QTableWidget to QWidget
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(i, 1, item)
             
-        # Set reasonable height
-        self.table.setMaximumHeight(min(250, 35 + 25 * len(self.sweep_names)))
+        self.table.setMaximumHeight(600)
         
         # Connect signal to make entire row clickable
         self.table.cellClicked.connect(self._on_cell_clicked)

@@ -137,9 +137,6 @@ class MainWindow(QMainWindow):
         # Build UI
         self._init_ui()
 
-        # Configure window
-        self.setWindowTitle("Electrophysiology Data Analysis")
-
         # Load and apply settings immediately (shows user's last configuration)
         saved_settings = load_session_settings()
         if saved_settings:
@@ -147,6 +144,9 @@ class MainWindow(QMainWindow):
 
         # Apply modern theme to the main window (handles everything including toolbars and menus)
         apply_modern_theme(self)
+
+        # Configure window
+        self.setWindowTitle("PatchBatch BETA")
 
     def _init_ui(self):
         """Initialize the complete UI with full theme integration"""

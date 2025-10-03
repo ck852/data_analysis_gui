@@ -98,12 +98,12 @@ app = BUNDLE(
     name='PatchBatch.app',
     icon=None,  # Add 'icon.icns' if you have one
     bundle_identifier='com.northeastern.patchbatch',
-    version='0.9.1-beta.1',
+    version='0.9.1-beta.2',
     info_plist={
         'NSPrincipalClass': 'NSApplication',
         'NSAppleScriptEnabled': False,
         'CFBundleDisplayName': 'PatchBatch',
-        'CFBundleShortVersionString': '0.9.1-beta.1',
+        'CFBundleShortVersionString': '0.9.1-beta.2',
         'CFBundleVersion': '0.9.1.1',
         'CFBundleDocumentTypes': [
             {
