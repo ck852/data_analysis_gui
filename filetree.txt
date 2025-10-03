@@ -2,6 +2,7 @@ patchbatch/
 |-- images/
 |   |-- ba_results.PNG
 |   |-- batch_analysis.PNG
+|   |-- bg_sub_dialog.PNG
 |   |-- cd_cslow.PNG
 |   |-- cd_results.PNG
 |   |-- data_comparison.png
@@ -14,6 +15,8 @@ patchbatch/
 |   |-- mainwindow.PNG
 |   |-- prism_cd_summary.PNG
 |   |-- prism_import.PNG
+|   |-- ramp_analysis.PNG
+|   |-- ramp_iv_setup.PNG
 |   |-- repeat_period.PNG
 |   |-- summary_export.PNG
 |   |-- swapped_current_comparison.png
@@ -72,6 +75,7 @@ patchbatch/
 |       |   |-- custom_toolbar.py
 |       |   `-- shared_widgets.py
 |       |-- __init__.py
+|       |-- __version__.py
 |       |-- filetree.txt
 |       |-- filetree_full.py
 |       |-- main.py

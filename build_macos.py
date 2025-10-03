@@ -9,6 +9,7 @@ import subprocess
 import shutil
 from pathlib import Path
 import os
+from src.data_analysis_gui import __version__, __version_mac__
 
 def clean_build_dirs():
     """Remove old build artifacts"""
@@ -98,13 +99,13 @@ app = BUNDLE(
     name='PatchBatch.app',
     icon=None,  # Add 'icon.icns' if you have one
     bundle_identifier='com.northeastern.patchbatch',
-    version='0.9.1-beta.2',
+    version='__version_mac__',
     info_plist={
         'NSPrincipalClass': 'NSApplication',
         'NSAppleScriptEnabled': False,
         'CFBundleDisplayName': 'PatchBatch',
-        'CFBundleShortVersionString': '0.9.1-beta.2',
-        'CFBundleVersion': '0.9.1.1',
+        'CFBundleShortVersionString': '__version_mac__',
+        'CFBundleVersion': '__version__',
         'CFBundleDocumentTypes': [
             {
                 'CFBundleTypeName': 'ABF File',
