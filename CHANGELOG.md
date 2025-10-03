@@ -8,6 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - overactive error detection in ramp_iv voltage tolerances corrected
+- quick tab change between Cslow boxes
 
 ### Known Issues
 - error messages from ramp_iv suggest wrong voltage set, but data results seem unaffected

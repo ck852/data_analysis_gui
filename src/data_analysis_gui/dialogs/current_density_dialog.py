@@ -41,6 +41,50 @@ from data_analysis_gui.core.models import BatchAnalysisResult
 
 logger = get_logger(__name__)
 
+class CslowInputTable(QTableWidget):
+    """
+    Custom table widget that allows Tab key to jump directly between Cslow input fields,
+    skipping the read-only File and Status columns.
+    """
+    
+    def keyPressEvent(self, event):
+        """Override key press to handle Tab navigation between input fields only."""
+        if event.key() == Qt.Key.Key_Tab:
+            # Get current focused widget
+            current_widget = self.focusWidget()
+            
+            # Check if it's one of our Cslow input fields
+            if isinstance(current_widget, QLineEdit):
+                # Find current row
+                for row in range(self.rowCount()):
+                    if self.cellWidget(row, 1) == current_widget:
+                        # Move to next row's Cslow input
+                        next_row = (row + 1) % self.rowCount()
+                        next_input = self.cellWidget(next_row, 1)
+                        if next_input:
+                            next_input.setFocus()
+                            next_input.selectAll()
+                        return
+        
+        elif event.key() == Qt.Key.Key_Backtab:  # Shift+Tab
+            # Get current focused widget
+            current_widget = self.focusWidget()
+            
+            # Check if it's one of our Cslow input fields
+            if isinstance(current_widget, QLineEdit):
+                # Find current row
+                for row in range(self.rowCount()):
+                    if self.cellWidget(row, 1) == current_widget:
+                        # Move to previous row's Cslow input
+                        prev_row = (row - 1) % self.rowCount()
+                        prev_input = self.cellWidget(prev_row, 1)
+                        if prev_input:
+                            prev_input.setFocus()
+                            prev_input.selectAll()
+                        return
+        
+        # For all other keys, use default behavior
+        super().keyPressEvent(event)
 
 class CurrentDensityDialog(QDialog):
     """
@@ -89,7 +133,7 @@ class CurrentDensityDialog(QDialog):
         layout.addWidget(instructions)
 
         # Table for file names and Cslow inputs
-        self.table = QTableWidget()
+        self.table = CslowInputTable()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["File", "Cslow (pF)", "Status"])
         style_table_widget(self.table)  # Apply theme styling
