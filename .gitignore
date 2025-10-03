@@ -110,3 +110,5 @@ settings.local.*
 
 # linter etc
 .ruff_cache/
+
+CHANGELOG.md

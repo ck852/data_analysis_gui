@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.1-beta.2]
+### Added
+
+### Changed
+- overactive error detection in ramp_iv voltage tolerances corrected
+
+### Known Issues
+- error messages from ramp_iv suggest wrong voltage set, but data results seem unaffected
+
 ## [0.9.1-beta.1] - 2025-10-03
 ### Added
 - WinWCP File support
