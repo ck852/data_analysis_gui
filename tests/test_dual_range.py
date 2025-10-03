@@ -92,9 +92,6 @@ class TestDualRangeAnalysis:
             "x_channel": None,  # Time doesn't need a channel
             "y_measure": "Average",  # Y-Axis: Average
             "y_channel": "Current",  # Y-Axis: Current
-            # Stimulus period
-            "stimulus_period": 1000.0,
-            # No peak types needed for Average measure
             "x_peak_type": None,
             "y_peak_type": None,
         }
@@ -139,10 +136,9 @@ class TestDualRangeAnalysis:
             range2_end=(
                 gui_state.get("range2_end") if gui_state.get("use_dual_range") else None
             ),
-            stimulus_period=gui_state.get("stimulus_period", 1000.0),
             x_axis=x_axis,
             y_axis=y_axis,
-            channel_config=controller.get_channel_configuration(),
+            channel_config={"voltage": 0, "current": 1},
         )
 
     def compare_csv_files(

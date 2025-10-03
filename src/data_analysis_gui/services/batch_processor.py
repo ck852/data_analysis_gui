@@ -22,8 +22,8 @@ from data_analysis_gui.core.models import (
     BatchAnalysisResult,
     BatchExportResult,
 )
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.config.logging import get_logger
+from data_analysis_gui.core.exceptions import ValidationError
 
 # Direct imports of managers
 from data_analysis_gui.services.data_manager import DataManager
@@ -40,14 +40,10 @@ class BatchProcessor:
     Designed for clarity and accessibility.
     """
 
-    def __init__(self, channel_definitions: ChannelDefinitions):
+    def __init__(self):
         """
         Initialize the BatchProcessor.
-
-        Args:
-            channel_definitions (ChannelDefinitions): Channel configuration for analysis.
         """
-        self.channel_definitions = channel_definitions
         self.data_manager = DataManager()  # Direct instantiation
 
         # Progress callbacks (optional)
@@ -74,6 +70,9 @@ class BatchProcessor:
         """
         if not file_paths:
             raise ValueError("No files provided")
+
+        # Validate file formats before processing
+        self._validate_file_formats(file_paths)
 
         logger.info(f"Processing {len(file_paths)} files")
         start_time = time.time()
@@ -120,6 +119,8 @@ class BatchProcessor:
     ) -> FileAnalysisResult:
         """
         Process a single file and perform analysis.
+        
+        Channel configuration is automatically detected from each file's metadata.
 
         Args:
             file_path (str): Path to the file to process.
@@ -132,13 +133,11 @@ class BatchProcessor:
         start_time = time.time()
 
         try:
-            # Load dataset
-            dataset = self.data_manager.load_dataset(
-                file_path, self.channel_definitions
-            )
+            # Load dataset - channel config auto-detected from file
+            dataset = self.data_manager.load_dataset(file_path)
 
-            # Create analysis manager for this file
-            analysis_manager = AnalysisManager(self.channel_definitions)
+            # Create analysis manager (no channel defs needed)
+            analysis_manager = AnalysisManager()
 
             # Perform analysis
             analysis_result = analysis_manager.analyze(dataset, params)
@@ -208,6 +207,30 @@ class BatchProcessor:
             output_directory=output_dir,
             total_records=total_records,
         )
+
+    def _validate_file_formats(self, file_paths: List[str]) -> None:
+        """
+        Validate that all files in batch have the same format.
+        
+        Args:
+            file_paths: List of file paths to validate
+            
+        Raises:
+            ValidationError: If mixed file formats are detected
+        """
+        if not file_paths:
+            return
+        
+        # Get extensions
+        extensions = set(Path(fp).suffix.lower() for fp in file_paths)
+        
+        if len(extensions) > 1:
+            raise ValidationError(
+                f"Mixed file formats detected in batch: {extensions}. "
+                "All files in a batch must have the same format."
+            )
+        
+        logger.debug(f"Batch format validated: {extensions.pop()}")
 
     @staticmethod
     def _clean_filename(file_path: str) -> str:

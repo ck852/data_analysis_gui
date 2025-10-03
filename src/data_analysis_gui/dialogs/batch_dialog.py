@@ -237,8 +237,8 @@ class BatchAnalysisDialog(QDialog):
         Add files to the batch list via file dialog.
         """
         file_types = (
-            "Data files (*.mat *.abf);;"
-            "MAT files (*.mat);;"
+            "Data files (*.wcp *.abf);;"
+            "WCP files (*.wcp);;"
             "ABF files (*.abf);;"
             "All files (*.*)"
         )

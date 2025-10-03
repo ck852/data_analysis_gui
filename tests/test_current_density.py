@@ -22,7 +22,6 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from data_analysis_gui.core.channel_definitions import ChannelDefinitions
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 from data_analysis_gui.services.batch_processor import BatchProcessor
 from data_analysis_gui.services.data_manager import DataManager
@@ -350,7 +349,6 @@ class CurrentDensityTestBase:
             use_dual_range=False,
             range2_start=None,
             range2_end=None,
-            stimulus_period=1000.0,
             x_axis=AxisConfig(measure="Average", channel="Voltage"),
             y_axis=AxisConfig(measure="Average", channel="Current"),
             channel_config={"voltage": 0, "current": 1, "current_units": "pA"},
@@ -415,8 +413,7 @@ class CurrentDensityTestBase:
         # ==================================================================
         # PHASE 1: Initialize Services (exactly as GUI does)
         # ==================================================================
-        channel_defs = ChannelDefinitions()
-        batch_processor = BatchProcessor(channel_defs)
+        batch_processor = BatchProcessor()
         data_manager = DataManager()
         cd_service = CurrentDensityService()
 
@@ -637,14 +634,10 @@ class TestCurrentDensityABF(CurrentDensityTestBase):
     FILE_EXTENSION = "*.abf"
 
 
-# class TestCurrentDensityMAT(CurrentDensityTestBase):
-#     """
-#     Test current density workflow using MAT files.
-#
-#     Inherits from CurrentDensityTestBase and sets file type and extension for MAT.
-#     """
-#     FILE_TYPE = 'mat'
-#     FILE_EXTENSION = '*.mat'
+class TestBatchIVAnalysisWCP(CurrentDensityTestBase):
+    FILE_TYPE = "wcp" 
+    FILE_EXTENSION = "*.wcp"
+    # Uses auto-detected channel config per file
 
 
 if __name__ == "__main__":

@@ -1,651 +1,531 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool
+ABF (Axon Binary Format) Loader for PatchBatch
+
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-ABF (Axon Binary Format) loader for electrophysiology data.
-
-This module provides functionality to load ABF files and convert them
-to the standardized ElectrophysiologyDataset format. Supports both
-ABF1 and ABF2 file formats through the pyabf library.
-
-Features:
-    - Automatic channel detection and labeling
-    - Unit conversion (V→mV, nA→pA, µA→pA) with sanity checking
-    - Sweep indexing compatible with existing MAT file structure
-    - Metadata preservation (protocols, comments, tags)
-    - Performance optimizations for large files
-    - Comprehensive error handling
-    - Robust handling of incorrect unit metadata
+PHASE 1 ENHANCEMENT: Auto-detection of channel configuration from ABF metadata
 """
 
-import warnings
+import struct
 import logging
 from pathlib import Path
-from typing import Optional, Any, Union, Dict, Tuple
+from typing import Optional, Any, Union, Dict, List, Tuple
 import numpy as np
 
-# Set up module logger
+
 logger = logging.getLogger(__name__)
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 
-# Try to import pyabf
 try:
     import pyabf
-
     PYABF_AVAILABLE = True
 except ImportError:
     PYABF_AVAILABLE = False
-    logger.warning("pyabf not installed. ABF file support will be unavailable.")
 
-# Performance thresholds
-LARGE_FILE_SWEEP_THRESHOLD = 100  # Warn if more than this many sweeps
-LARGE_FILE_SAMPLE_THRESHOLD = 1e7  # Warn if more than this many total samples
-MAX_REASONABLE_SWEEPS = 1000  # Error if more than this many sweeps
 
-# Reasonable range thresholds for sanity checking
-# These are based on typical patch-clamp recordings
-REASONABLE_CURRENT_RANGE_PA = (
-    50000  # ±50 nA is a reasonable maximum for most patch-clamp
-)
-REASONABLE_VOLTAGE_RANGE_MV = 500  # ±500 mV is a reasonable maximum
+# =============================================================================
+# Binary Reading Utilities
+# =============================================================================
 
+def read_struct(f, struct_format, seek_to=-1):
+    """Read structured data from file."""
+    if seek_to >= 0:
+        f.seek(seek_to)
+    byte_count = struct.calcsize(struct_format)
+    byte_string = f.read(byte_count)
+    value = struct.unpack(struct_format, byte_string)
+    return list(value)
+
+
+def decode_string(byte_list):
+    """Decode a list of bytestrings to regular strings."""
+    return [s.decode('ascii', errors='ignore').strip('\x00').strip() for s in byte_list]
+
+
+# =============================================================================
+# Channel Auto-Detection
+# =============================================================================
+
+def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Analyze channel info and determine voltage/current channel assignments.
+    
+    Args:
+        channel_info: List of channel dicts with 'index', 'name', 'units', 'signal_type'
+    
+    Returns:
+        Dict with keys:
+            - voltage_channel: int (channel index for voltage)
+            - current_channel: int (channel index for current)
+            - voltage_units: str (detected units for voltage)
+            - current_units: str (detected units for current)
+            - valid: bool (True if detection was successful)
+            - message: str (description of detection result)
+    """
+    voltage_channels = [ch for ch in channel_info if ch['signal_type'] == 'voltage']
+    current_channels = [ch for ch in channel_info if ch['signal_type'] == 'current']
+    
+    # Case 1: Perfect detection - exactly 1 voltage and 1 current
+    if len(voltage_channels) == 1 and len(current_channels) == 1:
+        return {
+            'voltage_channel': voltage_channels[0]['index'],
+            'current_channel': current_channels[0]['index'],
+            'voltage_units': voltage_channels[0]['units'],
+            'current_units': current_channels[0]['units'],
+            'valid': True,
+            'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
+                      f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
+        }
+    
+    # Case 2: Multiple voltage or current channels - use first of each
+    if len(voltage_channels) >= 1 and len(current_channels) >= 1:
+        logger.warning(
+            f"Multiple channels detected: {len(voltage_channels)} voltage, {len(current_channels)} current. "
+            f"Using first of each."
+        )
+        return {
+            'voltage_channel': voltage_channels[0]['index'],
+            'current_channel': current_channels[0]['index'],
+            'voltage_units': voltage_channels[0]['units'],
+            'current_units': current_channels[0]['units'],
+            'valid': True,
+            'message': f"Auto-detected (multiple channels): Ch.{voltage_channels[0]['index']} (voltage), "
+                      f"Ch.{current_channels[0]['index']} (current)"
+        }
+    
+    # Case 3: Missing voltage or current channel
+    if len(voltage_channels) == 0:
+        logger.error("No voltage channel detected in ABF file")
+        return {
+            'voltage_channel': 0,
+            'current_channel': 1,
+            'voltage_units': 'mV',
+            'current_units': 'pA',
+            'valid': False,
+            'message': "Could not detect voltage channel - using default configuration"
+        }
+    
+    if len(current_channels) == 0:
+        logger.error("No current channel detected in ABF file")
+        return {
+            'voltage_channel': 0,
+            'current_channel': 1,
+            'voltage_units': 'mV',
+            'current_units': 'pA',
+            'valid': False,
+            'message': "Could not detect current channel - using default configuration"
+        }
+    
+    # Fallback - should not reach here
+    logger.error("Unexpected channel configuration")
+    return {
+        'voltage_channel': 0,
+        'current_channel': 1,
+        'voltage_units': 'mV',
+        'current_units': 'pA',
+        'valid': False,
+        'message': "Channel detection failed - using default configuration"
+    }
+
+
+# =============================================================================
+# ABF1 Parser
+# =============================================================================
+
+class ABF1Parser:
+    """Parser for ABF1 format files"""
+    
+    def __init__(self, filepath: str):
+        self.filepath = Path(filepath)
+        self.file_handle = None
+        self.metadata = {}
+        
+    def __enter__(self):
+        self.file_handle = open(self.filepath, 'rb')
+        self._parse_header()
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.file_handle:
+            self.file_handle.close()
+    
+    def _parse_header(self):
+        """Parse ABF1 file header"""
+        f = self.file_handle
+        
+        # Verify signature
+        file_signature = read_struct(f, "4s", 0)[0]
+        if file_signature != b'ABF ':
+            raise ValueError(f"Not an ABF1 file")
+        
+        # Basic info
+        self.metadata['file_version'] = read_struct(f, "f", 4)[0]
+        self.metadata['actual_episodes'] = read_struct(f, "i", 16)[0]
+        
+        # Sampling parameters
+        self.metadata['num_adc_channels'] = read_struct(f, "h", 120)[0]
+        self.metadata['adc_sample_interval'] = read_struct(f, "f", 122)[0]
+        self.metadata['num_samples_per_episode'] = read_struct(f, "i", 138)[0]
+        
+        # Calculate sample rate
+        num_channels = self.metadata['num_adc_channels']
+        interval = self.metadata['adc_sample_interval']
+        self.metadata['sample_rate'] = 1e6 / (interval * num_channels) if num_channels > 0 else 0
+        
+        # Synch array info (for sweep times)
+        self.metadata['synch_array_ptr'] = read_struct(f, "i", 92)[0]
+        self.metadata['synch_array_size'] = read_struct(f, "i", 96)[0]
+        self.metadata['synch_time_unit'] = read_struct(f, "f", 130)[0]
+        
+        # Channel info
+        self.metadata['adc_sampling_seq'] = read_struct(f, "16h", 410)
+        channel_names_raw = read_struct(f, "10s" * 16, 442)
+        channel_units_raw = read_struct(f, "8s" * 16, 602)
+        
+        self.metadata['channel_names'] = decode_string(channel_names_raw)
+        self.metadata['channel_units'] = decode_string(channel_units_raw)
+    
+    def get_channel_info(self) -> List[Dict[str, Any]]:
+        """Get organized channel information."""
+        channels = []
+        num_channels = self.metadata['num_adc_channels']
+        adc_sampling_seq = self.metadata['adc_sampling_seq']
+        channel_names = self.metadata['channel_names']
+        channel_units = self.metadata['channel_units']
+        
+        for i in range(num_channels):
+            channel_idx = adc_sampling_seq[i]
+            name = channel_names[channel_idx]
+            units = channel_units[channel_idx]
+            
+            # Identify signal type
+            units_lower = units.lower()
+            if 'mv' in units_lower or units_lower == 'v':
+                signal_type = "voltage"
+            elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
+                signal_type = "current"
+            else:
+                signal_type = "unknown"
+            
+            channels.append({
+                'index': i,
+                'name': name,
+                'units': units,
+                'signal_type': signal_type
+            })
+        
+        return channels
+    
+    def get_sweep_times(self) -> Dict[str, float]:
+        """Extract sweep times."""
+        sweep_times = {}
+        num_episodes = self.metadata['actual_episodes']
+        synch_array_ptr = self.metadata['synch_array_ptr']
+        synch_array_size = self.metadata['synch_array_size']
+        synch_time_unit = self.metadata['synch_time_unit']
+        sample_rate = self.metadata['sample_rate']
+        num_samples = self.metadata['num_samples_per_episode']
+        
+        # Check for variable-length sweeps
+        has_synch_array = synch_array_ptr > 0 and synch_array_size > 0
+        
+        if has_synch_array:
+            self.file_handle.seek(synch_array_ptr * 512)
+            for sweep_num in range(num_episodes):
+                synch_entry = read_struct(self.file_handle, "II")
+                start_time_units = synch_entry[0]
+                start_time_sec = start_time_units * synch_time_unit / 1e6
+                sweep_times[str(sweep_num + 1)] = float(start_time_sec)
+        else:
+            # Fixed-length sweeps
+            sweep_length_sec = num_samples / sample_rate if sample_rate > 0 else 0
+            for sweep_num in range(num_episodes):
+                start_time_sec = sweep_num * sweep_length_sec
+                sweep_times[str(sweep_num + 1)] = float(start_time_sec)
+        
+        return sweep_times
+
+
+# =============================================================================
+# ABF2 Parser
+# =============================================================================
+
+class ABF2Parser:
+    """Parser for ABF2 format files"""
+    
+    BLOCKSIZE = 512
+    
+    def __init__(self, filepath: str):
+        self.filepath = Path(filepath)
+        self.file_handle = None
+        self.metadata = {}
+        
+    def __enter__(self):
+        self.file_handle = open(self.filepath, 'rb')
+        self._parse_header()
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.file_handle:
+            self.file_handle.close()
+    
+    def _parse_header(self):
+        """Parse ABF2 file header"""
+        f = self.file_handle
+        
+        # Verify signature
+        file_signature = read_struct(f, "4s", 0)[0]
+        if file_signature != b'ABF2':
+            raise ValueError(f"Not an ABF2 file")
+        
+        # Basic info
+        f.seek(0)
+        file_signature = read_struct(f, "4s")
+        file_version = read_struct(f, "4b")
+        file_info_size = read_struct(f, "I")
+        actual_episodes = read_struct(f, "I")[0]
+        
+        self.metadata['file_version'] = file_version[0]
+        self.metadata['actual_episodes'] = actual_episodes
+        
+        # Section pointers
+        protocol_section = read_struct(f, "IIl", 76)
+        adc_section = read_struct(f, "IIl", 92)
+        data_section = read_struct(f, "IIl", 236)
+        synch_array_section = read_struct(f, "IIl", 316)
+        
+        self.metadata['adc_section'] = adc_section
+        self.metadata['data_section'] = data_section
+        self.metadata['synch_array_section'] = synch_array_section
+        
+        # Protocol section
+        f.seek(protocol_section[0] * self.BLOCKSIZE)
+        operation_mode = read_struct(f, "h")[0]
+        adc_sequence_interval = read_struct(f, "f")[0]
+        enable_file_compression = read_struct(f, "B")[0]
+        f.seek(3, 1)
+        file_compression_ratio = read_struct(f, "I")[0]
+        synch_time_unit = read_struct(f, "f")[0]
+        
+        self.metadata['adc_sequence_interval'] = adc_sequence_interval
+        self.metadata['synch_time_unit'] = synch_time_unit
+        self.metadata['num_adc_channels'] = adc_section[2]
+        self.metadata['sample_rate'] = 1e6 / adc_sequence_interval if adc_sequence_interval > 0 else 0
+        
+        # Get channel info from ADC section
+        self._parse_adc_section()
+    
+    def _parse_adc_section(self):
+        """Parse ADC section for channel info"""
+        f = self.file_handle
+        adc_section = self.metadata['adc_section']
+        num_channels = adc_section[2]
+        
+        channel_names = []
+        channel_units = []
+        
+        for i in range(num_channels):
+            f.seek(adc_section[0] * self.BLOCKSIZE + i * 128 + 4)
+            name_bytes = read_struct(f, "10s")[0]
+            units_bytes = read_struct(f, "8s")[0]
+            
+            name = name_bytes.decode('ascii', errors='ignore').strip('\x00').strip()
+            units = units_bytes.decode('ascii', errors='ignore').strip('\x00').strip()
+            
+            channel_names.append(name if name else f"Channel {i}")
+            channel_units.append(units)
+        
+        self.metadata['channel_names'] = channel_names
+        self.metadata['channel_units'] = channel_units
+    
+    def get_channel_info(self) -> List[Dict[str, Any]]:
+        """Get organized channel information."""
+        channels = []
+        num_channels = self.metadata.get('num_adc_channels', 0)
+        channel_names = self.metadata.get('channel_names', [])
+        channel_units = self.metadata.get('channel_units', [])
+        
+        for i in range(num_channels):
+            name = channel_names[i] if i < len(channel_names) else f"Channel {i}"
+            units = channel_units[i] if i < len(channel_units) else ""
+            
+            # Identify signal type
+            units_lower = units.lower()
+            if 'mv' in units_lower or units_lower == 'v':
+                signal_type = "voltage"
+            elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
+                signal_type = "current"
+            else:
+                signal_type = "unknown"
+            
+            channels.append({
+                'index': i,
+                'name': name,
+                'units': units,
+                'signal_type': signal_type
+            })
+        
+        return channels
+    
+    def get_sweep_times(self) -> Dict[str, float]:
+        """Extract sweep times."""
+        sweep_times = {}
+        num_episodes = self.metadata['actual_episodes']
+        synch_array_section = self.metadata['synch_array_section']
+        synch_time_unit = self.metadata['synch_time_unit']
+        sample_rate = self.metadata['sample_rate']
+        num_channels = self.metadata['num_adc_channels']
+        data_section = self.metadata['data_section']
+        
+        # Check for variable-length sweeps
+        has_synch_array = synch_array_section[2] > 0
+        
+        if has_synch_array:
+            self.file_handle.seek(synch_array_section[0] * self.BLOCKSIZE)
+            for sweep_num in range(num_episodes):
+                synch_entry = read_struct(self.file_handle, "II")
+                start_time_units = synch_entry[0]
+                start_time_sec = start_time_units * synch_time_unit / 1e6
+                sweep_times[str(sweep_num + 1)] = float(start_time_sec)
+        else:
+            # Fixed-length sweeps
+            total_samples = data_section[2]
+            if num_episodes > 0 and num_channels > 0:
+                samples_per_sweep = total_samples // (num_episodes * num_channels)
+                if sample_rate > 0:
+                    sweep_length_sec = samples_per_sweep / sample_rate
+                    for sweep_num in range(num_episodes):
+                        start_time_sec = sweep_num * sweep_length_sec
+                        sweep_times[str(sweep_num + 1)] = float(start_time_sec)
+        
+        return sweep_times
+
+
+# =============================================================================
+# Main Loading Function
+# =============================================================================
 
 def load_abf(
     file_path: Union[str, Path],
-    channel_map: Optional[Any] = None,
     validate_data: bool = True,
-    lazy_load: bool = False,
-    trust_metadata: bool = False,
 ) -> "ElectrophysiologyDataset":
     """
-    Load an ABF (Axon Binary Format) file into a standardized dataset.
+    Load an ABF file into a standardized dataset with auto-detected channel configuration.
 
-    This function reads ABF files (versions 1 and 2) and converts them to
-    the ElectrophysiologyDataset format used throughout the application.
+    Channel configuration is automatically detected from ABF metadata based on channel
+    units and stored in the dataset metadata.
 
     Args:
         file_path: Path to the ABF file
-        channel_map: Optional ChannelDefinitions instance for custom channel mapping
-        validate_data: If True, check for NaN/Inf values and warn about anomalies
-        lazy_load: If True, return a lazy-loading dataset (future feature)
-        trust_metadata: If True, always trust unit metadata. If False (default),
-                       apply sanity checks and skip conversion if values seem wrong
+        validate_data: If True, check for NaN/Inf values
 
     Returns:
-        ElectrophysiologyDataset containing all sweeps from the ABF file
+        ElectrophysiologyDataset containing all sweeps from the ABF file with
+        auto-detected channel configuration stored in metadata['channel_config']
 
     Raises:
         ImportError: If pyabf is not installed
-        FileNotFoundError: If the specified file doesn't exist
-        IOError: If file cannot be read or is corrupted
-        ValueError: If file structure is invalid or contains no data
-
-    Example:
-        >>> dataset = load_abf('recording.abf')
-        >>> print(f"Loaded {dataset.sweep_count()} sweeps")
-        >>> time_ms, data = dataset.get_sweep('1')
-
-    Notes:
-        - Sweep indices are converted to 1-based to match MAT file convention
-        - Voltage units are automatically converted to mV
-        - Current units are automatically converted to pA
-        - Large files (>100 sweeps) will trigger a performance warning
-        - Sanity checks are applied to detect incorrect unit metadata
+        FileNotFoundError: If file doesn't exist
+        IOError: If file cannot be read
+        ValueError: If file is invalid or contains no data
     """
-
-    # Check pyabf availability
     if not PYABF_AVAILABLE:
-        raise ImportError(
-            "pyabf is required for ABF file support. " "Install with: pip install pyabf"
-        )
-
-    # Lazy loading implementation (future feature)
-    if lazy_load:
-        logger.info(
-            "Lazy loading requested but not yet implemented. Using standard loading."
-        )
-        # return LazyABFDataset(file_path, channel_map)  # Future implementation
+        raise ImportError("pyabf required for ABF support. Install with: pip install pyabf")
 
     file_path = Path(file_path)
-
-    # Validate file exists
     if not file_path.exists():
         raise FileNotFoundError(f"ABF file not found: {file_path}")
 
-    # Check file size for performance warnings
-    file_size_mb = file_path.stat().st_size / (1024 * 1024)
-    if file_size_mb > 100:
-        logger.warning(
-            f"Large ABF file ({file_size_mb:.1f} MB). Loading may take some time."
-        )
-
-    # Load ABF file
     logger.info(f"Loading ABF file: {file_path.name}")
+
+    # Extract metadata using binary parsing
+    try:
+        with open(file_path, 'rb') as f:
+            file_signature = read_struct(f, "4s", 0)[0]
+        
+        if file_signature == b'ABF ':
+            with ABF1Parser(str(file_path)) as parser:
+                metadata = parser.metadata
+                channel_info = parser.get_channel_info()
+                sweep_times = parser.get_sweep_times()
+                abf_version = 1
+        elif file_signature == b'ABF2':
+            with ABF2Parser(str(file_path)) as parser:
+                metadata = parser.metadata
+                channel_info = parser.get_channel_info()
+                sweep_times = parser.get_sweep_times()
+                abf_version = 2
+        else:
+            raise ValueError(f"Invalid ABF file")
+        
+        logger.info(f"ABF{abf_version}: {len(channel_info)} channels, {len(sweep_times)} sweeps")
+        
+    except Exception as e:
+        raise IOError(f"Failed to parse ABF metadata: {e}")
+
+    # Auto-detect channel configuration
+    channel_config = _detect_channel_configuration(channel_info)
+    logger.info(channel_config['message'])
+    
+    # Load data with pyabf
     try:
         abf = pyabf.ABF(str(file_path), loadData=True)
-    except ValueError as e:
-        raise IOError(f"Failed to parse ABF file structure: {e}")
     except Exception as e:
-        raise IOError(f"Failed to load ABF file: {e}")
+        raise IOError(f"Failed to load ABF data: {e}")
 
-    # Validate basic structure
     if abf.sweepCount == 0:
         raise ValueError("ABF file contains no sweeps")
-
-    if abf.sweepCount > MAX_REASONABLE_SWEEPS:
-        raise ValueError(
-            f"ABF file contains {abf.sweepCount} sweeps, exceeding reasonable limit "
-            f"of {MAX_REASONABLE_SWEEPS}. This may be a corrupted file or require "
-            "special handling."
-        )
-
-    # Performance warning for large datasets
-    total_samples = abf.sweepCount * abf.sweepPointCount * abf.channelCount
-    if abf.sweepCount > LARGE_FILE_SWEEP_THRESHOLD:
-        warnings.warn(
-            f"ABF file contains {abf.sweepCount} sweeps. "
-            "Consider processing in batches for better performance.",
-            UserWarning,
-        )
-
-    if total_samples > LARGE_FILE_SAMPLE_THRESHOLD:
-        warnings.warn(
-            f"ABF file contains {total_samples:.1e} total data points. "
-            "Large memory usage expected.",
-            UserWarning,
-        )
 
     # Create dataset
     dataset = ElectrophysiologyDataset()
 
-    # Extract and store metadata
+    # Store metadata
     dataset.metadata["format"] = "abf"
     dataset.metadata["source_file"] = str(file_path)
-    dataset.metadata["sampling_rate_hz"] = float(abf.sampleRate)
-    dataset.metadata["abf_version"] = abf.abfVersion
-    dataset.metadata["abf_version_string"] = abf.abfVersionString
-    dataset.metadata["protocol"] = abf.protocol if abf.protocol else None
-    dataset.metadata["creation_date"] = (
-        abf.abfDateTime.isoformat() if hasattr(abf, "abfDateTime") else None
-    )
-    dataset.metadata["data_point_count"] = abf.dataPointCount
-    dataset.metadata["data_seconds_total"] = abf.dataSecPerPoint * abf.dataPointCount
-
-    # Extract channel information
-    channel_count = abf.channelCount
-    dataset.metadata["channel_count"] = channel_count
-
-    # Process channel labels and units
-    channel_labels, channel_units = _process_channel_info(abf, channel_count)
-    dataset.metadata["channel_labels"] = channel_labels
-
-    # Store original units for reference
-    dataset.metadata["original_channel_units"] = (
-        abf.adcUnits[:channel_count] if hasattr(abf, "adcUnits") else []
-    )
+    dataset.metadata["abf_version"] = abf_version
+    dataset.metadata["sampling_rate_hz"] = metadata.get('sample_rate', abf.sampleRate)
+    dataset.metadata["channel_count"] = len(channel_info)
+    dataset.metadata["channel_labels"] = [ch['name'] for ch in channel_info]
+    dataset.metadata["channel_units"] = [ch['units'] for ch in channel_info]
+    dataset.metadata["channel_types"] = [ch['signal_type'] for ch in channel_info]
+    dataset.metadata["sweep_times"] = sweep_times
+    
+    # Store auto-detected channel configuration
+    dataset.metadata["channel_config"] = channel_config
 
     # Load all sweeps
-    logger.debug(f"Loading {abf.sweepCount} sweeps with {channel_count} channel(s)")
-
     for sweep_idx in range(abf.sweepCount):
-        try:
-            # Load sweep data using original units every time
-            sweep_data = _load_single_sweep(
-                abf,
-                sweep_idx,
-                channel_count,
-                channel_labels,
-                channel_units,
-                validate_data,
-                trust_metadata,
-            )
+        abf.setSweep(sweep_idx)
+        time_s = abf.sweepX
+        time_ms = time_s * 1000.0
 
-            # Add to dataset with 1-based indexing
-            sweep_index = str(sweep_idx + 1)
-            dataset.add_sweep(
-                sweep_index, sweep_data["time_ms"], sweep_data["data_matrix"]
-            )
-
-            # After the first sweep, set the final converted units in metadata
-            if sweep_idx == 0:
-                dataset.metadata["channel_units"] = sweep_data["converted_units"]
-
-        except Exception as e:
-            logger.error(f"Failed to load sweep {sweep_idx}: {e}")
-            if validate_data:
-                raise
-            else:
-                warnings.warn(f"Skipped corrupted sweep {sweep_idx}: {e}", UserWarning)
-                continue
-
-    # Verify at least some sweeps were loaded
-    if dataset.is_empty():
-        raise ValueError("No valid sweeps could be loaded from ABF file")
-
-    # Apply channel mapping if provided
-    if channel_map is not None:
-        _apply_channel_mapping_abf(dataset, channel_map, abf)
-
-    # Store additional ABF-specific metadata
-    _store_extended_metadata(dataset, abf)
-
-    logger.info(
-        f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}"
-    )
-
-    return dataset
-
-
-def _process_channel_info(abf: "pyabf.ABF", channel_count: int) -> Tuple[list, list]:
-    """
-    Process channel labels and units from ABF file.
-
-    Args:
-        abf: PyABF object
-        channel_count: Number of channels
-
-    Returns:
-        Tuple of (channel_labels, channel_units) lists
-    """
-    channel_labels = []
-    channel_units = []
-
-    for ch_idx in range(channel_count):
-        # Get channel name
-        if hasattr(abf, "adcNames") and ch_idx < len(abf.adcNames):
-            label = abf.adcNames[ch_idx]
-            # Clean up common label issues
-            label = label.strip()
-            if not label or label.lower() in ["none", "n/a", ""]:
-                label = f"Channel {ch_idx}"
-        else:
-            label = f"Channel {ch_idx}"
-        channel_labels.append(label)
-
-        # Get and normalize units
-        if hasattr(abf, "adcUnits") and ch_idx < len(abf.adcUnits):
-            unit = abf.adcUnits[ch_idx].strip()
-
-            # Comprehensive unit normalization map
-            # Map all variations to a standard representation
-            unit_map = {
-                # Voltage units
-                "mV": "mV",
-                "V": "V",
-                "uV": "µV",
-                "µV": "µV",
-                "μV": "µV",  # Greek mu to micro sign
-                "mv": "mV",
-                "v": "V",
-                # Current units
-                "pA": "pA",
-                "nA": "nA",
-                "uA": "µA",
-                "µA": "µA",
-                "μA": "µA",  # Greek mu to micro sign
-                "mA": "mA",
-                "A": "A",
-                "pa": "pA",
-                "na": "nA",
-                "ua": "µA",
-                "ma": "mA",
-                "a": "A",
-                # Other units
-                "": "",
-                "none": "",
-                "None": "",
-                "N/A": "",
-            }
-
-            normalized_unit = unit_map.get(unit, unit)
-            channel_units.append(normalized_unit)
-        else:
-            channel_units.append("")
-
-    return channel_labels, channel_units
-
-
-def _load_single_sweep(
-    abf: "pyabf.ABF",
-    sweep_idx: int,
-    channel_count: int,
-    channel_labels: list,
-    channel_units: list,
-    validate_data: bool,
-    trust_metadata: bool = False,
-) -> Dict[str, Union[np.ndarray, list]]:
-    """
-    Load a single sweep from the ABF file.
-
-    Args:
-        abf: PyABF object
-        sweep_idx: Sweep index (0-based)
-        channel_count: Number of channels
-        channel_labels: List of channel labels
-        channel_units: List of original channel units
-        validate_data: Whether to validate data for NaN/Inf
-        trust_metadata: If True, always trust unit metadata
-
-    Returns:
-        Dictionary with 'time_ms', 'data_matrix', and 'converted_units'
-    """
-    abf.setSweep(sweep_idx)
-    time_s = abf.sweepX
-    time_ms = time_s * 1000.0
-
-    if validate_data:
-        if np.any(np.isnan(time_ms)) or np.any(np.isinf(time_ms)):
+        if validate_data and (np.any(np.isnan(time_ms)) or np.any(np.isinf(time_ms))):
             raise ValueError(f"Sweep {sweep_idx} contains invalid time values")
 
-    data_matrix = np.zeros((len(time_ms), channel_count), dtype=np.float32)
-    converted_units = list(channel_units)  # Create a copy for modification
+        # Load data for all channels
+        data_matrix = np.zeros((len(time_ms), len(channel_info)), dtype=np.float32)
+        
+        for ch_idx in range(len(channel_info)):
+            if len(channel_info) > 1:
+                abf.setSweep(sweep_idx, channel=ch_idx)
+            
+            data_matrix[:, ch_idx] = abf.sweepY.astype(np.float32)
 
-    for ch_idx in range(channel_count):
-        if channel_count > 1:
-            abf.setSweep(sweep_idx, channel=ch_idx)
+        if validate_data:
+            if np.any(np.isnan(data_matrix)):
+                logger.warning(f"Sweep {sweep_idx} contains NaN values")
+            if np.any(np.isinf(data_matrix)):
+                logger.warning(f"Sweep {sweep_idx} contains infinite values")
 
-        channel_data = abf.sweepY.astype(np.float32)
+        # Add to dataset (1-based indexing)
+        sweep_index = str(sweep_idx + 1)
+        dataset.add_sweep(sweep_index, time_ms, data_matrix)
 
-        channel_data, new_unit = _convert_units(
-            channel_data,
-            channel_units[ch_idx],  # Always use the original unit for conversion
-            channel_labels[ch_idx],
-            trust_metadata,
-        )
-        converted_units[ch_idx] = new_unit
-        data_matrix[:, ch_idx] = channel_data
+    if dataset.is_empty():
+        raise ValueError("No valid sweeps loaded")
 
-    if validate_data:
-        nan_count = np.sum(np.isnan(data_matrix))
-        if nan_count > 0:
-            warnings.warn(
-                f"Sweep {sweep_idx} contains {nan_count} NaN values.", UserWarning
-            )
-        inf_count = np.sum(np.isinf(data_matrix))
-        if inf_count > 0:
-            warnings.warn(
-                f"Sweep {sweep_idx} contains {inf_count} infinite values.", UserWarning
-            )
+    logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
 
-    return {
-        "time_ms": time_ms,
-        "data_matrix": data_matrix,
-        "converted_units": converted_units,
-    }
-
-
-def _convert_units(
-    data: np.ndarray, unit: str, channel_label: str, trust_metadata: bool = False
-) -> Tuple[np.ndarray, str]:
-    """
-    Convert data to standard units based on channel type with sanity checking.
-
-    Standard units:
-        - Voltage: mV
-        - Current: pA
-
-    This function includes sanity checks to detect when ABF metadata is incorrect.
-    For example, if data is already in pA but metadata says µA, the conversion
-    would result in unreasonably large values.
-
-    Args:
-        data: Data array to convert
-        unit: Current unit (from file metadata)
-        channel_label: Channel label for type detection
-        trust_metadata: If True, skip sanity checks and always convert
-
-    Returns:
-        Tuple of (converted_data, new_unit)
-    """
-    # Determine channel type from label
-    label_lower = channel_label.lower()
-    is_voltage = any(
-        v in label_lower for v in ["volt", "potential", "vm", "v_m", "membrane"]
-    )
-    is_current = any(c in label_lower for c in ["curr", "i_", "im", "i_m", "amp", "pa"])
-
-    # Voltage conversions to mV
-    if is_voltage or unit in ["V", "v", "mV", "mv", "µV", "uV", "μV"]:
-        if unit in ["V", "v"]:
-            converted = data * 1000.0
-            new_unit = "mV"
-        elif unit in ["uV", "µV", "μV"]:
-            converted = data / 1000.0
-            new_unit = "mV"
-        elif unit in ["mV", "mv"]:
-            return data, "mV"  # Already in mV
-        else:
-            return data, unit  # Unknown voltage unit, keep as-is
-
-        # Sanity check for voltage if not trusting metadata
-        if not trust_metadata and new_unit == "mV":
-            max_abs_value = np.abs(converted).max()
-            # if max_abs_value > REASONABLE_VOLTAGE_RANGE_MV:
-            # logger.warning(
-            #     f"Voltage values after conversion exceed ±{REASONABLE_VOLTAGE_RANGE_MV} mV "
-            #     f"(max: {max_abs_value:.0f} mV). "
-            #     f"Data may already be in {new_unit}. Skipping conversion."
-            # )
-            # return data, unit  # Return original data and unit
-
-        return converted, new_unit
-
-    # Current conversions to pA
-    # Include all possible current units in the condition check
-    elif is_current or unit in [
-        "A",
-        "mA",
-        "µA",
-        "uA",
-        "μA",
-        "nA",
-        "pA",
-        "a",
-        "ma",
-        "ua",
-        "na",
-        "pa",
-    ]:
-        if unit in ["A", "a"]:
-            converted = data * 1e12
-            new_unit = "pA"
-        elif unit in ["mA", "ma"]:
-            converted = data * 1e9
-            new_unit = "pA"
-        elif unit in ["µA", "uA", "μA", "ua"]:
-            converted = data * 1e6
-            new_unit = "pA"
-        elif unit in ["nA", "na"]:
-            converted = data * 1000.0
-            new_unit = "pA"
-        elif unit in ["pA", "pa"]:
-            return data, "pA"  # Already in pA
-        else:
-            return data, unit  # Unknown current unit, keep as-is
-
-        # Sanity check for current if not trusting metadata
-        if not trust_metadata and new_unit == "pA":
-            max_abs_value = np.abs(converted).max()
-            if max_abs_value > REASONABLE_CURRENT_RANGE_PA:
-                # Check if the data might already be in pA
-                # Common case: metadata says µA but data is actually pA
-                if (
-                    unit in ["µA", "uA", "μA", "ua"]
-                    and np.abs(data).max() < REASONABLE_CURRENT_RANGE_PA
-                ):
-                    logger.warning(
-                        f"Current metadata indicates {unit} but values suggest data is already in pA. "
-                        f"Skipping conversion (max value: {np.abs(data).max():.0f})."
-                    )
-                    return data, "pA"  # Data is already in pA, just fix the unit label
-                else:
-                    logger.warning(
-                        f"Current values after conversion exceed ±{REASONABLE_CURRENT_RANGE_PA/1000:.0f} nA "
-                        f"(max: {max_abs_value:.0f} pA). "
-                        f"Check if conversion is correct."
-                    )
-                    # Still return converted data but with warning
-
-        return converted, new_unit
-
-    # No conversion needed or unknown unit type
-    return data, unit
-
-
-def _apply_channel_mapping_abf(
-    dataset: "ElectrophysiologyDataset", channel_map: Any, abf: "pyabf.ABF"
-) -> None:
-    """
-    Apply custom channel definitions to dataset metadata.
-
-    Args:
-        dataset: Dataset to update
-        channel_map: ChannelDefinitions instance
-        abf: PyABF object for additional metadata
-    """
-    if not hasattr(channel_map, "get_channel_label"):
-        logger.warning(
-            "Channel map doesn't have get_channel_label method. Skipping mapping."
-        )
-        return
-
-    num_channels = dataset.channel_count()
-    labels = []
-    units = []
-
-    for ch_id in range(num_channels):
-        # Try to get label from channel_map
-        try:
-            label = channel_map.get_channel_label(ch_id, include_units=False)
-
-            # If channel_map returns a generic label, prefer ABF's label
-            if label.startswith("Channel ") and ch_id < len(
-                dataset.metadata["channel_labels"]
-            ):
-                original_label = dataset.metadata["channel_labels"][ch_id]
-                if not original_label.startswith("Channel "):
-                    label = original_label
-
-            labels.append(label)
-        except Exception as e:
-            logger.warning(
-                f"Failed to get label for channel {ch_id} from channel_map: {e}"
-            )
-            labels.append(
-                dataset.metadata["channel_labels"][ch_id]
-                if ch_id < len(dataset.metadata["channel_labels"])
-                else f"Channel {ch_id}"
-            )
-
-        # Determine units - use the already converted units
-        if ch_id < len(dataset.metadata["channel_units"]):
-            units.append(dataset.metadata["channel_units"][ch_id])
-        else:
-            units.append("")
-
-    dataset.metadata["channel_labels"] = labels
-    dataset.metadata["channel_units"] = units
-
-
-def _store_extended_metadata(
-    dataset: "ElectrophysiologyDataset", abf: "pyabf.ABF"
-) -> None:
-    """
-    Store additional ABF-specific metadata that might be useful.
-
-    Args:
-        dataset: Dataset to update
-        abf: PyABF object
-    """
-    # Stimulus/protocol information
-    if hasattr(abf, "stimulusByChannel") and abf.stimulusByChannel:
-        dataset.metadata["stimulus_info"] = abf.stimulusByChannel
-
-    # Comments and tags
-    if hasattr(abf, "tagComments") and abf.tagComments:
-        dataset.metadata["comments"] = abf.tagComments
-
-    if hasattr(abf, "tagTimesMin") and len(abf.tagTimesMin) > 0:
-        dataset.metadata["tag_times_min"] = abf.tagTimesMin.tolist()
-
-    # Creator information
-    if hasattr(abf, "abfID"):
-        dataset.metadata["abf_id"] = abf.abfID
-
-    if hasattr(abf, "creatorVersion"):
-        dataset.metadata["creator_version"] = abf.creatorVersion
-
-    # Holding values for voltage clamp
-    if hasattr(abf, "holdingCommand"):
-        dataset.metadata["holding_command"] = abf.holdingCommand
-
-    # Data quality metrics
-    dataset.metadata["data_byte_start"] = (
-        abf.dataByteStart if hasattr(abf, "dataByteStart") else None
-    )
-    dataset.metadata["data_point_byte_size"] = (
-        abf.dataPointByteSize if hasattr(abf, "dataPointByteSize") else None
-    )
-
-    logger.debug(f"Stored extended metadata: {list(dataset.metadata.keys())}")
-
-
-# Optional: Lazy loading implementation for future use
-class LazyABFDataset:
-    """
-    Lazy-loading wrapper for ABF files (future implementation).
-
-    This class would load sweeps on-demand rather than all at once,
-    useful for very large files.
-    """
-
-    def __init__(self, file_path: Union[str, Path], channel_map: Optional[Any] = None):
-        """Initialize lazy dataset (not yet implemented)."""
-        raise NotImplementedError(
-            "Lazy loading for ABF files is planned but not yet implemented. "
-            "Use standard loading (lazy_load=False) for now."
-        )
-
-
-# Utility function for testing
-def validate_abf_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-    """
-    Validate an ABF file and return basic information without full loading.
-
-    Args:
-        file_path: Path to ABF file
-
-    Returns:
-        Dictionary with file information
-
-    Example:
-        >>> info = validate_abf_file('recording.abf')
-        >>> print(f"File has {info['sweep_count']} sweeps")
-    """
-    if not PYABF_AVAILABLE:
-        raise ImportError("pyabf is required for ABF validation")
-
-    file_path = Path(file_path)
-
-    if not file_path.exists():
-        return {"valid": False, "error": "File not found"}
-
-    try:
-        abf = pyabf.ABF(
-            str(file_path), loadData=False
-        )  # Don't load data for validation
-
-        return {
-            "valid": True,
-            "sweep_count": abf.sweepCount,
-            "channel_count": abf.channelCount,
-            "sampling_rate_hz": abf.sampleRate,
-            "duration_seconds": abf.dataSecPerPoint * abf.dataPointCount,
-            "abf_version": abf.abfVersionString,
-            "file_size_mb": file_path.stat().st_size / (1024 * 1024),
-            "protocol": abf.protocol if abf.protocol else None,
-        }
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
+    return dataset

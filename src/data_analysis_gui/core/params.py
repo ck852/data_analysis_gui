@@ -48,7 +48,6 @@ class AnalysisParameters:
         use_dual_range: Whether to use dual range analysis.
         range2_start: Start time in ms for Range 2 (if dual range).
         range2_end: End time in ms for Range 2 (if dual range).
-        stimulus_period: Period between stimuli in ms.
         x_axis: AxisConfig for X-axis.
         y_axis: AxisConfig for Y-axis.
         channel_config: Dictionary mapping channel configuration.
@@ -60,7 +59,6 @@ class AnalysisParameters:
         ...     use_dual_range=False,
         ...     range2_start=None,
         ...     range2_end=None,
-        ...     stimulus_period=1000.0,
         ...     x_axis=AxisConfig(measure="Average", channel="Voltage"),
         ...     y_axis=AxisConfig(measure="Peak", channel="Current", peak_type="Absolute"),
         ...     channel_config={'voltage': 0, 'current': 1}
@@ -73,9 +71,6 @@ class AnalysisParameters:
     use_dual_range: bool  # Whether to use dual range analysis
     range2_start: Optional[float]  # Start time in ms for Range 2 (if dual range)
     range2_end: Optional[float]  # End time in ms for Range 2 (if dual range)
-
-    # Timing
-    stimulus_period: float  # Period between stimuli in ms
 
     # Axis configurations
     x_axis: AxisConfig  # Configuration for X-axis
@@ -109,11 +104,6 @@ class AnalysisParameters:
                 raise ValueError(
                     f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})"
                 )
-            # Optionally validate that ranges don't overlap
-            # (uncomment if this is a requirement)
-            # if not (self.range2_start >= self.range1_end or self.range2_end <= self.range1_start):
-            #     if not (self.range1_start >= self.range2_end or self.range1_end <= self.range2_start):
-            #         raise ValueError("Range 1 and Range 2 overlap")
 
     def cache_key(self) -> Tuple:
         """
@@ -145,7 +135,6 @@ class AnalysisParameters:
             self.use_dual_range,
             round_value(self.range2_start) if self.range2_start is not None else None,
             round_value(self.range2_end) if self.range2_end is not None else None,
-            round_value(self.stimulus_period),
             freeze_value(asdict(self.x_axis)),
             freeze_value(asdict(self.y_axis)),
             freeze_value(self.channel_config),
@@ -197,7 +186,6 @@ class AnalysisParameters:
             "use_dual_range": self.use_dual_range,
             "range2_start": self.range2_start,
             "range2_end": self.range2_end,
-            "stimulus_period": self.stimulus_period,
             "x_axis": asdict(self.x_axis),
             "y_axis": asdict(self.y_axis),
             "channel_config": self.channel_config,
@@ -219,7 +207,6 @@ class AnalysisParameters:
 
         desc.extend(
             [
-                f"Stimulus Period: {self.stimulus_period:.1f} ms",
                 f"X-Axis: {self.x_axis.measure} {self.x_axis.channel or ''}".strip(),
                 f"Y-Axis: {self.y_axis.measure} {self.y_axis.channel or ''}".strip(),
             ]

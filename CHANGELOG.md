@@ -2,21 +2,36 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.1-beta.1] - 2025-10-03
+### Added
+- WinWCP File support
+- Channel ID, units, and sweep times auto-extracted from WCP and ABF Files
+- Ramp IV
+- Background subtraction
+
+### Changed
+- Removed MAT file support (buggy and not needed)
+- Removed user inputs for channel ID, current units, and stimulus time
+
+### Known Issues
+- Ramp IV sweep selection is tedious
+- Font size not consistent across platforms
+
 ## [0.9.0-beta.3] - 2025-09-21
 ### Added
--Mac Support
+- Mac Support
 
 ## [0.9.0-beta.2] - 2025-09-21
 ### Added
--More comprehensive documentation
--Peak mode and swapped channel validation
+- More comprehensive documentation
+- Peak mode and swapped channel validation
 
 ### Changed
--Export headers updated for consistency
+- Export headers updated for consistency
 
 ### Known Issues
--Plot styling has display issues
--Current unit adjustment has not been tested
+- Plot styling has display issues
+- Current unit adjustment has not been tested
 
 ## [0.9.0-beta.1] - 2025-09-19
 ### Added

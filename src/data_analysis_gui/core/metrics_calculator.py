@@ -140,7 +140,7 @@ class MetricsCalculator:
         sweep_number: int,
         range1_start: float,
         range1_end: float,
-        stimulus_period: float,
+        actual_sweep_time: float,
         range2_start: Optional[float] = None,
         range2_end: Optional[float] = None,
     ) -> SweepMetrics:
@@ -152,10 +152,11 @@ class MetricsCalculator:
             voltage (np.ndarray): Voltage data array.
             current (np.ndarray): Current data array.
             sweep_index (str): Identifier for the sweep.
-            sweep_number (int): Sweep number (for time calculation).
+            sweep_number (int): Sweep number (0-based index in sweep list).
             range1_start (float): Start time for range 1 (ms).
             range1_end (float): End time for range 1 (ms).
-            stimulus_period (float): Period of stimulus (ms).
+            actual_sweep_time (float): Actual sweep time from file metadata (seconds).
+                Must be provided from ABF/WCP file metadata.
             range2_start (Optional[float]): Start time for range 2 (ms).
             range2_end (Optional[float]): End time for range 2 (ms).
 
@@ -168,6 +169,9 @@ class MetricsCalculator:
         # Validate inputs
         if len(time_ms) == 0:
             raise DataError(f"Empty time array for sweep {sweep_index}")
+
+        # Use actual sweep time from file metadata
+        time_s = actual_sweep_time
 
         # Extract range 1 data
         mask1 = (time_ms >= range1_start) & (time_ms <= range1_end)
@@ -185,7 +189,7 @@ class MetricsCalculator:
         # Compute range 1 metrics
         metrics = SweepMetrics(
             sweep_index=sweep_index,
-            time_s=sweep_number * (stimulus_period / 1000.0),
+            time_s=time_s,
             voltage_mean_r1=MetricsCalculator._safe_mean(v1),
             voltage_absolute_r1=MetricsCalculator._absolute_peak(v1),
             voltage_positive_r1=MetricsCalculator._safe_max(v1),

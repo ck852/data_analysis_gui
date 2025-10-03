@@ -283,9 +283,22 @@ class AnalysisEngine:
 
         Raises:
             ProcessingError: If no valid metrics could be computed.
+            DataError: If sweep time metadata is missing from file.
         """
         metrics = []
         failed_sweeps = []
+
+        # Get sweep times from metadata (required for all files)
+        sweep_times = dataset.metadata.get('sweep_times', {})
+        file_format = dataset.metadata.get('format', 'unknown')
+        
+        if not sweep_times:
+            raise DataError(
+                f"No sweep time metadata found in {file_format.upper()} file. "
+                "File may be corrupted or incompletely loaded."
+            )
+        
+        logger.info(f"Using sweep times from {file_format.upper()} file metadata")
 
         # Process sweeps in sorted order
         sweep_list = sorted(
@@ -299,6 +312,15 @@ class AnalysisEngine:
                     dataset, sweep_index
                 )
 
+                # Get actual sweep time from metadata (required)
+                actual_time = sweep_times.get(sweep_index)
+                
+                if actual_time is None:
+                    raise DataError(
+                        f"Sweep {sweep_index}: Missing sweep time in metadata. "
+                        f"File may be corrupted or incompletely loaded."
+                    )
+
                 # Compute metrics
                 metric = self.metrics_calculator.compute_sweep_metrics(
                     time_ms=sweep_data["time_ms"],
@@ -308,7 +330,7 @@ class AnalysisEngine:
                     sweep_number=sweep_number,
                     range1_start=params.range1_start,
                     range1_end=params.range1_end,
-                    stimulus_period=params.stimulus_period,
+                    actual_sweep_time=actual_time,
                     range2_start=params.range2_start if params.use_dual_range else None,
                     range2_end=params.range2_end if params.use_dual_range else None,
                 )
@@ -345,20 +367,16 @@ class AnalysisEngine:
 # ===========================================================================
 
 
-def create_analysis_engine(channel_definitions) -> AnalysisEngine:
+def create_analysis_engine() -> AnalysisEngine:
     """
     Factory function to create an AnalysisEngine with default components.
 
     Provides a convenient way to create a fully configured engine for production use, while still allowing for dependency injection in tests.
 
-    Args:
-        channel_definitions: Channel configuration object.
-
     Returns:
         AnalysisEngine: Configured AnalysisEngine instance.
 
     Example:
-        >>> from data_analysis_gui.core.channel_definitions import ChannelDefinitions
         >>> channel_defs = ChannelDefinitions()
         >>> engine = create_analysis_engine(channel_defs)
     """
@@ -367,7 +385,7 @@ def create_analysis_engine(channel_definitions) -> AnalysisEngine:
     from data_analysis_gui.core.plot_formatter import PlotFormatter
 
     # Create components
-    data_extractor = DataExtractor(channel_definitions)
+    data_extractor = DataExtractor()
     metrics_calculator = MetricsCalculator()
     plot_formatter = PlotFormatter()
 
