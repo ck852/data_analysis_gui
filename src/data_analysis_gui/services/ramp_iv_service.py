@@ -20,6 +20,7 @@ from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
+DEFAULT_VOLTAGE_TOLERANCE_MV = 3.0
 
 @dataclass
 class RampIVResult:
@@ -60,7 +61,7 @@ class RampIVService:
         target_voltage: float,
         start_ms: float,
         end_ms: float,
-        tolerance_mv: float = 1.0
+        tolerance_mv: float = DEFAULT_VOLTAGE_TOLERANCE_MV
     ) -> Tuple[Optional[int], Optional[float]]:
         """
         Find the data point within analysis range with voltage closest to target.
@@ -118,7 +119,7 @@ class RampIVService:
         start_ms: float,
         end_ms: float,
         current_units: str = "pA",
-        voltage_tolerance_mv: float = 1.0
+        voltage_tolerance_mv: float = DEFAULT_VOLTAGE_TOLERANCE_MV
     ) -> RampIVResult:
         """
         Extract IV data from multiple sweeps using voltage ramp analysis.
