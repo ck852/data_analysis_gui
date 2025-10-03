@@ -98,13 +98,13 @@ app = BUNDLE(
     name='PatchBatch.app',
     icon=None,  # Add 'icon.icns' if you have one
     bundle_identifier='com.northeastern.patchbatch',
-    version='0.9.0',
+    version='0.9.1-beta.1',
     info_plist={
         'NSPrincipalClass': 'NSApplication',
         'NSAppleScriptEnabled': False,
         'CFBundleDisplayName': 'PatchBatch',
-        'CFBundleShortVersionString': '0.9.0-beta.3',
-        'CFBundleVersion': '0.9.0.3',
+        'CFBundleShortVersionString': '0.9.1-beta.1',
+        'CFBundleVersion': '0.9.1.1',
         'CFBundleDocumentTypes': [
             {
                 'CFBundleTypeName': 'ABF File',

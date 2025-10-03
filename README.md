@@ -100,6 +100,8 @@ Start by clicking "Open" in the top left corner. Select a single file to analyze
 <img src="images/mainwindow.PNG" alt="main_window" width="1000"/>
 
 
+Note that the screenshot is from a previous version. The program now automatically takes current units, channel assignments, and sweep times from all data files, thus the associated widgets have been removed from the latest release.
+
  If you'd like to preview the output plot, click "Generate Analysis Plot". From there, you can export a CSV file with the analyzed data. If you only want the data without seeing the plot first, just click "Export Analysis Data" at the bottom of the window. 
 
 
@@ -178,7 +180,7 @@ Both analyses used the same dataset of 12 patch-clamp recordings. However, WinWC
 | 250514_012  | 23.2  |
 
 
-The input abf files are available in the file repository. In the case of the WinWCP-analyzed files, current density calculations were performed in Graphpad Prism. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049 pA, a negligible difference in the context of typical patch-clamp recordings which often range from tens to hundreds or even thousands of pA. The distinction is likely due to floating point precision differences when the .wcp file is converted to .abf. WinWCP may also use interpolation in its analysis process depending on the analysis range used. Regardless, this distinction does not present a concern unless currents are being analyzed on a sub-pA basis. Similarly, the distinction in the measured voltage was 0.01147 mV, an insignificant difference unless experiments require sub-mV precision. These results are summarized as follows:
+The input abf files are available in the file repository. In the case of the WinWCP-analyzed files, current density calculations were performed in Graphpad Prism. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049 pA. Similarly, the distinction in the measured voltage was 0.01147 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible on modern computers for the intended applications of this program. These results are summarized as follows:
 
 <img src="images/discrepancy.png" alt="discrepancy" width="1000"/>
 
@@ -189,7 +191,7 @@ A direct comparison of a Current Density vs. Voltage relationship plot produced 
 <img src="images/data_comparison.png" alt="data_comparison" width="750"/>
 
 
-### Time-Course
+<!-- ### Time-Course
 
 A set of three time-course recordings was analyzed in PatchBatch and in WinWCP. These files contained a variable number of sweeps, exceeding 200 sweeps per file. The disparity in time values as a result of the stimulus repeat period approximation of sweep times is characterized as follows:
 
@@ -203,7 +205,7 @@ The disparity appears to increase with the length of the recordings. While not a
 The time course data contains two analysis ranges per sweep, thus the Dual Analysis mode can be validated by comparing the average current outputs from the two ranges to the same measurement output by WinWCP:
 
 
-<img src="images/dual_range_comparison.png" alt="dual_range_comparison" width="750"/>
+<img src="images/dual_range_comparison.png" alt="dual_range_comparison" width="750"/> -->
 
 
 <!-- ### Swapped Channels
