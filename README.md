@@ -50,6 +50,8 @@ pip install patchbatch
 patchbatch
 ```
 
+If python is not a recognized command, try replacing it with `python3`.
+
 If pip isn't recognized, instead try
 
 `python -m pip install patchbatch`
@@ -180,7 +182,7 @@ Both analyses used the same dataset of 12 patch-clamp recordings. However, WinWC
 | 250514_012  | 23.2  |
 
 
-The input abf files are available in the file repository. In the case of the WinWCP-analyzed files, current density calculations were performed in Graphpad Prism. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049 pA. Similarly, the distinction in the measured voltage was 0.01147 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible on modern computers for the intended applications of this program. These results are summarized as follows:
+The input abf files are available in the file repository. In the case of the WinWCP-analyzed files, current density calculations were performed in Graphpad Prism. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049 pA. Similarly, the distinction in the measured voltage was 0.01147 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible on modern computers for the intended applications of this program. These results are summarized as follows:
 
 <img src="images/discrepancy.png" alt="discrepancy" width="1000"/>
 

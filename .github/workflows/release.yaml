@@ -7,32 +7,54 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - runner: macos-13  # Intel runner
+            arch: x86_64
+            display_name: Intel
+          - runner: macos-14  # Apple Silicon runner
+            arch: arm64
+            display_name: AppleSilicon
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
       with:
-        lfs: true  # For .mat files
+        lfs: true
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
-        brew install create-dmg
+        brew install create-dmg || true
+    
+    - name: Verify architecture
+      run: |
+        echo "Expected arch: ${{ matrix.arch }}"
+        echo "Actual arch: $(uname -m)"
+        if [ "$(uname -m)" != "${{ matrix.arch }}" ]; then
+          echo "ERROR: Architecture mismatch!"
+          exit 1
+        fi
     
     - name: Build Mac app
       run: python build_macos.py
     
+    - name: Rename DMG to include architecture
+      run: |
+        mv dist/PatchBatch-macOS.dmg "dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg"
+    
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
       with:
-        name: macos-dmg
-        path: dist/PatchBatch-macOS.dmg
+        name: macos-dmg-${{ matrix.arch }}
+        path: dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -44,7 +66,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
@@ -65,8 +87,40 @@ jobs:
         name: windows-zip
         path: dist/PatchBatch-Windows.zip
 
+  publish-pypi:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Extract version from pyproject.toml
+      id: get_version
+      run: |
+        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        python -m twine upload dist/*.tar.gz dist/*.whl
+
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, publish-pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -76,27 +130,50 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
     
+    - name: Arrange files for release
+      run: |
+        ls -R
+        # Copy macOS DMGs with user-friendly names
+        cp macos-dmg-arm64/PatchBatch-macOS-AppleSilicon.dmg PatchBatch-macOS-AppleSilicon.dmg
+        cp macos-dmg-x86_64/PatchBatch-macOS-Intel.dmg PatchBatch-macOS-Intel.dmg
+        # Copy Windows zip
+        cp windows-zip/PatchBatch-Windows.zip PatchBatch-Windows.zip
+    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          macos-dmg/PatchBatch-macOS.dmg
-          windows-zip/PatchBatch-Windows.zip
+          PatchBatch-macOS-AppleSilicon.dmg
+          PatchBatch-macOS-Intel.dmg
+          PatchBatch-Windows.zip
         draft: false
-        prerelease: true  # Set to false for stable releases
+        prerelease: false
         generate_release_notes: true
         body: |
           ## Installation
           
           ### macOS
-          1. Download `PatchBatch-macOS.dmg`
-          2. Double-click to mount
-          3. Drag PatchBatch to Applications folder
-          4. First run: Right-click → Open (to bypass Gatekeeper)
+          **Choose the correct version for your Mac:**
+          - **Apple Silicon (M1/M2/M3/M4):** Download `PatchBatch-macOS-AppleSilicon.dmg`
+          - **Intel Macs:** Download `PatchBatch-macOS-Intel.dmg`
+          
+          After downloading:
+          1. Double-click the DMG to mount it
+          2. Drag PatchBatch.app to your Applications folder
+          3. First run: Right-click → Open (to bypass Gatekeeper security)
           
           ### Windows
           1. Download `PatchBatch-Windows.zip`
-          2. Extract to desired location
+          2. Extract to your desired location
           3. Run `PatchBatch.exe`
           
-          See [README](https://github.com/ck852/patchbatch#readme) for usage instructions.
+          ### Python (PyPI)
+          This version is also available via pip:
+          ```bash
+          pip install patchbatch
+          patchbatch
+          ```
+          
+          ---
+          
+          See the [README](https://github.com/ck852/patchbatch#readme) for detailed usage instructions.

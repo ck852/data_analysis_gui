@@ -4,6 +4,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.1-beta.2]
 ### Added
+- Enhanced sweep selection UI
 
 ### Changed
 - overactive error detection in ramp_iv voltage tolerances corrected
@@ -25,6 +26,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Known Issues
 - Ramp IV sweep selection is tedious
 - Font size not consistent across platforms
+- error messages from ramp_iv suggest wrong voltage set, but data results seem unaffected
+- Compatibilty issues with Sequoia 15.6.1 (Mac)
 
 ## [0.9.0-beta.3] - 2025-09-21
 ### Added
