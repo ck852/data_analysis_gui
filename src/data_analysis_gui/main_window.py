@@ -415,9 +415,9 @@ class MainWindow(QMainWindow):
         and updates the UI. Emits file_loaded signal on success.
         """
         file_types = (
-            "Data files (*.wcp *.abf);;"
-            "ABF files (*.abf);;"
             "WCP files (*.wcp);;"
+            "ABF files (*.abf);;"
+            "Data files (*.wcp *.abf);;"
             "All files (*.*)"
         )
 

@@ -25,6 +25,8 @@ from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.services.bg_subtraction_service import BackgroundSubtractionService
+from data_analysis_gui.widgets.cursor_spinbox import CursorSpinbox
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -118,6 +120,13 @@ class BackgroundSubtractionDialog(QDialog):
         range_layout.addRow("Background Start:", self.start_spinbox)
         range_layout.addRow("Background End:", self.end_spinbox)
         
+        # Add cursor manager for draggable cursors
+        self.cursor_manager = CursorSpinbox(self.ax, self.canvas)
+        self.cursor_manager.add_cursor("start", self.start_spinbox, self.default_start, color="#73AB84")
+        self.cursor_manager.add_cursor("end", self.end_spinbox, self.default_end, color="#73AB84")
+        self.cursor_manager.enable_shading(alpha=0.1)
+
+
         layout.addWidget(range_widget)
         
         # Buttons
@@ -168,7 +177,7 @@ class BackgroundSubtractionDialog(QDialog):
             
         self.ax.clear()
         
-        # Plot current data using primary color from style
+        # Plot current data
         primary_style = self.line_styles["primary"]
         self.ax.plot(
             self.time_ms, 
@@ -178,31 +187,14 @@ class BackgroundSubtractionDialog(QDialog):
             alpha=primary_style["alpha"]
         )
         
-        # Add background range cursors using range1 styling
-        start_time = self.start_spinbox.value()
-        end_time = self.end_spinbox.value()
+        # Re-add cursor lines after clear
+        for cursor_data in self.cursor_manager.cursors.values():
+            self.ax.add_line(cursor_data['line'])
         
-        range1_style = self.line_styles["range1"]
-        self.ax.axvline(
-            start_time, 
-            color=range1_style["color"], 
-            linestyle=range1_style["linestyle"],
-            linewidth=range1_style["linewidth"], 
-            alpha=range1_style["alpha"]
-        )
-        self.ax.axvline(
-            end_time, 
-            color=range1_style["color"], 
-            linestyle=range1_style["linestyle"],
-            linewidth=range1_style["linewidth"], 
-            alpha=range1_style["alpha"]
-        )
+        # Re-add shading after clear - let CursorSpinbox handle it
+        self.cursor_manager.recreate_shading_after_clear()
         
-        # Highlight the background region with semi-transparent overlay
-        if start_time < end_time:
-            self.ax.axvspan(start_time, end_time, alpha=0.1, color=range1_style["color"])
-        
-        # Use centralized axis styling instead of manual formatting
+        # Style axis
         style_axis(
             self.ax,
             title=f"Current Trace - Sweep {self.sweep_index}",
@@ -211,12 +203,9 @@ class BackgroundSubtractionDialog(QDialog):
             remove_top_right=True
         )
         
-        # Add padding and refresh
         self.ax.relim()
         self.ax.autoscale_view(tight=True)
         self.ax.margins(x=0.02, y=0.05)
-
-        # Add prominent gridlines at x=0 and y=0
         add_zero_axis_lines(self.ax)
         
         self.figure.tight_layout(pad=1.0)
