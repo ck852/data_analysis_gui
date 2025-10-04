@@ -37,20 +37,15 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QAction
 
 # Import refactored theme functions
-from data_analysis_gui.config.themes import (
-    apply_modern_theme,
-    create_styled_button,
-    style_combo_box,
-    style_label
+from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_button, style_combo_box,
+                                            style_label
+                                )
+
+from data_analysis_gui.core.session_settings import (extract_settings_from_main_window, apply_settings_to_main_window,
+                                                    revalidate_ranges_for_file, load_session_settings, save_session_settings,
 )
 
-from data_analysis_gui.core.session_settings import (
-    extract_settings_from_main_window,
-    apply_settings_to_main_window,
-    revalidate_ranges_for_file,
-    load_session_settings,
-    save_session_settings,
-)
+from data_analysis_gui.config.plot_style import add_zero_axis_lines
 
 # Core imports
 from data_analysis_gui.core.app_controller import ApplicationController
@@ -549,6 +544,11 @@ class MainWindow(QMainWindow):
                     y_label=plot_labels["y_label"],
                     channel_config=None,
                 )
+
+                # Add prominent gridlines at x=0 and y=0
+                add_zero_axis_lines(self.plot_manager.ax, alpha=0.4, linewidth=0.8)
+                self.plot_manager.redraw()
+
                 self._sync_cursors_to_plot()
             else:
                 logger.debug(f"Could not load sweep {sweep}: {result.error_message}")

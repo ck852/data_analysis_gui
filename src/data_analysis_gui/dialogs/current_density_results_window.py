@@ -32,34 +32,18 @@ from pathlib import Path
 from typing import Dict
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QApplication,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QSplitter,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
+                                QSplitter, QVBoxLayout, QWidget,
+                                )
 
 from data_analysis_gui.config.logging import get_logger
-from data_analysis_gui.config.themes import (
-    style_button,
-    style_label,
-    style_main_window,
-    style_splitter,
-)
+from data_analysis_gui.config.themes import style_button, style_label, style_main_window, style_splitter
 from data_analysis_gui.core.models import BatchAnalysisResult
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.services.current_density_service import CurrentDensityService
-from data_analysis_gui.widgets.shared_widgets import (
-    BatchFileListWidget,
-    DynamicBatchPlotWidget,
-    FileSelectionState,
-)
+from data_analysis_gui.widgets.shared_widgets import BatchFileListWidget, DynamicBatchPlotWidget, FileSelectionState
 
+from data_analysis_gui.config.plot_style import add_zero_axis_lines
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 
 logger = get_logger(__name__)
@@ -338,6 +322,12 @@ class CurrentDensityResultsWindow(QMainWindow):
         )
         self.plot_widget.update_visibility(self.selection_state.get_selected_files())
         self.plot_widget.auto_scale_to_data()
+        
+        # Add prominent gridlines at x=0 and y=0
+        if self.plot_widget.ax is not None:
+            add_zero_axis_lines(self.plot_widget.ax)
+            self.plot_widget.canvas.draw_idle()  # Redraw to show the lines
+
         self._update_summary()
 
     def _update_summary(self):

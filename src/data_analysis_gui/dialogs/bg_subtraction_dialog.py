@@ -18,8 +18,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 from data_analysis_gui.config.themes import apply_modern_theme, create_styled_button
-from data_analysis_gui.config.plot_style import (
-    apply_plot_style, style_axis, get_line_styles, COLORS
+from data_analysis_gui.config.plot_style import (apply_plot_style, style_axis, get_line_styles, 
+                                                 add_zero_axis_lines, COLORS
 )
 from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
@@ -215,6 +215,9 @@ class BackgroundSubtractionDialog(QDialog):
         self.ax.relim()
         self.ax.autoscale_view(tight=True)
         self.ax.margins(x=0.02, y=0.05)
+
+        # Add prominent gridlines at x=0 and y=0
+        add_zero_axis_lines(self.ax)
         
         self.figure.tight_layout(pad=1.0)
         self.canvas.draw_idle()

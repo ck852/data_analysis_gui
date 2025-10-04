@@ -43,23 +43,15 @@ from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.config.logging import get_logger
 
 from data_analysis_gui.dialogs.current_density_dialog import CurrentDensityDialog
-from data_analysis_gui.dialogs.current_density_results_window import (
-    CurrentDensityResultsWindow,
-)
+from data_analysis_gui.dialogs.current_density_results_window import CurrentDensityResultsWindow
 
-from data_analysis_gui.widgets.shared_widgets import (
-    DynamicBatchPlotWidget,
-    BatchFileListWidget,
-    FileSelectionState,
-)
+from data_analysis_gui.widgets.shared_widgets import DynamicBatchPlotWidget, BatchFileListWidget, FileSelectionState
 
-from data_analysis_gui.config.themes import (
-    style_main_window,
-    create_styled_button,
-    style_group_box,
-    get_selection_summary_color,
-    style_label,
-)
+from data_analysis_gui.config.themes import (style_main_window, create_styled_button, style_group_box, get_selection_summary_color,
+                                            style_label,
+                                            )
+
+from data_analysis_gui.config.plot_style import add_zero_axis_lines
 
 logger = get_logger(__name__)
 
@@ -248,6 +240,12 @@ class BatchResultsWindow(QMainWindow):
         )
 
         self.plot_widget.update_visibility(self.selection_state.get_selected_files())
+
+        # Add prominent gridlines at x=0 and y=0
+        if self.plot_widget.ax is not None:
+            add_zero_axis_lines(self.plot_widget.ax)
+            self.plot_widget.canvas.draw_idle()  # Redraw to show the lines
+
         self._update_summary()
 
     def _on_selection_changed(self):

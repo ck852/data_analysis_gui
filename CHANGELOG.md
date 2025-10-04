@@ -1,11 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
+
 ## [0.9.1-b.3]
 
-- botched beta.2
 
-## [0.9.1-beta.2]
+
+## [0.9.1-beta.2] - 2025-10-03
 ### Added
 - Enhanced sweep selection UI for ramp_iv
 

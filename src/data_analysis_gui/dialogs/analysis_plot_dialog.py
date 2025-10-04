@@ -12,30 +12,19 @@ Provides:
 """
 
 import os
-from PySide6.QtWidgets import (
-    QApplication,
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QMessageBox,
-)
+from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QHBoxLayout, QMessageBox
 from pathlib import Path
 
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
-# Core imports - all data processing is delegated to these
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
-from data_analysis_gui.core.plot_formatter import PlotFormatter  # Import the formatter
+from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.gui_services import FileDialogService
 
-# Updated theme imports for refactored version
-from data_analysis_gui.config.themes import (
-    apply_modern_theme,
-    create_styled_button,
-)
-
+from data_analysis_gui.config.themes import apply_modern_theme, create_styled_button
+from data_analysis_gui.config.plot_style import add_zero_axis_lines
 
 class AnalysisPlotDialog(QDialog):
     """
@@ -121,6 +110,9 @@ class AnalysisPlotDialog(QDialog):
 
         self.figure.tight_layout()
         self.canvas.draw()
+
+        # Add prominent gridlines at x=0 and y=0
+        add_zero_axis_lines(self.ax)
 
         # Add export buttons using the proper method
         self._add_export_controls(layout)

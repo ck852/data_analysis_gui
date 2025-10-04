@@ -26,7 +26,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 
 from data_analysis_gui.config.themes import apply_modern_theme, create_styled_button, style_group_box
 from data_analysis_gui.config.plot_style import (
-    apply_plot_style, style_axis, get_line_styles, COLORS, COLOR_CYCLE
+    apply_plot_style, style_axis, get_line_styles, COLORS, COLOR_CYCLE, add_zero_axis_lines
 )
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.services.ramp_iv_service import RampIVService, RampIVResult
@@ -583,10 +583,10 @@ class RampIVDialog(QDialog):
                 color = colors[i % len(colors)]
                 
                 self.ax.plot(voltages, currents, 'o-', 
-                           label=f"Sweep {sweep_idx}",
-                           color=color, markersize=6, linewidth=2, 
-                           alpha=0.8, markeredgewidth=0)
-                           
+                        label=f"Sweep {sweep_idx}",
+                        color=color, markersize=6, linewidth=2, 
+                        alpha=0.8, markeredgewidth=0)
+                        
             # Add legend if multiple sweeps, following existing style
             if len(plot_data) > 1:
                 self.ax.legend(
@@ -599,6 +599,9 @@ class RampIVDialog(QDialog):
                     facecolor="white",
                     fontsize=9
                 )
+        
+        # Add prominent gridlines at x=0 and y=0
+        add_zero_axis_lines(self.ax)
                 
         # Apply consistent axis styling
         style_axis(

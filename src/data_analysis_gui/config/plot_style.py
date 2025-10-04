@@ -191,6 +191,12 @@ def apply_plot_style():
     """
     plt.rcParams.update(get_plot_style())
 
+def add_zero_axis_lines(ax, color=None, linewidth=1.5, alpha=0.8):
+    """Add prominent gridlines at x=0 and y=0."""
+    if color is None:
+        color = COLORS["dark"]
+    ax.axhline(y=0, color=color, linewidth=linewidth, linestyle='-', alpha=alpha, zorder=1)
+    ax.axvline(x=0, color=color, linewidth=linewidth, linestyle='-', alpha=alpha, zorder=1)
 
 def style_axis(
     ax,
