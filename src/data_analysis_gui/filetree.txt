@@ -14,6 +14,7 @@ data_analysis_gui/
 |   |-- analysis_engine.py
 |   |-- analysis_plot.py
 |   |-- app_controller.py
+|   |-- conc_resp_models.py
 |   |-- data_extractor.py
 |   |-- dataset.py
 |   |-- exceptions.py
@@ -29,6 +30,7 @@ data_analysis_gui/
 |   |-- batch_dialog.py
 |   |-- batch_results_window.py
 |   |-- bg_subtraction_dialog.py
+|   |-- conc_resp_dialog.py
 |   |-- current_density_dialog.py
 |   |-- current_density_results_window.py
 |   `-- ramp_iv_dialog.py
@@ -40,12 +42,14 @@ data_analysis_gui/
 |   |-- analysis_manager.py
 |   |-- batch_processor.py
 |   |-- bg_subtraction_service.py
+|   |-- conc_resp_service.py
 |   |-- current_density_service.py
 |   |-- data_manager.py
 |   |-- plot_service.py
 |   `-- ramp_iv_service.py
 |-- widgets/
 |   |-- __init__.py
+|   |-- concentration_range_table.py
 |   |-- control_panel.py
 |   |-- cursor_spinbox.py
 |   |-- custom_inputs.py

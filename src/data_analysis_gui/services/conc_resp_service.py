@@ -1,0 +1,397 @@
+"""
+PatchBatch Electrophysiology Data Analysis Tool
+Author: Charles Kissell, Northeastern University
+License: MIT (see LICENSE file for details)
+
+Service for concentration-response analysis business logic.
+
+This module provides all business logic for loading CSV time-series data,
+calculating range-based metrics with optional background subtraction, and
+exporting results in pivoted format. Completely UI-agnostic for testability.
+
+Classes:
+    - ConcentrationResponseService: Stateless service for concentration-response analysis
+"""
+
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+from dataclasses import replace
+
+from data_analysis_gui.core.conc_resp_models import (
+    ConcentrationRange,
+    AnalysisType,
+    PeakType,
+)
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class ConcentrationResponseService:
+    """
+    Stateless service for concentration-response analysis operations.
+    
+    Handles CSV loading, validation, metric calculation, background subtraction,
+    and export formatting. All methods are static for easy testing without state.
+    """
+    
+    @staticmethod
+    def load_and_validate_csv(filepath: str) -> Tuple[pd.DataFrame, str, List[str]]:
+        """
+        Load and validate a CSV file for concentration-response analysis.
+        
+        Args:
+            filepath: Path to the CSV file
+            
+        Returns:
+            Tuple containing:
+                - DataFrame with loaded data
+                - Name of the time column (first column)
+                - List of data column names (all columns after first)
+        
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If CSV has fewer than 2 columns or is empty
+            pd.errors.ParserError: If CSV parsing fails
+        
+        Example:
+            >>> df, time_col, data_cols = service.load_and_validate_csv("data.csv")
+            >>> print(f"Time: {time_col}, Data: {data_cols}")
+            Time: Time (s), Data: ['Current (pA)', 'Voltage (mV)']
+        """
+        filepath_obj = Path(filepath)
+        
+        if not filepath_obj.exists():
+            raise FileNotFoundError(f"CSV file not found: {filepath}")
+        
+        try:
+            df = pd.read_csv(filepath)
+        except Exception as e:
+            logger.error(f"Failed to parse CSV {filepath}: {e}")
+            raise ValueError(f"Failed to parse CSV file: {e}")
+        
+        if df.empty:
+            raise ValueError("CSV file is empty")
+        
+        if df.shape[1] < 2:
+            raise ValueError(
+                f"CSV must have at least 2 columns (time + data), got {df.shape[1]}"
+            )
+        
+        time_col = df.columns[0]
+        data_cols = df.columns[1:].tolist()
+        
+        logger.info(
+            f"Loaded CSV: {filepath_obj.name} - "
+            f"{len(df)} rows, time column: '{time_col}', "
+            f"{len(data_cols)} data column(s)"
+        )
+        
+        return df, time_col, data_cols
+    
+    @staticmethod
+    def calculate_range_value(
+        df: pd.DataFrame,
+        time_col: str,
+        data_col: str,
+        start_time: float,
+        end_time: float,
+        analysis_type: AnalysisType,
+        peak_type: Optional[PeakType] = None,
+    ) -> float:
+        """
+        Calculate the metric value for a specific range.
+        
+        Args:
+            df: DataFrame containing the time-series data
+            time_col: Name of the time column
+            data_col: Name of the data column to analyze
+            start_time: Start time for the range
+            end_time: End time for the range
+            analysis_type: Type of analysis (Average or Peak)
+            peak_type: Type of peak detection (required if analysis_type is PEAK)
+            
+        Returns:
+            Calculated value for the range (average or peak)
+            Returns np.nan if no data points in range
+        
+        Raises:
+            ValueError: If peak_type not provided for Peak analysis
+        """
+        # Extract data within time range
+        mask = (df[time_col] >= start_time) & (df[time_col] <= end_time)
+        subset = df.loc[mask, data_col]
+        
+        if subset.empty:
+            logger.warning(
+                f"No data points in range [{start_time}, {end_time}] "
+                f"for column '{data_col}'"
+            )
+            return np.nan
+        
+        # Calculate based on analysis type
+        if analysis_type == AnalysisType.AVERAGE:
+            return float(subset.mean())
+        
+        elif analysis_type == AnalysisType.PEAK:
+            if peak_type is None:
+                raise ValueError("peak_type must be specified for Peak analysis")
+            
+            if peak_type == PeakType.MAX:
+                return float(subset.max())
+            elif peak_type == PeakType.MIN:
+                return float(subset.min())
+            elif peak_type == PeakType.ABSOLUTE_MAX:
+                # Value with maximum absolute magnitude
+                return float(subset.loc[subset.abs().idxmax()])
+            else:
+                raise ValueError(f"Unknown peak_type: {peak_type}")
+        
+        else:
+            raise ValueError(f"Unknown analysis_type: {analysis_type}")
+    
+    @staticmethod
+    def calculate_background_values(
+        df: pd.DataFrame,
+        time_col: str,
+        data_cols: List[str],
+        bg_ranges: List[ConcentrationRange],
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Calculate background values for all background ranges and data columns.
+        
+        Args:
+            df: DataFrame containing the time-series data
+            time_col: Name of the time column
+            data_cols: List of data column names
+            bg_ranges: List of background ConcentrationRange objects
+            
+        Returns:
+            Nested dictionary: {bg_range_name: {data_col_name: value}}
+            
+        Example:
+            >>> bg_values = service.calculate_background_values(
+            ...     df, "Time (s)", ["Current (pA)"], [bg_range]
+            ... )
+            >>> print(bg_values["Background"]["Current (pA)"])
+            -12.5
+        """
+        bg_values = {}
+        
+        for bg_range in bg_ranges:
+            bg_values[bg_range.name] = {}
+            
+            for data_col in data_cols:
+                value = ConcentrationResponseService.calculate_range_value(
+                    df=df,
+                    time_col=time_col,
+                    data_col=data_col,
+                    start_time=bg_range.start_time,
+                    end_time=bg_range.end_time,
+                    analysis_type=bg_range.analysis_type,
+                    peak_type=bg_range.peak_type,
+                )
+                bg_values[bg_range.name][data_col] = value
+        
+        logger.debug(
+            f"Calculated background values for {len(bg_ranges)} range(s), "
+            f"{len(data_cols)} data column(s)"
+        )
+        
+        return bg_values
+    
+    @staticmethod
+    def apply_auto_pairing(
+        ranges: List[ConcentrationRange],
+    ) -> Tuple[List[ConcentrationRange], bool]:
+        """
+        Automatically pair all non-background ranges to a single background range.
+        
+        Auto-pairing occurs when:
+        - Exactly one background range exists
+        - All non-background ranges have no paired background (None)
+        
+        Args:
+            ranges: List of ConcentrationRange objects
+            
+        Returns:
+            Tuple containing:
+                - List of ranges (with auto-pairing applied if applicable)
+                - Boolean indicating whether auto-pairing was applied
+        
+        Example:
+            >>> ranges = [bg_range, range1, range2]
+            >>> modified_ranges, was_paired = service.apply_auto_pairing(ranges)
+            >>> print(f"Auto-paired: {was_paired}")
+            Auto-paired: True
+        """
+        bg_ranges = [r for r in ranges if r.is_background]
+        non_bg_ranges = [r for r in ranges if not r.is_background]
+        
+        # Check if auto-pairing conditions are met
+        if len(bg_ranges) != 1:
+            return ranges, False
+        
+        if not all(r.paired_background is None for r in non_bg_ranges):
+            return ranges, False
+        
+        # Apply auto-pairing
+        single_bg_name = bg_ranges[0].name
+        modified_ranges = []
+        
+        for r in ranges:
+            if r.is_background:
+                modified_ranges.append(r)
+            else:
+                # Create new range with paired_background set
+                modified_ranges.append(
+                    replace(r, paired_background=single_bg_name)
+                )
+        
+        logger.info(
+            f"Auto-paired {len(non_bg_ranges)} range(s) to "
+            f"background '{single_bg_name}'"
+        )
+        
+        return modified_ranges, True
+    
+    @staticmethod
+    def run_analysis(
+        df: pd.DataFrame,
+        time_col: str,
+        data_cols: List[str],
+        ranges: List[ConcentrationRange],
+        filename: str = "data",
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Run complete concentration-response analysis for all data columns.
+        
+        Args:
+            df: DataFrame containing the time-series data
+            time_col: Name of the time column
+            data_cols: List of data column names to analyze
+            ranges: List of ConcentrationRange objects (after auto-pairing if applicable)
+            filename: Name of the source file (for results table)
+            
+        Returns:
+            Dictionary mapping data column names to results DataFrames.
+            Each DataFrame has columns: File, Data Trace, Range, Raw Value,
+            Background, Corrected Value
+        
+        Raises:
+            ValueError: If ranges configuration is invalid
+        """
+        if not ranges:
+            raise ValueError("No ranges provided for analysis")
+        
+        # Separate background and analysis ranges
+        bg_ranges = [r for r in ranges if r.is_background]
+        analysis_ranges = [r for r in ranges if not r.is_background]
+        
+        if not analysis_ranges:
+            raise ValueError("No analysis ranges defined")
+        
+        # Calculate all background values upfront
+        bg_values = ConcentrationResponseService.calculate_background_values(
+            df, time_col, data_cols, bg_ranges
+        )
+        
+        # Run analysis for each data column
+        results_dfs = {}
+        
+        for data_col in data_cols:
+            results_rows = []
+            
+            for analysis_range in analysis_ranges:
+                # Calculate raw value
+                raw_value = ConcentrationResponseService.calculate_range_value(
+                    df=df,
+                    time_col=time_col,
+                    data_col=data_col,
+                    start_time=analysis_range.start_time,
+                    end_time=analysis_range.end_time,
+                    analysis_type=analysis_range.analysis_type,
+                    peak_type=analysis_range.peak_type,
+                )
+                
+                # Get background value if paired
+                bg_value = 0.0
+                if analysis_range.paired_background:
+                    bg_name = analysis_range.paired_background
+                    if bg_name in bg_values:
+                        bg_value = bg_values[bg_name].get(data_col, 0.0)
+                    else:
+                        logger.warning(
+                            f"Paired background '{bg_name}' not found for "
+                            f"range '{analysis_range.name}'"
+                        )
+                
+                # Calculate corrected value
+                corrected_value = raw_value - bg_value
+                
+                results_rows.append({
+                    "File": filename,
+                    "Data Trace": data_col,
+                    "Range": analysis_range.name,
+                    "Raw Value": raw_value,
+                    "Background": bg_value,
+                    "Corrected Value": corrected_value,
+                })
+            
+            if results_rows:
+                results_dfs[data_col] = pd.DataFrame(results_rows)
+        
+        logger.info(
+            f"Analysis complete: {len(analysis_ranges)} range(s), "
+            f"{len(data_cols)} trace(s), {sum(len(df) for df in results_dfs.values())} total results"
+        )
+        
+        return results_dfs
+    
+    @staticmethod
+    def pivot_for_export(results_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Pivot results DataFrame to export format (ranges as columns).
+        
+        Args:
+            results_df: Results DataFrame with columns:
+                File, Data Trace, Range, Raw Value, Background, Corrected Value
+                
+        Returns:
+            Pivoted DataFrame with:
+                - Empty first column
+                - One column per range containing corrected values
+        
+        Example:
+            Input:
+                | Range   | Corrected Value |
+                |---------|-----------------|
+                | Range 1 | -50.2           |
+                | Range 2 | -75.8           |
+            
+            Output:
+                |   | Range 1 | Range 2 |
+                |---|---------|---------|
+                |   | -50.2   | -75.8   |
+        """
+        if results_df.empty:
+            logger.warning("Attempting to pivot empty results DataFrame")
+            return pd.DataFrame()
+        
+        # Create pivot: {Range: Corrected Value}
+        export_data = {
+            row["Range"]: row["Corrected Value"]
+            for _, row in results_df.iterrows()
+        }
+        
+        # Create single-row DataFrame
+        export_df = pd.DataFrame([export_data])
+        
+        # Insert empty first column (legacy format compatibility)
+        export_df.insert(0, "", "")
+        
+        logger.debug(f"Pivoted results: {len(export_data)} columns")
+        
+        return export_df

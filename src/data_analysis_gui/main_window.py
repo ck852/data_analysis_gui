@@ -62,6 +62,7 @@ from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
+from data_analysis_gui.dialogs import ConcentrationResponseDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
@@ -226,6 +227,15 @@ class MainWindow(QMainWindow):
         self.ramp_iv_action = QAction("&Ramp IV Analysis...", self)
         self.ramp_iv_action.triggered.connect(self._ramp_iv_analysis)
         analysis_menu.addAction(self.ramp_iv_action)
+
+        # Concentration Response Analysis
+        conc_resp_action = analysis_menu.addAction("Concentration Response...")
+        conc_resp_action.triggered.connect(self._open_concentration_response)
+
+    def _open_concentration_response(self):
+        """Open the concentration-response analysis dialog."""
+        dialog = ConcentrationResponseDialog(self)
+        dialog.exec()
 
     def _background_subtraction(self):
         if not self.controller.has_data():

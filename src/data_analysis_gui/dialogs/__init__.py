@@ -10,6 +10,7 @@ from .batch_results_window import BatchResultsWindow
 from .current_density_dialog import CurrentDensityDialog
 from .current_density_results_window import CurrentDensityResultsWindow
 from .ramp_iv_dialog import RampIVDialog, VoltageInputDialog
+from .conc_resp_dialog import ConcentrationResponseDialog
 
 __all__ = [
     "BatchAnalysisDialog",
@@ -19,4 +20,5 @@ __all__ = [
     "CurrentDensityResultsWindow",
     "RampIVDialog",
     "VoltageInputDialog",
+    "ConcentrationResponseDialog",
 ]
