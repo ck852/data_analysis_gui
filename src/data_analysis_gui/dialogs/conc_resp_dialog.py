@@ -11,9 +11,13 @@ metric calculation (Average/Peak) for patch-clamp concentration-response
 experiments.
 """
 
+import os
+import re
+import csv
 import numpy as np
+import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
@@ -21,6 +25,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QMessageBox, QApplication
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -67,6 +72,14 @@ class ConcentrationResponseDialog(QDialog):
         
         # Apply global plot style first
         apply_plot_style()
+
+        # Enable maximize button in addition to close/minimize
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowMaximizeButtonHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
         
         # Data storage
         self.filepath: Optional[str] = None
@@ -74,6 +87,9 @@ class ConcentrationResponseDialog(QDialog):
         self.data_df = None
         self.time_col: Optional[str] = None
         self.data_cols = []
+        
+        # Results storage
+        self.results_dfs: Dict[str, pd.DataFrame] = {}
         
         # Services
         self.file_dialog_service = FileDialogService()
@@ -391,8 +407,14 @@ class ConcentrationResponseDialog(QDialog):
             ylabel=ylabel
         )
         
-        # Add prominent zero axis lines (like other plots)
-        add_zero_axis_lines(self.ax)
+        # Put x axis at y=0 if zero is in range
+        ymin, ymax = self.ax.get_ylim()
+        if ymin < 0 < ymax:
+            self.ax.spines['bottom'].set_position(('data', 0))
+        else:
+            # Keep axis at bottom if zero isn't in range
+            self.ax.spines['bottom'].set_position(('axes', 0))
+            add_zero_axis_lines(self.ax)
         
         # Add legend if multiple traces
         if len(self.data_cols) > 1:
@@ -478,23 +500,292 @@ class ConcentrationResponseDialog(QDialog):
                 break
     
     # ========================================================================
-    # Analysis and Export (Placeholder for future implementation)
+    # Phase 8: Analysis Execution
     # ========================================================================
     
     def _run_analysis(self):
         """Run concentration-response analysis on loaded data."""
-        # TODO: Implement in next phase
-        QMessageBox.information(
-            self,
-            "Coming Soon",
-            "Analysis functionality will be implemented in the next phase."
+        # Validation checks
+        if self.data_df is None:
+            QMessageBox.warning(
+                self,
+                "No File",
+                "Please load a CSV file before running analysis."
+            )
+            return
+        
+        if self.range_table.table.rowCount() == 0:
+            QMessageBox.warning(
+                self,
+                "No Ranges",
+                "Please define at least one analysis range."
+            )
+            return
+        
+        try:
+            # Get ranges from table
+            ranges = self.range_table.get_all_ranges()
+            
+            # Apply auto-pairing
+            ranges, was_auto_paired = self.service.apply_auto_pairing(ranges)
+            
+            # Show auto-pairing notification
+            if was_auto_paired:
+                bg_ranges = [r for r in ranges if r.is_background]
+                if bg_ranges:
+                    single_bg_name = bg_ranges[0].name
+                    self.status_label.setText(
+                        f"Auto-paired all ranges to '{single_bg_name}' background"
+                    )
+                    style_label(self.status_label, "info")
+            
+            # Run analysis with wait cursor
+            self.results_dfs.clear()
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            
+            try:
+                self.results_dfs = self.service.run_analysis(
+                    df=self.data_df,
+                    time_col=self.time_col,
+                    data_cols=self.data_cols,
+                    ranges=ranges,
+                    filename=self.filename
+                )
+            finally:
+                QApplication.restoreOverrideCursor()
+            
+            # Display results
+            if self.results_dfs:
+                self._display_results()
+                self.export_btn.setEnabled(True)
+                
+                # Update status if not showing auto-pairing message
+                if not was_auto_paired:
+                    total_results = sum(len(df) for df in self.results_dfs.values())
+                    self.status_label.setText(
+                        f"Analysis complete: {total_results} results across "
+                        f"{len(self.results_dfs)} trace(s)"
+                    )
+                    style_label(self.status_label, "success")
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Results",
+                    "No results were generated."
+                )
+                self.export_btn.setEnabled(False)
+                self.status_label.setText("Analysis produced no results")
+                style_label(self.status_label, "warning")
+        
+        except ValueError as e:
+            logger.error(f"Validation error during analysis: {e}")
+            QMessageBox.critical(
+                self,
+                "Validation Error",
+                f"Invalid range configuration:\n\n{str(e)}"
+            )
+            self.status_label.setText("Analysis failed: validation error")
+            style_label(self.status_label, "error")
+        
+        except Exception as e:
+            logger.error(f"Unexpected error during analysis: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "Analysis Error",
+                f"An unexpected error occurred:\n\n{str(e)}"
+            )
+            self.status_label.setText("Analysis failed: unexpected error")
+            style_label(self.status_label, "error")
+    
+    def _display_results(self):
+        """Display analysis results in the results table with color coding."""
+        self.results_table.setRowCount(0)
+        
+        if not self.results_dfs:
+            return
+        
+        # Populate table from all result DataFrames
+        for trace_name, df in self.results_dfs.items():
+            for idx, row_data in df.iterrows():
+                row_pos = self.results_table.rowCount()
+                self.results_table.insertRow(row_pos)
+                
+                # Add each column
+                for col_idx, col_name in enumerate([
+                    'File', 'Data Trace', 'Range', 'Raw Value', 'Background', 'Corrected Value'
+                ]):
+                    value = row_data[col_name]
+                    
+                    # Format value
+                    if isinstance(value, float) and not np.isnan(value):
+                        text = f"{value:.4f}"
+                    elif pd.isna(value):
+                        text = "N/A"
+                    else:
+                        text = str(value)
+                    
+                    # Create item
+                    item = QTableWidgetItem(text)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    
+                    # Color coding for Corrected Value column (legacy behavior)
+                    if col_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
+                        if value >= 0:
+                            item.setBackground(QColor(220, 255, 220))  # Light green
+                        else:
+                            item.setBackground(QColor(255, 220, 220))  # Light red
+                    
+                    self.results_table.setItem(row_pos, col_idx, item)
+        
+        logger.info(
+            f"Displayed {self.results_table.rowCount()} result rows in table"
         )
     
+    # ========================================================================
+    # Phase 9: Export Functionality
+    # ========================================================================
+    
     def _export_results(self):
-        """Export analysis results to CSV."""
-        # TODO: Implement in next phase
-        QMessageBox.information(
-            self,
-            "Coming Soon",
-            "Export functionality will be implemented in the next phase."
-        )
+        """Export analysis results to CSV files."""
+        if not self.results_dfs or not self.filepath:
+            QMessageBox.warning(
+                self,
+                "No Data to Export",
+                "Please load a file and run analysis before exporting."
+            )
+            return
+        
+        # Get export directory (same as source file)
+        directory = os.path.dirname(self.filepath)
+        base_filename = os.path.splitext(self.filename)[0]
+        
+        exported_files = []
+        
+        try:
+            for trace_name, df in self.results_dfs.items():
+                # Sanitize trace name for filename (legacy logic)
+                safe_trace_name = self._sanitize_trace_name(trace_name)
+                
+                output_filename = f"{base_filename}_{safe_trace_name}.csv"
+                output_path = os.path.join(directory, output_filename)
+                
+                # Handle file conflicts (legacy 3-button dialog)
+                if os.path.exists(output_path):
+                    msg_box = QMessageBox(self)
+                    msg_box.setIcon(QMessageBox.Icon.Question)
+                    msg_box.setWindowTitle("File Exists")
+                    msg_box.setText(f"The file '{output_filename}' already exists.")
+                    msg_box.setInformativeText("What would you like to do?")
+                    
+                    overwrite_btn = msg_box.addButton("Overwrite", QMessageBox.ButtonRole.AcceptRole)
+                    rename_btn = msg_box.addButton("Save with New Name", QMessageBox.ButtonRole.ActionRole)
+                    cancel_btn = msg_box.addButton("Cancel Export", QMessageBox.ButtonRole.RejectRole)
+                    
+                    msg_box.setDefaultButton(rename_btn)
+                    msg_box.exec()
+                    
+                    clicked_button = msg_box.clickedButton()
+                    
+                    if clicked_button == overwrite_btn:
+                        # Proceed with current path
+                        pass
+                    elif clicked_button == rename_btn:
+                        # Find next available filename
+                        output_path = self._get_next_available_filename(output_path)
+                        output_filename = os.path.basename(output_path)
+                    else:  # Cancel
+                        self.status_label.setText("Export cancelled by user.")
+                        style_label(self.status_label, "muted")
+                        QMessageBox.information(
+                            self,
+                            "Export Cancelled",
+                            "The export operation was cancelled."
+                        )
+                        return
+                
+                # Pivot data for export
+                export_df = self.service.pivot_for_export(df)
+                
+                # Save to CSV (legacy format with quoting)
+                export_df.to_csv(
+                    output_path,
+                    index=False,
+                    float_format='%.4f',
+                    encoding='utf-8',
+                    quoting=csv.QUOTE_NONNUMERIC
+                )
+                
+                exported_files.append(output_filename)
+                logger.info(f"Exported: {output_filename}")
+            
+            # Show success message
+            if exported_files:
+                QMessageBox.information(
+                    self,
+                    "Export Successful",
+                    f"{len(exported_files)} file(s) saved to:\n{directory}\n\n"
+                    f"Files:\n- " + "\n- ".join(exported_files)
+                )
+                self.status_label.setText(
+                    f"Results exported to {os.path.basename(directory)}"
+                )
+                style_label(self.status_label, "success")
+        
+        except Exception as e:
+            logger.error(f"Export error: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"An unexpected error occurred during export:\n\n{str(e)}"
+            )
+            self.status_label.setText("Export failed")
+            style_label(self.status_label, "error")
+    
+    def _sanitize_trace_name(self, trace_name: str) -> str:
+        """
+        Sanitize trace name for use in filename (legacy logic).
+        
+        Args:
+            trace_name: Raw trace name from CSV
+            
+        Returns:
+            Sanitized filename-safe string
+        """
+        # Legacy replacer function for parentheses content
+        def replacer(match):
+            content = match.group(1)
+            if '+' in content or '-' in content:
+                return '_' + content
+            return ''
+        
+        # Remove or transform parentheses content
+        name_after_parens = re.sub(r'\s*\((.*?)\)', replacer, trace_name).strip()
+        
+        # Replace non-word characters (except + and -)
+        safe_trace_name = re.sub(r'[^\w+-]', '_', name_after_parens)
+        
+        # Remove double underscores
+        safe_trace_name = safe_trace_name.replace('__', '_')
+        
+        return safe_trace_name
+    
+    def _get_next_available_filename(self, path: str) -> str:
+        """
+        Find next available filename by appending _1, _2, etc.
+        
+        Args:
+            path: Initial file path
+            
+        Returns:
+            Available file path that doesn't exist
+        """
+        if not os.path.exists(path):
+            return path
+        
+        base, ext = os.path.splitext(path)
+        i = 1
+        while True:
+            new_path = f"{base}_{i}{ext}"
+            if not os.path.exists(new_path):
+                return new_path
+            i += 1
