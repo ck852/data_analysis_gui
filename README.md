@@ -38,7 +38,7 @@ If you don't have Python installed:
 - OR: Right-click in any folder while holding Shift, select "Open PowerShell window here"
 
 **Mac:**
-- Press `Cmd + Space`, type "Terminal", press Enter
+- Press `Cmd + Space`, type `Terminal`, press Enter
 - OR: Finder → Applications → Utilities → Terminal
 
 **Linux:**
@@ -52,11 +52,11 @@ pip install patchbatch
 patchbatch
 ```
 
-If python is not a recognized command, try replacing it with `python3`.
-
 If pip isn't recognized, instead try
 
 `python -m pip install patchbatch`
+
+If python is not a recognized command, try replacing it with `python3`.
 
 If you install from PyPI, you will always start the program by opening a terminal in the same directory where you installed it and simply enter `patchbatch`. 
 
@@ -141,17 +141,17 @@ This enables the user to quickly plot both analysis ranges against the sweep tim
 
 You can define a region from any current trace as the background region. The average current in this region will be calculated and subtracted from all current measurements in the sweep. This process repeats for all sweeps in the file.
 
-<img src="images/bg_sub_dialog.png" alt="bg_sub" width="550"/>
+<img src="images/bg_sub_dialog.PNG" alt="bg_sub" width="550"/>
 
 ### Ramp IV **BETA**
 
 If your data uses ramp voltage protocols to measure IV relationships, you can use the "Ramp IV" option in the "Analysis" menu. First, set the cursors around the ramp.
 
-<img src="images/ramp_iv_setup.png" alt="ramp_iv_setup"/>
+<img src="images/ramp_iv_setup.PNG" alt="ramp_iv_setup"/>
 
 Then you can define the voltage range you are analyzing. The script will find the closest measured voltages within your analysis range and extract the current measurements at those time points. It will do this for all sweeps or a selection of sweeps. **This has not been quantitatively tested yet and I highly advise validating against a known data set first.**
 
-<img src="images/ramp_analysis.png" alt="ramp_analysis"/>
+<img src="images/ramp_analysis.PNG" alt="ramp_analysis"/>
 
 Better screenshot pending
 
