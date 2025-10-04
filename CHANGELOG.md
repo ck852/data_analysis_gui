@@ -3,6 +3,8 @@ All notable changes to this project will be documented in this file.
 This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.1-b.3]
+### Added
+- Dose-response analysis
 
 ### Changed
 - Fixed file order in batch analyses with multiple dates (requires xxxxxx_xxx file name format)

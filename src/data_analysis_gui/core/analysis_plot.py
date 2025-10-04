@@ -117,8 +117,20 @@ class AnalysisPlotter:
         figure = Figure(figsize=figsize, facecolor="#FAFAFA")
         ax = figure.add_subplot(111)
 
+        # Extract voltage-annotated labels from plot_data for legend
+        y_label_r1 = plot_data.y_label_r1  # ADDED
+        y_label_r2 = plot_data.y_label_r2  # ADDED
+
         # Configure plot with modern styling
-        AnalysisPlotter._configure_plot(ax, plot_data, x_label, y_label, title)
+        AnalysisPlotter._configure_plot(
+            ax, 
+            plot_data, 
+            x_label, 
+            y_label, 
+            title,
+            y_label_r1=y_label_r1,  # ADDED
+            y_label_r2=y_label_r2   # ADDED
+        )
 
         # Apply analysis-specific formatting
         format_analysis_plot(ax, x_label, y_label, title)
@@ -130,7 +142,13 @@ class AnalysisPlotter:
 
     @staticmethod
     def _configure_plot(
-        ax: Axes, plot_data: AnalysisPlotData, x_label: str, y_label: str, title: str
+        ax: Axes, 
+        plot_data: AnalysisPlotData, 
+        x_label: str, 
+        y_label: str, 
+        title: str,
+        y_label_r1: Optional[str] = None,  # NEW
+        y_label_r2: Optional[str] = None   # NEW
     ) -> None:
         """
         Configure the matplotlib Axes object with analysis plot data and modern styling.
@@ -141,6 +159,8 @@ class AnalysisPlotter:
             x_label (str): Label for the X-axis.
             y_label (str): Label for the Y-axis.
             title (str): Title of the plot.
+            y_label_r1 (Optional[str]): Label for Range 1 legend (with voltage annotation).
+            y_label_r2 (Optional[str]): Label for Range 2 legend (with voltage annotation).
         """
         x_data = plot_data.x_data
         y_data = plot_data.y_data
@@ -150,6 +170,9 @@ class AnalysisPlotter:
         line_styles = get_line_styles()
 
         if len(x_data) > 0 and len(y_data) > 0:
+            # Use voltage-annotated label if provided, otherwise fallback
+            range1_label = y_label_r1 or "Range 1"  # CHANGED
+            
             # Create plot with modern styling for Range 1
             primary_style = line_styles["primary"]
             line1 = ax.plot(
@@ -161,13 +184,16 @@ class AnalysisPlotter:
                 linewidth=primary_style["linewidth"],
                 color=primary_style["color"],
                 alpha=primary_style["alpha"],
-                label="Range 1",
+                label=range1_label,  # CHANGED
             )[0]
 
         # Plot Range 2 if available with contrasting style
         if plot_data.use_dual_range and plot_data.y_data2 is not None:
             y_data2 = plot_data.y_data2
             if len(x_data) > 0 and len(y_data2) > 0:
+                # Use voltage-annotated label if provided, otherwise fallback
+                range2_label = y_label_r2 or "Range 2"  # CHANGED
+                
                 secondary_style = line_styles["secondary"]
                 line2 = ax.plot(
                     x_data,
@@ -179,7 +205,7 @@ class AnalysisPlotter:
                     linestyle=secondary_style.get("linestyle", "-"),
                     color=secondary_style["color"],
                     alpha=secondary_style["alpha"],
-                    label="Range 2",
+                    label=range2_label,  # CHANGED
                 )[0]
 
         # Modern legend styling if dual range
