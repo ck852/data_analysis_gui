@@ -13,16 +13,7 @@ file list widget that maintains selection state across windows.
 from typing import Dict, List, Set, Optional, Tuple, Callable
 import numpy as np
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QCheckBox,
-    QHeaderView,
-    QLabel,
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView, QLabel
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap, QPainter, QBrush
 
@@ -33,11 +24,8 @@ from matplotlib.lines import Line2D
 from data_analysis_gui.core.models import FileAnalysisResult
 from data_analysis_gui.config.logging import get_logger
 
-from data_analysis_gui.config.plot_style import (
-    apply_plot_style,
-    format_batch_plot,
-    COLOR_CYCLE,
-)
+from data_analysis_gui.config.plot_style import apply_plot_style, format_batch_plot, COLOR_CYCLE
+
 from data_analysis_gui.widgets.custom_toolbar import MinimalNavigationToolbar
 
 logger = get_logger(__name__)
