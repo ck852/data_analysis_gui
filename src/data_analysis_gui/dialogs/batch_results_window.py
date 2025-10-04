@@ -203,13 +203,19 @@ class BatchResultsWindow(QMainWindow):
         """
 
         def extract_number(file_name):
-            match = re.search(r"_(\d+)", file_name)
+            # Try to extract numbers on both sides of underscore (e.g., "250923_001")
+            # Returns tuple (date, experiment_num) for proper hierarchical sorting
+            match = re.search(r"(\d+)_(\d+)", file_name)
             if match:
-                return int(match.group(1))
+                return (int(match.group(1)), int(match.group(2)))
+            
+            # Fallback: extract all numbers and return as tuple for multi-level sorting
             numbers = re.findall(r"\d+", file_name)
             if numbers:
-                return int(numbers[-1])
-            return 0
+                return tuple(int(n) for n in numbers)
+            
+            # No numbers found
+            return (0,)
 
         return sorted(results, key=lambda r: extract_number(r.base_name))
 

@@ -208,21 +208,32 @@ class CurrentDensityDialog(QDialog):
             status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row, 2, status_item)
 
-    def _extract_number(self, filename: str) -> int:
+    def _extract_number(self, filename: str) -> tuple:
         """
-        Extract a numeric identifier from the filename for sorting.
+        Extract numeric identifiers from the filename for sorting.
+        
+        Handles formats like 'date_exp' (e.g., 250923_001) by sorting first by date,
+        then by experiment number within each date.
 
         Args:
             filename (str): File name string.
 
         Returns:
-            int: Extracted number or 0 if not found.
+            tuple: Tuple of numbers for hierarchical sorting, or (0,) if no numbers found.
         """
-        match = re.search(r"_(\d+)", filename)
+        # Try to extract numbers on both sides of underscore (e.g., "250923_001")
+        # Returns tuple (date, experiment_num) for proper hierarchical sorting
+        match = re.search(r"(\d+)_(\d+)", filename)
         if match:
-            return int(match.group(1))
+            return (int(match.group(1)), int(match.group(2)))
+        
+        # Fallback: extract all numbers and return as tuple for multi-level sorting
         numbers = re.findall(r"\d+", filename)
-        return int(numbers[-1]) if numbers else 0
+        if numbers:
+            return tuple(int(n) for n in numbers)
+        
+        # No numbers found
+        return (0,)
 
     def _update_status(self, row: int):
         """
