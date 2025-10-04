@@ -25,17 +25,8 @@ Features:
 
 from pathlib import Path
 import re
-from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QMessageBox,
-    QLabel,
-    QSplitter,
-    QApplication,
-    QGroupBox,
-)
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QSplitter,
+                             QApplication, QGroupBox)
 from PySide6.QtCore import Qt
 
 from data_analysis_gui.gui_services import FileDialogService

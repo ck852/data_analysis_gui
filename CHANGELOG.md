@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - Fixed file order in batch analyses with multiple dates (requires xxxxxx_xxx file name format)
 - Added x=0 and y=0 gridlines
+- Centralized cursor-spinbox coupling widget
 
 ## [0.9.1-beta.2] - 2025-10-03
 ### Added

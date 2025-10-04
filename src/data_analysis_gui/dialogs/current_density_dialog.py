@@ -11,32 +11,15 @@ from typing import Dict
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QDoubleValidator
-from PySide6.QtWidgets import (
-    QApplication,
-    QDialog,
-    QDialogButtonBox,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-)
+from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView,
+                            QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
+                                )
 
 from data_analysis_gui.config.logging import get_logger
 
 # Updated imports for refactored themes.py
-from data_analysis_gui.config.themes import (
-    MODERN_COLORS,
-    apply_compact_layout,
-    style_button,
-    apply_modern_theme,
-    style_input_field,
-    style_table_widget,
-)
+from data_analysis_gui.config.themes import (MODERN_COLORS, apply_compact_layout, style_button, apply_modern_theme, style_input_field,
+                                             style_table_widget)
 from data_analysis_gui.core.models import BatchAnalysisResult
 
 logger = get_logger(__name__)

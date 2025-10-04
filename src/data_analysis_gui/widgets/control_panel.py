@@ -12,16 +12,7 @@ Provides themed UI elements for analysis ranges, dual range selection, stimulus 
 Validation is performed on input fields, with visual feedback for invalid states.
 """
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QScrollArea,
-    QGroupBox,
-    QLabel,
-    QPushButton,
-    QCheckBox,
-    QGridLayout,
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QGroupBox, QLabel, QPushButton, QCheckBox, QGridLayout
 from PySide6.QtCore import Signal
 
 # Import custom widgets that handle scrolling properly
@@ -29,18 +20,8 @@ from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox, NoScrollCo
 from data_analysis_gui.config import DEFAULT_SETTINGS
 from data_analysis_gui.core.params import AnalysisParameters
 
-from data_analysis_gui.config.themes import (
-    style_button,
-    style_scroll_area,
-    style_group_box,
-    style_label,
-    style_checkbox,
-    apply_compact_layout,
-    style_spinbox_with_arrows,
-    style_combo_simple,
-    MODERN_COLORS,
-    WIDGET_SIZES,
-)
+from data_analysis_gui.config.themes import (style_button, style_scroll_area, style_group_box, style_label, style_checkbox, apply_compact_layout, 
+                                             style_spinbox_with_arrows, style_combo_simple, MODERN_COLORS, WIDGET_SIZES)
 
 
 class ControlPanel(QWidget):
