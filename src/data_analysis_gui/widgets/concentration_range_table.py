@@ -14,7 +14,7 @@ are added, removed, or modified for synchronization with plot cursors.
 from typing import List, Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QHeaderView, QCheckBox, QApplication
+    QHeaderView, QCheckBox, QApplication, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QColor
@@ -116,6 +116,11 @@ class ConcentrationRangeTable(QWidget):
         add_bg_range_btn.clicked.connect(lambda: self.add_range_row(is_background=True))
         add_bg_range_btn.setFixedHeight(22)
         style_button(add_bg_range_btn, "secondary")
+
+        add_paired_bg_btn = QPushButton("Add Paired Background Range")
+        add_paired_bg_btn.clicked.connect(self.add_paired_background_range)
+        add_paired_bg_btn.setFixedHeight(22)
+        style_button(add_paired_bg_btn, "secondary")
         
         self.mu_button = QPushButton("Insert μ")
         self.mu_button.setFixedSize(60, 22)
@@ -124,6 +129,7 @@ class ConcentrationRangeTable(QWidget):
         
         bottom_layout.addWidget(add_range_btn)
         bottom_layout.addWidget(add_bg_range_btn)
+        bottom_layout.addWidget(add_paired_bg_btn)
         bottom_layout.addStretch()
         bottom_layout.addWidget(self.mu_button)
         
@@ -297,6 +303,35 @@ class ConcentrationRangeTable(QWidget):
         self.range_added.emit(range_id, new_start_time, new_end_time, is_background)
         
         logger.debug(f"Added range row: {default_name} ({new_start_time}-{new_end_time})")
+
+    def add_paired_background_range(self):
+        """Add a background range automatically paired to the most recent analysis range."""
+        # Find last non-background range
+        target_row = None
+        for row in range(self.table.rowCount() - 1, -1, -1):
+            bg_widget = self.table.cellWidget(row, 5)
+            if bg_widget and not bg_widget.findChild(QCheckBox).isChecked():
+                target_row = row
+                break
+        
+        if target_row is None:
+            QMessageBox.warning(
+                self, 
+                "No Range to Pair", 
+                "Add an analysis range first."
+            )
+            return
+        
+        # Add background range normally
+        self.add_range_row(is_background=True)
+        
+        # Get the new background's name
+        new_bg_row = self.table.rowCount() - 1
+        bg_name = self.table.cellWidget(new_bg_row, 1).text()
+        
+        # Set the target range's paired dropdown to this background
+        paired_combo = self.table.cellWidget(target_row, 6)
+        paired_combo.setCurrentText(bg_name)
 
     def get_all_ranges(self) -> List[ConcentrationRange]:
             """
