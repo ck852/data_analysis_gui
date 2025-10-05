@@ -371,7 +371,7 @@ class ConcentrationResponseService:
     @staticmethod
     def pivot_for_export(results_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Pivot results DataFrame to export format (ranges as columns).
+        Pivot results DataFrame to export format (ranges as rows).
         
         Args:
             results_df: Results DataFrame with columns:
@@ -379,8 +379,9 @@ class ConcentrationResponseService:
                 
         Returns:
             Pivoted DataFrame with:
-                - Empty first column
-                - One column per range containing corrected values
+                - First column containing range names
+                - Second column containing corrected values
+                - Empty column headers
         
         Example:
             Input:
@@ -389,28 +390,22 @@ class ConcentrationResponseService:
                 | Range 1 | -50.2           |
                 | Range 2 | -75.8           |
             
-            Output:
-                |   | Range 1 | Range 2 |
-                |---|---------|---------|
-                |   | -50.2   | -75.8   |
+            Output CSV:
+                ,
+                Range 1,-50.2
+                Range 2,-75.8
         """
         if results_df.empty:
             logger.warning("Attempting to pivot empty results DataFrame")
             return pd.DataFrame()
         
-        # Create pivot: {Range: Corrected Value}
-        export_data = {
-            row["Range"]: row["Corrected Value"]
-            for _, row in results_df.iterrows()
-        }
+        # Extract range names and corrected values
+        export_df = pd.DataFrame({
+            "": results_df["Range"].tolist(),
+            " ": results_df["Corrected Value"].tolist()
+        })
         
-        # Create single-row DataFrame
-        export_df = pd.DataFrame([export_data])
-        
-        # Insert empty first column (legacy format compatibility)
-        export_df.insert(0, "", "")
-        
-        logger.debug(f"Pivoted results: {len(export_data)} columns")
+        logger.debug(f"Pivoted results: {len(results_df)} rows")
         
         return export_df
     

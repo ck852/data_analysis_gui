@@ -258,7 +258,7 @@ class ConcentrationResponseDialog(QDialog):
         style_button(self.run_analysis_btn, "primary")
         btn_layout.addWidget(self.run_analysis_btn)
         
-        self.export_btn = QPushButton("💾 Export CSV(s)")
+        self.export_btn = QPushButton("Export CSV(s)")
         self.export_btn.setEnabled(False)
         self.export_btn.setFixedHeight(24)
         style_button(self.export_btn, "secondary")
