@@ -22,7 +22,7 @@ from typing import Optional, Dict
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QPushButton, QSplitter, QGroupBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QApplication
+    QTableWidgetItem, QHeaderView, QMessageBox, QApplication, QCheckBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -103,12 +103,15 @@ class ConcentrationResponseDialog(QDialog):
         self._range_creation_mode = False
         self._range_creation_start = None
         self._range_creation_is_background = False
+        self._range_creation_target_row = None
+        self._range_creation_active_button = None
         self._original_cursor = None
         self._temp_start_line = None
         
         # Button references (will be set in _setup_range_creation_buttons)
         self.add_range_btn = None
         self.add_bg_range_btn = None
+        self.add_paired_bg_btn = None
         
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Concentration-Response Analysis")
@@ -354,9 +357,24 @@ class ConcentrationResponseDialog(QDialog):
         self.add_range_btn = self.range_table.add_range_btn
         self.add_bg_range_btn = self.range_table.add_bg_range_btn
         
+        # NEW: Get paired background button reference
+        # Find it in the table's bottom layout
+        for i in range(self.range_table.layout().count()):
+            item = self.range_table.layout().itemAt(i)
+            if item and item.layout():
+                for j in range(item.layout().count()):
+                    widget_item = item.layout().itemAt(j)
+                    if widget_item and widget_item.widget():
+                        widget = widget_item.widget()
+                        if isinstance(widget, QPushButton) and widget.text() == "Add Paired Background Range":
+                            self.add_paired_bg_btn = widget
+                            break
+        
         # Disconnect default handlers
         self.add_range_btn.clicked.disconnect()
         self.add_bg_range_btn.clicked.disconnect()
+        if self.add_paired_bg_btn:  # NEW
+            self.add_paired_bg_btn.clicked.disconnect()
         
         # Connect to toggle mode handlers
         self.add_range_btn.clicked.connect(
@@ -365,29 +383,79 @@ class ConcentrationResponseDialog(QDialog):
         self.add_bg_range_btn.clicked.connect(
             lambda: self._toggle_range_creation_mode(is_background=True)
         )
+        if self.add_paired_bg_btn:  # NEW
+            self.add_paired_bg_btn.clicked.connect(
+                self._toggle_paired_background_creation_mode
+            )
+
+    def _toggle_paired_background_creation_mode(self):
+        """
+        Toggle paired background range creation mode.
+        """
+        if self._range_creation_mode and self._range_creation_active_button == self.add_paired_bg_btn:
+            # This button started the mode, so cancel it
+            self._cancel_range_creation_mode()
+            return
+        
+        if self._range_creation_mode:
+            # Some other button is active, do nothing
+            return
+        
+        # Find last non-background range to pair to
+        target_row = None
+        for row in range(self.range_table.table.rowCount() - 1, -1, -1):
+            bg_widget = self.range_table.table.cellWidget(row, 5)
+            if bg_widget and not bg_widget.findChild(QCheckBox).isChecked():
+                target_row = row
+                break
+        
+        if target_row is None:
+            QMessageBox.warning(
+                self,
+                "No Range to Pair",
+                "Add an analysis range first before creating a paired background range."
+            )
+            return
+        
+        # Store target row and enter background creation mode
+        self._range_creation_target_row = target_row
+        self._range_creation_active_button = self.add_paired_bg_btn
+        self._start_range_creation_mode(is_background=True, active_button=self.add_paired_bg_btn)
+        
+        # Update status to indicate pairing (this overrides the generic status from _start_range_creation_mode)
+        self.status_label.setText(
+            "Click on plot for PAIRED Background Range START position (or click button to cancel)"
+        )
+        style_label(self.status_label, "info")
+        
+        logger.info(f"Entered paired background creation mode for row {target_row}")
 
 
     def _toggle_range_creation_mode(self, is_background: bool):
         """
-        Toggle range creation mode or cancel if already active.
+        Toggle range creation mode or cancel if this button started the mode.
         
         Args:
             is_background: Whether creating a background range
         """
-        if self._range_creation_mode:
-            # Cancel current mode
+        button = self.add_bg_range_btn if is_background else self.add_range_btn
+        
+        if self._range_creation_mode and self._range_creation_active_button == button:
+            # This button started the mode, so cancel it
             self._cancel_range_creation_mode()
-        else:
+        elif not self._range_creation_mode:
             # Start new mode
-            self._start_range_creation_mode(is_background)
+            self._range_creation_active_button = button
+            self._start_range_creation_mode(is_background, button)  # Pass button
 
 
-    def _start_range_creation_mode(self, is_background: bool):
+    def _start_range_creation_mode(self, is_background: bool, active_button: QPushButton):
         """
         Enter range creation mode - click on plot to define start/end.
         
         Args:
             is_background: Whether creating a background range
+            active_button: The button that initiated this mode (for cancel display)
         """
         self._range_creation_mode = True
         self._range_creation_is_background = is_background
@@ -431,25 +499,24 @@ class ConcentrationResponseDialog(QDialog):
         )
         style_label(self.status_label, "info")
         
-        # Update button appearance to show cancellation option
-        btn = self.add_bg_range_btn if is_background else self.add_range_btn
-        btn.setText("✖ Cancel")
-        style_button(btn, "warning")
+        # Update ONLY the active button appearance to show cancellation option
+        active_button.setText("✖ Cancel")
+        style_button(active_button, "warning")
         
         logger.info(f"Entered range creation mode (background={is_background})")
-
 
     def _cancel_range_creation_mode(self):
         """Cancel range creation mode and restore normal state."""
         self._range_creation_mode = False
         self._range_creation_start = None
+        self._range_creation_target_row = None
+        self._range_creation_active_button = None  # NEW: Reset active button
         
         # Restore cursor
         if self._original_cursor:
             self.canvas.setCursor(self._original_cursor)
             self._original_cursor = None
         else:
-            # Fallback to arrow cursor
             from PySide6.QtCore import Qt
             self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
         
@@ -477,6 +544,10 @@ class ConcentrationResponseDialog(QDialog):
         self.add_bg_range_btn.setText("Add Background Range")
         style_button(self.add_bg_range_btn, "secondary")
 
+        if self.add_paired_bg_btn:
+            self.add_paired_bg_btn.setText("Add Paired Background Range")
+            style_button(self.add_paired_bg_btn, "secondary")
+
 
     def _handle_plot_click(self, event):
         """
@@ -494,7 +565,9 @@ class ConcentrationResponseDialog(QDialog):
             self._range_creation_start = event.xdata
             
             # Update status with first position
-            range_type = "Background Range" if self._range_creation_is_background else "Range"
+            range_type = "Paired Background Range" if self._range_creation_target_row is not None else (
+                "Background Range" if self._range_creation_is_background else "Range"
+            )
             self.status_label.setText(
                 f"{range_type} START: {event.xdata:.2f}s - Click for END position"
             )
@@ -534,8 +607,24 @@ class ConcentrationResponseDialog(QDialog):
                 is_background=self._range_creation_is_background
             )
             
+            # NEW: If this was a paired background creation, set up the pairing
+            if self._range_creation_target_row is not None:
+                # Get the newly created background range's name (last row)
+                new_bg_row = self.range_table.table.rowCount() - 1
+                bg_name_widget = self.range_table.table.cellWidget(new_bg_row, 1)
+                if bg_name_widget:
+                    bg_name = bg_name_widget.text()
+                    
+                    # Set the target range's paired dropdown to this background
+                    paired_combo = self.range_table.table.cellWidget(self._range_creation_target_row, 6)
+                    if paired_combo:
+                        paired_combo.setCurrentText(bg_name)
+                        logger.info(f"Auto-paired background '{bg_name}' to row {self._range_creation_target_row}")
+            
             # Update status
-            range_type = "Background" if self._range_creation_is_background else "Analysis"
+            range_type = "Paired Background" if self._range_creation_target_row is not None else (
+                "Background" if self._range_creation_is_background else "Analysis"
+            )
             self.status_label.setText(
                 f"{range_type} range created: {start:.2f}s - {end:.2f}s"
             )
