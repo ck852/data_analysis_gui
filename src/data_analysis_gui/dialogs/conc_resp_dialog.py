@@ -43,6 +43,8 @@ from data_analysis_gui.widgets.cursor_spinbox import ConcRespCursors
 from data_analysis_gui.widgets.custom_toolbar import MinimalNavigationToolbar
 from data_analysis_gui.services.conc_resp_service import ConcentrationResponseService
 from data_analysis_gui.core.conc_resp_models import ConcentrationRange
+from data_analysis_gui.widgets.interactive_range_creator import InteractiveRangeCreator
+from data_analysis_gui.services.conc_resp_exporter import ConcentrationResponseExporter
 
 from data_analysis_gui.config.logging import get_logger
 
@@ -99,20 +101,6 @@ class ConcentrationResponseDialog(QDialog):
         self.service = ConcentrationResponseService()
         self.plot_formatter = PlotFormatter()
         
-        # Range creation mode state
-        self._range_creation_mode = False
-        self._range_creation_start = None
-        self._range_creation_is_background = False
-        self._range_creation_target_row = None
-        self._range_creation_active_button = None
-        self._original_cursor = None
-        self._temp_start_line = None
-        
-        # Button references (will be set in _setup_range_creation_buttons)
-        self.add_range_btn = None
-        self.add_bg_range_btn = None
-        self.add_paired_bg_btn = None
-        
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Concentration-Response Analysis")
         self._setup_window_geometry()
@@ -120,15 +108,22 @@ class ConcentrationResponseDialog(QDialog):
         # Initialize UI
         self._init_ui()
         
-        # Setup range creation button behavior
-        self._setup_range_creation_buttons()
-        
-        # Connect signals (including matplotlib events)
-        self._connect_signals()
-        
         # Initialize with one default range
         self.range_table.add_range_row(is_background=False)
         
+        self.range_creator = InteractiveRangeCreator(
+            canvas=self.canvas,
+            ax=self.ax,
+            range_table=self.range_table,
+            status_label=self.status_label
+        )
+
+        # Connect signals (including matplotlib events)
+        self._connect_signals()
+
+        # Setup button handlers
+        self.range_creator.setup_buttons()
+
         # Apply theme
         apply_modern_theme(self)
     
@@ -344,298 +339,6 @@ class ConcentrationResponseDialog(QDialog):
         # Analysis and export
         self.run_analysis_btn.clicked.connect(self._run_analysis)
         self.export_btn.clicked.connect(self._export_results)
-        
-        # Matplotlib canvas click events for range creation
-        self.canvas.mpl_connect('button_press_event', self._handle_plot_click)
-
-    def _setup_range_creation_buttons(self):
-        """
-        Setup button references and connect range creation mode.
-        Call this in __init__ after _init_ui() and before _connect_signals().
-        """
-        # Get button references from the table widget
-        self.add_range_btn = self.range_table.add_range_btn
-        self.add_bg_range_btn = self.range_table.add_bg_range_btn
-        
-        # NEW: Get paired background button reference
-        # Find it in the table's bottom layout
-        for i in range(self.range_table.layout().count()):
-            item = self.range_table.layout().itemAt(i)
-            if item and item.layout():
-                for j in range(item.layout().count()):
-                    widget_item = item.layout().itemAt(j)
-                    if widget_item and widget_item.widget():
-                        widget = widget_item.widget()
-                        if isinstance(widget, QPushButton) and widget.text() == "Add Paired Background Range":
-                            self.add_paired_bg_btn = widget
-                            break
-        
-        # Disconnect default handlers
-        self.add_range_btn.clicked.disconnect()
-        self.add_bg_range_btn.clicked.disconnect()
-        if self.add_paired_bg_btn:  # NEW
-            self.add_paired_bg_btn.clicked.disconnect()
-        
-        # Connect to toggle mode handlers
-        self.add_range_btn.clicked.connect(
-            lambda: self._toggle_range_creation_mode(is_background=False)
-        )
-        self.add_bg_range_btn.clicked.connect(
-            lambda: self._toggle_range_creation_mode(is_background=True)
-        )
-        if self.add_paired_bg_btn:  # NEW
-            self.add_paired_bg_btn.clicked.connect(
-                self._toggle_paired_background_creation_mode
-            )
-
-    def _toggle_paired_background_creation_mode(self):
-        """
-        Toggle paired background range creation mode.
-        """
-        if self._range_creation_mode and self._range_creation_active_button == self.add_paired_bg_btn:
-            # This button started the mode, so cancel it
-            self._cancel_range_creation_mode()
-            return
-        
-        if self._range_creation_mode:
-            # Some other button is active, do nothing
-            return
-        
-        # Find last non-background range to pair to
-        target_row = None
-        for row in range(self.range_table.table.rowCount() - 1, -1, -1):
-            bg_widget = self.range_table.table.cellWidget(row, 5)
-            if bg_widget and not bg_widget.findChild(QCheckBox).isChecked():
-                target_row = row
-                break
-        
-        if target_row is None:
-            QMessageBox.warning(
-                self,
-                "No Range to Pair",
-                "Add an analysis range first before creating a paired background range."
-            )
-            return
-        
-        # Store target row and enter background creation mode
-        self._range_creation_target_row = target_row
-        self._range_creation_active_button = self.add_paired_bg_btn
-        self._start_range_creation_mode(is_background=True, active_button=self.add_paired_bg_btn)
-        
-        # Update status to indicate pairing (this overrides the generic status from _start_range_creation_mode)
-        self.status_label.setText(
-            "Click on plot for PAIRED Background Range START position (or click button to cancel)"
-        )
-        style_label(self.status_label, "info")
-        
-        logger.info(f"Entered paired background creation mode for row {target_row}")
-
-
-    def _toggle_range_creation_mode(self, is_background: bool):
-        """
-        Toggle range creation mode or cancel if this button started the mode.
-        
-        Args:
-            is_background: Whether creating a background range
-        """
-        button = self.add_bg_range_btn if is_background else self.add_range_btn
-        
-        if self._range_creation_mode and self._range_creation_active_button == button:
-            # This button started the mode, so cancel it
-            self._cancel_range_creation_mode()
-        elif not self._range_creation_mode:
-            # Start new mode
-            self._range_creation_active_button = button
-            self._start_range_creation_mode(is_background, button)  # Pass button
-
-
-    def _start_range_creation_mode(self, is_background: bool, active_button: QPushButton):
-        """
-        Enter range creation mode - click on plot to define start/end.
-        
-        Args:
-            is_background: Whether creating a background range
-            active_button: The button that initiated this mode (for cancel display)
-        """
-        self._range_creation_mode = True
-        self._range_creation_is_background = is_background
-        self._range_creation_start = None
-        
-        # Change cursor to green crosshair
-        from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor
-        from PySide6.QtCore import Qt
-        
-        # Create green crosshair cursor (same color as analysis cursors)
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setPen(QColor("#73AB84"))  # Sage green from plot_style.py
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Draw crosshair with thicker lines
-        pen = painter.pen()
-        pen.setWidth(2)
-        painter.setPen(pen)
-        
-        # Vertical line
-        painter.drawLine(16, 4, 16, 28)
-        # Horizontal line
-        painter.drawLine(4, 16, 28, 16)
-        
-        # Draw center dot
-        painter.setBrush(QColor("#73AB84"))
-        painter.drawEllipse(14, 14, 4, 4)
-        
-        painter.end()
-        
-        # Store original cursor and set new one
-        self._original_cursor = self.canvas.cursor()
-        self.canvas.setCursor(QCursor(pixmap, hotX=16, hotY=16))
-        
-        # Update UI feedback
-        range_type = "Background Range" if is_background else "Range"
-        self.status_label.setText(
-            f"Click on plot for {range_type} START position (or click button to cancel)"
-        )
-        style_label(self.status_label, "info")
-        
-        # Update ONLY the active button appearance to show cancellation option
-        active_button.setText("✖ Cancel")
-        style_button(active_button, "warning")
-        
-        logger.info(f"Entered range creation mode (background={is_background})")
-
-    def _cancel_range_creation_mode(self):
-        """Cancel range creation mode and restore normal state."""
-        self._range_creation_mode = False
-        self._range_creation_start = None
-        self._range_creation_target_row = None
-        self._range_creation_active_button = None  # NEW: Reset active button
-        
-        # Restore cursor
-        if self._original_cursor:
-            self.canvas.setCursor(self._original_cursor)
-            self._original_cursor = None
-        else:
-            from PySide6.QtCore import Qt
-            self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
-        
-        # Restore button text and styling
-        self._restore_add_range_buttons()
-        
-        # Update status
-        if self.data_df is not None:
-            self.status_label.setText(
-                f"{self.filename} ({len(self.data_df)} pts, {len(self.data_cols)} trace(s))"
-            )
-            style_label(self.status_label, "normal")
-        else:
-            self.status_label.setText("Load a CSV file to begin")
-            style_label(self.status_label, "muted")
-        
-        logger.info("Cancelled range creation mode")
-
-
-    def _restore_add_range_buttons(self):
-        """Restore add range buttons to normal appearance."""
-        self.add_range_btn.setText("Add Range")
-        style_button(self.add_range_btn, "secondary")
-        
-        self.add_bg_range_btn.setText("Add Background Range")
-        style_button(self.add_bg_range_btn, "secondary")
-
-        if self.add_paired_bg_btn:
-            self.add_paired_bg_btn.setText("Add Paired Background Range")
-            style_button(self.add_paired_bg_btn, "secondary")
-
-
-    def _handle_plot_click(self, event):
-        """
-        Handle matplotlib button press events for range creation.
-        
-        Args:
-            event: Matplotlib button press event
-        """
-        # Only handle left clicks in creation mode with valid x data
-        if not self._range_creation_mode or event.xdata is None or event.button != 1:
-            return
-        
-        if self._range_creation_start is None:
-            # First click - set start position
-            self._range_creation_start = event.xdata
-            
-            # Update status with first position
-            range_type = "Paired Background Range" if self._range_creation_target_row is not None else (
-                "Background Range" if self._range_creation_is_background else "Range"
-            )
-            self.status_label.setText(
-                f"{range_type} START: {event.xdata:.2f}s - Click for END position"
-            )
-            style_label(self.status_label, "info")
-            
-            # Draw temporary vertical line at start position for visual feedback
-            self._temp_start_line = self.ax.axvline(
-                event.xdata,
-                color="#73AB84",
-                linestyle=":",
-                linewidth=2,
-                alpha=0.5
-            )
-            self.canvas.draw_idle()
-            
-            logger.debug(f"Range start set to {event.xdata:.2f}s")
-        
-        else:
-            # Second click - set end position and create range
-            start = self._range_creation_start
-            end = event.xdata
-            
-            # Ensure start < end (swap if necessary)
-            if end < start:
-                start, end = end, start
-            
-            # Remove temporary line
-            if hasattr(self, '_temp_start_line') and self._temp_start_line:
-                self._temp_start_line.remove()
-                self._temp_start_line = None
-                self.canvas.draw_idle()
-            
-            # Create the range with specified times
-            self.range_table.add_range_row_with_times(
-                start_time=start,
-                end_time=end,
-                is_background=self._range_creation_is_background
-            )
-            
-            # NEW: If this was a paired background creation, set up the pairing
-            if self._range_creation_target_row is not None:
-                # Get the newly created background range's name (last row)
-                new_bg_row = self.range_table.table.rowCount() - 1
-                bg_name_widget = self.range_table.table.cellWidget(new_bg_row, 1)
-                if bg_name_widget:
-                    bg_name = bg_name_widget.text()
-                    
-                    # Set the target range's paired dropdown to this background
-                    paired_combo = self.range_table.table.cellWidget(self._range_creation_target_row, 6)
-                    if paired_combo:
-                        paired_combo.setCurrentText(bg_name)
-                        logger.info(f"Auto-paired background '{bg_name}' to row {self._range_creation_target_row}")
-            
-            # Update status
-            range_type = "Paired Background" if self._range_creation_target_row is not None else (
-                "Background" if self._range_creation_is_background else "Analysis"
-            )
-            self.status_label.setText(
-                f"{range_type} range created: {start:.2f}s - {end:.2f}s"
-            )
-            style_label(self.status_label, "success")
-            
-            logger.info(
-                f"Created {range_type.lower()} range: {start:.2f}s - {end:.2f}s"
-            )
-            
-            # Exit creation mode
-            self._cancel_range_creation_mode()
 
     # ========================================================================
     # File Loading
@@ -976,137 +679,17 @@ class ConcentrationResponseDialog(QDialog):
             )
             return
         
-        # Get export directory (same as source file)
-        directory = os.path.dirname(self.filepath)
-        base_filename = os.path.splitext(self.filename)[0]
+        # Use exporter service
+        success, message = ConcentrationResponseExporter.export_results(
+            results_dfs=self.results_dfs,
+            source_filepath=self.filepath,
+            parent_widget=self
+        )
         
-        exported_files = []
-        
-        try:
-            for trace_name, df in self.results_dfs.items():
-                # Sanitize trace name for filename (legacy logic)
-                safe_trace_name = self._sanitize_trace_name(trace_name)
-                
-                output_filename = f"{base_filename}_{safe_trace_name}.csv"
-                output_path = os.path.join(directory, output_filename)
-                
-                # Handle file conflicts (legacy 3-button dialog)
-                if os.path.exists(output_path):
-                    msg_box = QMessageBox(self)
-                    msg_box.setIcon(QMessageBox.Icon.Question)
-                    msg_box.setWindowTitle("File Exists")
-                    msg_box.setText(f"The file '{output_filename}' already exists.")
-                    msg_box.setInformativeText("What would you like to do?")
-                    
-                    overwrite_btn = msg_box.addButton("Overwrite", QMessageBox.ButtonRole.AcceptRole)
-                    rename_btn = msg_box.addButton("Save with New Name", QMessageBox.ButtonRole.ActionRole)
-                    cancel_btn = msg_box.addButton("Cancel Export", QMessageBox.ButtonRole.RejectRole)
-                    
-                    msg_box.setDefaultButton(rename_btn)
-                    msg_box.exec()
-                    
-                    clicked_button = msg_box.clickedButton()
-                    
-                    if clicked_button == overwrite_btn:
-                        # Proceed with current path
-                        pass
-                    elif clicked_button == rename_btn:
-                        # Find next available filename
-                        output_path = self._get_next_available_filename(output_path)
-                        output_filename = os.path.basename(output_path)
-                    else:  # Cancel
-                        self.status_label.setText("Export cancelled by user.")
-                        style_label(self.status_label, "muted")
-                        QMessageBox.information(
-                            self,
-                            "Export Cancelled",
-                            "The export operation was cancelled."
-                        )
-                        return
-                
-                # Pivot data for export
-                export_df = self.service.pivot_for_export(df)
-                
-                # Save to CSV (legacy format with quoting)
-                export_df.to_csv(
-                    output_path,
-                    index=False,
-                    float_format='%.4f',
-                    encoding='utf-8',
-                    quoting=csv.QUOTE_NONNUMERIC
-                )
-                
-                exported_files.append(output_filename)
-                logger.info(f"Exported: {output_filename}")
-            
-            # Show success message
-            if exported_files:
-                QMessageBox.information(
-                    self,
-                    "Export Successful",
-                    f"{len(exported_files)} file(s) saved to:\n{directory}\n\n"
-                    f"Files:\n- " + "\n- ".join(exported_files)
-                )
-                self.status_label.setText(
-                    f"Results exported to {os.path.basename(directory)}"
-                )
-                style_label(self.status_label, "success")
-        
-        except Exception as e:
-            logger.error(f"Export error: {e}", exc_info=True)
-            QMessageBox.critical(
-                self,
-                "Export Error",
-                f"An unexpected error occurred during export:\n\n{str(e)}"
-            )
-            self.status_label.setText("Export failed")
-            style_label(self.status_label, "error")
-    
-    def _sanitize_trace_name(self, trace_name: str) -> str:
-        """
-        Sanitize trace name for use in filename (legacy logic).
-        
-        Args:
-            trace_name: Raw trace name from CSV
-            
-        Returns:
-            Sanitized filename-safe string
-        """
-        # Legacy replacer function for parentheses content
-        def replacer(match):
-            content = match.group(1)
-            if '+' in content or '-' in content:
-                return '_' + content
-            return ''
-        
-        # Remove or transform parentheses content
-        name_after_parens = re.sub(r'\s*\((.*?)\)', replacer, trace_name).strip()
-        
-        # Replace non-word characters (except + and -)
-        safe_trace_name = re.sub(r'[^\w+-]', '_', name_after_parens)
-        
-        # Remove double underscores
-        safe_trace_name = safe_trace_name.replace('__', '_')
-        
-        return safe_trace_name
-    
-    def _get_next_available_filename(self, path: str) -> str:
-        """
-        Find next available filename by appending _1, _2, etc.
-        
-        Args:
-            path: Initial file path
-            
-        Returns:
-            Available file path that doesn't exist
-        """
-        if not os.path.exists(path):
-            return path
-        
-        base, ext = os.path.splitext(path)
-        i = 1
-        while True:
-            new_path = f"{base}_{i}{ext}"
-            if not os.path.exists(new_path):
-                return new_path
-            i += 1
+        # Update status label
+        if success:
+            self.status_label.setText(message)
+            style_label(self.status_label, "success")
+        else:
+            self.status_label.setText(message)
+            style_label(self.status_label, "muted" if "cancelled" in message else "error")
