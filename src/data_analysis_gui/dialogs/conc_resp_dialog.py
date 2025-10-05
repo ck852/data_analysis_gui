@@ -11,9 +11,6 @@ metric calculation (Average/Peak) for patch-clamp concentration-response
 experiments.
 """
 
-import os
-import re
-import csv
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -22,7 +19,7 @@ from typing import Optional, Dict
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QPushButton, QSplitter, QGroupBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QApplication, QCheckBox
+    QTableWidgetItem, QHeaderView, QMessageBox, QApplication
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -107,9 +104,6 @@ class ConcentrationResponseDialog(QDialog):
         
         # Initialize UI
         self._init_ui()
-        
-        # Initialize with one default range
-        self.range_table.add_range_row(is_background=False)
         
         self.range_creator = InteractiveRangeCreator(
             canvas=self.canvas,
