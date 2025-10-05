@@ -14,14 +14,14 @@ are added, removed, or modified for synchronization with plot cursors.
 from typing import List, Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QHeaderView, QCheckBox, QApplication, QMessageBox
+    QHeaderView, QCheckBox, QApplication, QMessageBox, QLabel
 )
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QColor
 
-from data_analysis_gui.config.themes import apply_modern_theme, style_button
+from data_analysis_gui.config.themes import apply_modern_theme, style_button, style_label
 from data_analysis_gui.widgets.custom_inputs import (
-    SelectAllLineEdit, SelectAllSpinBox, NoScrollComboBox
+    SelectAllLineEdit, SelectAllSpinBox, NoScrollComboBox, PositiveFloatLineEdit
 )
 from data_analysis_gui.core.conc_resp_models import (
     ConcentrationRange, AnalysisType, PeakType
@@ -35,7 +35,7 @@ class ConcentrationRangeTable(QWidget):
     """
     Interactive table widget for defining concentration-response analysis ranges.
     
-    Provides a 7-column table for configuring analysis ranges with automatic
+    Provides a table for configuring analysis ranges with automatic
     background pairing options, visual styling, and signal emissions for
     synchronization with plot cursors.
     
@@ -77,11 +77,15 @@ class ConcentrationRangeTable(QWidget):
         
         # Create table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels([
-            "✖", "Name", "Start", "End",
+            "✖", "ID", "Conc (μM)", "Start", "End",
             "Analysis", "BG", "Paired BG"
         ])
+        
+        # Hide the ID column (index 1)
+        self.table.setColumnHidden(1, True)
+        
         self.table.setMaximumHeight(250)
         self.table.setMinimumWidth(520)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -91,16 +95,17 @@ class ConcentrationRangeTable(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(0, 22)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        # Column 1 is hidden
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         
         self.table.verticalHeader().setVisible(False)
 
-        self.table.setColumnWidth(2, 75)
         self.table.setColumnWidth(3, 75)
-        self.table.setColumnWidth(5, 35)
+        self.table.setColumnWidth(4, 75)
+        self.table.setColumnWidth(6, 35)
         
         layout.addWidget(self.table)
         
@@ -157,6 +162,16 @@ class ConcentrationRangeTable(QWidget):
         # Get table font for consistency
         table_font = self.table.font()
         
+        # Generate internal ID
+        if is_background:
+            internal_id = self._get_next_background_id()
+            display_name = self._format_background_display(internal_id)
+            default_concentration = 0.0
+        else:
+            internal_id = self._get_next_range_id()
+            display_name = None  # Will use concentration field
+            default_concentration = 0.0
+        
         # Remove button (column 0)
         remove_btn = QPushButton("✖", self.table)
         remove_btn.setFont(table_font)
@@ -164,7 +179,6 @@ class ConcentrationRangeTable(QWidget):
         remove_btn.clicked.connect(lambda: self.remove_range_row(row))
         style_button(remove_btn, "secondary")
         
-        # Override the stylesheet to allow smaller size
         remove_btn.setStyleSheet(
             remove_btn.styleSheet() + """
             QPushButton {
@@ -179,19 +193,26 @@ class ConcentrationRangeTable(QWidget):
         )
         remove_btn.setFixedSize(14, 14)
 
-        # Name edit (column 1)
+        # Hidden ID label (column 1)
+        id_label = QLabel(internal_id, self.table)
+        id_label.setFont(table_font)
+        
+        # Concentration field (column 2)
         if is_background:
-            default_name = self._get_next_background_name()
+            # Read-only label for background ranges
+            conc_widget = QLabel(display_name, self.table)
+            conc_widget.setFont(table_font)
+            conc_widget.setFixedHeight(WIDGET_HEIGHT)
+            conc_widget.setStyleSheet("QLabel { padding: 2px 8px; }")
         else:
-            default_name = self._get_next_range_name()
+            # Editable concentration for analysis ranges
+            conc_widget = PositiveFloatLineEdit(self.table)
+            conc_widget.setFont(table_font)
+            conc_widget.setValue(default_concentration)
+            conc_widget.setFixedHeight(WIDGET_HEIGHT)
+            conc_widget.textChanged.connect(self._on_range_value_changed)
         
-        name_edit = SelectAllLineEdit(default_name, self.table)
-        name_edit.setFont(table_font)
-        name_edit.textChanged.connect(self._on_range_value_changed)
-        name_edit.setFixedWidth(100)
-        name_edit.setFixedHeight(WIDGET_HEIGHT)
-        
-        # Start spinbox (column 2) - USE PROVIDED TIME
+        # Start spinbox (column 3)
         start_spin = SelectAllSpinBox(self.table)
         start_spin.setFont(table_font)
         start_spin.setRange(-1e6, 1e6)
@@ -203,7 +224,7 @@ class ConcentrationRangeTable(QWidget):
         start_spin.blockSignals(False)
         start_spin.valueChanged.connect(self._on_range_value_changed)
         
-        # End spinbox (column 3) - USE PROVIDED TIME
+        # End spinbox (column 4)
         end_spin = SelectAllSpinBox(self.table)
         end_spin.setFont(table_font)
         end_spin.setRange(-1e6, 1e6)
@@ -215,7 +236,7 @@ class ConcentrationRangeTable(QWidget):
         end_spin.blockSignals(False)
         end_spin.valueChanged.connect(self._on_range_value_changed)
         
-        # Analysis type widget (column 4)
+        # Analysis type widget (column 5)
         analysis_widget = QWidget(self.table)
         analysis_layout = QHBoxLayout(analysis_widget)
         analysis_layout.setContentsMargins(0, 0, 0, 0)
@@ -229,14 +250,14 @@ class ConcentrationRangeTable(QWidget):
         
         analysis_layout.addWidget(analysis_combo)
         
-        # Background checkbox (column 5)
+        # Background checkbox (column 6)
         bg_checkbox = QCheckBox(self.table)
         bg_checkbox.setFont(table_font)
         bg_checkbox.stateChanged.connect(self._on_background_changed)
         if is_background:
             bg_checkbox.setChecked(True)
         
-        # Paired background combo (column 6)
+        # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
         paired_combo.setFont(table_font)
         paired_combo.addItem("None")
@@ -245,21 +266,21 @@ class ConcentrationRangeTable(QWidget):
         
         # Add widgets to table
         self.table.setCellWidget(row, 0, remove_btn)
-        self.table.setCellWidget(row, 1, name_edit)
-        self.table.setCellWidget(row, 2, start_spin)
-        self.table.setCellWidget(row, 3, end_spin)
-        self.table.setCellWidget(row, 4, analysis_widget)
-        self.table.setCellWidget(row, 5, self._center_widget(bg_checkbox))
-        self.table.setCellWidget(row, 6, paired_combo)
+        self.table.setCellWidget(row, 1, id_label)
+        self.table.setCellWidget(row, 2, conc_widget)
+        self.table.setCellWidget(row, 3, start_spin)
+        self.table.setCellWidget(row, 4, end_spin)
+        self.table.setCellWidget(row, 5, analysis_widget)
+        self.table.setCellWidget(row, 6, self._center_widget(bg_checkbox))
+        self.table.setCellWidget(row, 7, paired_combo)
         
         # Update background options for all rows
         self.update_background_options()
         
-        # Emit signal
-        range_id = default_name
-        self.range_added.emit(range_id, start_time, end_time, is_background)
+        # Emit signal with internal ID
+        self.range_added.emit(internal_id, start_time, end_time, is_background)
         
-        logger.debug(f"Added range row: {default_name} ({start_time}-{end_time})")
+        logger.debug(f"Added range row: {internal_id} ({start_time}-{end_time})")
 
     def eventFilter(self, obj, event):
         """
@@ -267,7 +288,7 @@ class ConcentrationRangeTable(QWidget):
         last focused QLineEdit widget for μ insertion.
         """
         if event.type() == QEvent.Type.FocusIn:
-            if isinstance(obj, SelectAllLineEdit):
+            if isinstance(obj, (SelectAllLineEdit, PositiveFloatLineEdit)):
                 self.last_focused_editor = obj
         return super().eventFilter(obj, event)
     
@@ -278,10 +299,10 @@ class ConcentrationRangeTable(QWidget):
         Args:
             row: Row index to remove
         """
-        # Get range name before removing
-        name_widget = self.table.cellWidget(row, 1)
-        if name_widget:
-            range_id = name_widget.text()
+        # Get internal ID before removing
+        id_widget = self.table.cellWidget(row, 1)
+        if id_widget:
+            range_id = id_widget.text()
             
             # Emit signal
             self.range_removed.emit(range_id)
@@ -304,7 +325,7 @@ class ConcentrationRangeTable(QWidget):
         # Calculate timing for new range: 5s after the latest existing range
         all_end_times = [0.0]
         for r in range(self.table.rowCount()):
-            end_spin = self.table.cellWidget(r, 3)
+            end_spin = self.table.cellWidget(r, 4)
             if end_spin:
                 all_end_times.append(end_spin.value())
         
@@ -321,6 +342,16 @@ class ConcentrationRangeTable(QWidget):
         # Get table font for consistency
         table_font = self.table.font()
         
+        # Generate internal ID
+        if is_background:
+            internal_id = self._get_next_background_id()
+            display_name = self._format_background_display(internal_id)
+            default_concentration = 0.0
+        else:
+            internal_id = self._get_next_range_id()
+            display_name = None
+            default_concentration = 0.0
+        
         # Remove button (column 0)
         remove_btn = QPushButton("✖", self.table)
         remove_btn.setFont(table_font)
@@ -328,7 +359,6 @@ class ConcentrationRangeTable(QWidget):
         remove_btn.clicked.connect(lambda: self.remove_range_row(row))
         style_button(remove_btn, "secondary")
         
-        # Override the stylesheet to allow smaller size
         remove_btn.setStyleSheet(
             remove_btn.styleSheet() + """
             QPushButton {
@@ -343,45 +373,48 @@ class ConcentrationRangeTable(QWidget):
         )
         remove_btn.setFixedSize(14, 14)
 
-        # Name edit (column 1)
+        # Hidden ID label (column 1)
+        id_label = QLabel(internal_id, self.table)
+        id_label.setFont(table_font)
+        
+        # Concentration field (column 2)
         if is_background:
-            default_name = self._get_next_background_name()
+            conc_widget = QLabel(display_name, self.table)
+            conc_widget.setFont(table_font)
+            conc_widget.setFixedHeight(WIDGET_HEIGHT)
+            conc_widget.setStyleSheet("QLabel { padding: 2px 8px; }")
         else:
-            default_name = self._get_next_range_name()
+            conc_widget = PositiveFloatLineEdit(self.table)
+            conc_widget.setFont(table_font)
+            conc_widget.setValue(default_concentration)
+            conc_widget.setFixedHeight(WIDGET_HEIGHT)
+            conc_widget.textChanged.connect(self._on_range_value_changed)
         
-        name_edit = SelectAllLineEdit(default_name, self.table)
-        name_edit.setFont(table_font)
-        name_edit.textChanged.connect(self._on_range_value_changed)
-        name_edit.setFixedWidth(100)
-        name_edit.setFixedHeight(WIDGET_HEIGHT)
-        
-        # Start spinbox (column 2)
+        # Start spinbox (column 3)
         start_spin = SelectAllSpinBox(self.table)
         start_spin.setFont(table_font)
         start_spin.setRange(-1e6, 1e6)
         start_spin.setDecimals(2)
         start_spin.setFixedWidth(60)
         start_spin.setFixedHeight(WIDGET_HEIGHT)
-        # Block signal during setValue to prevent premature signal emission
         start_spin.blockSignals(True)
         start_spin.setValue(new_start_time)
         start_spin.blockSignals(False)
         start_spin.valueChanged.connect(self._on_range_value_changed)
         
-        # End spinbox (column 3)
+        # End spinbox (column 4)
         end_spin = SelectAllSpinBox(self.table)
         end_spin.setFont(table_font)
         end_spin.setRange(-1e6, 1e6)
         end_spin.setDecimals(2)
         end_spin.setFixedWidth(60)
         end_spin.setFixedHeight(WIDGET_HEIGHT)
-        # Block signal during setValue to prevent premature signal emission
         end_spin.blockSignals(True)
         end_spin.setValue(new_end_time)
         end_spin.blockSignals(False)
         end_spin.valueChanged.connect(self._on_range_value_changed)
         
-        # Analysis type widget (column 4)
+        # Analysis type widget (column 5)
         analysis_widget = QWidget(self.table)
         analysis_layout = QHBoxLayout(analysis_widget)
         analysis_layout.setContentsMargins(0, 0, 0, 0)
@@ -395,14 +428,14 @@ class ConcentrationRangeTable(QWidget):
         
         analysis_layout.addWidget(analysis_combo)
         
-        # Background checkbox (column 5)
+        # Background checkbox (column 6)
         bg_checkbox = QCheckBox(self.table)
         bg_checkbox.setFont(table_font)
         bg_checkbox.stateChanged.connect(self._on_background_changed)
         if is_background:
             bg_checkbox.setChecked(True)
         
-        # Paired background combo (column 6)
+        # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
         paired_combo.setFont(table_font)
         paired_combo.addItem("None")
@@ -411,28 +444,28 @@ class ConcentrationRangeTable(QWidget):
         
         # Add widgets to table
         self.table.setCellWidget(row, 0, remove_btn)
-        self.table.setCellWidget(row, 1, name_edit)
-        self.table.setCellWidget(row, 2, start_spin)
-        self.table.setCellWidget(row, 3, end_spin)
-        self.table.setCellWidget(row, 4, analysis_widget)
-        self.table.setCellWidget(row, 5, self._center_widget(bg_checkbox))
-        self.table.setCellWidget(row, 6, paired_combo)
+        self.table.setCellWidget(row, 1, id_label)
+        self.table.setCellWidget(row, 2, conc_widget)
+        self.table.setCellWidget(row, 3, start_spin)
+        self.table.setCellWidget(row, 4, end_spin)
+        self.table.setCellWidget(row, 5, analysis_widget)
+        self.table.setCellWidget(row, 6, self._center_widget(bg_checkbox))
+        self.table.setCellWidget(row, 7, paired_combo)
         
         # Update background options for all rows
         self.update_background_options()
         
-        # Emit signal
-        range_id = default_name
-        self.range_added.emit(range_id, new_start_time, new_end_time, is_background)
+        # Emit signal with internal ID
+        self.range_added.emit(internal_id, new_start_time, new_end_time, is_background)
         
-        logger.debug(f"Added range row: {default_name} ({new_start_time}-{new_end_time})")
+        logger.debug(f"Added range row: {internal_id} ({new_start_time}-{new_end_time})")
 
     def add_paired_background_range(self):
         """Add a background range automatically paired to the most recent analysis range."""
         # Find last non-background range
         target_row = None
         for row in range(self.table.rowCount() - 1, -1, -1):
-            bg_widget = self.table.cellWidget(row, 5)
+            bg_widget = self.table.cellWidget(row, 6)
             if bg_widget and not bg_widget.findChild(QCheckBox).isChecked():
                 target_row = row
                 break
@@ -448,106 +481,121 @@ class ConcentrationRangeTable(QWidget):
         # Add background range normally
         self.add_range_row(is_background=True)
         
-        # Get the new background's name
+        # Get the new background's internal ID
         new_bg_row = self.table.rowCount() - 1
-        bg_name = self.table.cellWidget(new_bg_row, 1).text()
+        bg_id = self.table.cellWidget(new_bg_row, 1).text()
         
         # Set the target range's paired dropdown to this background
-        paired_combo = self.table.cellWidget(target_row, 6)
-        paired_combo.setCurrentText(bg_name)
+        paired_combo = self.table.cellWidget(target_row, 7)
+        # Store internal ID but dropdown will show display name
+        paired_combo.setCurrentText(self._format_background_display(bg_id))
 
     def get_all_ranges(self) -> List[ConcentrationRange]:
-            """
-            Get all ranges as ConcentrationRange objects.
-            
-            Returns:
-                List of ConcentrationRange objects representing all table rows
-            
-            Raises:
-                ValueError: If any range has invalid configuration
-            """
-            ranges = []
-            
-            for row in range(self.table.rowCount()):
-                try:
-                    # Extract values from widgets
-                    name_widget = self.table.cellWidget(row, 1)
-                    start_widget = self.table.cellWidget(row, 2)
-                    end_widget = self.table.cellWidget(row, 3)
-                    analysis_widget = self.table.cellWidget(row, 4)
-                    bg_widget = self.table.cellWidget(row, 5)
-                    paired_widget = self.table.cellWidget(row, 6)
-                    
-                    if not all([name_widget, start_widget, end_widget, analysis_widget, bg_widget, paired_widget]):
-                        logger.warning(f"Row {row} has missing widgets, skipping")
-                        continue
-                    
-                    # Get values
-                    name = name_widget.text()
-                    start_time = start_widget.value()
-                    end_time = end_widget.value()
-                    
-                    # Get analysis type - find combo inside the container widget
-                    analysis_combo = analysis_widget.findChild(NoScrollComboBox)
-                    if not analysis_combo:
-                        logger.warning(f"Row {row} missing analysis combo, skipping")
-                        continue
+        """
+        Get all ranges as ConcentrationRange objects.
+        
+        Returns:
+            List of ConcentrationRange objects representing all table rows
+        
+        Raises:
+            ValueError: If any range has invalid configuration
+        """
+        ranges = []
+        
+        for row in range(self.table.rowCount()):
+            try:
+                # Extract values from widgets
+                id_widget = self.table.cellWidget(row, 1)
+                conc_widget = self.table.cellWidget(row, 2)
+                start_widget = self.table.cellWidget(row, 3)
+                end_widget = self.table.cellWidget(row, 4)
+                analysis_widget = self.table.cellWidget(row, 5)
+                bg_widget = self.table.cellWidget(row, 6)
+                paired_widget = self.table.cellWidget(row, 7)
+                
+                if not all([id_widget, conc_widget, start_widget, end_widget, 
+                           analysis_widget, bg_widget, paired_widget]):
+                    logger.warning(f"Row {row} has missing widgets, skipping")
+                    continue
+                
+                # Get internal ID
+                range_id = id_widget.text()
+                
+                # Get concentration
+                if isinstance(conc_widget, PositiveFloatLineEdit):
+                    concentration = conc_widget.value()
+                else:
+                    concentration = 0.0  # Background ranges
+                
+                start_time = start_widget.value()
+                end_time = end_widget.value()
+                
+                # Get analysis type
+                analysis_combo = analysis_widget.findChild(NoScrollComboBox)
+                if not analysis_combo:
+                    logger.warning(f"Row {row} missing analysis combo, skipping")
+                    continue
 
-                    analysis_type_str = analysis_combo.currentText()
-                    analysis_type = AnalysisType.AVERAGE if analysis_type_str == "Average" else AnalysisType.PEAK
+                analysis_type_str = analysis_combo.currentText()
+                analysis_type = AnalysisType.AVERAGE if analysis_type_str == "Average" else AnalysisType.PEAK
 
-                    # Peak type is always ABSOLUTE_MAX when Peak is selected
-                    peak_type = PeakType.ABSOLUTE_MAX if analysis_type == AnalysisType.PEAK else None
-                    
-                    # Get background status
-                    is_background = bg_widget.findChild(QCheckBox).isChecked()
-                    
-                    # Get paired background
-                    paired_bg_text = paired_widget.currentText()
-                    paired_background = None if paired_bg_text == "None" else paired_bg_text
-                    
-                    # Create ConcentrationRange object
-                    range_obj = ConcentrationRange(
-                        name=name,
-                        start_time=start_time,
-                        end_time=end_time,
-                        analysis_type=analysis_type,
-                        peak_type=peak_type,
-                        is_background=is_background,
-                        paired_background=paired_background
-                    )
-                    
-                    ranges.append(range_obj)
-                    
-                except Exception as e:
-                    logger.error(f"Error reading range at row {row}: {e}")
-                    raise ValueError(f"Invalid range configuration at row {row + 1}: {e}")
-            
-            return ranges
+                peak_type = PeakType.ABSOLUTE_MAX if analysis_type == AnalysisType.PEAK else None
+                
+                # Get background status
+                is_background = bg_widget.findChild(QCheckBox).isChecked()
+                
+                # Get paired background (convert display name to internal ID)
+                paired_bg_text = paired_widget.currentText()
+                paired_background = None
+                if paired_bg_text != "None":
+                    # paired_bg_text is display name like "BG 1", need to find internal ID
+                    paired_background = self._find_background_id_by_display(paired_bg_text)
+                
+                # Create ConcentrationRange object
+                range_obj = ConcentrationRange(
+                    range_id=range_id,
+                    concentration=concentration,
+                    start_time=start_time,
+                    end_time=end_time,
+                    analysis_type=analysis_type,
+                    peak_type=peak_type,
+                    is_background=is_background,
+                    paired_background=paired_background
+                )
+                
+                ranges.append(range_obj)
+                
+            except Exception as e:
+                logger.error(f"Error reading range at row {row}: {e}")
+                raise ValueError(f"Invalid range configuration at row {row + 1}: {e}")
+        
+        return ranges
 
     def update_background_options(self):
         """
         Update the paired background dropdown options for all rows.
         
-        Collects all background range names and populates the "Paired BG"
-        dropdowns. Also updates row styling based on background status.
+        Collects all background range IDs and populates the "Paired BG"
+        dropdowns with display names. Also updates row styling based on background status.
         """
-        # Collect background range names
-        background_names = ["None"]
+        # Collect background range display names and IDs
+        background_options = [("None", None)]
         for row in range(self.table.rowCount()):
-            bg_widget = self.table.cellWidget(row, 5)
-            name_widget = self.table.cellWidget(row, 1)
+            bg_widget = self.table.cellWidget(row, 6)
+            id_widget = self.table.cellWidget(row, 1)
             
-            if bg_widget and name_widget:
+            if bg_widget and id_widget:
                 is_checked = bg_widget.findChild(QCheckBox).isChecked()
                 if is_checked:
-                    background_names.append(name_widget.text())
+                    internal_id = id_widget.text()
+                    display_name = self._format_background_display(internal_id)
+                    background_options.append((display_name, internal_id))
         
         # Update all paired background dropdowns and row styling
         for row in range(self.table.rowCount()):
-            paired_combo = self.table.cellWidget(row, 6)
-            bg_widget = self.table.cellWidget(row, 5)
-            analysis_widget = self.table.cellWidget(row, 4)  # This is the container widget
+            paired_combo = self.table.cellWidget(row, 7)
+            bg_widget = self.table.cellWidget(row, 6)
+            analysis_widget = self.table.cellWidget(row, 5)
             
             if paired_combo:
                 # Block signals to prevent triggering _on_range_value_changed during update
@@ -555,15 +603,18 @@ class ConcentrationRangeTable(QWidget):
                 
                 current = paired_combo.currentText()
                 paired_combo.clear()
-                paired_combo.addItems(background_names)
-                if current in background_names:
+                
+                # Add items with display names
+                for display_name, internal_id in background_options:
+                    paired_combo.addItem(display_name)
+                
+                # Restore selection if it still exists
+                if current in [opt[0] for opt in background_options]:
                     paired_combo.setCurrentText(current)
                 
-                # Unblock signals
                 paired_combo.blockSignals(False)
             
             if bg_widget and analysis_widget:
-                # Find the actual combo box inside the container widget
                 analysis_combo = analysis_widget.findChild(NoScrollComboBox)
                 if not analysis_combo:
                     continue
@@ -583,53 +634,88 @@ class ConcentrationRangeTable(QWidget):
         editor = self.last_focused_editor
         if editor:
             editor.insert("μ")
-            if isinstance(editor, SelectAllLineEdit):
+            if isinstance(editor, (SelectAllLineEdit, PositiveFloatLineEdit)):
                 editor.setFocusAndDoNotSelect()
             else:
                 editor.setFocus()
     
-    def _get_next_range_name(self) -> str:
+    def _get_next_range_id(self) -> str:
         """
-        Find the next available 'Range X' name.
+        Find the next available internal range ID.
         
         Returns:
-            Next available range name (e.g., "Range 1", "Range 2")
+            Next available range ID (e.g., "Range_1", "Range_2")
         """
-        existing_names = set()
+        existing_ids = set()
         for row in range(self.table.rowCount()):
-            name_widget = self.table.cellWidget(row, 1)
-            if name_widget:
-                existing_names.add(name_widget.text())
+            id_widget = self.table.cellWidget(row, 1)
+            if id_widget:
+                existing_ids.add(id_widget.text())
         
         i = 1
         while True:
-            next_name = f"Range {i}"
-            if next_name not in existing_names:
-                return next_name
+            next_id = f"Range_{i}"
+            if next_id not in existing_ids:
+                return next_id
             i += 1
     
-    def _get_next_background_name(self) -> str:
+    def _get_next_background_id(self) -> str:
         """
-        Find the next available 'Background' or 'Background_X' name.
+        Find the next available internal background ID.
         
         Returns:
-            Next available background name
+            Next available background ID (e.g., "Background_1", "Background_2")
         """
-        existing_names = set()
+        existing_ids = set()
         for row in range(self.table.rowCount()):
-            name_widget = self.table.cellWidget(row, 1)
-            if name_widget:
-                existing_names.add(name_widget.text())
+            id_widget = self.table.cellWidget(row, 1)
+            if id_widget:
+                existing_ids.add(id_widget.text())
         
-        if "Background" not in existing_names:
-            return "Background"
-        
-        i = 2
+        i = 1
         while True:
-            next_name = f"Background_{i}"
-            if next_name not in existing_names:
-                return next_name
+            next_id = f"Background_{i}"
+            if next_id not in existing_ids:
+                return next_id
             i += 1
+    
+    def _format_background_display(self, internal_id: str) -> str:
+        """
+        Convert internal background ID to display name.
+        
+        Args:
+            internal_id: Internal ID like "Background_1"
+            
+        Returns:
+            Display name like "BG 1"
+        """
+        if internal_id.startswith("Background_"):
+            num = internal_id.split("_")[1]
+            return f"BG {num}"
+        return internal_id
+    
+    def _find_background_id_by_display(self, display_name: str) -> Optional[str]:
+        """
+        Find internal background ID from display name.
+        
+        Args:
+            display_name: Display name like "BG 1"
+            
+        Returns:
+            Internal ID like "Background_1", or None if not found
+        """
+        for row in range(self.table.rowCount()):
+            bg_widget = self.table.cellWidget(row, 6)
+            id_widget = self.table.cellWidget(row, 1)
+            
+            if bg_widget and id_widget:
+                is_bg = bg_widget.findChild(QCheckBox).isChecked()
+                if is_bg:
+                    internal_id = id_widget.text()
+                    if self._format_background_display(internal_id) == display_name:
+                        return internal_id
+        
+        return None
     
     def _center_widget(self, widget: QWidget) -> QWidget:
         """
@@ -673,14 +759,14 @@ class ConcentrationRangeTable(QWidget):
         for row in range(self.table.rowCount()):
             # Check all widgets in this row
             widgets_to_check = [
-                self.table.cellWidget(row, 1),  # name
-                self.table.cellWidget(row, 2),  # start
-                self.table.cellWidget(row, 3),  # end
-                self.table.cellWidget(row, 6),  # paired combo
+                self.table.cellWidget(row, 2),  # concentration
+                self.table.cellWidget(row, 3),  # start
+                self.table.cellWidget(row, 4),  # end
+                self.table.cellWidget(row, 7),  # paired combo
             ]
             
             # For analysis combo, need to check inside the container widget
-            analysis_widget = self.table.cellWidget(row, 4)
+            analysis_widget = self.table.cellWidget(row, 5)
             if analysis_widget:
                 analysis_combo = analysis_widget.findChild(NoScrollComboBox)
                 if analysis_combo:

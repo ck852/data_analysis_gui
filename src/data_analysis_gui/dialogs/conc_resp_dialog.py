@@ -203,6 +203,7 @@ class ConcentrationResponseDialog(QDialog):
         layout.setSpacing(4)
         layout.setContentsMargins(5, 5, 5, 5)
         
+        # Primary load button
         btn_layout = QHBoxLayout()
         
         self.load_btn = QPushButton("📂 Load CSV")
@@ -216,8 +217,29 @@ class ConcentrationResponseDialog(QDialog):
         
         layout.addLayout(btn_layout)
         
+        # Dataset builder button
+        dataset_layout = QHBoxLayout()
+        dataset_layout.setSpacing(2)
+        
+        self.create_dataset_btn = QPushButton("📊 Create Multi-File Dataset...")
+        self.create_dataset_btn.setFixedHeight(22)
+        style_button(self.create_dataset_btn, "secondary")
+        dataset_layout.addWidget(self.create_dataset_btn)
+        dataset_layout.addStretch()
+        
+        layout.addLayout(dataset_layout)
+        
         return group
     
+    def _open_dataset_builder(self):
+        """Open the dataset builder dialog."""
+        from data_analysis_gui.dialogs.conc_dataset_dialog import ConcentrationDatasetDialog
+        
+        dataset_dialog = ConcentrationDatasetDialog(self)
+        dataset_dialog.exec()
+        
+        logger.info("Opened dataset builder dialog")
+
     def _create_ranges_group(self) -> QGroupBox:
         """
         Create the ranges definition section.
@@ -321,6 +343,7 @@ class ConcentrationResponseDialog(QDialog):
         """Connect all signals to their handlers."""
         # File loading
         self.load_btn.clicked.connect(self._load_file)
+        self.create_dataset_btn.clicked.connect(self._open_dataset_builder)
         
         # Range table → cursors
         self.range_table.range_added.connect(self._on_range_added)
@@ -453,7 +476,7 @@ class ConcentrationResponseDialog(QDialog):
         Handle range added signal from table.
         
         Args:
-            range_id: Unique identifier (range name)
+            range_id: Internal identifier (e.g., "Range_1", "Background_1")
             start_val: Start time
             end_val: End time
             is_background: Whether this is a background range
@@ -480,11 +503,11 @@ class ConcentrationResponseDialog(QDialog):
             range_obj: Updated ConcentrationRange object
         """
         self.cursors.update_range_position(
-            range_obj.name,
+            range_obj.range_id,
             range_obj.start_time,
             range_obj.end_time
         )
-        logger.debug(f"Updated cursor pair for range: {range_obj.name}")
+        logger.debug(f"Updated cursor pair for range: {range_obj.range_id}")
     
     def _on_cursor_dragged(self, range_id: str, boundary: str, new_value: float):
         """
@@ -494,16 +517,17 @@ class ConcentrationResponseDialog(QDialog):
         infinite signal loops.
         
         Args:
-            range_id: Range identifier (name)
+            range_id: Internal identifier (e.g., "Range_1", "Background_1")
             boundary: 'start' or 'end'
             new_value: New boundary position
         """
-        # Find the row with this range_id
+        # Find the row with this range_id (check hidden column 1)
         for row in range(self.range_table.table.rowCount()):
-            name_widget = self.range_table.table.cellWidget(row, 1)
-            if name_widget and name_widget.text() == range_id:
+            id_widget = self.range_table.table.cellWidget(row, 1)
+            if id_widget and id_widget.text() == range_id:
                 # Found the row - update the appropriate spinbox
-                spinbox_col = 2 if boundary == 'start' else 3
+                # Column 3 = start, Column 4 = end
+                spinbox_col = 3 if boundary == 'start' else 4
                 spinbox = self.range_table.table.cellWidget(row, spinbox_col)
                 
                 if spinbox:
@@ -619,6 +643,12 @@ class ConcentrationResponseDialog(QDialog):
         """Display analysis results in the results table with color coding."""
         self.results_table.setRowCount(0)
         
+        # Update table headers to match new column structure
+        self.results_table.setColumnCount(6)
+        self.results_table.setHorizontalHeaderLabels([
+            "File", "Data Trace", "Conc (µM)", "Raw Value", "BG", "Corrected Value"
+        ])
+        
         if not self.results_dfs:
             return
         
@@ -630,7 +660,7 @@ class ConcentrationResponseDialog(QDialog):
                 
                 # Add each column
                 for col_idx, col_name in enumerate([
-                    'File', 'Data Trace', 'Range', 'Raw Value', 'Background', 'Corrected Value'
+                    'File', 'Data Trace', 'Concentration (µM)', 'Raw Value', 'Background', 'Corrected Value'
                 ]):
                     value = row_data[col_name]
                     

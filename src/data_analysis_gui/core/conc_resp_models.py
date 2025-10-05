@@ -54,13 +54,14 @@ class ConcentrationRange:
     paired with a background range.
     
     Args:
-        name: Unique identifier for the range (e.g., "Range 1", "Background")
+        range_id: Internal identifier (e.g., "Range_1", "Background_1")
+        concentration: Concentration value in µM
         start_time: Start time in seconds for the analysis window
         end_time: End time in seconds for the analysis window
         analysis_type: Type of analysis to perform (Average or Peak)
         peak_type: Type of peak detection (required if analysis_type is PEAK)
         is_background: Whether this range is a background range
-        paired_background: Name of background range to subtract from this range's values
+        paired_background: Internal ID of background range to subtract from this range's values
             (None means no background subtraction)
     
     Raises:
@@ -69,17 +70,19 @@ class ConcentrationRange:
     Example:
         >>> # Analysis range with background subtraction
         >>> analysis_range = ConcentrationRange(
-        ...     name="Range 1",
+        ...     range_id="Range_1",
+        ...     concentration=10.0,
         ...     start_time=100.0,
         ...     end_time=150.0,
         ...     analysis_type=AnalysisType.AVERAGE,
         ...     is_background=False,
-        ...     paired_background="Background"
+        ...     paired_background="Background_1"
         ... )
         
         >>> # Background range
         >>> bg_range = ConcentrationRange(
-        ...     name="Background",
+        ...     range_id="Background_1",
+        ...     concentration=0.0,
         ...     start_time=10.0,
         ...     end_time=50.0,
         ...     analysis_type=AnalysisType.AVERAGE,
@@ -88,7 +91,8 @@ class ConcentrationRange:
         ... )
     """
     
-    name: str
+    range_id: str
+    concentration: float
     start_time: float
     end_time: float
     analysis_type: AnalysisType
@@ -110,14 +114,14 @@ class ConcentrationRange:
         # Validate time ordering
         if self.end_time <= self.start_time:
             raise ValueError(
-                f"Range '{self.name}': end_time ({self.end_time}) must be "
+                f"Range '{self.range_id}': end_time ({self.end_time}) must be "
                 f"greater than start_time ({self.start_time})"
             )
         
         # Validate analysis_type is an AnalysisType enum member
         if not isinstance(self.analysis_type, AnalysisType):
             raise ValueError(
-                f"Range '{self.name}': analysis_type must be an AnalysisType enum, "
+                f"Range '{self.range_id}': analysis_type must be an AnalysisType enum, "
                 f"got {type(self.analysis_type)}"
             )
     
@@ -148,7 +152,7 @@ class ConcentrationRange:
         Returns:
             str: Description including time window, analysis type, and background pairing
         """
-        desc = f"{self.name}: {self.start_time:.1f}-{self.end_time:.1f}s"
+        desc = f"{self.range_id}: {self.concentration}µM, {self.start_time:.1f}-{self.end_time:.1f}s"
         
         if self.analysis_type == AnalysisType.PEAK and self.peak_type:
             desc += f", {self.analysis_type.value} ({self.peak_type.value})"

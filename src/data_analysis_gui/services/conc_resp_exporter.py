@@ -135,6 +135,7 @@ class ConcentrationResponseExporter:
         
         Removes or transforms parentheses content, replaces non-word characters,
         and cleans up spacing. Preserves voltage indicators like +/-.
+        Also handles Greek characters like µ.
         
         Args:
             trace_name: Raw trace name from CSV header
@@ -149,6 +150,8 @@ class ConcentrationResponseExporter:
             'Voltage_+80_mV'
             >>> ConcentrationResponseExporter.sanitize_trace_name("I-Ca (L-type)")
             'I-Ca'
+            >>> ConcentrationResponseExporter.sanitize_trace_name("+100 mV")
+            '+100_mV'
         """
         # Helper function for parentheses content
         def replacer(match):
@@ -161,6 +164,9 @@ class ConcentrationResponseExporter:
         
         # Remove or transform parentheses content
         name_after_parens = re.sub(r'\s*\((.*?)\)', replacer, trace_name).strip()
+        
+        # Replace Greek µ with 'u' for filename safety
+        name_after_parens = name_after_parens.replace('µ', 'u')
         
         # Replace non-word characters (except + and -)
         safe_trace_name = re.sub(r'[^\w+-]', '_', name_after_parens)

@@ -304,39 +304,42 @@ class InteractiveRangeCreator:
         self.cancel_mode()
     
     def _setup_background_pairing(self):
-        """
-        Setup automatic pairing for a newly created background range.
-        
-        Pairs the most recently created background range to the target analysis range.
-        """
-        # Get the newly created background range's name (last row)
-        new_bg_row = self.range_table.table.rowCount() - 1
-        bg_name_widget = self.range_table.table.cellWidget(new_bg_row, 1)
-        
-        if bg_name_widget and self._target_row is not None:
-            bg_name = bg_name_widget.text()
+            """
+            Setup automatic pairing for a newly created background range.
             
-            # Set the target range's paired dropdown to this background
-            paired_combo = self.range_table.table.cellWidget(self._target_row, 6)
-            if paired_combo:
-                paired_combo.setCurrentText(bg_name)
-                logger.info(f"Auto-paired background '{bg_name}' to row {self._target_row}")
+            Pairs the most recently created background range to the target analysis range.
+            """
+            # Get the newly created background range's internal ID (hidden column 1)
+            new_bg_row = self.range_table.table.rowCount() - 1
+            bg_id_widget = self.range_table.table.cellWidget(new_bg_row, 1)
+            
+            if bg_id_widget and self._target_row is not None:
+                internal_id = bg_id_widget.text()
+                display_name = self.range_table._format_background_display(internal_id)
+                
+                # Set the target range's paired dropdown to this background
+                paired_combo = self.range_table.table.cellWidget(self._target_row, 7)
+                if paired_combo:
+                    paired_combo.setCurrentText(display_name)
+                    logger.info(f"Auto-paired background '{internal_id}' to row {self._target_row}")
     
     def _find_last_analysis_range_row(self) -> Optional[int]:
-        """
-        Find the most recent non-background range row.
-        
-        Returns:
-            Row index of last analysis range, or None if not found
-        """
-        from PySide6.QtWidgets import QCheckBox
-        
-        for row in range(self.range_table.table.rowCount() - 1, -1, -1):
-            bg_widget = self.range_table.table.cellWidget(row, 5)
-            if bg_widget and not bg_widget.findChild(QCheckBox).isChecked():
-                return row
-        
-        return None
+            """
+            Find the most recent non-background range row.
+            
+            Returns:
+                Row index of last analysis range, or None if not found
+            """
+            from PySide6.QtWidgets import QCheckBox
+            
+            for row in range(self.range_table.table.rowCount() - 1, -1, -1):
+                bg_widget = self.range_table.table.cellWidget(row, 6)
+                if bg_widget:
+                    checkbox = bg_widget.findChild(QCheckBox)
+                    if checkbox and not checkbox.isChecked():
+                        return row
+            
+            return None
     
     def _get_range_type_label(self) -> str:
         """

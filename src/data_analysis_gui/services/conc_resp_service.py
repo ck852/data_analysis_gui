@@ -187,19 +187,19 @@ class ConcentrationResponseService:
             bg_ranges: List of background ConcentrationRange objects
             
         Returns:
-            Nested dictionary: {bg_range_name: {data_col_name: value}}
+            Nested dictionary: {bg_range_id: {data_col_name: value}}
             
         Example:
             >>> bg_values = service.calculate_background_values(
             ...     df, "Time (s)", ["Current (pA)"], [bg_range]
             ... )
-            >>> print(bg_values["Background"]["Current (pA)"])
+            >>> print(bg_values["Background_1"]["Current (pA)"])
             -12.5
         """
         bg_values = {}
         
         for bg_range in bg_ranges:
-            bg_values[bg_range.name] = {}
+            bg_values[bg_range.range_id] = {}
             
             for data_col in data_cols:
                 value = ConcentrationResponseService.calculate_range_value(
@@ -211,7 +211,7 @@ class ConcentrationResponseService:
                     analysis_type=bg_range.analysis_type,
                     peak_type=bg_range.peak_type,
                 )
-                bg_values[bg_range.name][data_col] = value
+                bg_values[bg_range.range_id][data_col] = value
         
         logger.debug(
             f"Calculated background values for {len(bg_ranges)} range(s), "
@@ -256,7 +256,7 @@ class ConcentrationResponseService:
             return ranges, False
         
         # Apply auto-pairing
-        single_bg_name = bg_ranges[0].name
+        single_bg_id = bg_ranges[0].range_id
         modified_ranges = []
         
         for r in ranges:
@@ -265,12 +265,12 @@ class ConcentrationResponseService:
             else:
                 # Create new range with paired_background set
                 modified_ranges.append(
-                    replace(r, paired_background=single_bg_name)
+                    replace(r, paired_background=single_bg_id)
                 )
         
         logger.info(
             f"Auto-paired {len(non_bg_ranges)} range(s) to "
-            f"background '{single_bg_name}'"
+            f"background '{single_bg_id}'"
         )
         
         return modified_ranges, True
@@ -295,8 +295,8 @@ class ConcentrationResponseService:
             
         Returns:
             Dictionary mapping data column names to results DataFrames.
-            Each DataFrame has columns: File, Data Trace, Range, Raw Value,
-            Background, Corrected Value
+            Each DataFrame has columns: File, Data Trace, Concentration (µM), 
+            Raw Value, Background, Corrected Value
         
         Raises:
             ValueError: If ranges configuration is invalid
@@ -337,13 +337,13 @@ class ConcentrationResponseService:
                 # Get background value if paired
                 bg_value = 0.0
                 if analysis_range.paired_background:
-                    bg_name = analysis_range.paired_background
-                    if bg_name in bg_values:
-                        bg_value = bg_values[bg_name].get(data_col, 0.0)
+                    bg_id = analysis_range.paired_background
+                    if bg_id in bg_values:
+                        bg_value = bg_values[bg_id].get(data_col, 0.0)
                     else:
                         logger.warning(
-                            f"Paired background '{bg_name}' not found for "
-                            f"range '{analysis_range.name}'"
+                            f"Paired background '{bg_id}' not found for "
+                            f"range '{analysis_range.range_id}'"
                         )
                 
                 # Calculate corrected value
@@ -352,7 +352,7 @@ class ConcentrationResponseService:
                 results_rows.append({
                     "File": filename,
                     "Data Trace": data_col,
-                    "Range": analysis_range.name,
+                    "Concentration (µM)": analysis_range.concentration,
                     "Raw Value": raw_value,
                     "Background": bg_value,
                     "Corrected Value": corrected_value,
@@ -371,37 +371,37 @@ class ConcentrationResponseService:
     @staticmethod
     def pivot_for_export(results_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Pivot results DataFrame to export format (ranges as rows).
+        Pivot results DataFrame to export format (concentrations as rows).
         
         Args:
             results_df: Results DataFrame with columns:
-                File, Data Trace, Range, Raw Value, Background, Corrected Value
+                File, Data Trace, Concentration (µM), Raw Value, Background, Corrected Value
                 
         Returns:
             Pivoted DataFrame with:
-                - First column containing range names
+                - First column containing concentration values (numeric)
                 - Second column containing corrected values
                 - Empty column headers
         
         Example:
             Input:
-                | Range   | Corrected Value |
-                |---------|-----------------|
-                | Range 1 | -50.2           |
-                | Range 2 | -75.8           |
+                | Concentration (µM) | Corrected Value |
+                |--------------------|-----------------|
+                | 0.1                | -50.2           |
+                | 1.0                | -75.8           |
             
             Output CSV:
                 ,
-                Range 1,-50.2
-                Range 2,-75.8
+                0.1,-50.2
+                1.0,-75.8
         """
         if results_df.empty:
             logger.warning("Attempting to pivot empty results DataFrame")
             return pd.DataFrame()
         
-        # Extract range names and corrected values
+        # Extract concentrations and corrected values
         export_df = pd.DataFrame({
-            "": results_df["Range"].tolist(),
+            "": results_df["Concentration (µM)"].tolist(),
             " ": results_df["Corrected Value"].tolist()
         })
         
