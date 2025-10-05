@@ -60,7 +60,7 @@ class ConcentrationResponseDialog(QDialog):
     - Calculate Average or Peak metrics per range
     - Export results in pivoted format
     """
-    
+
     def __init__(self, parent=None):
         """
         Initialize the concentration-response analysis dialog.
@@ -99,12 +99,28 @@ class ConcentrationResponseDialog(QDialog):
         self.service = ConcentrationResponseService()
         self.plot_formatter = PlotFormatter()
         
+        # Range creation mode state
+        self._range_creation_mode = False
+        self._range_creation_start = None
+        self._range_creation_is_background = False
+        self._original_cursor = None
+        self._temp_start_line = None
+        
+        # Button references (will be set in _setup_range_creation_buttons)
+        self.add_range_btn = None
+        self.add_bg_range_btn = None
+        
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Concentration-Response Analysis")
         self._setup_window_geometry()
         
         # Initialize UI
         self._init_ui()
+        
+        # Setup range creation button behavior
+        self._setup_range_creation_buttons()
+        
+        # Connect signals (including matplotlib events)
         self._connect_signals()
         
         # Initialize with one default range
@@ -325,7 +341,213 @@ class ConcentrationResponseDialog(QDialog):
         # Analysis and export
         self.run_analysis_btn.clicked.connect(self._run_analysis)
         self.export_btn.clicked.connect(self._export_results)
-    
+        
+        # Matplotlib canvas click events for range creation
+        self.canvas.mpl_connect('button_press_event', self._handle_plot_click)
+
+    def _setup_range_creation_buttons(self):
+        """
+        Setup button references and connect range creation mode.
+        Call this in __init__ after _init_ui() and before _connect_signals().
+        """
+        # Get button references from the table widget
+        self.add_range_btn = self.range_table.add_range_btn
+        self.add_bg_range_btn = self.range_table.add_bg_range_btn
+        
+        # Disconnect default handlers
+        self.add_range_btn.clicked.disconnect()
+        self.add_bg_range_btn.clicked.disconnect()
+        
+        # Connect to toggle mode handlers
+        self.add_range_btn.clicked.connect(
+            lambda: self._toggle_range_creation_mode(is_background=False)
+        )
+        self.add_bg_range_btn.clicked.connect(
+            lambda: self._toggle_range_creation_mode(is_background=True)
+        )
+
+
+    def _toggle_range_creation_mode(self, is_background: bool):
+        """
+        Toggle range creation mode or cancel if already active.
+        
+        Args:
+            is_background: Whether creating a background range
+        """
+        if self._range_creation_mode:
+            # Cancel current mode
+            self._cancel_range_creation_mode()
+        else:
+            # Start new mode
+            self._start_range_creation_mode(is_background)
+
+
+    def _start_range_creation_mode(self, is_background: bool):
+        """
+        Enter range creation mode - click on plot to define start/end.
+        
+        Args:
+            is_background: Whether creating a background range
+        """
+        self._range_creation_mode = True
+        self._range_creation_is_background = is_background
+        self._range_creation_start = None
+        
+        # Change cursor to green crosshair
+        from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor
+        from PySide6.QtCore import Qt
+        
+        # Create green crosshair cursor (same color as analysis cursors)
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setPen(QColor("#73AB84"))  # Sage green from plot_style.py
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw crosshair with thicker lines
+        pen = painter.pen()
+        pen.setWidth(2)
+        painter.setPen(pen)
+        
+        # Vertical line
+        painter.drawLine(16, 4, 16, 28)
+        # Horizontal line
+        painter.drawLine(4, 16, 28, 16)
+        
+        # Draw center dot
+        painter.setBrush(QColor("#73AB84"))
+        painter.drawEllipse(14, 14, 4, 4)
+        
+        painter.end()
+        
+        # Store original cursor and set new one
+        self._original_cursor = self.canvas.cursor()
+        self.canvas.setCursor(QCursor(pixmap, hotX=16, hotY=16))
+        
+        # Update UI feedback
+        range_type = "Background Range" if is_background else "Range"
+        self.status_label.setText(
+            f"Click on plot for {range_type} START position (or click button to cancel)"
+        )
+        style_label(self.status_label, "info")
+        
+        # Update button appearance to show cancellation option
+        btn = self.add_bg_range_btn if is_background else self.add_range_btn
+        btn.setText("✖ Cancel")
+        style_button(btn, "warning")
+        
+        logger.info(f"Entered range creation mode (background={is_background})")
+
+
+    def _cancel_range_creation_mode(self):
+        """Cancel range creation mode and restore normal state."""
+        self._range_creation_mode = False
+        self._range_creation_start = None
+        
+        # Restore cursor
+        if self._original_cursor:
+            self.canvas.setCursor(self._original_cursor)
+            self._original_cursor = None
+        else:
+            # Fallback to arrow cursor
+            from PySide6.QtCore import Qt
+            self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
+        
+        # Restore button text and styling
+        self._restore_add_range_buttons()
+        
+        # Update status
+        if self.data_df is not None:
+            self.status_label.setText(
+                f"{self.filename} ({len(self.data_df)} pts, {len(self.data_cols)} trace(s))"
+            )
+            style_label(self.status_label, "normal")
+        else:
+            self.status_label.setText("Load a CSV file to begin")
+            style_label(self.status_label, "muted")
+        
+        logger.info("Cancelled range creation mode")
+
+
+    def _restore_add_range_buttons(self):
+        """Restore add range buttons to normal appearance."""
+        self.add_range_btn.setText("Add Range")
+        style_button(self.add_range_btn, "secondary")
+        
+        self.add_bg_range_btn.setText("Add Background Range")
+        style_button(self.add_bg_range_btn, "secondary")
+
+
+    def _handle_plot_click(self, event):
+        """
+        Handle matplotlib button press events for range creation.
+        
+        Args:
+            event: Matplotlib button press event
+        """
+        # Only handle left clicks in creation mode with valid x data
+        if not self._range_creation_mode or event.xdata is None or event.button != 1:
+            return
+        
+        if self._range_creation_start is None:
+            # First click - set start position
+            self._range_creation_start = event.xdata
+            
+            # Update status with first position
+            range_type = "Background Range" if self._range_creation_is_background else "Range"
+            self.status_label.setText(
+                f"{range_type} START: {event.xdata:.2f}s - Click for END position"
+            )
+            style_label(self.status_label, "info")
+            
+            # Draw temporary vertical line at start position for visual feedback
+            self._temp_start_line = self.ax.axvline(
+                event.xdata,
+                color="#73AB84",
+                linestyle=":",
+                linewidth=2,
+                alpha=0.5
+            )
+            self.canvas.draw_idle()
+            
+            logger.debug(f"Range start set to {event.xdata:.2f}s")
+        
+        else:
+            # Second click - set end position and create range
+            start = self._range_creation_start
+            end = event.xdata
+            
+            # Ensure start < end (swap if necessary)
+            if end < start:
+                start, end = end, start
+            
+            # Remove temporary line
+            if hasattr(self, '_temp_start_line') and self._temp_start_line:
+                self._temp_start_line.remove()
+                self._temp_start_line = None
+                self.canvas.draw_idle()
+            
+            # Create the range with specified times
+            self.range_table.add_range_row_with_times(
+                start_time=start,
+                end_time=end,
+                is_background=self._range_creation_is_background
+            )
+            
+            # Update status
+            range_type = "Background" if self._range_creation_is_background else "Analysis"
+            self.status_label.setText(
+                f"{range_type} range created: {start:.2f}s - {end:.2f}s"
+            )
+            style_label(self.status_label, "success")
+            
+            logger.info(
+                f"Created {range_type.lower()} range: {start:.2f}s - {end:.2f}s"
+            )
+            
+            # Exit creation mode
+            self._cancel_range_creation_mode()
+
     # ========================================================================
     # File Loading
     # ========================================================================

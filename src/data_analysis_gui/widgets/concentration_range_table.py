@@ -107,15 +107,16 @@ class ConcentrationRangeTable(QWidget):
         # Bottom button layout
         bottom_layout = QHBoxLayout()
         
-        add_range_btn = QPushButton("Add Range")
-        add_range_btn.clicked.connect(lambda: self.add_range_row(is_background=False))
-        add_range_btn.setFixedHeight(22)
-        style_button(add_range_btn, "secondary")
+        # Store button references as instance variables
+        self.add_range_btn = QPushButton("Add Range")
+        self.add_range_btn.clicked.connect(lambda: self.add_range_row(is_background=False))
+        self.add_range_btn.setFixedHeight(22)
+        style_button(self.add_range_btn, "secondary")
         
-        add_bg_range_btn = QPushButton("Add Background Range")
-        add_bg_range_btn.clicked.connect(lambda: self.add_range_row(is_background=True))
-        add_bg_range_btn.setFixedHeight(22)
-        style_button(add_bg_range_btn, "secondary")
+        self.add_bg_range_btn = QPushButton("Add Background Range")
+        self.add_bg_range_btn.clicked.connect(lambda: self.add_range_row(is_background=True))
+        self.add_bg_range_btn.setFixedHeight(22)
+        style_button(self.add_bg_range_btn, "secondary")
 
         add_paired_bg_btn = QPushButton("Add Paired Background Range")
         add_paired_bg_btn.clicked.connect(self.add_paired_background_range)
@@ -127,8 +128,8 @@ class ConcentrationRangeTable(QWidget):
         self.mu_button.clicked.connect(self.insert_mu_char)
         style_button(self.mu_button, "secondary")
         
-        bottom_layout.addWidget(add_range_btn)
-        bottom_layout.addWidget(add_bg_range_btn)
+        bottom_layout.addWidget(self.add_range_btn)
+        bottom_layout.addWidget(self.add_bg_range_btn)
         bottom_layout.addWidget(add_paired_bg_btn)
         bottom_layout.addStretch()
         bottom_layout.addWidget(self.mu_button)
@@ -138,6 +139,128 @@ class ConcentrationRangeTable(QWidget):
         # Apply theme
         apply_modern_theme(self.table)
     
+    def add_range_row_with_times(self, start_time: float, end_time: float, is_background: bool = False):
+        """
+        Add a new row with specific start/end times (for click-to-define feature).
+        
+        Args:
+            start_time: Start time for the range
+            end_time: End time for the range
+            is_background: Whether this is a background range
+        """
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self.table.setRowHeight(row, 28)
+
+        WIDGET_HEIGHT = 24
+        
+        # Get table font for consistency
+        table_font = self.table.font()
+        
+        # Remove button (column 0)
+        remove_btn = QPushButton("✖", self.table)
+        remove_btn.setFont(table_font)
+        remove_btn.setFixedSize(12, 12)
+        remove_btn.clicked.connect(lambda: self.remove_range_row(row))
+        style_button(remove_btn, "secondary")
+        
+        # Override the stylesheet to allow smaller size
+        remove_btn.setStyleSheet(
+            remove_btn.styleSheet() + """
+            QPushButton {
+                min-height: 14px;
+                max-height: 14px;
+                min-width: 14px;
+                max-width: 14px;
+                padding: 0px;
+                font-size: 10px;
+            }
+            """
+        )
+        remove_btn.setFixedSize(14, 14)
+
+        # Name edit (column 1)
+        if is_background:
+            default_name = self._get_next_background_name()
+        else:
+            default_name = self._get_next_range_name()
+        
+        name_edit = SelectAllLineEdit(default_name, self.table)
+        name_edit.setFont(table_font)
+        name_edit.textChanged.connect(self._on_range_value_changed)
+        name_edit.setFixedWidth(100)
+        name_edit.setFixedHeight(WIDGET_HEIGHT)
+        
+        # Start spinbox (column 2) - USE PROVIDED TIME
+        start_spin = SelectAllSpinBox(self.table)
+        start_spin.setFont(table_font)
+        start_spin.setRange(-1e6, 1e6)
+        start_spin.setDecimals(2)
+        start_spin.setFixedWidth(60)
+        start_spin.setFixedHeight(WIDGET_HEIGHT)
+        start_spin.blockSignals(True)
+        start_spin.setValue(start_time)
+        start_spin.blockSignals(False)
+        start_spin.valueChanged.connect(self._on_range_value_changed)
+        
+        # End spinbox (column 3) - USE PROVIDED TIME
+        end_spin = SelectAllSpinBox(self.table)
+        end_spin.setFont(table_font)
+        end_spin.setRange(-1e6, 1e6)
+        end_spin.setDecimals(2)
+        end_spin.setFixedWidth(60)
+        end_spin.setFixedHeight(WIDGET_HEIGHT)
+        end_spin.blockSignals(True)
+        end_spin.setValue(end_time)
+        end_spin.blockSignals(False)
+        end_spin.valueChanged.connect(self._on_range_value_changed)
+        
+        # Analysis type widget (column 4)
+        analysis_widget = QWidget(self.table)
+        analysis_layout = QHBoxLayout(analysis_widget)
+        analysis_layout.setContentsMargins(0, 0, 0, 0)
+        
+        analysis_combo = NoScrollComboBox(self.table)
+        analysis_combo.setFont(table_font)
+        analysis_combo.addItems(["Average", "Peak"])
+        analysis_combo.setFixedHeight(WIDGET_HEIGHT)
+        analysis_combo.setFixedWidth(80)
+        analysis_combo.currentTextChanged.connect(self._on_range_value_changed)
+        
+        analysis_layout.addWidget(analysis_combo)
+        
+        # Background checkbox (column 5)
+        bg_checkbox = QCheckBox(self.table)
+        bg_checkbox.setFont(table_font)
+        bg_checkbox.stateChanged.connect(self._on_background_changed)
+        if is_background:
+            bg_checkbox.setChecked(True)
+        
+        # Paired background combo (column 6)
+        paired_combo = NoScrollComboBox(self.table)
+        paired_combo.setFont(table_font)
+        paired_combo.addItem("None")
+        paired_combo.currentTextChanged.connect(self._on_range_value_changed)
+        paired_combo.setFixedHeight(WIDGET_HEIGHT)
+        
+        # Add widgets to table
+        self.table.setCellWidget(row, 0, remove_btn)
+        self.table.setCellWidget(row, 1, name_edit)
+        self.table.setCellWidget(row, 2, start_spin)
+        self.table.setCellWidget(row, 3, end_spin)
+        self.table.setCellWidget(row, 4, analysis_widget)
+        self.table.setCellWidget(row, 5, self._center_widget(bg_checkbox))
+        self.table.setCellWidget(row, 6, paired_combo)
+        
+        # Update background options for all rows
+        self.update_background_options()
+        
+        # Emit signal
+        range_id = default_name
+        self.range_added.emit(range_id, start_time, end_time, is_background)
+        
+        logger.debug(f"Added range row: {default_name} ({start_time}-{end_time})")
+
     def eventFilter(self, obj, event):
         """
         Event filter to capture focus-in events and store the
