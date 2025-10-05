@@ -18,6 +18,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import replace
+import re
 
 from data_analysis_gui.core.conc_resp_models import (
     ConcentrationRange,
@@ -38,18 +39,23 @@ class ConcentrationResponseService:
     """
     
     @staticmethod
-    def load_and_validate_csv(filepath: str) -> Tuple[pd.DataFrame, str, List[str]]:
+    def load_and_validate_csv(filepath: str) -> Tuple[pd.DataFrame, str, List[str], List[str]]:
         """
         Load and validate a CSV file for concentration-response analysis.
+        
+        Transforms data column headers to extract only voltage information
+        (e.g., "Average Current (pA) (+100mV)" -> "+100mV") for analysis,
+        but preserves original headers for display purposes.
         
         Args:
             filepath: Path to the CSV file
             
         Returns:
             Tuple containing:
-                - DataFrame with loaded data
-                - Name of the time column (first column)
-                - List of data column names (all columns after first)
+                - DataFrame with loaded data (columns renamed to voltage only)
+                - Name of the time column (first column, unchanged)
+                - List of simplified data column names (voltage only)
+                - List of original full data column names
         
         Raises:
             FileNotFoundError: If file doesn't exist
@@ -57,9 +63,11 @@ class ConcentrationResponseService:
             pd.errors.ParserError: If CSV parsing fails
         
         Example:
-            >>> df, time_col, data_cols = service.load_and_validate_csv("data.csv")
-            >>> print(f"Time: {time_col}, Data: {data_cols}")
-            Time: Time (s), Data: ['Current (pA)', 'Voltage (mV)']
+            >>> df, time_col, data_cols, orig_cols = service.load_and_validate_csv("data.csv")
+            >>> print(f"Simplified: {data_cols}")
+            >>> print(f"Original: {orig_cols}")
+            Simplified: ['+100mV', '-60mV']
+            Original: ['Average Current (pA) (+100mV)', 'Average Current (pA) (-60mV)']
         """
         filepath_obj = Path(filepath)
         
@@ -81,15 +89,25 @@ class ConcentrationResponseService:
             )
         
         time_col = df.columns[0]
-        data_cols = df.columns[1:].tolist()
+        original_data_cols = df.columns[1:].tolist()
+        
+        # Transform data column names to extract voltage only
+        simplified_data_cols = [
+            ConcentrationResponseService._extract_voltage_from_header(col)
+            for col in original_data_cols
+        ]
+        
+        # Rename DataFrame columns to simplified names
+        rename_dict = {orig: new for orig, new in zip(original_data_cols, simplified_data_cols)}
+        df = df.rename(columns=rename_dict)
         
         logger.info(
             f"Loaded CSV: {filepath_obj.name} - "
             f"{len(df)} rows, time column: '{time_col}', "
-            f"{len(data_cols)} data column(s)"
+            f"{len(simplified_data_cols)} data column(s): {simplified_data_cols}"
         )
         
-        return df, time_col, data_cols
+        return df, time_col, simplified_data_cols, original_data_cols
     
     @staticmethod
     def calculate_range_value(
@@ -395,3 +413,28 @@ class ConcentrationResponseService:
         logger.debug(f"Pivoted results: {len(export_data)} columns")
         
         return export_df
+    
+    def _extract_voltage_from_header(header: str) -> str:
+        """
+        Extract voltage portion from CSV header.
+        
+        Expected format: "{Average | Peak} Current ({units}) ({voltage})"
+        Example: "Average Current (pA) (+100mV)" -> "+100mV"
+        
+        Args:
+            header: Full CSV column header
+            
+        Returns:
+            Extracted voltage string, or original header if pattern not matched
+        """
+        # Match last parenthetical containing voltage info
+        # Pattern: (±digits[.digits] [m]V) at end of string
+        pattern = r'\(([+-]?\d+\.?\d*\s*m?V)\)\s*$'
+        match = re.search(pattern, header)
+        
+        if match:
+            return match.group(1).strip()
+        
+        # Fallback: return original header if pattern doesn't match
+        logger.warning(f"Could not extract voltage from header: '{header}'")
+        return header

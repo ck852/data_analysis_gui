@@ -91,6 +91,9 @@ class ConcentrationResponseDialog(QDialog):
         # Results storage
         self.results_dfs: Dict[str, pd.DataFrame] = {}
         
+        # Store original full headers for plot labels
+        self.original_data_cols = []
+
         # Services
         self.file_dialog_service = FileDialogService()
         self.service = ConcentrationResponseService()
@@ -341,14 +344,15 @@ class ConcentrationResponseDialog(QDialog):
         
         try:
             # Load and validate
-            df, time_col, data_cols = self.service.load_and_validate_csv(filepath)
+            df, time_col, data_cols, original_data_cols = self.service.load_and_validate_csv(filepath)
             
             # Store data
             self.filepath = filepath
             self.filename = Path(filepath).name
             self.data_df = df
             self.time_col = time_col
-            self.data_cols = data_cols
+            self.data_cols = data_cols  # Simplified voltage-only names
+            self.original_data_cols = original_data_cols  # Full original headers
             
             # Update UI
             self.file_path_display.setText(self.filename)
@@ -399,7 +403,13 @@ class ConcentrationResponseDialog(QDialog):
             )
         
         # Apply centralized styling
-        ylabel = " and ".join(self.data_cols) if len(self.data_cols) <= 3 else "Current (pA)"
+        if len(self.original_data_cols) <= 3:
+            # Use original full headers for y-axis when few traces
+            ylabel = " and ".join(self.original_data_cols)
+        else:
+            # Use generic label for many traces
+            ylabel = "Current (pA)"
+
         style_axis(
             self.ax,
             title=f"Data: {self.filename}",

@@ -71,6 +71,19 @@ class PlotFormatter:
             "sweep_indices": [m.sweep_index for m in metrics],
         }
 
+        # Check if we should add voltage annotation to Y-axis label
+        # This happens when: Y-axis is Current and X-axis is Time
+        should_annotate_voltage = (
+            params.y_axis.channel == "Current" and params.x_axis.measure == "Time"
+        )
+
+        if should_annotate_voltage:
+            # Calculate average voltage for range 1
+            avg_v1 = np.nanmean([m.voltage_mean_r1 for m in metrics])
+            result["y_label_r1"] = self._format_range_label(y_label, avg_v1)
+        else:
+            result["y_label_r1"] = None
+
         if params.use_dual_range:
             # For dual range, x_data2 should only be different if X-axis measures
             # something that can vary between ranges (Voltage or Current)
@@ -90,17 +103,21 @@ class PlotFormatter:
             )
             result["y_data2"] = np.array(y_data2)
 
-            # Add voltage labels for Y-axis labels
-            avg_v1 = np.nanmean([m.voltage_mean_r1 for m in metrics])
-            avg_v2 = np.nanmean(
-                [m.voltage_mean_r2 for m in metrics if m.voltage_mean_r2 is not None]
-            )
-
-            result["y_label_r1"] = self._format_range_label(y_label, avg_v1)
-            result["y_label_r2"] = self._format_range_label(y_label, avg_v2)
+            # Add voltage labels for range 2
+            if should_annotate_voltage:
+                avg_v2 = np.nanmean(
+                    [m.voltage_mean_r2 for m in metrics if m.voltage_mean_r2 is not None]
+                )
+                result["y_label_r2"] = self._format_range_label(y_label, avg_v2)
+            else:
+                # For dual range with no voltage annotation, still set labels
+                result["y_label_r2"] = y_label
+                if result["y_label_r1"] is None:
+                    result["y_label_r1"] = y_label
         else:
             result["x_data2"] = np.array([])
             result["y_data2"] = np.array([])
+            result["y_label_r2"] = None
 
         return result
 
@@ -423,9 +440,20 @@ class PlotFormatter:
         Returns:
             dict: Contains headers, data array, and format specification.
         """
-        headers = [plot_data.get("x_label", "X"), plot_data.get("y_label", "Y")]
+        # Use voltage-annotated label if available, otherwise use plain label
+        x_label = plot_data.get("x_label", "X")
+        
+        # Check if we have a voltage-annotated label
+        y_label_r1 = plot_data.get("y_label_r1")
+        if y_label_r1 is not None:
+            y_label = y_label_r1
+        else:
+            y_label = plot_data.get("y_label", "Y")
+        
+        headers = [x_label, y_label]
         data = np.column_stack([plot_data["x_data"], plot_data["y_data"]])
         return {"headers": headers, "data": data, "format_spec": "%.6f"}
+
 
     def _format_dual_range_export(
         self, plot_data: Dict[str, Any], params: AnalysisParameters
@@ -443,12 +471,17 @@ class PlotFormatter:
         # Get labels
         x_label = plot_data.get("x_label", "X")
 
-        # Get the base y_label without voltage annotation for cleaner export
+        # Get the base y_label
         y_label = plot_data.get("y_label", "Y")
 
-        # For dual range, we can include the voltage in the label if desired
-        y_label_r1 = plot_data.get("y_label_r1", f"{y_label} Range 1")
-        y_label_r2 = plot_data.get("y_label_r2", f"{y_label} Range 2")
+        # Use voltage-annotated labels if available, otherwise use base label with range suffix
+        y_label_r1 = plot_data.get("y_label_r1")
+        y_label_r2 = plot_data.get("y_label_r2")
+        
+        if y_label_r1 is None:
+            y_label_r1 = f"{y_label} Range 1"
+        if y_label_r2 is None:
+            y_label_r2 = f"{y_label} Range 2"
 
         # Get data arrays
         x_data = plot_data.get("x_data", np.array([]))
