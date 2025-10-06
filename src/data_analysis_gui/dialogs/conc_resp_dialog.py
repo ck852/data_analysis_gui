@@ -575,6 +575,9 @@ class ConcentrationResponseDialog(QDialog):
             )
             return
         
+        # Note: No concentration validation here - empty concentrations allowed
+        # (will default to 0.0 in get_all_ranges())
+        
         try:
             # Get ranges from table
             ranges = self.range_table.get_all_ranges()

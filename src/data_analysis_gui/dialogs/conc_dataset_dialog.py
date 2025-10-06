@@ -606,6 +606,16 @@ class ConcentrationDatasetDialog(QDialog):
             QMessageBox.warning(self, "No Ranges", "Please define at least one range.")
             return
         
+        # Validate concentration fields are filled
+        is_valid, error_msg = self.range_table.validate_concentrations()
+        if not is_valid:
+            QMessageBox.warning(
+                self,
+                "Empty Concentration Fields",
+                error_msg
+            )
+            return
+        
         try:
             # Get ranges from table
             try:
