@@ -9,7 +9,10 @@ import subprocess
 import shutil
 from pathlib import Path
 import os
-from src.data_analysis_gui import __version__, __version_mac__
+
+# Import version from root __version__.py
+sys.path.insert(0, str(Path(__file__).parent))
+from __version__ import __version__, __version_mac__
 
 def clean_build_dirs():
     """Remove old build artifacts"""
@@ -42,9 +45,10 @@ def check_dependencies():
 def build_app_bundle():
     """Build the Mac app bundle"""
     print("\nBuilding PatchBatch.app...")
+    print(f"Version: {__version__} (macOS: {__version_mac__})")
     
-    # Create spec file content for Mac
-    spec_content = """
+    # Create spec file content for Mac with proper version substitution
+    spec_content = f"""
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
@@ -57,7 +61,7 @@ a = Analysis(
     ],
     hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf'],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig={{}},
     runtime_hooks=[],
     excludes=['tkinter'],
     noarchive=False,
@@ -99,26 +103,26 @@ app = BUNDLE(
     name='PatchBatch.app',
     icon=None,  # Add 'icon.icns' if you have one
     bundle_identifier='com.northeastern.patchbatch',
-    version='__version_mac__',
-    info_plist={
+    version='{__version_mac__}',
+    info_plist={{
         'NSPrincipalClass': 'NSApplication',
         'NSAppleScriptEnabled': False,
         'CFBundleDisplayName': 'PatchBatch',
-        'CFBundleShortVersionString': '__version_mac__',
-        'CFBundleVersion': '__version__',
+        'CFBundleShortVersionString': '{__version_mac__}',
+        'CFBundleVersion': '{__version__}',
         'CFBundleDocumentTypes': [
-            {
+            {{
                 'CFBundleTypeName': 'ABF File',
                 'CFBundleTypeExtensions': ['abf'],
                 'CFBundleTypeRole': 'Viewer',
-            },
-            {
+            }},
+            {{
                 'CFBundleTypeName': 'MAT File',
                 'CFBundleTypeExtensions': ['mat'],
                 'CFBundleTypeRole': 'Viewer',
-            }
+            }}
         ]
-    },
+    }},
 )
 """
     
@@ -249,6 +253,7 @@ def main():
         print(f"\n✓ Build successful!")
         print(f"  DMG: {dmg_path}")
         print(f"  Size: {size_mb:.1f} MB")
+        print(f"  Version: {__version__} ({__version_mac__})")
         print(f"\nTo distribute:")
         print(f"  1. Upload {dmg_path.name} to GitHub Releases")
         print(f"  2. Users download and double-click to mount")

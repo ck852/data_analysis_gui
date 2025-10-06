@@ -6,7 +6,53 @@ on:
       - 'v*'  # Triggers on version tags
 
 jobs:
+  verify-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      version_mac: ${{ steps.get_version.outputs.version_mac }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Extract and verify versions
+      id: get_version
+      run: |
+        # Get version from pyproject.toml
+        PYPROJECT_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "pyproject.toml version: $PYPROJECT_VERSION"
+        
+        # Get versions from __version__.py
+        VERSION_PY=$(python -c "exec(open('__version__.py').read()); print(__version__)")
+        VERSION_MAC_PY=$(python -c "exec(open('__version__.py').read()); print(__version_mac__)")
+        echo "__version__.py version: $VERSION_PY"
+        echo "__version__.py mac version: $VERSION_MAC_PY"
+        
+        # Get git tag (remove 'v' prefix)
+        GIT_TAG=${GITHUB_REF#refs/tags/v}
+        echo "Git tag version: $GIT_TAG"
+        
+        # Verify all versions match
+        if [ "$PYPROJECT_VERSION" != "$VERSION_PY" ]; then
+          echo "ERROR: Version mismatch between pyproject.toml ($PYPROJECT_VERSION) and __version__.py ($VERSION_PY)"
+          exit 1
+        fi
+        
+        if [ "$PYPROJECT_VERSION" != "$GIT_TAG" ]; then
+          echo "ERROR: Version mismatch between pyproject.toml ($PYPROJECT_VERSION) and git tag ($GIT_TAG)"
+          exit 1
+        fi
+        
+        echo "✓ All versions match: $PYPROJECT_VERSION"
+        echo "version=$PYPROJECT_VERSION" >> $GITHUB_OUTPUT
+        echo "version_mac=$VERSION_MAC_PY" >> $GITHUB_OUTPUT
+
   build-macos:
+    needs: verify-version
     strategy:
       matrix:
         include:
@@ -46,6 +92,20 @@ jobs:
     - name: Build Mac app
       run: python build_macos.py
     
+    - name: Verify version in DMG
+      run: |
+        echo "Built version: ${{ needs.verify-version.outputs.version }}"
+        # Mount DMG and check version info in app bundle
+        hdiutil attach dist/PatchBatch-macOS.dmg -mountpoint /Volumes/PatchBatch
+        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Volumes/PatchBatch/PatchBatch.app/Contents/Info.plist)
+        echo "App bundle version: $APP_VERSION"
+        hdiutil detach /Volumes/PatchBatch
+        if [ "$APP_VERSION" != "${{ needs.verify-version.outputs.version_mac }}" ]; then
+          echo "ERROR: Version in app bundle doesn't match expected version"
+          exit 1
+        fi
+        echo "✓ DMG version verified"
+    
     - name: Rename DMG to include architecture
       run: |
         mv dist/PatchBatch-macOS.dmg "dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg"
@@ -57,6 +117,7 @@ jobs:
         path: dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg
 
   build-windows:
+    needs: verify-version
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -88,6 +149,7 @@ jobs:
         path: dist/PatchBatch-Windows.zip
 
   publish-pypi:
+    needs: verify-version
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -97,13 +159,6 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Extract version from pyproject.toml
-      id: get_version
-      run: |
-        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Extracted version: $VERSION"
-    
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
@@ -111,6 +166,16 @@ jobs:
     
     - name: Build package
       run: python -m build
+    
+    - name: Verify package version
+      run: |
+        BUILT_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "Package version: $BUILT_VERSION"
+        if [ "$BUILT_VERSION" != "${{ needs.verify-version.outputs.version }}" ]; then
+          echo "ERROR: Built package version doesn't match verified version"
+          exit 1
+        fi
+        echo "✓ Package version verified"
     
     - name: Publish to PyPI
       env:
@@ -120,7 +185,7 @@ jobs:
         python -m twine upload dist/*.tar.gz dist/*.whl
 
   release:
-    needs: [build-macos, build-windows, publish-pypi]
+    needs: [verify-version, build-macos, build-windows, publish-pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -150,9 +215,11 @@ jobs:
         prerelease: false
         generate_release_notes: true
         body: |
-          ## Installation
+          ## PatchBatch v${{ needs.verify-version.outputs.version }}
           
-          ### macOS
+          ### Installation
+          
+          #### macOS
           **Choose the correct version for your Mac:**
           - **Apple Silicon (M1/M2/M3/M4):** Download `PatchBatch-macOS-AppleSilicon.dmg`
           - **Intel Macs:** Download `PatchBatch-macOS-Intel.dmg`
@@ -162,15 +229,15 @@ jobs:
           2. Drag PatchBatch.app to your Applications folder
           3. First run: Right-click → Open (to bypass Gatekeeper security)
           
-          ### Windows
+          #### Windows
           1. Download `PatchBatch-Windows.zip`
           2. Extract to your desired location
           3. Run `PatchBatch.exe`
           
-          ### Python (PyPI)
+          #### Python (PyPI)
           This version is also available via pip:
           ```bash
-          pip install patchbatch
+          pip install patchbatch==${{ needs.verify-version.outputs.version }}
           patchbatch
           ```
           
