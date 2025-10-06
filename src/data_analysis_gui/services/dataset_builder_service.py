@@ -227,7 +227,11 @@ class DatasetBuilderService:
         
         return pd.DataFrame(preview_data)
     
-    def export_dataset(self, base_filepath: str) -> Tuple[bool, List[str]]:
+    def export_dataset(
+        self, 
+        base_output_path: str, 
+        base_filename: str = "dataset"
+    ) -> Tuple[bool, List[str]]:
         """
         Export all accumulated datasets to CSV files.
         
@@ -235,8 +239,8 @@ class DatasetBuilderService:
         Format: "Concentration (uM)" column + one column per file (no headers).
         
         Args:
-            base_filepath: Base path for export (e.g., "/path/to/dataset.csv")
-                          Will append trace identifier before extension
+            base_output_path: Output directory path (e.g., "/path/to/output_dir")
+            base_filename: Base filename without extension (e.g., "dataset")
             
         Returns:
             Tuple of (success: bool, list of exported file paths)
@@ -244,13 +248,12 @@ class DatasetBuilderService:
         if not self.datasets:
             return False, []
         
-        import os
         from pathlib import Path
         
-        base_path = Path(base_filepath)
-        base_dir = base_path.parent
-        base_name = base_path.stem
-        base_ext = base_path.suffix
+        output_dir = Path(base_output_path)
+        
+        # Create directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         exported_files = []
         
@@ -258,7 +261,7 @@ class DatasetBuilderService:
             for trace_idx, (trace_name, dataset) in enumerate(self.datasets.items()):
                 # Generate filename suffix based on trace
                 trace_suffix = f"_trace{trace_idx + 1}"
-                output_path = base_dir / f"{base_name}{trace_suffix}{base_ext}"
+                output_path = output_dir / f"{base_filename}{trace_suffix}.csv"
                 
                 # Build export DataFrame
                 export_df = self._build_export_dataframe(dataset)

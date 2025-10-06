@@ -4,12 +4,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.1-b.3]
 ### Added
-- Dose-response analysis
+- Dose-response analysis module
 
 ### Changed
 - Fixed file order in batch analyses with multiple dates (requires xxxxxx_xxx file name format)
 - Added x=0 and y=0 gridlines
 - Centralized cursor-spinbox coupling widget
+- better directory location perstistence across sessions
 
 ## [0.9.1-beta.2] - 2025-10-03
 ### Added
@@ -21,6 +22,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ### Known Issues
 - error messages from ramp_iv suggest wrong voltage set, but data results seem unaffected
+- file directory location not saving consistently between sessions
 
 ## [0.9.1-beta.1] - 2025-10-03
 ### Added

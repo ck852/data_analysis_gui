@@ -104,7 +104,7 @@ class ConcentrationResponseDialog(QDialog):
         self.plot_formatter = PlotFormatter()
         
         # Window setup - use dynamic sizing like batch_results_window
-        self.setWindowTitle("Concentration-Response Analysis")
+        self.setWindowTitle("Dose-Response Analysis")
         self._setup_window_geometry()
         
         # Initialize UI
@@ -298,13 +298,18 @@ class ConcentrationResponseDialog(QDialog):
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Range", "Raw Value", "BG", "Corrected Value"
+            "File", "Data Trace", "Conc (μM)", "Raw Value", "BG", "Corrected Value"
         ])
         self.results_table.setMaximumHeight(250)
         
         header = self.results_table.horizontalHeader()
+        # Set all columns to stretch except BG column
         for i in range(6):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            if i == 4:  # BG column
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
+                self.results_table.setColumnWidth(i, 60)  # Narrow width for BG column
+            else:
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
         
         layout.addWidget(self.results_table)
         
@@ -717,10 +722,23 @@ class ConcentrationResponseDialog(QDialog):
             )
             return
         
-        # Use exporter service
+        # Get export directory using the dialog's service
+        output_dir = self.file_dialog_service.get_directory(
+            self,
+            "Select Export Directory",
+            dialog_type="conc_resp_export"  # Unique dialog type
+        )
+        
+        if not output_dir:
+            self.status_label.setText("Export cancelled")
+            style_label(self.status_label, "muted")
+            return
+        
+        # Call exporter with the directory path
         success, message = ConcentrationResponseExporter.export_results(
             results_dfs=self.results_dfs,
             source_filepath=self.filepath,
+            output_directory=output_dir,
             parent_widget=self
         )
         
@@ -728,13 +746,13 @@ class ConcentrationResponseDialog(QDialog):
         if success:
             self.status_label.setText(message)
             style_label(self.status_label, "success")
-
+            
+            # Auto-save after successful export
             if hasattr(self.parent(), '_auto_save_settings'):
                 try:
                     self.parent()._auto_save_settings()
                 except Exception:
                     pass
-                
         else:
             self.status_label.setText(message)
-            style_label(self.status_label, "muted" if "cancelled" in message else "error")
+            style_label(self.status_label, "error")

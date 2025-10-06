@@ -101,7 +101,7 @@ class ConcentrationDatasetDialog(QDialog):
         self.plot_formatter = PlotFormatter()
         
         # Window setup
-        self.setWindowTitle("Concentration-Response Dataset Builder")
+        self.setWindowTitle("Dose-Response Dataset Builder")
         self._setup_window_geometry()
         
         # Initialize UI
@@ -782,26 +782,27 @@ class ConcentrationDatasetDialog(QDialog):
             QMessageBox.warning(self, "No Data", "No files have been analyzed yet.")
             return
         
-        # Get export path from user
-        default_name = "dataset.csv"
-        if self.filepath:
-            default_dir = str(Path(self.filepath).parent)
-        else:
-            default_dir = None
-        
-        export_path = self.file_dialog_service.get_export_path(
-            parent=self,
-            suggested_name=default_name,
-            default_directory=default_dir,
-            file_types="CSV files (*.csv);;All files (*.*)",
-            dialog_type="conc_dataset_export"
+        # Get export directory from user using the dialog's service
+        output_dir = self.file_dialog_service.get_directory(
+            self,
+            "Select Export Directory",
+            dialog_type="conc_dataset_export"  # Unique dialog type
         )
         
-        if not export_path:
+        if not output_dir:
             return
         
-        # Export
-        success, exported_files = self.dataset_service.export_dataset(export_path)
+        # Generate default base filename from first file if available
+        if self.filepath:
+            base_name = Path(self.filepath).stem
+        else:
+            base_name = "dataset"
+        
+        # Export using the selected directory
+        success, exported_files = self.dataset_service.export_dataset(
+            base_output_path=output_dir,
+            base_filename=base_name
+        )
         
         if success and exported_files:
             QMessageBox.information(
@@ -816,14 +817,14 @@ class ConcentrationDatasetDialog(QDialog):
             )
             style_label(self.status_label, "success")
             
-            logger.info(f"Exported {len(exported_files)} dataset files")
-
+            # Auto-save after successful export
             if hasattr(self.parent(), '_auto_save_settings'):
                 try:
                     self.parent()._auto_save_settings()
                 except Exception:
                     pass
-
+            
+            logger.info(f"Exported {len(exported_files)} dataset files")
         else:
             QMessageBox.critical(
                 self,

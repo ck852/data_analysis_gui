@@ -39,6 +39,7 @@ class ConcentrationResponseExporter:
     def export_results(
         results_dfs: Dict[str, pd.DataFrame],
         source_filepath: str,
+        output_directory: str,
         parent_widget: Optional[QWidget] = None
     ) -> tuple[bool, str]:
         """
@@ -46,29 +47,11 @@ class ConcentrationResponseExporter:
         
         Creates one CSV file per data trace, with sanitized filenames based
         on the source file. Handles file conflicts with user dialog.
-        
-        Args:
-            results_dfs: Dictionary mapping trace names to result DataFrames
-            source_filepath: Path to the original source file (for directory/naming)
-            parent_widget: Parent widget for dialogs (optional)
-            
-        Returns:
-            Tuple of (success: bool, message: str) for status reporting
-        
-        Example:
-            >>> success, msg = exporter.export_results(
-            ...     results_dfs={'Current (pA)': df},
-            ...     source_filepath='/data/experiment.csv',
-            ...     parent_widget=dialog
-            ... )
-            >>> if success:
-            ...     print(f"Exported: {msg}")
         """
         if not results_dfs:
             return False, "No results to export"
         
-        # Get export directory and base filename
-        directory = os.path.dirname(source_filepath)
+        # Get base filename from source (for naming only)
         filename = os.path.basename(source_filepath)
         base_filename = os.path.splitext(filename)[0]
         
@@ -80,7 +63,7 @@ class ConcentrationResponseExporter:
                 safe_trace_name = ConcentrationResponseExporter.sanitize_trace_name(trace_name)
                 
                 output_filename = f"{base_filename}_{safe_trace_name}.csv"
-                output_path = os.path.join(directory, output_filename)
+                output_path = os.path.join(output_directory, output_filename)
                 
                 # Handle file conflicts
                 resolved_path = ConcentrationResponseExporter._resolve_filename_conflict(
@@ -113,11 +96,11 @@ class ConcentrationResponseExporter:
                 QMessageBox.information(
                     parent_widget,
                     "Export Successful",
-                    f"{len(exported_files)} file(s) saved to:\n{directory}\n\n"
+                    f"{len(exported_files)} file(s) saved to:\n{output_directory}\n\n"
                     f"Files:\n- " + "\n- ".join(exported_files)
                 )
                 
-                return True, f"Exported {len(exported_files)} file(s) to {os.path.basename(directory)}"
+                return True, f"Exported {len(exported_files)} file(s) to {Path(output_directory).name}"
         
         except Exception as e:
             logger.error(f"Export error: {e}", exc_info=True)

@@ -83,8 +83,9 @@ class ConcentrationRangeTable(QWidget):
             "Analysis", "BG", "Paired BG"
         ])
         
-        # Hide the ID column (index 1)
+        # Hide the ID column (index 1) and BG column (index 6)
         self.table.setColumnHidden(1, True)
+        self.table.setColumnHidden(6, True)
         
         self.table.setMaximumHeight(250)
         self.table.setMinimumWidth(520)
@@ -98,14 +99,13 @@ class ConcentrationRangeTable(QWidget):
         # Column 1 is hidden
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        # Column 6 is hidden
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         
         self.table.verticalHeader().setVisible(False)
 
         self.table.setColumnWidth(3, 75)
         self.table.setColumnWidth(4, 75)
-        self.table.setColumnWidth(6, 35)
         
         layout.addWidget(self.table)
         
@@ -128,16 +128,10 @@ class ConcentrationRangeTable(QWidget):
         add_paired_bg_btn.setFixedHeight(22)
         style_button(add_paired_bg_btn, "secondary")
         
-        self.mu_button = QPushButton("Insert μ")
-        self.mu_button.setFixedSize(60, 22)
-        self.mu_button.clicked.connect(self.insert_mu_char)
-        style_button(self.mu_button, "secondary")
-        
         bottom_layout.addWidget(self.add_range_btn)
         bottom_layout.addWidget(self.add_bg_range_btn)
         bottom_layout.addWidget(add_paired_bg_btn)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(self.mu_button)
         
         layout.addLayout(bottom_layout)
         

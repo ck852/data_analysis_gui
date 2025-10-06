@@ -25,8 +25,9 @@ DEFAULT_EXCLUDES = [
     ".coverage",
     "htmlcov",
     # VCS / IDE / tooling
-    ".git",
+    #".git",
     ".hg",
+    #"tests",
     ".svn",
     ".idea",
     ".vscode",
@@ -54,6 +55,9 @@ def is_hidden(path: str) -> bool:
     """Dotfiles considered hidden; also honor Windows hidden/system attrs."""
     name = os.path.basename(path.rstrip(os.sep))
     if name.startswith("."):
+        # Exception for .github - always show it
+        if name == ".github":
+            return False
         return True
     if os.name == "nt":
         try:
@@ -74,6 +78,10 @@ def _casefold(s: str) -> str:
 
 def should_exclude(rel_path: str, name: str, patterns) -> bool:
     """Match either the basename or relative path (case-insensitive, glob)."""
+    # Exception for .github - never exclude it
+    if name == ".github":
+        return False
+        
     rp = rel_path.replace("\\", "/")
     rp_cf = _casefold(rp)
     base_cf = _casefold(name)
