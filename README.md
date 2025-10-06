@@ -155,6 +155,10 @@ Then you can define the voltage range you are analyzing. The script will find th
 
 Better screenshot pending
 
+### Dose-Response **BETA**
+
+Click the "Add Range" buttons then click the plot to add them. This is meant for time vs current output files by the main window. The multi-file analysis lets you make a Prism-ready summary dataset for several files that have the same concentration range. Has not been extensively validated but matches excel-calculated results in tests.
+
 ## Validation
 
 To validate the data processing modules of this program, analyses were performed on sets of real electrophysiology data files. The outputs by this program were compared with outputs by WinWCP, both analyses using identical parameters. 

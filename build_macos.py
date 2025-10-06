@@ -157,7 +157,6 @@ def create_dmg_with_tool():
     cmd = [
         "create-dmg",
         "--volname", "PatchBatch Installer",
-        "--volicon", "icon.icns",  # Use if you have an icon
         "--window-pos", "200", "120",
         "--window-size", "800", "400",
         "--icon-size", "100",
@@ -173,7 +172,19 @@ def create_dmg_with_tool():
         cmd = [c for c in cmd if c not in ["--volicon", "icon.icns"]]
     
     result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.returncode == 0
+    
+    # Print output for debugging
+    if result.stdout:
+        print("create-dmg output:", result.stdout)
+    if result.stderr:
+        print("create-dmg errors:", result.stderr)
+    
+    # create-dmg returns 2 on success with warnings, 0 on perfect success
+    if result.returncode in [0, 2] and dmg_path.exists():
+        return True
+    
+    print("create-dmg failed, falling back to basic DMG creation...")
+    return False
 
 def create_dmg_basic():
     """Create basic DMG without create-dmg tool"""
@@ -236,21 +247,24 @@ def main():
     has_create_dmg = check_dependencies()
     
     if not build_app_bundle():
-        print("\n✗ App bundle build failed")
+        print("\nX App bundle build failed")
         sys.exit(1)
     
-    print("\n✓ App bundle created: dist/PatchBatch.app")
+    print("\n* App bundle created: dist/PatchBatch.app")
     
-    # Create DMG
+    # Create DMG - try fancy method first, fall back to basic
+    success = False
     if has_create_dmg:
         success = create_dmg_with_tool()
-    else:
+    
+    if not success:
+        print("Trying basic DMG creation method...")
         success = create_dmg_basic()
     
     if success:
         dmg_path = Path("dist/PatchBatch-macOS.dmg")
         size_mb = dmg_path.stat().st_size / (1024 * 1024)
-        print(f"\n✓ Build successful!")
+        print(f"\n* Build successful!")
         print(f"  DMG: {dmg_path}")
         print(f"  Size: {size_mb:.1f} MB")
         print(f"  Version: {__version__} ({__version_mac__})")
@@ -259,7 +273,7 @@ def main():
         print(f"  2. Users download and double-click to mount")
         print(f"  3. Drag PatchBatch.app to Applications folder")
     else:
-        print("\n✗ DMG creation failed")
+        print("\nX DMG creation failed")
         sys.exit(1)
 
 if __name__ == "__main__":

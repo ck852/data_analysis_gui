@@ -22,6 +22,14 @@ jobs:
     - name: Extract and verify versions
       id: get_version
       run: |
+        # Validate pyproject.toml syntax first
+        echo "Validating pyproject.toml syntax..."
+        python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))" || {
+          echo "ERROR: pyproject.toml has syntax errors"
+          exit 1
+        }
+        echo "✓ pyproject.toml syntax valid"
+        
         # Get version from pyproject.toml
         PYPROJECT_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
         echo "pyproject.toml version: $PYPROJECT_VERSION"
@@ -78,7 +86,18 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
-        brew install create-dmg || true
+        
+        # Install create-dmg (optional, will fallback to basic DMG if missing)
+        brew install create-dmg || echo "Warning: create-dmg not installed, will use basic DMG creation"
+    
+    - name: Verify create-dmg installation
+      run: |
+        if command -v create-dmg &> /dev/null; then
+          echo "create-dmg is installed"
+          create-dmg --version || echo "create-dmg installed but version check failed"
+        else
+          echo "create-dmg not available - will use basic DMG creation method"
+        fi
     
     - name: Verify architecture
       run: |
@@ -90,7 +109,29 @@ jobs:
         fi
     
     - name: Build Mac app
-      run: python build_macos.py
+      run: |
+        set -x  # Enable command echoing for debugging
+        python build_macos.py
+    
+    - name: Verify app bundle was created
+      run: |
+        if [ ! -d "dist/PatchBatch.app" ]; then
+          echo "ERROR: dist/PatchBatch.app not found"
+          ls -la dist/ || echo "dist/ directory doesn't exist"
+          exit 1
+        fi
+        echo "✓ App bundle exists: dist/PatchBatch.app"
+        ls -lh dist/PatchBatch.app
+    
+    - name: Verify DMG was created
+      run: |
+        if [ ! -f "dist/PatchBatch-macOS.dmg" ]; then
+          echo "ERROR: dist/PatchBatch-macOS.dmg not found"
+          ls -la dist/
+          exit 1
+        fi
+        echo "✓ DMG exists: dist/PatchBatch-macOS.dmg"
+        ls -lh dist/PatchBatch-macOS.dmg
     
     - name: Verify version in DMG
       run: |
@@ -137,6 +178,26 @@ jobs:
     
     - name: Build Windows exe
       run: python build_windows.py
+    
+    - name: Verify version in executable
+      shell: powershell
+      run: |
+        $exePath = "dist\PatchBatch-Windows\PatchBatch.exe"
+        if (Test-Path $exePath) {
+          $versionInfo = (Get-Item $exePath).VersionInfo
+          $fileVersion = $versionInfo.FileVersion
+          $expectedVersion = "${{ needs.verify-version.outputs.version }}"
+          Write-Host "Executable version: $fileVersion"
+          Write-Host "Expected version: $expectedVersion"
+          if (-not $fileVersion.StartsWith($expectedVersion)) {
+            Write-Error "Version mismatch in Windows executable"
+            exit 1
+          }
+          Write-Host "✓ Windows executable version verified"
+        } else {
+          Write-Error "Executable not found"
+          exit 1
+        }
     
     - name: Create Windows ZIP
       run: |

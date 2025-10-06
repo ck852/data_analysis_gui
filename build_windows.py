@@ -70,7 +70,7 @@ VSVersionInfo(
         StringStruct(u'FileDescription', u'PatchBatch - Electrophysiology Data Analysis Tool'),
         StringStruct(u'FileVersion', u'{__version__}'),
         StringStruct(u'InternalName', u'PatchBatch'),
-        StringStruct(u'LegalCopyright', u'© 2025 Ralph C Kissell. MIT License'),
+        StringStruct(u'LegalCopyright', u'copyright 2025 Ralph C Kissell. MIT License'),
         StringStruct(u'OriginalFilename', u'PatchBatch.exe'),
         StringStruct(u'ProductName', u'PatchBatch'),
         StringStruct(u'ProductVersion', u'{__version__}')])
