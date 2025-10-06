@@ -107,17 +107,17 @@ def extract_settings_from_main_window(main_window) -> dict:
     if hasattr(main_window, "channel_combo"):
         settings["last_channel_view"] = main_window.channel_combo.currentText()
 
-    # Add last directory
-    if hasattr(main_window, "current_file_path") and main_window.current_file_path:
-        from pathlib import Path
-
-        settings["last_directory"] = str(Path(main_window.current_file_path).parent)
-
-    # Add file dialog directory memory
+    # Add file dialog directory memory (primary directory tracking system)
     if hasattr(main_window, "file_dialog_service"):
         settings["file_dialog_directories"] = (
             main_window.file_dialog_service.get_last_directories()
         )
+    
+    # Legacy: Keep last_directory for backward compatibility with old sessions
+    # but file_dialog_service is now the primary system
+    if hasattr(main_window, "current_file_path") and main_window.current_file_path:
+        from pathlib import Path
+        settings["last_directory"] = str(Path(main_window.current_file_path).parent)
 
     return settings
 
@@ -146,17 +146,23 @@ def apply_settings_to_main_window(main_window, settings: dict):
         # Store for later use
         main_window.last_channel_view = settings["last_channel_view"]
 
-    # Apply last directory
-    if "last_directory" in settings:
-        main_window.last_directory = settings["last_directory"]
-
-    # Apply file dialog directory memory
+    # Apply file dialog directory memory (primary system)
     if "file_dialog_directories" in settings and hasattr(
         main_window, "file_dialog_service"
     ):
         main_window.file_dialog_service.set_last_directories(
             settings["file_dialog_directories"]
         )
+    
+    # Legacy: Apply last_directory for backward compatibility
+    # Only used as fallback if file_dialog_directories doesn't exist
+    elif "last_directory" in settings:
+        main_window.last_directory = settings["last_directory"]
+        # Migrate to new system if service exists
+        if hasattr(main_window, "file_dialog_service"):
+            main_window.file_dialog_service.set_last_directories({
+                "import_data": settings["last_directory"]
+            })
 
 
 def revalidate_ranges_for_file(main_window, max_sweep_time: float):

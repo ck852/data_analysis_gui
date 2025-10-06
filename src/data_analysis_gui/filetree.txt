@@ -30,6 +30,7 @@ data_analysis_gui/
 |   |-- batch_dialog.py
 |   |-- batch_results_window.py
 |   |-- bg_subtraction_dialog.py
+|   |-- conc_dataset_dialog.py
 |   |-- conc_resp_dialog.py
 |   |-- current_density_dialog.py
 |   |-- current_density_results_window.py
@@ -46,6 +47,7 @@ data_analysis_gui/
 |   |-- conc_resp_service.py
 |   |-- current_density_service.py
 |   |-- data_manager.py
+|   |-- dataset_builder_service.py
 |   |-- plot_service.py
 |   `-- ramp_iv_service.py
 |-- widgets/

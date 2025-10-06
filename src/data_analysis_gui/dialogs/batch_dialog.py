@@ -118,8 +118,13 @@ class BatchAnalysisDialog(QDialog):
         self.worker = None
         self.batch_result = None
 
-        # Initialize services
-        self.file_dialog_service = FileDialogService()
+        # Share the file dialog service from parent instead of creating new instance
+        # This ensures directory memory is shared across the application
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
 
         # Set window title before applying theme
         self.setWindowTitle("Batch Analysis")
@@ -127,7 +132,7 @@ class BatchAnalysisDialog(QDialog):
         self.init_ui()
 
         # Apply theme and layout helpers from refactored themes.py
-        apply_modern_theme(self)  # Only takes 1 argument now
+        apply_modern_theme(self)
         apply_compact_layout(self)
 
     def init_ui(self):
@@ -226,14 +231,13 @@ class BatchAnalysisDialog(QDialog):
             "All files (*.*)"
         )
 
-        default_dir = None
-        if hasattr(self.parent(), "current_file_path"):
-            current_path = self.parent().current_file_path
-            if current_path:
-                default_dir = str(Path(current_path).parent)
-
+        # Use service's directory memory - no manual default_dir logic
         file_paths = self.file_dialog_service.get_import_paths(
-            self, "Select Files for Batch Analysis", default_dir, file_types
+            self, 
+            "Select Files for Batch Analysis", 
+            default_directory=None,  # Let service use its memory
+            file_types=file_types,
+            dialog_type="import_batch"  # Separate memory for batch imports
         )
 
         if file_paths:
@@ -244,6 +248,13 @@ class BatchAnalysisDialog(QDialog):
 
             self.update_file_count()
             self.update_button_states()
+            
+            # Trigger auto-save on parent to persist directory choice
+            if hasattr(self.parent(), '_auto_save_settings'):
+                try:
+                    self.parent()._auto_save_settings()
+                except Exception as e:
+                    logger.warning(f"Failed to auto-save settings from batch dialog: {e}")
 
     def remove_selected(self):
         """

@@ -69,8 +69,13 @@ class AnalysisPlotDialog(QDialog):
         self.params = params
         self.dataset = None  # Store dataset if passed directly
 
-        # Initialize GUI service for file operations
-        self.file_dialog_service = FileDialogService()
+        # Share the file dialog service from parent instead of creating new instance
+        # This ensures directory memory is shared across the application
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
 
         # Convert plot data to AnalysisPlotData if needed
         if isinstance(plot_data, dict):
@@ -156,6 +161,7 @@ class AnalysisPlotDialog(QDialog):
             parent=self,
             suggested_name="analysis_plot.png",
             file_types="PNG files (*.png);;PDF files (*.pdf);;SVG files (*.svg);;All files (*.*)",
+            dialog_type="export_plot_image",  # Unique dialog type for plot images
         )
 
         if file_path:
@@ -167,6 +173,15 @@ class AnalysisPlotDialog(QDialog):
                     "Export Successful",
                     f"Plot saved to {os.path.basename(file_path)}",
                 )
+                
+                # Trigger auto-save on parent to persist directory choice
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception as e:
+                        # Log but don't show error for auto-save failures
+                        pass
+                        
             except Exception as e:
                 QMessageBox.critical(
                     self, "Export Failed", f"Failed to save plot: {str(e)}"
@@ -208,11 +223,12 @@ class AnalysisPlotDialog(QDialog):
         else:
             suggested_filename = "analysis_export.csv"
 
-        # Get path through GUI service
+        # Get path through GUI service with specific dialog type
         file_path = self.file_dialog_service.get_export_path(
             parent=self,
             suggested_name=suggested_filename,
             file_types="CSV files (*.csv);;All files (*.*)",
+            dialog_type="export_analysis_plot",  # Unique dialog type for plot data exports
         )
 
         if file_path:
@@ -239,6 +255,14 @@ class AnalysisPlotDialog(QDialog):
                         "Export Successful",
                         f"Exported {result.records_exported} records to {os.path.basename(file_path)}",
                     )
+                    
+                    # Trigger auto-save on parent to persist directory choice
+                    if hasattr(self.parent(), '_auto_save_settings'):
+                        try:
+                            self.parent()._auto_save_settings()
+                        except Exception as e:
+                            # Log but don't show error for auto-save failures
+                            pass
                 else:
                     QMessageBox.warning(
                         self, "Export Failed", f"Export failed: {result.error_message}"

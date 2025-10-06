@@ -431,20 +431,14 @@ class MainWindow(QMainWindow):
             "All files (*.*)"
         )
 
-        # Determine default directory
-        default_dir = None
-        if self.current_file_path:
-            default_dir = str(Path(self.current_file_path).parent)
-        elif hasattr(self, "last_directory") and self.last_directory:
-            # Use last directory from loaded settings
-            default_dir = self.last_directory
-
+        # Use ONLY the service's stored directory - no fallback logic
+        # The service handles fallbacks internally if needed
         file_path = self.file_dialog_service.get_import_path(
             parent=self,
             title="Open Data File",
-            default_directory=default_dir,
+            default_directory=None,  # Let service use its memory
             file_types=file_types,
-            dialog_type="import_data",  # Specific dialog type for data files
+            dialog_type="import_data",
         )
 
         if file_path:
@@ -454,6 +448,9 @@ class MainWindow(QMainWindow):
             if result.success:
                 self.current_file_path = file_path
                 self.file_loaded.emit(file_path)
+                
+                # Auto-save settings to persist the directory choice
+                self._auto_save_settings()
             # Error handling is done by controller callbacks
 
     def _on_file_loaded(self, file_info: FileInfo):
@@ -655,8 +652,9 @@ class MainWindow(QMainWindow):
         file_path = self.file_dialog_service.get_export_path(
             parent=self,
             suggested_name=suggested,
+            default_directory=None,  # Let service use its memory
             file_types="CSV files (*.csv);;All files (*.*)",
-            dialog_type="export_analysis",  # Specific dialog type for analysis exports
+            dialog_type="export_analysis",
         )
 
         if not file_path:
@@ -671,6 +669,8 @@ class MainWindow(QMainWindow):
                 "Success",
                 f"Exported {result.records_exported} records to {Path(file_path).name}",
             )
+            # Auto-save settings to persist the directory choice
+            self._auto_save_settings()
         else:
             QMessageBox.critical(self, "Export Failed", result.error_message)
 
