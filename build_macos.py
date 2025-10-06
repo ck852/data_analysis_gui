@@ -59,7 +59,7 @@ a = Analysis(
         ('README.md', '.'),
         ('LICENSE.md', '.')
     ],
-    hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf'],
+    hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf', 'pandas'],
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[],

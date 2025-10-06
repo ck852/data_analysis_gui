@@ -13,6 +13,10 @@ import shutil
 from pathlib import Path
 import os
 
+# Import version from root __version__.py
+sys.path.insert(0, str(Path(__file__).parent))
+from __version__ import __version__
+
 def clean_build_dirs():
     """Remove old build artifacts"""
     print("Cleaning old build directories...")
@@ -31,13 +35,68 @@ def check_pyinstaller():
         print("PyInstaller not found. Installing...")
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
+def generate_version_file():
+    """Generate version_info.txt with current version"""
+    print(f"\nGenerating version file for {__version__}...")
+    
+    # Parse version string to tuple (e.g., "0.9.1b3" -> (0, 9, 1, 3))
+    # Handle beta versions: "0.9.1b3" means version 0.9.1, beta 3
+    version_parts = __version__.replace('b', '.').replace('a', '.').replace('rc', '.')
+    version_tuple = tuple(int(x) for x in version_parts.split('.') if x.isdigit())
+    
+    # Ensure we have 4 components
+    version_tuple = version_tuple + (0,) * (4 - len(version_tuple))
+    version_tuple = version_tuple[:4]
+    
+    version_content = f"""# version_info.txt
+# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName', u'Northeastern University'),
+        StringStruct(u'FileDescription', u'PatchBatch - Electrophysiology Data Analysis Tool'),
+        StringStruct(u'FileVersion', u'{__version__}'),
+        StringStruct(u'InternalName', u'PatchBatch'),
+        StringStruct(u'LegalCopyright', u'© 2025 Ralph C Kissell. MIT License'),
+        StringStruct(u'OriginalFilename', u'PatchBatch.exe'),
+        StringStruct(u'ProductName', u'PatchBatch'),
+        StringStruct(u'ProductVersion', u'{__version__}')])
+      ]), 
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
+"""
+    
+    version_file = Path("version_info.txt")
+    version_file.write_text(version_content)
+    print(f"  Version file created: {version_tuple} -> {__version__}")
+    return version_file
+
 def build_executable():
     """Build the Windows executable"""
     print("\nBuilding PatchBatch executable...")
+    print(f"Version: {__version__}")
+    
+    # Generate version file
+    version_file = generate_version_file()
     
     # Use spec file if it exists, otherwise use command line
     if Path("PatchBatch-windows.spec").exists():
         print("Using PatchBatch-windows.spec file...")
+        # Note: Spec file should be updated to include version_file parameter
         result = subprocess.run(["pyinstaller", "PatchBatch-windows.spec", "--clean"], 
                               capture_output=True, text=True)
     else:
@@ -47,6 +106,7 @@ def build_executable():
             "--onefile",
             "--windowed",
             "--name=PatchBatch",
+            f"--version-file={version_file}",
             "--add-data=README.md;.",
             "--add-data=LICENSE.md;.",
             "--hidden-import=PySide6",
@@ -54,6 +114,7 @@ def build_executable():
             "--hidden-import=scipy",
             "--hidden-import=matplotlib",
             "--hidden-import=pyabf",
+            "--hidden-import=pandas",
             "--exclude-module=tkinter",
             "src/data_analysis_gui/main.py"
         ]
@@ -97,9 +158,10 @@ start "" "%~dp0PatchBatch.exe"
     # Get file size
     file_size = exe_path.stat().st_size / (1024 * 1024)  # MB
     
-    print("\n[SUCCESS] Build successful!")
+    print("\n✓ Build successful!")
     print(f"  Executable: {dist_dir / 'PatchBatch.exe'}")
     print(f"  Size: {file_size:.1f} MB")
+    print(f"  Version: {__version__}")
     print(f"  Distribution folder: {dist_dir}")
     
     return True
@@ -124,7 +186,7 @@ def main():
     if build_executable():
         create_distribution()
     else:
-        print("\n[FAILED] Build failed. Check error messages above.")
+        print("\n✗ Build failed. Check error messages above.")
         sys.exit(1)
 
 if __name__ == "__main__":
