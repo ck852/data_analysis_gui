@@ -309,7 +309,12 @@ class RampIVDialog(QDialog):
         
         # Services - follow existing pattern
         self.data_manager = DataManager()
-        self.file_dialog_service = FileDialogService()
+
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
         
         # State
         self.voltage_targets = []
@@ -648,6 +653,11 @@ class RampIVDialog(QDialog):
                     f"File: {file_path.split('/')[-1]}"
                 )
                 logger.info(f"Ramp IV data exported to {file_path}")
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception:
+                        pass
             else:
                 QMessageBox.critical(self, "Export Failed", 
                                    f"Export failed: {result.error_message}")

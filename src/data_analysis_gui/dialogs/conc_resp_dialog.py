@@ -94,7 +94,12 @@ class ConcentrationResponseDialog(QDialog):
         self.original_data_cols = []
 
         # Services
-        self.file_dialog_service = FileDialogService()
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
+
         self.service = ConcentrationResponseService()
         self.plot_formatter = PlotFormatter()
         
@@ -398,6 +403,12 @@ class ConcentrationResponseDialog(QDialog):
             self._plot_data()
             
             logger.info(f"Loaded CSV: {self.filename}")
+
+            if hasattr(self.parent(), '_auto_save_settings'):
+                try:
+                    self.parent()._auto_save_settings()
+                except Exception:
+                    pass
             
         except Exception as e:
             logger.error(f"Failed to load CSV: {e}", exc_info=True)
@@ -714,6 +725,13 @@ class ConcentrationResponseDialog(QDialog):
         if success:
             self.status_label.setText(message)
             style_label(self.status_label, "success")
+
+            if hasattr(self.parent(), '_auto_save_settings'):
+                try:
+                    self.parent()._auto_save_settings()
+                except Exception:
+                    pass
+                
         else:
             self.status_label.setText(message)
             style_label(self.status_label, "muted" if "cancelled" in message else "error")

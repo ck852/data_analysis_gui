@@ -83,7 +83,13 @@ class BatchResultsWindow(QMainWindow):
         self.batch_service = batch_service
         self.plot_service = plot_service
         self.data_service = data_service
-        self.file_dialog_service = FileDialogService()
+        
+        # Use parent's file dialog service if available for consistent directory memory
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
 
         # Create selection state object
         self.selection_state = FileSelectionState(self.batch_result.selected_files)
@@ -382,7 +388,10 @@ class BatchResultsWindow(QMainWindow):
         suggested_filename = "IV_Summary.csv"
 
         file_path = self.file_dialog_service.get_export_path(
-            self, suggested_filename, file_types="CSV files (*.csv)"
+            self, 
+            suggested_filename, 
+            file_types="CSV files (*.csv)",
+            dialog_type="export_batch_iv_summary"  # Unique dialog type for IV summaries
         )
 
         if file_path:
@@ -401,6 +410,14 @@ class BatchResultsWindow(QMainWindow):
                         "Export Complete",
                         f"Exported IV summary ({current_units}) with {len(filtered_results)} files",
                     )
+                    
+                    # Trigger auto-save on parent to persist directory choice
+                    if hasattr(self.parent(), '_auto_save_settings'):
+                        try:
+                            self.parent()._auto_save_settings()
+                        except Exception as e:
+                            # Silent fail - don't show error for auto-save failures
+                            pass
                 else:
                     QMessageBox.warning(self, "Export Failed", result.error_message)
 
@@ -421,7 +438,9 @@ class BatchResultsWindow(QMainWindow):
             return
 
         output_dir = self.file_dialog_service.get_directory(
-            self, "Select Output Directory"
+            self, 
+            "Select Output Directory",
+            dialog_type="export_batch_csvs"  # Unique dialog type for batch CSV exports
         )
 
         if output_dir:
@@ -444,6 +463,14 @@ class BatchResultsWindow(QMainWindow):
                     "Export Complete",
                     f"Exported {success_count} files\nTotal: {result.total_records} records",
                 )
+                
+                # Trigger auto-save on parent to persist directory choice
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception as e:
+                        # Silent fail - don't show error for auto-save failures
+                        pass
 
             except Exception as e:
                 logger.error(f"Export failed: {e}", exc_info=True)
@@ -463,6 +490,7 @@ class BatchResultsWindow(QMainWindow):
             self,
             "batch_plot.png",
             file_types="PNG files (*.png);;PDF files (*.pdf);;SVG files (*.svg)",
+            dialog_type="export_batch_plot"  # Unique dialog type for batch plot images
         )
 
         if file_path:
@@ -471,6 +499,15 @@ class BatchResultsWindow(QMainWindow):
                 QMessageBox.information(
                     self, "Export Complete", f"Plot saved to {Path(file_path).name}"
                 )
+                
+                # Trigger auto-save on parent to persist directory choice
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception as e:
+                        # Silent fail - don't show error for auto-save failures
+                        pass
+                        
             except Exception as e:
                 logger.error(f"Failed to export plot: {e}")
                 QMessageBox.critical(self, "Export Failed", str(e))

@@ -11,7 +11,6 @@ Automatically separates data by trace (column position) and exports in
 standardized format.
 """
 
-import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict
@@ -22,7 +21,6 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QMessageBox, QApplication
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -92,7 +90,12 @@ class ConcentrationDatasetDialog(QDialog):
         self.current_results_dfs: Dict[str, pd.DataFrame] = {}
         
         # Services
-        self.file_dialog_service = FileDialogService()
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
+            
         self.analysis_service = ConcentrationResponseService()
         self.dataset_service = DatasetBuilderService()
         self.plot_formatter = PlotFormatter()
@@ -458,6 +461,12 @@ class ConcentrationDatasetDialog(QDialog):
             self._update_ui_state()
             
             logger.info(f"Loaded CSV: {self.filename}")
+
+            if hasattr(self.parent(), '_auto_save_settings'):
+                try:
+                    self.parent()._auto_save_settings()
+                except Exception:
+                    pass
             
         except Exception as e:
             logger.error(f"Failed to load CSV: {e}", exc_info=True)
@@ -798,6 +807,13 @@ class ConcentrationDatasetDialog(QDialog):
             style_label(self.status_label, "success")
             
             logger.info(f"Exported {len(exported_files)} dataset files")
+
+            if hasattr(self.parent(), '_auto_save_settings'):
+                try:
+                    self.parent()._auto_save_settings()
+                except Exception:
+                    pass
+
         else:
             QMessageBox.critical(
                 self,

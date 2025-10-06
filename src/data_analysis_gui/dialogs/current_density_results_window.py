@@ -93,7 +93,13 @@ class CurrentDensityResultsWindow(QMainWindow):
         self.cslow_mapping = cslow_mapping
         self.data_service = data_service
         self.batch_service = batch_service
-        self.file_dialog_service = FileDialogService()
+
+        if hasattr(parent, 'file_dialog_service'):
+            self.file_dialog_service = parent.file_dialog_service
+        else:
+            # Fallback to new instance if parent doesn't have one
+            self.file_dialog_service = FileDialogService()
+
         self.cd_service = CurrentDensityService()
 
         self.y_unit = "pA/pF"
@@ -386,7 +392,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         output_dir = self.file_dialog_service.get_directory(
-            self, "Select Output Directory"
+            self, "Select Output Directory", dialog_type="export_cd_individual"
         )
         if not output_dir:
             return
@@ -428,6 +434,11 @@ class CurrentDensityResultsWindow(QMainWindow):
                     "Export Complete",
                     f"Exported {success_count} current density files",
                 )
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception:
+                        pass
             else:
                 QMessageBox.warning(
                     self, "Export Failed", "No files were exported successfully."
@@ -451,7 +462,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         file_path = self.file_dialog_service.get_export_path(
-            self, "Current_Density_Summary.csv"
+            self, "Current_Density_Summary.csv", dialog_type="export_cd_summary"
         )
         if not file_path:
             return
@@ -493,6 +504,11 @@ class CurrentDensityResultsWindow(QMainWindow):
                     "Export Complete",
                     f"Exported summary for {len(selected_files)} files.",
                 )
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception:
+                        pass
             else:
                 QMessageBox.warning(self, "Export Failed", result.error_message)
         except Exception as e:
@@ -509,6 +525,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             self,
             "current_density_plot.png",
             file_types="PNG (*.png);;PDF (*.pdf);;SVG (*.svg)",
+            dialog_type="export_cd_plot"
         )
 
         if file_path:
@@ -517,6 +534,11 @@ class CurrentDensityResultsWindow(QMainWindow):
                 QMessageBox.information(
                     self, "Export Complete", f"Plot saved to {Path(file_path).name}"
                 )
+                if hasattr(self.parent(), '_auto_save_settings'):
+                    try:
+                        self.parent()._auto_save_settings()
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.error(f"Failed to export plot: {e}", exc_info=True)
                 QMessageBox.critical(self, "Export Failed", str(e))
