@@ -39,8 +39,8 @@ def generate_version_file():
     """Generate version_info.txt with current version"""
     print(f"\nGenerating version file for {__version__}...")
     
-    # Parse version string to tuple (e.g., "v0.9.1b5" -> (0, 9, 1, 5))
-    # Handle beta versions: "v0.9.1b5" means version 0.9.1, beta 3
+    # Parse version string to tuple (e.g., "v0.9.1b6" -> (0, 9, 1, 6))
+    # Handle beta versions: "v0.9.1b6" means version 0.9.1, beta 3
     version_parts = __version__.replace('b', '.').replace('a', '.').replace('rc', '.')
     version_tuple = tuple(int(x) for x in version_parts.split('.') if x.isdigit())
     
