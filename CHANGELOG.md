@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.1-b.5] 2025-10-06
+
+- re-attempt windows and mac build
+
 ## [0.9.1-b.4] 2025-10-06
 
 - re-attempt windows and mac build
