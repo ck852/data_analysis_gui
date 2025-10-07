@@ -57,7 +57,7 @@ class BatchResultsWindow(QMainWindow):
         - Export controls for CSVs, plots, IV summary, and current density analysis.
     """
 
-    def __init__(self, parent, batch_result, batch_service, plot_service, data_service):
+    def __init__(self, parent, batch_result, batch_service, data_service):
         """
         Initialize the BatchResultsWindow.
 
@@ -81,7 +81,7 @@ class BatchResultsWindow(QMainWindow):
 
         self.batch_result = batch_result
         self.batch_service = batch_service
-        self.plot_service = plot_service
+        #self.plot_service = plot_service
         self.data_service = data_service
         
         # Use parent's file dialog service if available for consistent directory memory

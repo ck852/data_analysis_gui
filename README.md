@@ -165,7 +165,19 @@ To validate the data processing modules of this program, analyses were performed
 
 ### IV Analysis
 
-Both analyses used the same dataset of 12 patch-clamp recordings. However, WinWCP analyses used the original .wcp file, while this software used .abf conversions of the same files. File format conversions were performed in WinWCP. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. For current density analysis, the following Cslow values were used:
+This program's data processing methods have been validated by comparing PatchBatch outputs to those of WinWCP. Both analyses used the same dataset of 12 patch-clamp recordings. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. The input abf files are available in the file repository. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049694 pA. Similarly, the distinction in the measured voltage was 0.011475 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible for the intended applications of this program. These results are summarized as follows:
+
+<img src="images/wcp_data_comparison.png" alt="data_comparison" width="1000"/>
+
+To assess the ABF functionality, the same WCP files were converted to ABF. File format conversions were performed in WinWCP. The ABF dataset was analyzed with the same parameters as the WCP dataset. The results were nearly identical to those of the WCP dataset.
+
+
+
+
+
+<img src="images/discrepancy.png" alt="discrepancy" width="1000"/>
+
+For current density analysis, the following Cslow values were used:
 
 | File ID     | Cslow |
 |-------------|-------|
@@ -183,12 +195,7 @@ Both analyses used the same dataset of 12 patch-clamp recordings. However, WinWC
 | 250514_012  | 23.2  |
 
 
-The input abf files are available in the file repository. In the case of the WinWCP-analyzed files, current density calculations were performed in Graphpad Prism. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049 pA. Similarly, the distinction in the measured voltage was 0.01147 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible on modern computers for the intended applications of this program. These results are summarized as follows:
-
-<img src="images/discrepancy.png" alt="discrepancy" width="1000"/>
+For files analyzed in WinWCP, current densities were calculated in Graphpad Prism. A direct comparison of a Current Density vs. Voltage relationship plot produced by WinWCP vs. by PatchBatch shows that the WinWCP results are accurately reproduced by PatchBatch. In this example, the ABF dataset was used:
 
 
-A direct comparison of a Current Density vs. Voltage relationship plot produced by either process shows that the WinWCP results are accurately reproduced:
-
-
-<img src="images/data_comparison.png" alt="data_comparison" width="750"/>
+<img src="images/abf_data_comparison.png" alt="data_comparison" width="750"/>

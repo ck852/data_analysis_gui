@@ -31,6 +31,7 @@ from PySide6.QtCore import QThread, Signal
 
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.core.models import FileAnalysisResult, BatchAnalysisResult
+from data_analysis_gui.dialogs.batch_results_window import BatchResultsWindow
 from data_analysis_gui.config.logging import get_logger
 
 # Updated imports for refactored themes.py
@@ -429,18 +430,10 @@ class BatchAnalysisDialog(QDialog):
             return
 
         try:
-            from data_analysis_gui.dialogs.batch_results_window import (
-                BatchResultsWindow,
-            )
-            from data_analysis_gui.services.plot_service import PlotService
-
-            plot_service = PlotService()
-
             results_window = BatchResultsWindow(
                 self,
                 self.batch_result,
                 self.batch_service,
-                plot_service,
                 self.parent().controller.data_service,
             )
             results_window.show()
