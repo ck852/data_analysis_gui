@@ -22,6 +22,11 @@ else:
     except ImportError:
         # Fallback for CI/CD that should have it
         import tomllib
+# Ensure UTF-8 output on Windows console
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 
 with open("pyproject.toml", "rb") as f:
     pyproject_data = tomllib.load(f)
