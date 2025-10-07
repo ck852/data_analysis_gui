@@ -11,7 +11,6 @@ This module provides improved plot management for PatchBatch.
 Features:
 - Uses Qt signals for decoupling from the main window.
 - PlotManager handles matplotlib visualization and emits signals for plot interactions.
-- BatchPlotter provides static methods for non-interactive batch plotting.
 """
 
 import logging
@@ -611,28 +610,6 @@ class PlotManager(QObject):
         return positions
 
     @staticmethod
-    def setup_plot_style(
-        ax: Axes, title: str = "", xlabel: str = "", ylabel: str = "", grid: bool = True
-    ) -> None:
-        """
-        Configure plot appearance with consistent font sizes and optional grid.
-
-        Args:
-            ax: Matplotlib Axes to style.
-            title: Plot title.
-            xlabel: X-axis label.
-            ylabel: Y-axis label.
-            grid: Whether to show grid.
-        """
-        # Use the style_axis function from plot_style which has the updated font sizes
-        from data_analysis_gui.config.plot_style import style_axis
-
-        style_axis(ax, title=title, xlabel=xlabel, ylabel=ylabel)
-
-        if grid:
-            ax.grid(True, alpha=0.3, linestyle=":", linewidth=0.5)
-
-    @staticmethod
     def add_padding_to_axes(
         ax: Axes, x_padding_pct: float = 0.05, y_padding_pct: float = 0.05
     ) -> None:
@@ -822,85 +799,3 @@ class PlotManager(QObject):
         Alias for clear() to maintain backward compatibility.
         """
         self.clear()
-
-
-class BatchPlotter:
-    """
-    Provides static methods for creating non-interactive batch plots.
-
-    Responsibilities:
-    - Create figures and axes for batch plotting.
-    - Plot data series with consistent styling.
-    - Finalize plots with legends and layout.
-    """
-
-    @staticmethod
-    def create_figure(
-        x_label: str,
-        y_label: str,
-        title: Optional[str] = None,
-        figsize: Tuple[int, int] = (10, 6),
-    ) -> Tuple[Figure, Axes]:
-        """
-        Create a new Figure and Axes for a batch plot with updated font sizes.
-
-        Args:
-            x_label: Label for the x-axis.
-            y_label: Label for the y-axis.
-            title: Optional plot title.
-            figsize: Figure size (width, height) in inches.
-
-        Returns:
-            Tuple[Figure, Axes]: The created Matplotlib Figure and Axes.
-        """
-        fig = Figure(figsize=figsize, tight_layout=True)
-        ax = fig.add_subplot(111)
-
-        # Use style_axis for consistent font sizes
-        from data_analysis_gui.config.plot_style import style_axis
-
-        style_axis(
-            ax, title=title or f"{y_label} vs {x_label}", xlabel=x_label, ylabel=y_label
-        )
-
-        ax.grid(True, which="both", linestyle="--", alpha=0.5)
-        return fig, ax
-
-    @staticmethod
-    def plot_data(
-        ax: Axes,
-        x_data: np.ndarray,
-        y_data: np.ndarray,
-        label: str,
-        marker: str = "o-",
-        **kwargs,
-    ) -> None:
-        """
-        Plot a data series on the given Axes.
-
-        Args:
-            ax: Matplotlib Axes to plot on.
-            x_data: Data for the x-axis.
-            y_data: Data for the y-axis.
-            label: Legend label for the data series.
-            marker: Marker and line style.
-            **kwargs: Additional keyword arguments for ax.plot().
-        """
-        if x_data.size > 0 and y_data.size > 0:
-            ax.plot(x_data, y_data, marker, label=label, **kwargs)
-        else:
-            logger.warning(f"Attempted to plot empty data for label '{label}'.")
-
-    @staticmethod
-    def finalize_plot(fig: Figure, ax: Axes) -> None:
-        """
-        Finalize a batch plot by adding a legend and logging completion.
-
-        Args:
-            fig: Matplotlib Figure.
-            ax: Matplotlib Axes.
-        """
-        if ax.get_legend_handles_labels()[0]:
-            # Legend font size is now handled by the rcParams in plot_style
-            ax.legend()
-        logger.info("Finalized batch plot.")

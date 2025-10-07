@@ -65,7 +65,6 @@ class BatchResultsWindow(QMainWindow):
             parent: Parent widget.
             batch_result: Batch analysis result object.
             batch_service: Service for batch operations.
-            plot_service: Service for plotting.
             data_service: Service for data export.
         """
         super().__init__(parent)
@@ -81,7 +80,6 @@ class BatchResultsWindow(QMainWindow):
 
         self.batch_result = batch_result
         self.batch_service = batch_service
-        #self.plot_service = plot_service
         self.data_service = data_service
         
         # Use parent's file dialog service if available for consistent directory memory
