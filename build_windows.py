@@ -13,9 +13,20 @@ import shutil
 from pathlib import Path
 import os
 
-# Import version from root __version__.py
-sys.path.insert(0, str(Path(__file__).parent))
-from __version__ import __version__
+import sys
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        # Fallback for CI/CD that should have it
+        import tomllib
+
+with open("pyproject.toml", "rb") as f:
+    pyproject_data = tomllib.load(f)
+    __version__ = pyproject_data["project"]["version"]
+
 
 def clean_build_dirs():
     """Remove old build artifacts"""
@@ -39,8 +50,8 @@ def generate_version_file():
     """Generate version_info.txt with current version"""
     print(f"\nGenerating version file for {__version__}...")
     
-    # Parse version string to tuple (e.g., "v0.9.1b6" -> (0, 9, 1, 6))
-    # Handle beta versions: "v0.9.1b6" means version 0.9.1, beta 3
+    # Parse version string to tuple (e.g., "v0.9.1b7" -> (0, 9, 1, 6))
+    # Handle beta versions: "v0.9.1b7" means version 0.9.1, beta 3
     version_parts = __version__.replace('b', '.').replace('a', '.').replace('rc', '.')
     version_tuple = tuple(int(x) for x in version_parts.split('.') if x.isdigit())
     

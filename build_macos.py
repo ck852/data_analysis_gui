@@ -4,15 +4,25 @@ macOS build script for PatchBatch
 Creates standalone Mac app bundle and DMG installer
 """
 
-import sys
 import subprocess
 import shutil
 from pathlib import Path
 import os
 
-# Import version from root __version__.py
-sys.path.insert(0, str(Path(__file__).parent))
-from __version__ import __version__, __version_mac__
+import sys
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        # Fallback for CI/CD that should have it
+        import tomllib
+
+with open("pyproject.toml", "rb") as f:
+    pyproject_data = tomllib.load(f)
+    __version__ = pyproject_data["project"]["version"]
+    __version_mac__ = __version__.replace('b', '-beta.')
 
 def clean_build_dirs():
     """Remove old build artifacts"""

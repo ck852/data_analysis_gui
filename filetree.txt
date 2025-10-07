@@ -272,7 +272,6 @@ patchbatch/
 |   |-- test_dual_batch.py
 |   |-- test_dual_range.py
 |   `-- test_peak.py
-|-- __version__.py
 |-- build_macos.py
 |-- build_windows.py
 |-- CHANGELOG.md
@@ -283,5 +282,4 @@ patchbatch/
 |-- pyproject.toml
 |-- pytest.ini
 |-- README.md
-|-- requirements.txt
-`-- version_info.txt
+`-- requirements.txt
