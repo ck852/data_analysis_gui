@@ -48,7 +48,6 @@ data_analysis_gui/
 |   |-- current_density_service.py
 |   |-- data_manager.py
 |   |-- dataset_builder_service.py
-|   |-- plot_service.py
 |   `-- ramp_iv_service.py
 |-- widgets/
 |   |-- __init__.py

@@ -548,27 +548,6 @@ class PlotManager(QObject):
         """
         self.canvas.draw_idle()
 
-    def update_lines_from_values(
-        self,
-        start1: float,
-        end1: float,
-        use_dual_range: bool = False,
-        start2: Optional[float] = None,
-        end2: Optional[float] = None,
-    ) -> None:
-        """
-        Update range line positions without recreating them.
-
-        Args:
-            start1: Start position for range 1.
-            end1: End position for range 1.
-            use_dual_range: Whether dual range is active.
-            start2: Start position for range 2 (if dual range).
-            end2: End position for range 2 (if dual range).
-        """
-        # Delegate to the main update method
-        self.update_range_lines(start1, end1, use_dual_range, start2, end2)
-
     def toggle_dual_range(self, enabled: bool, start2: float, end2: float) -> None:
         """
         Toggle dual range visualization.
@@ -608,30 +587,6 @@ class PlotManager(QObject):
         for line, line_id in self._line_ids.items():
             positions[line_id] = line.get_xdata()[0]
         return positions
-
-    @staticmethod
-    def add_padding_to_axes(
-        ax: Axes, x_padding_pct: float = 0.05, y_padding_pct: float = 0.05
-    ) -> None:
-        """
-        Add padding to plot axes.
-
-        Args:
-            ax: Matplotlib Axes.
-            x_padding_pct: Fractional padding for x-axis.
-            y_padding_pct: Fractional padding for y-axis.
-        """
-        x_min, x_max = ax.get_xlim()
-        y_min, y_max = ax.get_ylim()
-
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-
-        x_padding = x_range * x_padding_pct if x_range > 0 else 0.1
-        y_padding = y_range * y_padding_pct if y_range > 0 else 0.1
-
-        ax.set_xlim(x_min - x_padding, x_max + x_padding)
-        ax.set_ylim(y_min - y_padding, y_max + y_padding)
 
     def _sample_y_value_nearest(self, x_position: float) -> Optional[float]:
         """
@@ -793,9 +748,3 @@ class PlotManager(QObject):
             # Store new limits
             self._last_xlim = current_xlim
             self._last_ylim = current_ylim
-
-    def clear_plot(self) -> None:
-        """
-        Alias for clear() to maintain backward compatibility.
-        """
-        self.clear()
