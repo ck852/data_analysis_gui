@@ -232,6 +232,10 @@ class MainWindow(QMainWindow):
         conc_resp_action = analysis_menu.addAction("Concentration Response...")
         conc_resp_action.triggered.connect(self._open_concentration_response)
 
+        # Sweep Extractor
+        sweep_extract_action = analysis_menu.addAction("Extract Sweeps...")
+        sweep_extract_action.triggered.connect(self._sweep_extraction)
+
     def _open_concentration_response(self):
         """Open the concentration-response analysis dialog."""
         dialog = ConcentrationResponseDialog(self)
@@ -632,6 +636,22 @@ class MainWindow(QMainWindow):
             )
             self.analysis_dialog.show()
             self.analysis_completed.emit()
+
+    def _sweep_extraction(self):
+        """Open the sweep extraction dialog."""
+        if not self.controller.has_data():
+            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            return
+        
+        # Get current dataset and file path
+        dataset = self.controller.current_dataset
+        
+        # Import the dialog (lazy import to avoid circular dependencies)
+        from data_analysis_gui.dialogs.extract_sweeps_dialog import SweepExtractorDialog
+        
+        # Create and show dialog
+        dialog = SweepExtractorDialog(self, dataset, self.current_file_path)
+        dialog.exec()
 
     def _export_data(self):
         """
