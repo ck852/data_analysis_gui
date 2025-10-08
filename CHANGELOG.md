@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.2-b.1] 2025-10-08
+### Changed
+
+- Updated golden files according to improved wcp sweep data extraction
+- Data points within sweeps now correspond to actual (not idealized) time points
+
 ## [0.9.1-b.9] 2025-10-08
 ### Added
 
