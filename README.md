@@ -159,6 +159,10 @@ Better screenshot pending
 
 Click the "Add Range" buttons then click the plot to add them. This is meant for time vs current output files by the main window. The multi-file analysis lets you make a Prism-ready summary dataset for several files that have the same concentration range. Has not been extensively validated but matches excel-calculated results in tests.
 
+### Sweep Extraction **BETA**
+
+Access from the Analysis menu. Load a file in the main window first. Has not been extensively validated but matches Clampfit results in tests.
+
 ## Validation
 
 To validate the data processing modules of this program, analyses were performed on sets of real electrophysiology data files. The outputs by this program were compared with outputs by WinWCP, both analyses using identical parameters. 
@@ -170,9 +174,6 @@ This program's data processing methods have been validated by comparing PatchBat
 <img src="images/wcp_data_comparison.png" alt="data_comparison" width="1000"/>
 
 To assess the ABF functionality, the same WCP files were converted to ABF. File format conversions were performed in WinWCP. The ABF dataset was analyzed with the same parameters as the WCP dataset. The results were nearly identical to those of the WCP dataset.
-
-
-
 
 
 <img src="images/discrepancy.png" alt="discrepancy" width="1000"/>

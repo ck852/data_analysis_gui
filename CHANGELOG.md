@@ -2,11 +2,12 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.9.1-b.5] 2025-10-06
+## [0.9.1-b.9] 2025-10-08
+### Added
 
-- re-attempt windows and mac build
+- Sweep Extraction module (Beta)
 
-## [0.9.1-b.4] 2025-10-06
+## [0.9.1-b.4] through [0.9.1-b.8] 2025-10-06
 
 - re-attempt windows and mac build
 

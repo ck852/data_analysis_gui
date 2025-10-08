@@ -410,7 +410,7 @@ class SweepExtractorDialog(QDialog):
         logger.info(f"Exported {len(selected_sweeps)} sweeps to {file_path}")
         
     def _build_csv_arrays(self, all_data: dict, selected_sweeps: List[str],
-                         channel_mode: str, reference_time: np.ndarray):
+                        channel_mode: str, reference_time: np.ndarray):
         """
         Build the headers and data array for CSV export.
         
@@ -428,21 +428,29 @@ class SweepExtractorDialog(QDialog):
         columns = [reference_time]
         
         # Add data columns based on channel mode
-        for sweep_idx in selected_sweeps:
-            sweep_data = all_data[sweep_idx]
-            
-            if channel_mode == 'voltage':
+        if channel_mode == 'voltage':
+            for sweep_idx in selected_sweeps:
+                sweep_data = all_data[sweep_idx]
                 headers.append(f"Sweep {sweep_idx} Voltage ({self.voltage_units})")
                 columns.append(sweep_data['voltage'])
                 
-            elif channel_mode == 'current':
+        elif channel_mode == 'current':
+            for sweep_idx in selected_sweeps:
+                sweep_data = all_data[sweep_idx]
                 headers.append(f"Sweep {sweep_idx} Current ({self.current_units})")
                 columns.append(sweep_data['current'])
                 
-            else:  # both
+        else:  # both - group all voltage columns, then all current columns
+            # First add all voltage columns
+            for sweep_idx in selected_sweeps:
+                sweep_data = all_data[sweep_idx]
                 headers.append(f"Sweep {sweep_idx} Voltage ({self.voltage_units})")
-                headers.append(f"Sweep {sweep_idx} Current ({self.current_units})")
                 columns.append(sweep_data['voltage'])
+            
+            # Then add all current columns
+            for sweep_idx in selected_sweeps:
+                sweep_data = all_data[sweep_idx]
+                headers.append(f"Sweep {sweep_idx} Current ({self.current_units})")
                 columns.append(sweep_data['current'])
         
         # Combine into single array
