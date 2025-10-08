@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.2-b.2] 2025-10-08
+### Changed
+- Data points changed back to idealized time points
+- actual time points yielded larger discrepancy versus winwcp
+
 ## [0.9.2-b.1] 2025-10-08
 ### Changed
 
