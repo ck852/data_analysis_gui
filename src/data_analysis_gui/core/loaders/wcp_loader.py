@@ -204,7 +204,7 @@ def load_wcp(
                     header, data = wcp.read_record(record_num, calibrated=True)
                     
                     # Get time axis in milliseconds
-                    time_ms = wcp.get_time_axis(header) * 1000.0
+                    time_ms = wcp.get_time_axis() * 1000.0
                     
                     # Store actual sweep time (in seconds)
                     sweep_index = str(record_num)
@@ -549,7 +549,6 @@ class WCPParser:
         
         return zero_level
     
-    def get_time_axis(self, header: WCPRecordHeader = None) -> np.ndarray:
+    def get_time_axis(self) -> np.ndarray:
         """Get time axis for a record in seconds"""
-        dt = header.dt if header is not None else self.file_header.dt
-        return np.arange(self.file_header.num_samples) * dt
+        return np.arange(self.file_header.num_samples) * self.file_header.dt
