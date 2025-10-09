@@ -31,6 +31,8 @@ If you don't have Python installed:
 2. **Install Python**: Run the installer and **check "Add Python to PATH"** during installation (Windows) or use the default settings (Mac/Linux)
 3. **Verify Installation**: Open a terminal/command prompt and type `python --version` to confirm installation
 
+To update, open a terminal and enter `pip install --upgrade patchbatch`
+
 ### Opening a Terminal/Command Prompt
 
 **Windows:**
