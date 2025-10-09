@@ -630,9 +630,14 @@ class MainWindow(QMainWindow):
             if self.analysis_dialog:
                 self.analysis_dialog.close()
 
-            # Pass the parameters with units and file path to the dialog
+            # Pass AnalysisManager and dataset explicitly instead of controller
             self.analysis_dialog = AnalysisPlotDialog(
-                self, plot_data, params, self.current_file_path, self.controller
+                parent=self,
+                plot_data=plot_data,
+                params=params,
+                file_path=self.current_file_path,
+                analysis_manager=self.analysis_manager,
+                dataset=self.controller.current_dataset,
             )
             self.analysis_dialog.show()
             self.analysis_completed.emit()

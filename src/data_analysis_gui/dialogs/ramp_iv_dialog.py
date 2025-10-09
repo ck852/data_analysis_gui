@@ -29,7 +29,7 @@ from data_analysis_gui.config.plot_style import (
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.services.ramp_iv_service import RampIVService, RampIVResult
 from data_analysis_gui.services.data_manager import DataManager
-from data_analysis_gui.gui_services import FileDialogService
+from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.widgets.shared_widgets import SweepSelectionWidget
 
 from data_analysis_gui.config.logging import get_logger
@@ -332,6 +332,11 @@ class RampIVDialog(QDialog):
         self.export_btn = create_styled_button("Export Summary CSV...", "accent")
         self.export_btn.setEnabled(False)
         button_layout.addWidget(self.export_btn)
+
+        # Copy button (initially disabled until analysis is done)
+        self.copy_btn = create_styled_button("Copy Data", "primary")
+        self.copy_btn.setEnabled(False)
+        button_layout.addWidget(self.copy_btn)
         
         button_layout.addStretch()
         
@@ -346,6 +351,7 @@ class RampIVDialog(QDialog):
         """Connect UI signals to their handlers."""
         self.generate_plot_btn.clicked.connect(self._generate_analysis_plot)
         self.export_btn.clicked.connect(self._export_summary_csv)
+        self.copy_btn.clicked.connect(self._copy_data_to_clipboard)
         
     def _setup_empty_plot(self):
         """Set up initial empty plot with consistent styling."""
@@ -405,6 +411,7 @@ class RampIVDialog(QDialog):
             
             # Enable export
             self.export_btn.setEnabled(True)
+            self.copy_btn.setEnabled(True)
             
             # Update status
             processed = len(self.current_result.processed_sweeps)
@@ -522,3 +529,44 @@ class RampIVDialog(QDialog):
             logger.error(f"Error during ramp IV export: {e}")
             QMessageBox.critical(self, "Export Error", 
                                f"An error occurred during export:\n{str(e)}")
+            
+    def _copy_data_to_clipboard(self):
+        """
+        Copy the analysis results to clipboard as tab-separated values.
+        
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first.
+        """
+        if not self.current_result or not self.current_result.success:
+            QMessageBox.warning(self, "No Data", "No analysis results to copy.")
+            return
+            
+        try:
+            # Prepare export table using service (same as CSV export)
+            export_table = RampIVService.prepare_export_table(self.current_result)
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_table)
+            
+            if success:
+                # Show brief confirmation
+                row_count = len(export_table.get("data", []))
+                col_count = len(export_table.get("headers", []))
+                QMessageBox.information(
+                    self, "Data Copied",
+                    f"Copied {row_count} rows × {col_count} columns to clipboard.\n"
+                    "You can now paste into Excel, Prism, or other applications."
+                )
+                logger.info("Ramp IV data copied to clipboard")
+            else:
+                QMessageBox.critical(
+                    self, "Copy Failed", 
+                    "Failed to copy data to clipboard"
+                )
+                                    
+        except Exception as e:
+            logger.error(f"Error during ramp IV clipboard copy: {e}")
+            QMessageBox.critical(
+                self, "Copy Error", 
+                f"An error occurred while copying:\n{str(e)}"
+            )

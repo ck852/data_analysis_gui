@@ -34,9 +34,11 @@ data_analysis_gui/
 |   |-- conc_resp_dialog.py
 |   |-- current_density_dialog.py
 |   |-- current_density_results_window.py
+|   |-- extract_sweeps_dialog.py
 |   `-- ramp_iv_dialog.py
 |-- gui_services/
 |   |-- __init__.py
+|   |-- clipboard_service.py
 |   `-- file_dialog_service.py
 |-- services/
 |   |-- __init__.py

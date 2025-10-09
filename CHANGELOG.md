@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.2-b.3] 2025-10-09
+### Added
+- "Copy Data" button to analysis plot and ramp iv
+
+### Changed
+- Removed unnecessary app_controller use in analysis plot
+
 ## [0.9.2-b.2] 2025-10-08
 ### Changed
 - Data points changed back to idealized time points
