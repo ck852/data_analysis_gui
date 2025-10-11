@@ -405,6 +405,10 @@ class BatchAnalysisDialog(QDialog):
         self.update_button_states()
         logger.info(f"Batch analysis complete: {result.success_rate:.1f}% success rate")
 
+        # Auto-open results window if there are successful results
+        if success_count > 0:
+            self.view_results()
+
     def on_error(self, error_msg):
         """
         Handle errors emitted from worker thread.

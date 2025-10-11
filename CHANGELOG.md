@@ -6,6 +6,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Added
 - "Copy Data" button for remaining dialogs except dose response
 
+### Changed
+- Extract Sweeps dialog receives initial time range from MainWindow
+
 ## [0.9.2-b.3] 2025-10-09
 ### Added
 - "Copy Data" button to analysis plot and ramp iv
