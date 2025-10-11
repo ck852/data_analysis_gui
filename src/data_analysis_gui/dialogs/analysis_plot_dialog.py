@@ -290,19 +290,19 @@ class AnalysisPlotDialog(QDialog):
 
             if success:
                 # Show brief confirmation
-                row_count = len(export_data.get("data", []))
-                col_count = len(export_data.get("headers", []))
-                QMessageBox.information(
-                    self,
-                    "Data Copied",
-                    f"Copied {row_count} rows × {col_count} columns to clipboard.\n"
-                    "You can now paste into Excel, Prism, or other applications.",
-                )
+                # row_count = len(export_data.get("data", []))
+                # col_count = len(export_data.get("headers", []))
+                # QMessageBox.information(
+                #     self,
+                #     "Data Copied",
+                #     f"Copied {row_count} rows × {col_count} columns to clipboard.\n"
+                #     "You can now paste into Excel, Prism, or other applications.",
+                # )
                 logger.info("Analysis data copied to clipboard")
-            else:
-                QMessageBox.warning(
-                    self, "Copy Failed", "Failed to copy data to clipboard"
-                )
+            # else:
+            #     QMessageBox.warning(
+            #         self, "Copy Failed", "Failed to copy data to clipboard"
+            #     )
 
         except Exception as e:
             logger.error(f"Error copying data to clipboard: {e}")
