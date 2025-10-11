@@ -153,7 +153,7 @@ class AnalysisPlotDialog(QDialog):
         button_layout.addWidget(self.export_data_btn)
 
         # Copy data button - primary action
-        self.copy_data_btn = create_styled_button("Copy Data", "primary", self)
+        self.copy_data_btn = create_styled_button("Copy Data", "secondary", self)
         self.copy_data_btn.clicked.connect(self._copy_data_to_clipboard)
         button_layout.addWidget(self.copy_data_btn)
 

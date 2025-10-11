@@ -204,7 +204,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         style_button(export_plot_btn, "secondary")
 
         copy_summary_btn = QPushButton("Copy Summary")
-        style_button(copy_summary_btn, "primary")
+        style_button(copy_summary_btn, "secondary")
 
         export_individual_btn.clicked.connect(self._export_individual_csvs)
         export_summary_btn.clicked.connect(self._export_summary)

@@ -284,23 +284,26 @@ class BatchResultsWindow(QMainWindow):
 
         # Create buttons
         export_csvs_btn = create_styled_button(
-            "Export Individual CSVs...", "secondary", self
+            "Export Individual CSVs...", "primary", self
         )
         export_plot_btn = create_styled_button("Export Plot...", "secondary", self)
+        button_layout.addWidget(export_csvs_btn)
+        button_layout.addWidget(export_plot_btn)
+        button_layout.addStretch()
 
         # IV-specific exports if applicable
         if self._is_iv_analysis():
             export_iv_summary_btn = create_styled_button(
-                "Export IV Summary...", "accent", self
+                "Export IV Summary...", "primary", self
             )
             button_layout.addWidget(export_iv_summary_btn)
             export_iv_summary_btn.clicked.connect(self._export_iv_summary)
 
             current_density_btn = create_styled_button(
-                "Current Density Analysis...", "primary", self
+                "Current Density Analysis...", "accent", self
             )
             copy_iv_summary_btn = create_styled_button(
-                "Copy IV Summary", "primary", self
+                "Copy IV Summary", "secondary", self
             )
             button_layout.addWidget(copy_iv_summary_btn)
             copy_iv_summary_btn.clicked.connect(self._copy_iv_summary_to_clipboard)
@@ -308,8 +311,6 @@ class BatchResultsWindow(QMainWindow):
             button_layout.addWidget(current_density_btn)
             current_density_btn.clicked.connect(self._open_current_density_analysis)
 
-        button_layout.addWidget(export_csvs_btn)
-        button_layout.addWidget(export_plot_btn)
         button_layout.addStretch()
 
         layout.addWidget(export_group)

@@ -651,11 +651,18 @@ class MainWindow(QMainWindow):
         # Get current dataset and file path
         dataset = self.controller.current_dataset
         
+        # Get Range 1 values from control panel
+        range_values = self.control_panel.get_range_values()
+        default_start = range_values.get('range1_start', 0.0)
+        default_end = range_values.get('range1_end', dataset.get_max_sweep_time())
+        
         # Import the dialog (lazy import to avoid circular dependencies)
         from data_analysis_gui.dialogs.extract_sweeps_dialog import SweepExtractorDialog
         
-        # Create and show dialog
-        dialog = SweepExtractorDialog(self, dataset, self.current_file_path)
+        # Create and show dialog with default time range from Range 1
+        dialog = SweepExtractorDialog(self, dataset, self.current_file_path, 
+                                    default_start=default_start, 
+                                    default_end=default_end)
         dialog.exec()
 
     def _export_data(self):

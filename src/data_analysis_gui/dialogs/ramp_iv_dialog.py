@@ -334,7 +334,7 @@ class RampIVDialog(QDialog):
         button_layout.addWidget(self.export_btn)
 
         # Copy button (initially disabled until analysis is done)
-        self.copy_btn = create_styled_button("Copy Data", "primary")
+        self.copy_btn = create_styled_button("Copy Data", "secondary")
         self.copy_btn.setEnabled(False)
         button_layout.addWidget(self.copy_btn)
         

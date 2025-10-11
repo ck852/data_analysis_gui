@@ -43,7 +43,8 @@ class SweepExtractorDialog(QDialog):
     proper headers including units.
     """
     
-    def __init__(self, parent, dataset: ElectrophysiologyDataset, file_path: str):
+    def __init__(self, parent, dataset: ElectrophysiologyDataset, file_path: str, 
+                default_start: float = 0.0, default_end: float = None):
         """
         Initialize the sweep extractor dialog.
         
@@ -51,12 +52,18 @@ class SweepExtractorDialog(QDialog):
             parent: Parent window (provides file_dialog_service)
             dataset: Currently loaded dataset
             file_path: Path to source file
+            default_start: Default start time for analysis range (ms)
+            default_end: Default end time for analysis range (ms), None = use max_time
         """
         super().__init__(parent)
         
         self.dataset = dataset
         self.file_path = file_path
         self.data_extractor = DataExtractor()
+        
+        # Store default values for time range
+        self.default_start = default_start
+        self.default_end = default_end
         
         # Get file dialog service from parent
         if hasattr(parent, 'file_dialog_service'):
@@ -66,7 +73,7 @@ class SweepExtractorDialog(QDialog):
         
         # Get sweep names sorted numerically
         self.sweep_names = sorted(dataset.sweeps(), 
-                                 key=lambda x: int(x) if x.isdigit() else 0)
+                                key=lambda x: int(x) if x.isdigit() else 0)
         
         # Get channel configuration for units
         channel_config = dataset.metadata.get('channel_config', {})
@@ -164,7 +171,7 @@ class SweepExtractorDialog(QDialog):
         # Radio buttons for channel selection
         self.voltage_radio = QRadioButton("Voltage")
         self.current_radio = QRadioButton("Current")
-        self.both_radio = QRadioButton("Both (separate columns)")
+        self.both_radio = QRadioButton("Both Channels")
         
         # Voltage selected by default
         self.voltage_radio.setChecked(True)
@@ -194,22 +201,25 @@ class SweepExtractorDialog(QDialog):
         # Get max time from dataset
         max_time = self.dataset.get_max_sweep_time()
         
-        # Start time spinbox
+        # Use default_end if provided, otherwise use max_time
+        end_value = self.default_end if self.default_end is not None else max_time
+        
+        # Start time spinbox - use default_start
         self.start_spinbox = SelectAllSpinBox()
         self.start_spinbox.setDecimals(1)
         self.start_spinbox.setSuffix(" ms")
         self.start_spinbox.setMinimum(0.0)
         self.start_spinbox.setMaximum(max_time)
-        self.start_spinbox.setValue(0.0)
+        self.start_spinbox.setValue(self.default_start)
         self.start_spinbox.setMinimumWidth(120)
         
-        # End time spinbox
+        # End time spinbox - use default_end or max_time
         self.end_spinbox = SelectAllSpinBox()
         self.end_spinbox.setDecimals(1)
         self.end_spinbox.setSuffix(" ms")
         self.end_spinbox.setMinimum(0.0)
         self.end_spinbox.setMaximum(max_time)
-        self.end_spinbox.setValue(max_time)
+        self.end_spinbox.setValue(end_value)
         self.end_spinbox.setMinimumWidth(120)
         
         range_layout.addRow("Start (ms):", self.start_spinbox)
@@ -229,7 +239,7 @@ class SweepExtractorDialog(QDialog):
         self.export_btn = create_styled_button("Export to CSV...", "primary")
         self.export_btn.setMinimumHeight(40)
 
-        self.copy_btn = create_styled_button("Copy Data", "primary")
+        self.copy_btn = create_styled_button("Copy Data", "secondary")
         self.copy_btn.setMinimumHeight(40)
         
         # Close button
