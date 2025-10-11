@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.2-b.4]
+### Added
+- "Copy Data" button for remaining dialogs except dose response
+
 ## [0.9.2-b.3] 2025-10-09
 ### Added
 - "Copy Data" button to analysis plot and ramp iv

@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                              QApplication, QGroupBox)
 from PySide6.QtCore import Qt
 
-from data_analysis_gui.gui_services import FileDialogService
+from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.config.logging import get_logger
 
@@ -299,6 +299,12 @@ class BatchResultsWindow(QMainWindow):
             current_density_btn = create_styled_button(
                 "Current Density Analysis...", "primary", self
             )
+            copy_iv_summary_btn = create_styled_button(
+                "Copy IV Summary", "primary", self
+            )
+            button_layout.addWidget(copy_iv_summary_btn)
+            copy_iv_summary_btn.clicked.connect(self._copy_iv_summary_to_clipboard)
+
             button_layout.addWidget(current_density_btn)
             current_density_btn.clicked.connect(self._open_current_density_analysis)
 
@@ -311,6 +317,68 @@ class BatchResultsWindow(QMainWindow):
         # Connect signals
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
+
+    def _copy_iv_summary_to_clipboard(self):
+        """
+        Copy IV summary data to clipboard as tab-separated values.
+        
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first. Respects current file selection.
+        """
+        from data_analysis_gui.core.iv_analysis import (
+            IVAnalysisService,
+            IVSummaryExporter,
+        )
+
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for copying.")
+            return
+
+        try:
+            batch_data = {
+                r.base_name: {
+                    "x_values": r.x_data.tolist(),
+                    "y_values": r.y_data.tolist(),
+                    "x_values2": r.x_data2.tolist() if r.x_data2 is not None else None,
+                    "y_values2": r.y_data2.tolist() if r.y_data2 is not None else None,
+                }
+                for r in filtered_results
+            }
+
+            iv_data_r1, mapping, iv_data_r2 = IVAnalysisService.prepare_iv_data(
+                batch_data, self.batch_result.parameters
+            )
+
+            # Extract current units from parameters
+            current_units = "pA"  # default
+            if (
+                hasattr(self.batch_result.parameters, "channel_config")
+                and self.batch_result.parameters.channel_config
+            ):
+                current_units = self.batch_result.parameters.channel_config.get(
+                    "current_units", "pA"
+                )
+
+            selected_set = set(r.base_name for r in filtered_results)
+            export_table = IVSummaryExporter.prepare_summary_table(
+                iv_data_r1, mapping, selected_set, current_units
+            )
+
+            if not export_table or not export_table.get("data", []):
+                QMessageBox.warning(self, "No Data", "No data available to copy")
+                return
+
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_table)
+
+            if success:
+                logger.info("IV summary copied to clipboard")
+
+        except Exception as e:
+            logger.error(f"Error copying IV summary: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _is_iv_analysis(self):
         """

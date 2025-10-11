@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMainWindow, Q
 from data_analysis_gui.config.logging import get_logger
 from data_analysis_gui.config.themes import style_button, style_label, style_main_window, style_splitter
 from data_analysis_gui.core.models import BatchAnalysisResult
-from data_analysis_gui.gui_services import FileDialogService
+from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.services.current_density_service import CurrentDensityService
 from data_analysis_gui.widgets.shared_widgets import BatchFileListWidget, DynamicBatchPlotWidget, FileSelectionState
 
@@ -203,15 +203,83 @@ class CurrentDensityResultsWindow(QMainWindow):
         export_plot_btn = QPushButton("Export Plot...")
         style_button(export_plot_btn, "secondary")
 
+        copy_summary_btn = QPushButton("Copy Summary")
+        style_button(copy_summary_btn, "primary")
+
         export_individual_btn.clicked.connect(self._export_individual_csvs)
         export_summary_btn.clicked.connect(self._export_summary)
+        copy_summary_btn.clicked.connect(self._copy_summary_to_clipboard) 
         export_plot_btn.clicked.connect(self._export_plot)
 
         button_layout.addStretch()
         button_layout.addWidget(export_individual_btn)
         button_layout.addWidget(export_summary_btn)
+        button_layout.addWidget(copy_summary_btn)
         button_layout.addWidget(export_plot_btn)
         layout.addLayout(button_layout)
+
+    def _copy_summary_to_clipboard(self):
+        """
+        Copy the current density summary data to clipboard as tab-separated values.
+        
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first.
+        """
+        if not self._validate_all_cslow_values():
+            QMessageBox.warning(
+                self,
+                "Invalid Input",
+                "Please correct invalid Cslow values before copying.",
+            )
+            return
+
+        try:
+            selected_files = self.selection_state.get_selected_files()
+            
+            if not selected_files:
+                QMessageBox.warning(self, "No Data", "No files selected for copying.")
+                return
+            
+            sorted_results = [
+                r
+                for r in self._sort_results(self.active_batch_result.successful_results)
+                if r.base_name in selected_files
+            ]
+
+            # Prepare voltage data and file mapping (same as export)
+            voltage_data, file_mapping = {}, {}
+            for idx, result in enumerate(sorted_results):
+                recording_id = f"Recording {idx + 1}"
+                file_mapping[recording_id] = result.base_name
+                for i, voltage in enumerate(result.x_data):
+                    voltage_rounded = round(float(voltage), 1)
+                    if voltage_rounded not in voltage_data:
+                        voltage_data[voltage_rounded] = [np.nan] * len(sorted_results)
+                    if i < len(result.y_data):
+                        voltage_data[voltage_rounded][idx] = result.y_data[i]
+
+            # Use service to prepare export data
+            export_data = self.cd_service.prepare_summary_export(
+                voltage_data,
+                file_mapping,
+                self.cslow_mapping,
+                selected_files,
+                self.y_unit,
+            )
+
+            if not export_data or not export_data.get("data", []):
+                QMessageBox.warning(self, "No Data", "No data available to copy")
+                return
+
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_data)
+
+            if success:
+                logger.info("Current density summary copied to clipboard")
+
+        except Exception as e:
+            logger.error(f"Error copying current density data: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _sort_results(self, results):
         """

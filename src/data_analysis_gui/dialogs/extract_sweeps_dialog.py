@@ -28,7 +28,7 @@ from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
 from data_analysis_gui.widgets.shared_widgets import SweepSelectionWidget
-from data_analysis_gui.gui_services import FileDialogService
+from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -228,11 +228,15 @@ class SweepExtractorDialog(QDialog):
         # Export button (primary action)
         self.export_btn = create_styled_button("Export to CSV...", "primary")
         self.export_btn.setMinimumHeight(40)
+
+        self.copy_btn = create_styled_button("Copy Data", "primary")
+        self.copy_btn.setMinimumHeight(40)
         
         # Close button
         self.close_btn = create_styled_button("Close", "secondary")
         
         button_layout.addWidget(self.export_btn)
+        button_layout.addWidget(self.copy_btn)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
         
@@ -246,8 +250,109 @@ class SweepExtractorDialog(QDialog):
         self.end_spinbox.valueChanged.connect(self._on_spinbox_changed)
         
         self.export_btn.clicked.connect(self._export_sweeps)
+        self.copy_btn.clicked.connect(self._copy_sweeps_to_clipboard)
         self.close_btn.clicked.connect(self.close)
         
+    def _copy_sweeps_to_clipboard(self):
+        """
+        Copy sweep data to clipboard as tab-separated values.
+        
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first.
+        """
+        # Validate selection (same as export)
+        selected_sweeps = self.sweep_selection.get_selected_sweeps()
+        
+        if not selected_sweeps:
+            QMessageBox.warning(
+                self, "No Sweeps Selected",
+                "Please select at least one sweep to copy."
+            )
+            return
+            
+        # Get time range
+        if self.full_trace_checkbox.isChecked():
+            start_time = 0.0
+            end_time = self.dataset.get_max_sweep_time()
+        else:
+            start_time = self.start_spinbox.value()
+            end_time = self.end_spinbox.value()
+            
+            # Validate time range
+            if start_time >= end_time:
+                QMessageBox.warning(
+                    self, "Invalid Time Range",
+                    "Start time must be less than end time."
+                )
+                return
+        
+        # Get channel mode
+        channel_mode = self._get_selected_channel_mode()
+        
+        try:
+            # Extract data for all selected sweeps (same as export)
+            all_data = {}
+            reference_time = None
+            
+            for sweep_idx in selected_sweeps:
+                try:
+                    # Extract sweep data
+                    sweep_data = self.data_extractor.extract_sweep_data(self.dataset, sweep_idx)
+                    time_ms = sweep_data['time_ms']
+                    voltage = sweep_data['voltage']
+                    current = sweep_data['current']
+                    
+                    # Apply time range filter
+                    mask = (time_ms >= start_time) & (time_ms <= end_time)
+                    filtered_time = time_ms[mask]
+                    filtered_voltage = voltage[mask]
+                    filtered_current = current[mask]
+                    
+                    # Use first sweep's time array as reference
+                    if reference_time is None:
+                        reference_time = filtered_time
+                    
+                    # Store filtered data
+                    all_data[sweep_idx] = {
+                        'time': filtered_time,
+                        'voltage': filtered_voltage,
+                        'current': filtered_current
+                    }
+                    
+                except Exception as e:
+                    logger.warning(f"Could not extract sweep {sweep_idx}: {e}")
+                    # Store NaN arrays for failed sweeps
+                    all_data[sweep_idx] = {
+                        'time': reference_time if reference_time is not None else np.array([]),
+                        'voltage': np.full_like(reference_time, np.nan) if reference_time is not None else np.array([]),
+                        'current': np.full_like(reference_time, np.nan) if reference_time is not None else np.array([])
+                    }
+            
+            if reference_time is None or len(reference_time) == 0:
+                raise ValueError("No valid data extracted from selected sweeps")
+            
+            # Build output array and headers
+            headers, data_array = self._build_csv_arrays(all_data, selected_sweeps, channel_mode, reference_time)
+            
+            # Prepare data dict for clipboard service
+            export_data = {
+                'headers': headers,
+                'data': data_array.tolist()
+            }
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_data)
+            
+            if success:
+                logger.info(f"Sweep data copied to clipboard: {len(selected_sweeps)} sweeps")
+                
+        except Exception as e:
+            logger.error(f"Error copying sweep data: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Copy Error",
+                f"Failed to copy data:\n{str(e)}"
+            )
+
     def _on_spinbox_changed(self):
         """Handle spinbox value changes - uncheck 'use full trace' if checked."""
         if self.full_trace_checkbox.isChecked():
