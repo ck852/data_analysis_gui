@@ -170,7 +170,7 @@ class PlotManager(QObject):
         range1_style = self.line_styles["range1"]
 
         line1 = self.ax.axvline(
-            150,
+            0,
             color=range1_style["color"],
             linestyle=range1_style["linestyle"],
             linewidth=range1_style["linewidth"],
@@ -525,7 +525,7 @@ class PlotManager(QObject):
 
         # Re-add default range lines
         line1 = self.ax.axvline(
-            150, color="green", linestyle="-", picker=5, linewidth=2
+            0, color="green", linestyle="-", picker=5, linewidth=2
         )
         line2 = self.ax.axvline(
             500, color="green", linestyle="-", picker=5, linewidth=2
