@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QGroupBox, QLab
 from PySide6.QtCore import Signal
 
 # Import custom widgets that handle scrolling properly
-from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox, NoScrollComboBox
+from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox, NoScrollComboBox, NumericLineEdit
 from data_analysis_gui.config import DEFAULT_SETTINGS
 from data_analysis_gui.core.params import AnalysisParameters
 
@@ -165,7 +165,7 @@ class ControlPanel(QWidget):
         style_label(start_label, "normal")
         layout.addWidget(start_label, 0, 0)
 
-        self.start_spin = SelectAllSpinBox()
+        self.start_spin = NumericLineEdit()
         self.start_spin.setRange(0, 100000)
         self.start_spin.setValue(DEFAULT_SETTINGS["range1_start"])
         self.start_spin.setSingleStep(0.05)
@@ -179,7 +179,7 @@ class ControlPanel(QWidget):
         style_label(end_label, "normal")
         layout.addWidget(end_label, 1, 0)
 
-        self.end_spin = SelectAllSpinBox()
+        self.end_spin = NumericLineEdit()
         self.end_spin.setRange(0, 100000)
         self.end_spin.setValue(DEFAULT_SETTINGS["range1_end"])
         self.end_spin.setSingleStep(0.05)
@@ -200,7 +200,7 @@ class ControlPanel(QWidget):
         style_label(start2_label, "normal")
         layout.addWidget(start2_label, 3, 0)
 
-        self.start_spin2 = SelectAllSpinBox()
+        self.start_spin2 = NumericLineEdit()
         self.start_spin2.setRange(0, 100000)
         self.start_spin2.setValue(DEFAULT_SETTINGS["range2_start"])
         self.start_spin2.setSingleStep(0.05)
@@ -215,7 +215,7 @@ class ControlPanel(QWidget):
         style_label(end2_label, "normal")
         layout.addWidget(end2_label, 4, 0)
 
-        self.end_spin2 = SelectAllSpinBox()
+        self.end_spin2 = NumericLineEdit()
         self.end_spin2.setRange(0, 100000)
         self.end_spin2.setValue(DEFAULT_SETTINGS["range2_end"])
         self.end_spin2.setSingleStep(0.05)
