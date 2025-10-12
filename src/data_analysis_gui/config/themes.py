@@ -271,19 +271,17 @@ def style_combo_box(widget: QComboBox) -> None:
             color: {MODERN_COLORS['text_muted']};
         }}
         QComboBox::drop-down {{
-            width: 20px;
+            width: 0px;
             border: none;
-            background: {MODERN_COLORS['surface']};
         }}
         QComboBox::drop-down:hover {{
             background: {MODERN_COLORS['hover']};
         }}
         QComboBox::down-arrow {{
             image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 5px solid {MODERN_COLORS['text_muted']};
-            margin-right: 5px;
+            width: 0px;
+            height: 0px;
+            border: none;
         }}
         QComboBox QAbstractItemView {{
             border: 1px solid {MODERN_COLORS['border']};

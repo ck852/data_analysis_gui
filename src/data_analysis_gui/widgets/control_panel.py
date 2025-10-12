@@ -13,7 +13,7 @@ Validation is performed on input fields, with visual feedback for invalid states
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QGroupBox, QLabel, QPushButton, QCheckBox, QGridLayout
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 
 # Import custom widgets that handle scrolling properly
 from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox, NoScrollComboBox, NumericLineEdit
@@ -92,7 +92,7 @@ class ControlPanel(QWidget):
         # Create scroll area for the controls
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumWidth(280)
+        scroll_area.setMinimumWidth(100)
 
         # Apply theme styling to scroll area
         style_scroll_area(scroll_area)
@@ -103,7 +103,7 @@ class ControlPanel(QWidget):
 
         # Layout for control widget with theme-based compact spacing
         layout = QVBoxLayout(control_widget)
-        apply_compact_layout(control_widget, spacing=4, margin=6)
+        apply_compact_layout(control_widget, spacing=4, margin=4)
 
         # Add all control groups
         layout.addWidget(self._create_analysis_settings_group())
@@ -137,7 +137,7 @@ class ControlPanel(QWidget):
         style_group_box(analysis_group)
 
         analysis_layout = QGridLayout(analysis_group)
-        apply_compact_layout(analysis_group, spacing=4, margin=6)
+        apply_compact_layout(analysis_group, spacing=4, margin=4)
 
         # Range 1 settings
         self._add_range1_settings(analysis_layout)
@@ -173,6 +173,7 @@ class ControlPanel(QWidget):
         self.start_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_spinbox_with_arrows(self.start_spin)
         layout.addWidget(self.start_spin, 0, 1)
+        self.start_spin.setMaximumWidth(90)
 
         # Range 1 End
         end_label = QLabel("Range 1 End (ms):")
@@ -187,6 +188,7 @@ class ControlPanel(QWidget):
         self.end_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_spinbox_with_arrows(self.end_spin)
         layout.addWidget(self.end_spin, 1, 1)
+        self.end_spin.setMaximumWidth(90)
 
     def _add_range2_settings(self, layout):
         """
@@ -209,6 +211,7 @@ class ControlPanel(QWidget):
         self.start_spin2.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_spinbox_with_arrows(self.start_spin2)
         layout.addWidget(self.start_spin2, 3, 1)
+        self.start_spin2.setMaximumWidth(90)
 
         # Range 2 End
         end2_label = QLabel("Range 2 End (ms):")
@@ -224,6 +227,7 @@ class ControlPanel(QWidget):
         self.end_spin2.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_spinbox_with_arrows(self.end_spin2)
         layout.addWidget(self.end_spin2, 4, 1)
+        self.end_spin2.setMaximumWidth(90)
 
     def _create_plot_settings_group(self):
         """
@@ -236,10 +240,11 @@ class ControlPanel(QWidget):
         style_group_box(plot_group)
 
         plot_layout = QGridLayout(plot_group)
-        apply_compact_layout(plot_group, spacing=4, margin=6)
+        apply_compact_layout(plot_group, spacing=4, margin=4)
 
         # X-axis settings with NoScrollComboBox
         x_label = QLabel("X-Axis:")
+        #x_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(x_label, "normal")
         plot_layout.addWidget(x_label, 0, 0)
 
@@ -259,6 +264,7 @@ class ControlPanel(QWidget):
 
         # Y-axis settings with NoScrollComboBox
         y_label = QLabel("Y-Axis:")
+        #y_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(y_label, "normal")
         plot_layout.addWidget(y_label, 1, 0)
 
@@ -286,6 +292,7 @@ class ControlPanel(QWidget):
 
         # Peak Mode settings with NoScrollComboBox
         peak_label = QLabel("Peak Mode:")
+        peak_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(peak_label, "normal")
         plot_layout.addWidget(peak_label, 3, 0)
 
