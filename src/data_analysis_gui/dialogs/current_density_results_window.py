@@ -267,10 +267,6 @@ class CurrentDensityResultsWindow(QMainWindow):
                 self.y_unit,
             )
 
-            if not export_data or not export_data.get("data", []):
-                QMessageBox.warning(self, "No Data", "No data available to copy")
-                return
-
             # Copy to clipboard
             success = ClipboardService.copy_data_to_clipboard(export_data)
 

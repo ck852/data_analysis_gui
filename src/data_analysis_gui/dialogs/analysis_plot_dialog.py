@@ -268,10 +268,6 @@ class AnalysisPlotDialog(QDialog):
         try:
             # Get export table from analysis manager
             export_data = self.analysis_manager.get_export_table(self.dataset, self.params)
-
-            if not export_data:
-                QMessageBox.warning(self, "No Data", "No data available to copy")
-                return
             
             # Check if data array is empty (handle numpy arrays correctly)
             data_array = export_data.get("data", [])

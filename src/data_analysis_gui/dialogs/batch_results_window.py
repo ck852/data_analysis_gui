@@ -367,10 +367,6 @@ class BatchResultsWindow(QMainWindow):
                 iv_data_r1, mapping, selected_set, current_units
             )
 
-            if not export_table or not export_table.get("data", []):
-                QMessageBox.warning(self, "No Data", "No data available to copy")
-                return
-
             # Copy to clipboard
             success = ClipboardService.copy_data_to_clipboard(export_table)
 
