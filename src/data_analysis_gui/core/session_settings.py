@@ -107,6 +107,15 @@ def extract_settings_from_main_window(main_window) -> dict:
     if hasattr(main_window, "channel_combo"):
         settings["last_channel_view"] = main_window.channel_combo.currentText()
 
+    # Save splitter proportion instead of absolute sizes
+    if hasattr(main_window, "splitter"):
+        sizes = main_window.splitter.sizes()
+        if len(sizes) == 2 and sum(sizes) > 0:
+            # Save proportion of first panel (control panel)
+            total_width = sum(sizes)
+            proportion = sizes[0] / total_width
+            settings["splitter_proportion"] = proportion
+
     # Add file dialog directory memory (primary directory tracking system)
     if hasattr(main_window, "file_dialog_service"):
         settings["file_dialog_directories"] = (
@@ -145,6 +154,39 @@ def apply_settings_to_main_window(main_window, settings: dict):
             main_window.channel_combo.setCurrentIndex(idx)
         # Store for later use
         main_window.last_channel_view = settings["last_channel_view"]
+
+    # Restore splitter proportion
+    if "splitter_proportion" in settings and hasattr(main_window, "splitter"):
+        try:
+            proportion = settings["splitter_proportion"]
+            # Validate proportion is reasonable (between 10% and 90%)
+            if 0.1 <= proportion <= 0.9:
+                # Get current total width
+                current_sizes = main_window.splitter.sizes()
+                if len(current_sizes) == 2:
+                    total_width = sum(current_sizes)
+                    # Calculate new sizes based on proportion
+                    first_size = int(total_width * proportion)
+                    second_size = total_width - first_size
+                    main_window.splitter.setSizes([first_size, second_size])
+        except Exception as e:
+            print(f"Failed to restore splitter proportion: {e}")
+    # Legacy: Try to restore old format if present
+    elif "splitter_sizes" in settings and hasattr(main_window, "splitter"):
+        try:
+            sizes = settings["splitter_sizes"]
+            if isinstance(sizes, list) and len(sizes) == 2:
+                main_window.splitter.setSizes(sizes)
+        except Exception as e:
+            print(f"Failed to restore splitter sizes: {e}")
+    elif "splitter_state" in settings and hasattr(main_window, "splitter"):
+        try:
+            import base64
+            from PySide6.QtCore import QByteArray
+            state_bytes = base64.b64decode(settings["splitter_state"])
+            main_window.splitter.restoreState(QByteArray(state_bytes))
+        except Exception as e:
+            print(f"Failed to restore splitter state: {e}")
 
     # Apply file dialog directory memory (primary system)
     if "file_dialog_directories" in settings and hasattr(

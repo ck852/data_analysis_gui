@@ -16,6 +16,10 @@ import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from data_analysis_gui.main_window import MainWindow
+from data_analysis_gui.core.session_settings import (
+    load_session_settings, 
+    apply_settings_to_main_window
+)
 
 # Import from refactored themes module
 from data_analysis_gui.config.themes import apply_theme_to_application
@@ -96,6 +100,11 @@ def main():
 
     # Process events to ensure geometry is applied
     app.processEvents()
+
+    # Apply session settings after window is shown and laid out
+    saved_settings = load_session_settings()
+    if saved_settings:
+        apply_settings_to_main_window(window, saved_settings)
 
     sys.exit(app.exec())
 

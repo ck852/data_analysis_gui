@@ -124,19 +124,18 @@ class MainWindow(QMainWindow):
         self.hold_timer.timeout.connect(self._continue_navigation)
         self.navigation_direction = None
 
+        # Splitter auto-save timer
+        self.splitter_save_timer = QTimer()
+        self.splitter_save_timer.setSingleShot(True)
+        self.splitter_save_timer.setInterval(500)  # 500ms delay after dragging stops
+        self.splitter_save_timer.timeout.connect(self._auto_save_settings)
+
         # Initialize default values for settings that may be loaded
         self.last_channel_view = "Voltage"
         self.last_directory = None
 
-        # self.current_units = "pA"  # Default current units
-
         # Build UI
         self._init_ui()
-
-        # Load and apply settings immediately (shows user's last configuration)
-        saved_settings = load_session_settings()
-        if saved_settings:
-            apply_settings_to_main_window(self, saved_settings)
 
         # Apply modern theme to the main window (handles everything including toolbars and menus)
         apply_modern_theme(self)
@@ -155,22 +154,22 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Main splitter
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(1)
-        main_layout.addWidget(splitter)
+        # Main splitter - store as instance variable for settings persistence
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setHandleWidth(1)
+        main_layout.addWidget(self.splitter)
 
         # Control panel (left)
         self.control_panel = ControlPanel()
-        splitter.addWidget(self.control_panel)
+        self.splitter.addWidget(self.control_panel)
 
         # Plot manager (right)
         self.plot_manager = PlotManager()
-        splitter.addWidget(self.plot_manager.get_plot_widget())
+        self.splitter.addWidget(self.plot_manager.get_plot_widget())
 
         # Set the plot manager to expand and leave the control panel at its minimum size
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
         # splitter.setMinimumWidth(600)
 
         # Menus and toolbar
@@ -420,6 +419,18 @@ class MainWindow(QMainWindow):
 
         # Plot manager
         self.plot_manager.line_state_changed.connect(self._on_cursor_moved)
+
+        # Splitter - debounced auto-save when user adjusts position
+        self.splitter.splitterMoved.connect(self._on_splitter_moved)
+
+    def _on_splitter_moved(self):
+        """
+        Handle splitter movement with debouncing.
+        
+        Restarts the timer on each movement, so settings only save
+        after the user has stopped dragging for 500ms.
+        """
+        self.splitter_save_timer.start()
 
     def _open_file(self):
         """

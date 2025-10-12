@@ -8,6 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Extract Sweeps dialog receives initial time range from MainWindow
+- Splitter position in main window saves between sessions
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added
