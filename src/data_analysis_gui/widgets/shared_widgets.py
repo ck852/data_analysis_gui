@@ -682,6 +682,15 @@ class BatchFileListWidget(QTableWidget):
         # Make file column non-editable
         self.setEditTriggers(QTableWidget.NoEditTriggers)
 
+        # Connect cell click to toggle checkbox
+        self.cellClicked.connect(self._on_cell_clicked)
+
+    def _on_cell_clicked(self, row: int, column: int):
+        """Toggle checkbox when any cell in the row is clicked."""
+        checkbox = self.cellWidget(row, 0).findChild(QCheckBox)
+        if checkbox:
+            checkbox.setChecked(not checkbox.isChecked())
+
     def add_file(
         self,
         file_name: str,
