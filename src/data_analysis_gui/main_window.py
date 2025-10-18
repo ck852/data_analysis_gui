@@ -400,6 +400,17 @@ class MainWindow(QMainWindow):
         self.control_panel.dual_range_toggled.connect(self._auto_save_settings)
         self.control_panel.range_values_changed.connect(self._auto_save_settings)
 
+        # Connect to editingFinished for snap-back behavior on range spinboxes
+        spinboxes = self.control_panel.get_range_spinboxes()
+        if "start1" in spinboxes:
+            spinboxes["start1"].editingFinished.connect(self._on_spinbox_editing_finished)
+        if "end1" in spinboxes:
+            spinboxes["end1"].editingFinished.connect(self._on_spinbox_editing_finished)
+        if "start2" in spinboxes:
+            spinboxes["start2"].editingFinished.connect(self._on_spinbox_editing_finished)
+        if "end2" in spinboxes:
+            spinboxes["end2"].editingFinished.connect(self._on_spinbox_editing_finished)
+
         # Connect to plot setting combo boxes for auto-save
         self.control_panel.x_measure_combo.currentTextChanged.connect(
             self._auto_save_settings
@@ -572,7 +583,11 @@ class MainWindow(QMainWindow):
             add_zero_axis_lines(self.plot_manager.ax, alpha=0.4, linewidth=0.8)
             self.plot_manager.redraw()
 
+            # Sync cursors to plot (they will snap to data points)
             self._sync_cursors_to_plot()
+            
+            # Update spinboxes to match snapped cursor positions
+            self._sync_spinboxes_to_cursors()
         else:
             logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
@@ -748,6 +763,8 @@ class MainWindow(QMainWindow):
     def _sync_cursors_to_plot(self):
         """
         Synchronize cursor positions from the control panel to the plot manager.
+        
+        This updates cursors in real-time as the user types.
         """
         vals = self.control_panel.get_range_values()
         self.plot_manager.update_range_lines(
@@ -757,6 +774,65 @@ class MainWindow(QMainWindow):
             vals.get("range2_start"),
             vals.get("range2_end"),
         )
+
+    def _on_spinbox_editing_finished(self):
+        """
+        Handle editingFinished signal from range spinboxes.
+        
+        When user finishes editing (loses focus or presses Enter), update the
+        spinbox to show the actual cursor position (which has already snapped).
+        """
+        # Get actual cursor positions
+        positions = self.plot_manager.get_line_positions()
+        
+        # Get spinboxes
+        spinboxes = self.control_panel.get_range_spinboxes()
+        
+        # Mapping from spinbox keys to cursor line IDs
+        mapping = {
+            "start1": "range1_start",
+            "end1": "range1_end",
+            "start2": "range2_start",
+            "end2": "range2_end"
+        }
+        
+        # Update each spinbox to match its cursor position
+        for spinbox_key, spinbox in spinboxes.items():
+            line_id = mapping.get(spinbox_key)
+            if line_id and line_id in positions:
+                # Block signals to prevent recursion
+                spinbox.blockSignals(True)
+                spinbox.setValue(positions[line_id])
+                spinbox.blockSignals(False)
+
+    def _sync_spinboxes_to_cursors(self):
+        """
+        Update spinbox values to match current cursor positions.
+        
+        Called after cursors have snapped to ensure spinboxes display actual positions.
+        """
+        # Get actual cursor positions
+        positions = self.plot_manager.get_line_positions()
+        
+        # Get spinboxes
+        spinboxes = self.control_panel.get_range_spinboxes()
+        
+        # Mapping from spinbox keys to cursor line IDs
+        mapping = {
+            "start1": "range1_start",
+            "end1": "range1_end",
+            "start2": "range2_start",
+            "end2": "range2_end"
+        }
+        
+        # Update each spinbox to match its cursor position
+        for spinbox_key, spinbox in spinboxes.items():
+            line_id = mapping.get(spinbox_key)
+            if line_id and line_id in positions:
+                # Block signals to prevent recursion
+                spinbox.blockSignals(True)
+                spinbox.setValue(positions[line_id])
+                spinbox.blockSignals(False)
 
     def _auto_save_settings(self):
         """

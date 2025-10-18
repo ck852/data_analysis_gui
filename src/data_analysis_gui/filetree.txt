@@ -23,7 +23,8 @@ data_analysis_gui/
 |   |-- models.py
 |   |-- params.py
 |   |-- plot_formatter.py
-|   `-- session_settings.py
+|   |-- session_settings.py
+|   `-- view_state_manager.py
 |-- dialogs/
 |   |-- __init__.py
 |   |-- analysis_plot_dialog.py
@@ -55,6 +56,7 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- concentration_range_table.py
 |   |-- control_panel.py
+|   |-- cursor_manager.py
 |   |-- cursor_spinbox.py
 |   |-- custom_inputs.py
 |   |-- custom_toolbar.py

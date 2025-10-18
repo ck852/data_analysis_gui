@@ -156,26 +156,30 @@ class CursorManager:
     
     def update_cursor_position(self, line_id: str, position: float) -> None:
         """
-        Update a cursor's x-position.
+        Update a cursor's x-position with snap-to-data.
         
+        Position is automatically snapped to nearest time point in loaded data.
         Updates both the Line2D position and the text label (if exists).
         
         Args:
             line_id: Identifier of cursor to move.
-            position: New x-coordinate.
+            position: New x-coordinate (will be snapped).
         """
         if line_id not in self._cursors:
             logger.warning(f"Cannot update position: cursor '{line_id}' not found")
             return
         
+        # Snap position to nearest data point
+        snapped_position = self._snap_to_nearest_time(position)
+        
         line = self._cursors[line_id]
-        line.set_xdata([position, position])
+        line.set_xdata([snapped_position, snapped_position])
         
         # Update text label if exists
         if line_id in self._cursor_texts:
-            self._update_cursor_text(line_id, position)
+            self._update_cursor_text(line_id, snapped_position)
         
-        logger.debug(f"Updated cursor '{line_id}' to position {position:.2f}")
+        logger.debug(f"Updated cursor '{line_id}' to position {snapped_position:.2f}")
     
     def get_all_lines(self) -> List[Line2D]:
         """
@@ -428,9 +432,10 @@ class CursorManager:
     
     def update_drag(self, xdata: Optional[float]) -> Optional[Tuple[str, float]]:
         """
-        Update cursor position during drag operation.
+        Update cursor position during drag operation with snap-to-data.
         
-        Returns new position for PlotManager to emit signal. This method
+        Position is automatically snapped to nearest time point in loaded data.
+        Returns snapped position for PlotManager to emit signal. This method
         updates the Line2D and text label, then returns the information
         needed for signal emission.
         
@@ -438,18 +443,22 @@ class CursorManager:
             xdata: New x-coordinate from mouse event (None if outside axes).
         
         Returns:
-            (line_id, new_position) tuple if dragging, None otherwise.
+            (line_id, snapped_position) tuple if dragging, None otherwise.
         """
         if not self._dragging_line_id or xdata is None:
             return None
         
         line_id = self._dragging_line_id
-        new_position = float(xdata)
+        
+        # Snap position to nearest data point
+        snapped_position = self._snap_to_nearest_time(float(xdata))
         
         # Update cursor position (handles both line and text)
-        self.update_cursor_position(line_id, new_position)
+        # Note: This will snap again inside update_cursor_position, but that's
+        # idempotent - snapping an already-snapped value returns the same value
+        self.update_cursor_position(line_id, snapped_position)
         
-        return (line_id, new_position)
+        return (line_id, snapped_position)
     
     def release_drag(self) -> Optional[str]:
         """
@@ -473,3 +482,28 @@ class CursorManager:
             True if dragging, False otherwise.
         """
         return self._dragging_line_id is not None
+    
+    def _snap_to_nearest_time(self, position: float) -> float:
+        """
+        Snap position to nearest time point in loaded data.
+        
+        If no data is loaded, returns the original position unchanged.
+        Uses numpy's argmin for fast nearest-neighbor search.
+        
+        Args:
+            position: Target x-coordinate to snap.
+        
+        Returns:
+            Snapped position (nearest time point in data), or original if no data.
+        """
+        if self._current_time_data is None or len(self._current_time_data) == 0:
+            return position  # No data loaded - bypass snapping
+        
+        # Find index of nearest time point
+        idx = np.argmin(np.abs(self._current_time_data - position))
+        
+        # Return the actual time value from data
+        snapped_position = float(self._current_time_data[idx])
+        
+        logger.debug(f"Snapped position {position:.2f} to {snapped_position:.2f}")
+        return snapped_position
