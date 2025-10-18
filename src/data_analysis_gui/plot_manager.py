@@ -6,21 +6,21 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides improved plot management for PatchBatch.
+This module provides plot management for PatchBatch.
 
 Features:
 - Uses Qt signals for decoupling from the main window.
 - PlotManager handles matplotlib visualization and emits signals for plot interactions.
+- Coordinates ViewStateManager and CursorManager for focused responsibility separation.
 """
 
 import logging
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict
 
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout
@@ -31,6 +31,8 @@ from data_analysis_gui.config.plot_style import (
     get_line_styles,
 )
 from data_analysis_gui.widgets.custom_toolbar import StreamlinedNavigationToolbar
+from data_analysis_gui.core.view_state_manager import ViewStateManager
+from data_analysis_gui.widgets.cursor_manager import CursorManager
 
 
 # Set up a logger for better debugging
@@ -43,9 +45,10 @@ class PlotManager(QObject):
 
     Responsibilities:
     - Encapsulates a Matplotlib Figure, canvas, and toolbar.
-    - Handles sweep plots, range lines, and user interactions.
+    - Coordinates ViewStateManager for axis limit state.
+    - Coordinates CursorManager for cursor/text management.
+    - Handles sweep plots and user interactions.
     - Emits Qt signals for plot updates and line state changes.
-    - Maintains no knowledge of external widgets or main window.
     """
 
     # Define signals for plot interactions
@@ -89,24 +92,12 @@ class PlotManager(QObject):
         plot_layout.addWidget(self.toolbar)
         plot_layout.addWidget(self.canvas)
 
-        # 2. Range lines management
-        self.range_lines: List[Line2D] = []
-        self._line_ids: Dict[Line2D, str] = {}
+        # 2. Helper components for state and cursor management
+        self.view_manager = ViewStateManager()
+        self.cursor_manager = CursorManager(self.ax)
+
+        # 3. Initialize range lines
         self._initialize_range_lines()
-
-        # NEW: Cursor text management
-        self._cursor_texts: Dict[str, Any] = {}  # Maps line_id to Text object
-        self._current_time_data: Optional[np.ndarray] = None
-        self._current_y_data: Optional[np.ndarray] = None
-        self._current_channel_type: Optional[str] = None
-        self._current_units: str = "pA"  # Default units
-        
-        # Track axis limits to detect zoom/pan
-        self._last_xlim: Optional[Tuple[float, float]] = None
-        self._last_ylim: Optional[Tuple[float, float]] = None
-
-        # 3. Interactivity state
-        self.dragging_line: Optional[Line2D] = None
 
         # 4. Connect interactive events
         self._connect_events()
@@ -163,34 +154,34 @@ class PlotManager(QObject):
         """
         Initialize default range lines with modern styling and emit signals.
         """
-        self.range_lines.clear()
-        self._line_ids.clear()
-
         # Use styled colors for range lines
         range1_style = self.line_styles["range1"]
 
-        line1 = self.ax.axvline(
-            0,
+        # Create Range 1 cursors via CursorManager
+        line1 = self.cursor_manager.create_cursor(
+            line_id="range1_start",
+            position=0,
             color=range1_style["color"],
             linestyle=range1_style["linestyle"],
             linewidth=range1_style["linewidth"],
-            alpha=range1_style["alpha"],
-            picker=5,
+            alpha=range1_style["alpha"]
         )
-        line2 = self.ax.axvline(
-            500,
+        
+        line2 = self.cursor_manager.create_cursor(
+            line_id="range1_end",
+            position=500,
             color=range1_style["color"],
             linestyle=range1_style["linestyle"],
             linewidth=range1_style["linewidth"],
-            alpha=range1_style["alpha"],
-            picker=5,
+            alpha=range1_style["alpha"]
         )
 
-        self.range_lines.extend([line1, line2])
-        self._line_ids[line1] = "range1_start"
-        self._line_ids[line2] = "range1_end"
+        # Add lines to axes
+        self.ax.add_line(line1)
+        self.ax.add_line(line2)
 
-        self.line_state_changed.emit("added", "range1_start", 150)
+        # Emit signals for initial positions
+        self.line_state_changed.emit("added", "range1_start", 0)
         self.line_state_changed.emit("added", "range1_end", 500)
 
         logger.debug("Initialized styled range lines.")
@@ -221,9 +212,10 @@ class PlotManager(QObject):
             x_label: Optional x-axis label.
             y_label: Optional y-axis label.
         """
+        # 1. Clear axes
         self.ax.clear()
 
-        # Plot with modern styling
+        # 2. Plot data with modern styling
         line_style = self.line_styles["primary"]
         self.ax.plot(
             t,
@@ -244,34 +236,35 @@ class PlotManager(QObject):
             # Use default formatting
             format_sweep_plot(self.ax, sweep_index, channel_type)
 
-        # Store current plot data for cursor text
-        self._current_time_data = t
-        self._current_y_data = y[:, channel]
-        self._current_channel_type = channel_type
-        
-        # Get units from channel_config or use defaults
+        # 3. Give CursorManager the plot data for text labels
+        units = "pA"
         if channel_config:
-            self._current_units = channel_config.get("current_units", "pA")
-        else:
-            self._current_units = "pA"
-
-        # Restore range lines with consistent styling
-        for line in self.range_lines:
-            self.ax.add_line(line)
+            units = channel_config.get("current_units", "pA")
         
-        # Create cursor text labels for all current cursors
-        for line, line_id in self._line_ids.items():
-            x_position = line.get_xdata()[0]
-            self._create_cursor_text(line_id, x_position)
+        self.cursor_manager.set_plot_data(
+            time_data=t,
+            y_data=y[:, channel],
+            channel_type=channel_type,
+            units=units
+        )
+
+        # 4. Re-add cursor Line2D objects from CursorManager
+        for line in self.cursor_manager.get_all_lines():
+            self.ax.add_line(line)
 
         # Apply padding for better visualization
         self.ax.relim()
         self.ax.autoscale_view(tight=True)
         self.ax.margins(x=0.02, y=0.05)
 
-        # Initialize axis limits tracking for zoom/pan detection
-        self._last_xlim = self.ax.get_xlim()
-        self._last_ylim = self.ax.get_ylim()
+        # 5. Update ViewStateManager with current limits
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        self.view_manager.set_home_view(xlim, ylim)
+        self.view_manager.update_current_view(xlim, ylim)
+
+        # 6. CursorManager recreates text labels with new data
+        self.cursor_manager.recreate_all_text_labels(self.ax)
 
         self.figure.tight_layout(pad=1.0)
         self.redraw()
@@ -300,125 +293,86 @@ class PlotManager(QObject):
         range1_style = self.line_styles["range1"]
         range2_style = self.line_styles["range2"]
 
-        # Ensure we have at least 2 lines for Range 1
-        if len(self.range_lines) < 2:
-            if len(self.range_lines) == 0:
-                line1 = self.ax.axvline(
-                    start1,
-                    color=range1_style["color"],
-                    linestyle=range1_style["linestyle"],
-                    linewidth=range1_style["linewidth"],
-                    alpha=range1_style["alpha"],
-                    picker=5,
-                )
-                line2 = self.ax.axvline(
-                    end1,
-                    color=range1_style["color"],
-                    linestyle=range1_style["linestyle"],
-                    linewidth=range1_style["linewidth"],
-                    alpha=range1_style["alpha"],
-                    picker=5,
-                )
-                self.range_lines.extend([line1, line2])
-                self._line_ids[line1] = "range1_start"
-                self._line_ids[line2] = "range1_end"
-                
-                # Create text for new lines
-                self._create_cursor_text("range1_start", start1)
-                self._create_cursor_text("range1_end", end1)
-            elif len(self.range_lines) == 1:
-                line2 = self.ax.axvline(
-                    end1,
-                    color=range1_style["color"],
-                    linestyle=range1_style["linestyle"],
-                    linewidth=range1_style["linewidth"],
-                    alpha=range1_style["alpha"],
-                    picker=5,
-                )
-                self.range_lines.append(line2)
-                self._line_ids[line2] = "range1_end"
-                
-                # Create text for new line
-                self._create_cursor_text("range1_end", end1)
+        # Get current cursor positions to check what exists
+        current_positions = self.cursor_manager.get_cursor_positions()
+        
+        # Update Range 1 positions
+        if "range1_start" in current_positions:
+            self.cursor_manager.update_cursor_position("range1_start", start1)
         else:
-            # Update existing Range 1 lines
-            self.range_lines[0].set_xdata([start1, start1])
-            self.range_lines[1].set_xdata([end1, end1])
-            
-            # Update cursor text positions
-            self._update_cursor_text("range1_start", start1)
-            self._update_cursor_text("range1_end", end1)
+            # Create if missing (shouldn't happen in normal operation)
+            line = self.cursor_manager.create_cursor(
+                "range1_start",
+                start1,
+                color=range1_style["color"],
+                linestyle=range1_style["linestyle"],
+                linewidth=range1_style["linewidth"],
+                alpha=range1_style["alpha"]
+            )
+            self.ax.add_line(line)
+            self.cursor_manager.recreate_all_text_labels(self.ax)
+        
+        if "range1_end" in current_positions:
+            self.cursor_manager.update_cursor_position("range1_end", end1)
+        else:
+            # Create if missing
+            line = self.cursor_manager.create_cursor(
+                "range1_end",
+                end1,
+                color=range1_style["color"],
+                linestyle=range1_style["linestyle"],
+                linewidth=range1_style["linewidth"],
+                alpha=range1_style["alpha"]
+            )
+            self.ax.add_line(line)
+            self.cursor_manager.recreate_all_text_labels(self.ax)
 
-        has_second_range = len(self.range_lines) == 4
-
+        # Handle Range 2
+        has_range2 = "range2_start" in current_positions
+        
         if use_dual_range and start2 is not None and end2 is not None:
-            if not has_second_range:
-                # Add Range 2 lines with different styling
-                line3 = self.ax.axvline(
+            if not has_range2:
+                # Add Range 2 lines
+                line3 = self.cursor_manager.create_cursor(
+                    "range2_start",
                     start2,
                     color=range2_style["color"],
                     linestyle=range2_style["linestyle"],
                     linewidth=range2_style["linewidth"],
-                    alpha=range2_style["alpha"],
-                    picker=5,
+                    alpha=range2_style["alpha"]
                 )
-                line4 = self.ax.axvline(
+                line4 = self.cursor_manager.create_cursor(
+                    "range2_end",
                     end2,
                     color=range2_style["color"],
                     linestyle=range2_style["linestyle"],
                     linewidth=range2_style["linewidth"],
-                    alpha=range2_style["alpha"],
-                    picker=5,
+                    alpha=range2_style["alpha"]
                 )
-
-                self.range_lines.extend([line3, line4])
-                self._line_ids[line3] = "range2_start"
-                self._line_ids[line4] = "range2_end"
+                
+                self.ax.add_line(line3)
+                self.ax.add_line(line4)
+                
+                # Recreate text labels for new cursors
+                self.cursor_manager.recreate_all_text_labels(self.ax)
 
                 self.line_state_changed.emit("added", "range2_start", start2)
                 self.line_state_changed.emit("added", "range2_end", end2)
-                
-                # Create text for new Range 2 lines
-                self._create_cursor_text("range2_start", start2)
-                self._create_cursor_text("range2_end", end2)
             else:
-                # Update existing Range 2 lines
-                self.range_lines[2].set_xdata([start2, start2])
-                self.range_lines[3].set_xdata([end2, end2])
+                # Update existing Range 2 positions
+                self.cursor_manager.update_cursor_position("range2_start", start2)
+                self.cursor_manager.update_cursor_position("range2_end", end2)
                 
-                # Update cursor text positions
-                self._update_cursor_text("range2_start", start2)
-                self._update_cursor_text("range2_end", end2)
-        elif not use_dual_range and has_second_range:
-            # Remove Range 2 lines and their text
-            line4 = self.range_lines.pop()
-            line3 = self.range_lines.pop()
-
-            line3_id = self._line_ids.get(line3, "range2_start")
-            line4_id = self._line_ids.get(line4, "range2_end")
+        elif not use_dual_range and has_range2:
+            # Remove Range 2 lines
+            range2_start_pos = current_positions.get("range2_start", 0)
+            range2_end_pos = current_positions.get("range2_end", 0)
             
-            self.line_state_changed.emit(
-                "removed",
-                line3_id,
-                line3.get_xdata()[0],
-            )
-            self.line_state_changed.emit(
-                "removed", line4_id, line4.get_xdata()[0]
-            )
-
-            # Remove text labels
-            self._remove_cursor_text(line3_id)
-            self._remove_cursor_text(line4_id)
-
-            if line3 in self._line_ids:
-                del self._line_ids[line3]
-            if line4 in self._line_ids:
-                del self._line_ids[line4]
-
-            if line3.axes:
-                line3.remove()
-            if line4.axes:
-                line4.remove()
+            self.cursor_manager.remove_cursor("range2_start")
+            self.cursor_manager.remove_cursor("range2_end")
+            
+            self.line_state_changed.emit("removed", "range2_start", range2_start_pos)
+            self.line_state_changed.emit("removed", "range2_end", range2_end_pos)
 
         self.redraw()
         logger.debug("Updated range lines with modern styling.")
@@ -430,33 +384,39 @@ class PlotManager(QObject):
         Returns:
             Tuple[str, float]: The line ID and new x-position, or (None, None).
         """
-        if not self.range_lines or not self.ax.has_data():
-            logger.warning("Cannot center cursor: No range lines or data available.")
+        cursor_positions = self.cursor_manager.get_cursor_positions()
+        
+        if not cursor_positions or not self.ax.has_data():
+            logger.warning("Cannot center cursor: No cursors or data available.")
             return None, None
 
         x_min, x_max = self.ax.get_xlim()
         center_x = (x_min + x_max) / 2
 
-        # Find the line closest to the center of the view
-        distances = [abs(line.get_xdata()[0] - center_x) for line in self.range_lines]
-        nearest_idx = int(np.argmin(distances))
-        nearest_line = self.range_lines[nearest_idx]
-        line_id = self._line_ids.get(nearest_line, f"line_{nearest_idx}")
+        # Find the cursor closest to the center of the view
+        nearest_line_id = None
+        min_distance = float('inf')
+        
+        for line_id, position in cursor_positions.items():
+            distance = abs(position - center_x)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_line_id = line_id
 
-        # Move the line
-        nearest_line.set_xdata([center_x, center_x])
+        if nearest_line_id is None:
+            return None, None
+
+        # Move the cursor
+        self.cursor_manager.update_cursor_position(nearest_line_id, center_x)
 
         logger.info(f"Centered nearest cursor to x={center_x:.2f}.")
 
         # Emit signal about the centering
-        self.line_state_changed.emit("centered", line_id, center_x)
-        
-        # Update cursor text to new position
-        self._update_cursor_text(line_id, center_x)
+        self.line_state_changed.emit("centered", nearest_line_id, center_x)
 
         self.redraw()
 
-        return line_id, center_x
+        return nearest_line_id, center_x
 
     # --- Mouse Interaction Handlers ---
 
@@ -467,11 +427,9 @@ class PlotManager(QObject):
         Args:
             event: Matplotlib pick event.
         """
-        if isinstance(event.artist, Line2D) and event.artist in self.range_lines:
-            self.dragging_line = event.artist
-            logger.debug(
-                f"Picked line: {self._line_ids.get(self.dragging_line, 'unknown')}."
-            )
+        line_id = self.cursor_manager.handle_pick(event.artist)
+        if line_id:
+            logger.debug(f"Picked cursor: {line_id}")
 
     def _on_drag(self, event) -> None:
         """
@@ -480,17 +438,15 @@ class PlotManager(QObject):
         Args:
             event: Matplotlib motion event.
         """
-        if self.dragging_line and event.xdata is not None:
-            x_pos = float(event.xdata)
-            self.dragging_line.set_xdata([x_pos, x_pos])
-
+        if not self.cursor_manager.is_dragging():
+            return
+        
+        result = self.cursor_manager.update_drag(event.xdata)
+        
+        if result:
+            line_id, new_position = result
             # Emit signal about the drag
-            line_id = self._line_ids.get(self.dragging_line, "unknown")
-            self.line_state_changed.emit("dragged", line_id, x_pos)
-            
-            # Update cursor text to follow the cursor
-            self._update_cursor_text(line_id, x_pos)
-
+            self.line_state_changed.emit("dragged", line_id, new_position)
             self.redraw()
 
     def _on_release(self, event) -> None:
@@ -500,11 +456,30 @@ class PlotManager(QObject):
         Args:
             event: Matplotlib button release event.
         """
-        if self.dragging_line:
-            line_id = self._line_ids.get(self.dragging_line, "unknown")
-            x_pos = self.dragging_line.get_xdata()[0]
-            logger.debug(f"Released line {line_id} at x={x_pos:.2f}.")
-            self.dragging_line = None
+        line_id = self.cursor_manager.release_drag()
+        if line_id:
+            positions = self.cursor_manager.get_cursor_positions()
+            x_pos = positions.get(line_id, 0)
+            logger.debug(f"Released cursor {line_id} at x={x_pos:.2f}.")
+
+    def _on_draw(self, event) -> None:
+        """
+        Handle draw events to update cursor text positions after zoom/pan.
+        
+        Args:
+            event: Matplotlib draw event.
+        """
+        # Get current axis limits
+        current_xlim = self.ax.get_xlim()
+        current_ylim = self.ax.get_ylim()
+        
+        # Check if view has changed
+        if self.view_manager.has_view_changed(current_xlim, current_ylim):
+            # Update cursor text positions to match new limits
+            self.cursor_manager.update_all_text_positions(current_ylim)
+            
+            # Store new limits
+            self.view_manager.update_current_view(current_xlim, current_ylim)
 
     def clear(self) -> None:
         """
@@ -513,30 +488,15 @@ class PlotManager(QObject):
         # Clear axes - this removes all artists including lines
         self.ax.clear()
 
-        # Reset line tracking (don't try to remove already-removed lines)
-        self.range_lines.clear()
-        self._line_ids.clear()
-        
-        # Clear cursor text tracking
-        self._cursor_texts.clear()
-        self._current_time_data = None
-        self._current_y_data = None
-        self._current_channel_type = None
+        # Clear cursor manager's plot data
+        self.cursor_manager.clear_plot_data()
 
-        # Re-add default range lines
-        line1 = self.ax.axvline(
-            0, color="green", linestyle="-", picker=5, linewidth=2
-        )
-        line2 = self.ax.axvline(
-            500, color="green", linestyle="-", picker=5, linewidth=2
-        )
+        # Remove all cursors from tracking
+        for line_id in list(self.cursor_manager.get_cursor_positions().keys()):
+            self.cursor_manager.remove_cursor(line_id)
 
-        self.range_lines.extend([line1, line2])
-        self._line_ids[line1] = "range1_start"
-        self._line_ids[line2] = "range1_end"
-
-        self.line_state_changed.emit("added", "range1_start", 150)
-        self.line_state_changed.emit("added", "range1_end", 500)
+        # Re-initialize default range lines
+        self._initialize_range_lines()
 
         self.redraw()
         self.plot_updated.emit()
@@ -557,21 +517,19 @@ class PlotManager(QObject):
             start2: Start position for range 2.
             end2: End position for range 2.
         """
+        positions = self.cursor_manager.get_cursor_positions()
+        
         if enabled:
             # Get current range 1 values
-            start1 = self.range_lines[0].get_xdata()[0] if self.range_lines else 150
-            end1 = (
-                self.range_lines[1].get_xdata()[0] if len(self.range_lines) > 1 else 500
-            )
+            start1 = positions.get("range1_start", 150)
+            end1 = positions.get("range1_end", 500)
 
             # Update with dual range
             self.update_range_lines(start1, end1, True, start2, end2)
         else:
             # Get current range 1 values
-            start1 = self.range_lines[0].get_xdata()[0] if self.range_lines else 150
-            end1 = (
-                self.range_lines[1].get_xdata()[0] if len(self.range_lines) > 1 else 500
-            )
+            start1 = positions.get("range1_start", 150)
+            end1 = positions.get("range1_end", 500)
 
             # Update without dual range
             self.update_range_lines(start1, end1, False, None, None)
@@ -583,168 +541,4 @@ class PlotManager(QObject):
         Returns:
             Dict[str, float]: Mapping of line IDs to their x positions.
         """
-        positions = {}
-        for line, line_id in self._line_ids.items():
-            positions[line_id] = line.get_xdata()[0]
-        return positions
-
-    def _sample_y_value_nearest(self, x_position: float) -> Optional[float]:
-        """
-        Find the nearest y-value from the plot data at the given x-position.
-        
-        Args:
-            x_position: X-coordinate (time in ms) to sample at.
-        
-        Returns:
-            float: Y-value at nearest data point, or None if no data available.
-        """
-        if self._current_time_data is None or self._current_y_data is None:
-            return None
-        
-        if len(self._current_time_data) == 0 or len(self._current_y_data) == 0:
-            return None
-        
-        # Find index of nearest time point
-        idx = np.argmin(np.abs(self._current_time_data - x_position))
-        
-        # Return corresponding y-value
-        return float(self._current_y_data[idx])
-
-
-    def _create_cursor_text(self, line_id: str, x_position: float) -> None:
-        """
-        Create a text label for a cursor line showing the y-value at its position.
-        
-        Args:
-            line_id: Identifier for the cursor line.
-            x_position: X-coordinate of the cursor.
-        """
-        # Sample y-value at cursor position
-        y_value = self._sample_y_value_nearest(x_position)
-        
-        if y_value is None:
-            return
-        
-        # Determine units based on current channel type
-        if self._current_channel_type == "Voltage":
-            unit = "mV"
-            formatted_value = f"{y_value:.1f} {unit}"
-        else:
-            unit = self._current_units
-            formatted_value = f"{y_value:.1f} {unit}"
-        
-        # Position text near top of plot
-        y_min, y_max = self.ax.get_ylim()
-        text_y = y_max - (y_max - y_min) * 0.05  # 5% from top
-        
-        # Create text object
-        text = self.ax.text(
-            x_position, text_y, formatted_value,
-            ha='center', va='top',
-            fontsize=9,
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                    edgecolor='gray', alpha=0.9)
-        )
-        
-        # Store reference
-        self._cursor_texts[line_id] = text
-        
-        logger.debug(f"Created cursor text for {line_id} at x={x_position:.2f}, y={y_value:.2f}")
-
-
-    def _update_cursor_text(self, line_id: str, x_position: float) -> None:
-        """
-        Update the position and value of a cursor text label.
-        
-        Args:
-            line_id: Identifier for the cursor line.
-            x_position: New x-coordinate of the cursor.
-        """
-        if line_id not in self._cursor_texts:
-            return
-        
-        # Sample new y-value
-        y_value = self._sample_y_value_nearest(x_position)
-        
-        if y_value is None:
-            return
-        
-        # Determine units
-        if self._current_channel_type == "Voltage":
-            unit = "mV"
-            formatted_value = f"{y_value:.1f} {unit}"
-        else:
-            unit = self._current_units
-            formatted_value = f"{y_value:.1f} {unit}"
-        
-        # Update text content and position
-        text = self._cursor_texts[line_id]
-        text.set_text(formatted_value)
-        
-        # Keep y-position near top of plot (recalculate in case of zoom)
-        y_min, y_max = self.ax.get_ylim()
-        text_y = y_max - (y_max - y_min) * 0.05
-        
-        text.set_position((x_position, text_y))
-
-
-    def _remove_cursor_text(self, line_id: str) -> None:
-        """
-        Remove a cursor text label.
-        
-        Args:
-            line_id: Identifier for the cursor line.
-        """
-        if line_id in self._cursor_texts:
-            text = self._cursor_texts[line_id]
-            text.remove()
-            del self._cursor_texts[line_id]
-            logger.debug(f"Removed cursor text for {line_id}")
-
-
-    def _update_all_cursor_text_positions(self) -> None:
-        """
-        Update the y-position of all cursor text labels based on current axis limits.
-        Called after zoom/pan operations to keep text visible.
-        """
-        if not self._cursor_texts:
-            return
-        
-        # Get current axis limits
-        y_min, y_max = self.ax.get_ylim()
-        text_y = y_max - (y_max - y_min) * 0.05  # 5% from top
-        
-        # Update position for each text label
-        for line_id, text in self._cursor_texts.items():
-            # Get current x-position from the text
-            x_position = text.get_position()[0]
-            
-            # Update y-position to keep text near top
-            text.set_position((x_position, text_y))
-        
-        logger.debug("Updated all cursor text positions after zoom/pan")
-
-
-    def _on_draw(self, event) -> None:
-        """
-        Handle draw events to update cursor text positions after zoom/pan.
-        
-        Args:
-            event: Matplotlib draw event.
-        """
-        # Check if axis limits have changed
-        current_xlim = self.ax.get_xlim()
-        current_ylim = self.ax.get_ylim()
-        
-        limits_changed = (
-            self._last_xlim != current_xlim or 
-            self._last_ylim != current_ylim
-        )
-        
-        if limits_changed and self._cursor_texts:
-            # Update cursor text positions to match new limits
-            self._update_all_cursor_text_positions()
-            
-            # Store new limits
-            self._last_xlim = current_xlim
-            self._last_ylim = current_ylim
+        return self.cursor_manager.get_cursor_positions()
