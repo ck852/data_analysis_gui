@@ -33,7 +33,7 @@ from data_analysis_gui.config.plot_style import (
 from data_analysis_gui.widgets.custom_toolbar import StreamlinedNavigationToolbar
 from data_analysis_gui.core.view_state_manager import ViewStateManager
 from data_analysis_gui.widgets.cursor_manager import CursorManager
-
+from data_analysis_gui.widgets.axis_zoom_controller import AxisZoomController
 
 # Set up a logger for better debugging
 logger = logging.getLogger(__name__)
@@ -95,6 +95,9 @@ class PlotManager(QObject):
         # 2. Helper components for state and cursor management
         self.view_manager = ViewStateManager()
         self.cursor_manager = CursorManager(self.ax)
+
+        # NEW: Axis zoom controller
+        self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
         # 3. Initialize range lines
         self._initialize_range_lines()
@@ -212,6 +215,9 @@ class PlotManager(QObject):
             x_label: Optional x-axis label.
             y_label: Optional y-axis label.
         """
+        # NEW: Clear zoom buttons BEFORE clearing axes
+        self.axis_zoom_controller.clear_buttons()
+
         # 1. Clear axes
         self.ax.clear()
 
@@ -267,6 +273,8 @@ class PlotManager(QObject):
         self.cursor_manager.recreate_all_text_labels(self.ax)
 
         self.figure.tight_layout(pad=1.0)
+        # NEW: Create zoom buttons AFTER tight_layout
+        self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
         self.redraw()
         self.plot_updated.emit()
         logger.info(f"Updated plot for sweep {sweep_index}, channel {channel}.")
@@ -374,6 +382,12 @@ class PlotManager(QObject):
             self.line_state_changed.emit("removed", "range2_start", range2_start_pos)
             self.line_state_changed.emit("removed", "range2_end", range2_end_pos)
 
+        # NEW: Recreate zoom buttons after line updates
+        # (only if they already existed - don't create if plot not initialized)
+        if self.axis_zoom_controller.has_buttons():
+            self.axis_zoom_controller.clear_buttons()
+            self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
+
         self.redraw()
         logger.debug("Updated range lines with modern styling.")
 
@@ -431,6 +445,70 @@ class PlotManager(QObject):
         if line_id:
             logger.debug(f"Picked cursor: {line_id}")
 
+    def _on_axis_zoom(self, axis: str, direction: str) -> None:
+        """
+        Handle axis zoom button clicks.
+        
+        Called by AxisZoomController when user clicks a zoom button.
+        Calculates new limits, applies them, updates cursor text, and redraws.
+        
+        Args:
+            axis: 'x' or 'y' - which axis to zoom.
+            direction: 'in' or 'out' - zoom direction.
+        """
+        # Get current limits for the specified axis
+        if axis == 'x':
+            current_limits = self.ax.get_xlim()
+        else:
+            current_limits = self.ax.get_ylim()
+        
+        # Calculate new limits using controller
+        new_limits = self.axis_zoom_controller.calculate_zoom(
+            axis, direction, current_limits
+        )
+        
+        # Apply new limits to axes
+        if axis == 'x':
+            self.ax.set_xlim(new_limits)
+            logger.debug(f"Applied X-axis zoom {direction}: {new_limits}")
+        else:
+            self.ax.set_ylim(new_limits)
+            logger.debug(f"Applied Y-axis zoom {direction}: {new_limits}")
+        
+        # Update cursor text positions to match new limits
+        # (CursorManager handles repositioning text to stay visible)
+        current_ylim = self.ax.get_ylim()
+        self.cursor_manager.update_all_text_positions(current_ylim)
+        
+        # Redraw canvas
+        self.redraw()
+
+    def restore_home_view(self) -> None:
+        """
+        Restore the plot view to initial autoscaled state.
+        
+        Called by the toolbar's Home button. Uses ViewStateManager to restore
+        the home view that was set after autoscaling, rather than matplotlib's
+        default history-based home behavior.
+        """
+        home_view = self.view_manager.reset_to_home()
+        
+        if home_view is None:
+            logger.warning("No home view stored - cannot restore")
+            return
+        
+        xlim, ylim = home_view
+        
+        # Apply home view limits
+        self.ax.set_xlim(xlim)
+        self.ax.set_ylim(ylim)
+        
+        # Update cursor text positions
+        self.cursor_manager.update_all_text_positions(ylim)
+        
+        logger.info(f"Restored home view: X={xlim}, Y={ylim}")
+        self.redraw()
+
     def _on_drag(self, event) -> None:
         """
         Handle mouse motion events to drag a selected range line.
@@ -485,6 +563,9 @@ class PlotManager(QObject):
         """
         Clear the plot axes and reset range lines to defaults.
         """
+        # NEW: Clear zoom buttons before clearing axes
+        self.axis_zoom_controller.clear_buttons()
+        
         # Clear axes - this removes all artists including lines
         self.ax.clear()
 

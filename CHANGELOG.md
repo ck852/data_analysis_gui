@@ -5,11 +5,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## [0.9.2-b.4]
 ### Added
 - "Copy Data" button for remaining dialogs except dose response
+- Axis-specific zoom buttons
 
 ### Changed
 - Extract Sweeps dialog receives initial time range from MainWindow
 - Splitter position in main window saves between sessions
 - File names in batch and current density dialogs easier to check/uncheck
+- Cursor/spinboxes in MainWindow snap to nearest availalbe time point
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added
