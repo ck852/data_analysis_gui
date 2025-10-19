@@ -54,6 +54,7 @@ data_analysis_gui/
 |   `-- ramp_iv_service.py
 |-- widgets/
 |   |-- __init__.py
+|   |-- axis_zoom_controller.py
 |   |-- concentration_range_table.py
 |   |-- control_panel.py
 |   |-- cursor_manager.py

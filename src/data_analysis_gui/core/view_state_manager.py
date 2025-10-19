@@ -152,3 +152,17 @@ class ViewStateManager:
         self._current_xlim = self._home_xlim
         self._current_ylim = self._home_ylim
         return (self._home_xlim, self._home_ylim)
+    
+    def reset(self) -> None:
+        """
+        Clear all stored view state.
+        
+        Called when loading a new file to ensure the first sweep
+        establishes a fresh home view via autoscaling. After reset,
+        get_current_view() will return None, triggering autoscale
+        on the next plot update.
+        """
+        self._home_xlim = None
+        self._home_ylim = None
+        self._current_xlim = None
+        self._current_ylim = None

@@ -219,7 +219,7 @@ class PlotManager(QObject):
             x_label: Optional x-axis label.
             y_label: Optional y-axis label.
         """
-        # NEW: Clear zoom buttons BEFORE clearing axes
+        # Clear zoom buttons BEFORE clearing axes
         self.axis_zoom_controller.clear_buttons()
 
         # 1. Clear axes
@@ -262,22 +262,33 @@ class PlotManager(QObject):
         for line in self.cursor_manager.get_all_lines():
             self.ax.add_line(line)
 
-        # Apply padding for better visualization
-        self.ax.relim()
-        self.ax.autoscale_view(tight=True)
-        self.ax.margins(x=0.02, y=0.05)
+        # 5. Handle view limits: restore existing zoom/pan or autoscale for first sweep
+        current_view = self.view_manager.get_current_view()
 
-        # 5. Update ViewStateManager with current limits
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-        self.view_manager.set_home_view(xlim, ylim)
-        self.view_manager.update_current_view(xlim, ylim)
+        if current_view is not None:
+            # Restore the preserved zoom/pan state from previous sweep
+            xlim, ylim = current_view
+            self.ax.set_xlim(xlim)
+            self.ax.set_ylim(ylim)
+            logger.debug(f"Restored view from previous sweep: X={xlim}, Y={ylim}")
+        else:
+            # First plot after file load - autoscale and establish home view
+            self.ax.relim()
+            self.ax.autoscale_view(tight=True)
+            self.ax.margins(x=0.02, y=0.05)
+            
+            # Capture the autoscaled limits as the home view
+            xlim = self.ax.get_xlim()
+            ylim = self.ax.get_ylim()
+            self.view_manager.set_home_view(xlim, ylim)
+            self.view_manager.update_current_view(xlim, ylim)
+            logger.debug(f"Set initial home view: X={xlim}, Y={ylim}")
 
         # 6. CursorManager recreates text labels with new data
         self.cursor_manager.recreate_all_text_labels(self.ax)
 
-        self.figure.tight_layout(pad=1.0)
-        # NEW: Create zoom buttons AFTER tight_layout
+        #self.figure.tight_layout(pad=1.0)
+        # Create zoom buttons AFTER tight_layout
         self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
         self.redraw()
         self.plot_updated.emit()
@@ -488,6 +499,16 @@ class PlotManager(QObject):
         self.cursor_manager.update_all_text_positions(current_ylim)
         
         self.redraw()
+
+    def reset_for_new_file(self) -> None:
+        """
+        Reset plot state for a new file load.
+        
+        Clears view state so the first sweep will autoscale and establish
+        a new home view. Called from MainWindow when loading a new file.
+        """
+        self.view_manager.reset()
+        logger.info("Reset plot manager for new file")
 
     def restore_home_view(self) -> None:
         """

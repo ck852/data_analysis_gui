@@ -507,9 +507,12 @@ class MainWindow(QMainWindow):
         self.sweep_combo.setEnabled(True)
         self.channel_combo.setEnabled(True)
 
-        # NEW: Set max time bound for X-axis zoom limiting
+        # Set max time bound for X-axis zoom limiting
         if file_info.max_sweep_time:
             self.plot_manager.set_max_time_bound(file_info.max_sweep_time)
+
+        # Reset plot manager for new file - clears view state so first sweep autoscales
+        self.plot_manager.reset_for_new_file()
 
         # Populate sweeps
         self.sweep_combo.clear()
