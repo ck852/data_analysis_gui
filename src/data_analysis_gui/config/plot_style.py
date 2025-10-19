@@ -274,11 +274,11 @@ def get_line_styles():
     return {
         "primary": {
             "color": COLORS["primary"],
-            "linewidth": 1.5,
+            "linewidth": 0.9,
             "marker": "o",
             "markersize": 5,  # Increased from 4
             "markeredgewidth": 0,
-            "alpha": 0.9,
+            "alpha": 1.0,
         },
         "secondary": {
             "color": COLORS["secondary"],
@@ -293,13 +293,13 @@ def get_line_styles():
         "range1": {
             "color": "#73AB84",  # Sage green
             "linewidth": 2,
-            "alpha": 0.7,
+            "alpha": 1.0,
             "linestyle": "-",
         },
         "range2": {
             "color": "#C73E1D",  # Rust red
             "linewidth": 2,
-            "alpha": 0.7,
+            "alpha": 1.0,
             "linestyle": "-",
         },
     }
