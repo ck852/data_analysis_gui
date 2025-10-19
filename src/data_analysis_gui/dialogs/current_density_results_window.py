@@ -206,17 +206,65 @@ class CurrentDensityResultsWindow(QMainWindow):
         copy_summary_btn = QPushButton("Copy Summary")
         style_button(copy_summary_btn, "secondary")
 
+        copy_filenames_btn = QPushButton("Copy File Names")
+        style_button(copy_filenames_btn, "secondary")
+
         export_individual_btn.clicked.connect(self._export_individual_csvs)
         export_summary_btn.clicked.connect(self._export_summary)
         copy_summary_btn.clicked.connect(self._copy_summary_to_clipboard) 
         export_plot_btn.clicked.connect(self._export_plot)
+        copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
 
         button_layout.addStretch()
         button_layout.addWidget(export_individual_btn)
         button_layout.addWidget(export_summary_btn)
         button_layout.addWidget(copy_summary_btn)
+        button_layout.addWidget(copy_filenames_btn)
         button_layout.addWidget(export_plot_btn)
         layout.addLayout(button_layout)
+
+    def _copy_file_names_to_clipboard(self):
+        """
+        Copy selected file names to clipboard as a column (one per line).
+        
+        Only copies unique file names in the order they appear in the file list,
+        respecting the current selection state.
+        """
+        selected_files = self.selection_state.get_selected_files()
+        
+        if not selected_files:
+            QMessageBox.warning(self, "No Data", "No files selected for copying.")
+            return
+
+        try:
+            # Get sorted results filtered by selection
+            sorted_results = [
+                r
+                for r in self._sort_results(self.active_batch_result.successful_results)
+                if r.base_name in selected_files
+            ]
+            
+            # Extract file names in sorted order
+            file_names = [result.base_name for result in sorted_results]
+            
+            # Join with newlines to create a column
+            text = "\n".join(file_names)
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_to_clipboard(text)
+
+            if success:
+                logger.info(f"Copied {len(file_names)} file names to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Copy Failed", 
+                    "Failed to copy file names to clipboard."
+                )
+
+        except Exception as e:
+            logger.error(f"Error copying file names: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _copy_summary_to_clipboard(self):
         """

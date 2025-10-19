@@ -287,8 +287,11 @@ class BatchResultsWindow(QMainWindow):
             "Export Individual CSVs...", "primary", self
         )
         export_plot_btn = create_styled_button("Export Plot...", "secondary", self)
+        copy_filenames_btn = create_styled_button("Copy File Names", "secondary", self)
+
         button_layout.addWidget(export_csvs_btn)
         button_layout.addWidget(export_plot_btn)
+        button_layout.addWidget(copy_filenames_btn)
         button_layout.addStretch()
 
         # IV-specific exports if applicable
@@ -318,6 +321,43 @@ class BatchResultsWindow(QMainWindow):
         # Connect signals
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
+        copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
+
+    def _copy_file_names_to_clipboard(self):
+        """
+        Copy selected file names to clipboard as a column (one per line).
+        
+        Only copies unique file names in the order they appear in the file list,
+        respecting the current selection state.
+        """
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for copying.")
+            return
+
+        try:
+            # Extract unique file names in sorted order
+            file_names = [result.base_name for result in filtered_results]
+            
+            # Join with newlines to create a column
+            text = "\n".join(file_names)
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_to_clipboard(text)
+
+            if success:
+                logger.info(f"Copied {len(file_names)} file names to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Copy Failed", 
+                    "Failed to copy file names to clipboard."
+                )
+
+        except Exception as e:
+            logger.error(f"Error copying file names: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _copy_iv_summary_to_clipboard(self):
         """
@@ -388,7 +428,8 @@ class BatchResultsWindow(QMainWindow):
         return (
             params.x_axis.channel == "Voltage"
             and params.y_axis.channel == "Current"
-            and {params.x_axis.measure, params.y_axis.measure} <= {"Average", "Current"}
+            and params.x_axis.measure in ["Average", "Peak"]
+            and params.y_axis.measure in ["Average", "Peak"]
         )
 
     def _get_filtered_results(self):

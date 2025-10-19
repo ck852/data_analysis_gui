@@ -53,9 +53,9 @@ class IVAnalysisService:
 
         # Condition check
         is_iv_analysis = (
-            params.x_axis.measure == "Average"
+            params.x_axis.measure in ["Average", "Peak"]
             and params.x_axis.channel == "Voltage"
-            and params.y_axis.measure == "Average"
+            and params.y_axis.measure in ["Average", "Peak"]
             and params.y_axis.channel == "Current"
         )
 

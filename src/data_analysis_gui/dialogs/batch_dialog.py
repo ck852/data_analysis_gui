@@ -157,7 +157,7 @@ class BatchAnalysisDialog(QDialog):
         self.file_count_label = QLabel("0 files selected")
         style_label(
             self.file_count_label, "muted"
-        )  # Updated to use style_label with type
+        )
         file_group_layout.addWidget(self.file_count_label)
 
         layout.addWidget(file_group)
@@ -186,7 +186,7 @@ class BatchAnalysisDialog(QDialog):
         progress_layout.addWidget(self.progress_bar)
 
         self.status_label = QLabel("Ready")
-        style_label(self.status_label, "muted")  # Updated to use style_label with type
+        style_label(self.status_label, "muted")
         progress_layout.addWidget(self.status_label)
 
         layout.addWidget(progress_group)
@@ -197,13 +197,10 @@ class BatchAnalysisDialog(QDialog):
         self.analyze_btn = create_styled_button("Start Analysis", "primary", self)
         self.cancel_btn = create_styled_button("Cancel", "secondary", self)
         self.cancel_btn.setEnabled(False)
-        self.view_results_btn = create_styled_button("View Results", "accent", self)
-        self.view_results_btn.setEnabled(False)
         self.close_btn = create_styled_button("Close", "secondary", self)
 
         button_layout.addWidget(self.analyze_btn)
         button_layout.addWidget(self.cancel_btn)
-        button_layout.addWidget(self.view_results_btn)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
 
@@ -215,11 +212,11 @@ class BatchAnalysisDialog(QDialog):
         self.clear_all_btn.clicked.connect(self.clear_files)
         self.analyze_btn.clicked.connect(self.start_analysis)
         self.cancel_btn.clicked.connect(self.cancel_analysis)
-        self.view_results_btn.clicked.connect(self.view_results)
         self.close_btn.clicked.connect(self.close)
 
         # Update button states
         self.update_button_states()
+
 
     def add_files(self):
         """
@@ -300,14 +297,12 @@ class BatchAnalysisDialog(QDialog):
         """
         has_files = len(self.file_paths) > 0
         is_running = self.worker is not None and self.worker.isRunning()
-        has_results = self.batch_result is not None
 
         self.add_files_btn.setEnabled(not is_running)
         self.remove_selected_btn.setEnabled(not is_running and has_files)
         self.clear_all_btn.setEnabled(not is_running and has_files)
         self.analyze_btn.setEnabled(not is_running and has_files)
         self.cancel_btn.setEnabled(is_running)
-        self.view_results_btn.setEnabled(has_results)
 
     def start_analysis(self):
         """

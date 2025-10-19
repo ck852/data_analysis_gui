@@ -6,6 +6,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Added
 - "Copy Data" button for remaining dialogs except dose response
 - Axis-specific zoom buttons
+- "Copy File Names" button for all result dialogs except dose response
 
 ### Changed
 - Extract Sweeps dialog receives initial time range from MainWindow
@@ -15,6 +16,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Maintain zoom state across sweeps
 - One-click zoom
 - Remove unused MainWindow toolbar buttons
+- IV works for peak or average
+- Remove "View Results" button from batch dialog
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added
