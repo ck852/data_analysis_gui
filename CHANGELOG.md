@@ -14,6 +14,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Cursor/spinboxes in MainWindow snap to nearest availalbe time point
 - Maintain zoom state across sweeps
 - One-click zoom
+- Remove unused MainWindow toolbar buttons
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added

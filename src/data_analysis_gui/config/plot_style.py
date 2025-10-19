@@ -44,12 +44,12 @@ COLOR_CYCLE = [
 
 # TOOLBAR CONFIGURATION - Centralized here for single source of truth
 TOOLBAR_CONFIG = {
-    "button_font_size": 10,
-    "button_padding": "2px 4px",
+    "button_font_size": 12,
+    "button_padding": "4px 8px",
     "icon_size_multiplier": 1.0,
     "mode_label_font_size": 10,
     "button_min_height": 22,
-    "icon_size": 16,
+    "icon_size": 20,
 }
 
 

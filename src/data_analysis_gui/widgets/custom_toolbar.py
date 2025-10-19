@@ -39,6 +39,18 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
     # Signal for when zoom/pan state changes
     mode_changed = Signal(str)  # 'zoom', 'pan', or 'none'
 
+    # Remove unnecessary default tool items
+    toolitems = (
+        ('Home', 'Reset original view', 'home', 'home'),
+        ('Back', 'Back to previous view', 'back', 'back'),
+        ('Forward', 'Forward to next view', 'forward', 'forward'),
+        (None, None, None, None),  # Separator
+        ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
+        ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
+        (None, None, None, None),  # Separator
+        ('Save', 'Save the figure', 'filesave', 'save_figure'),
+    )
+
     def __init__(self, canvas, parent=None):
         """
         Initialize the streamlined navigation toolbar.
@@ -88,6 +100,29 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         """
         )
         self.addWidget(self.mode_label)
+
+        # Remove any unwanted default actions that may still exist
+        self._remove_unwanted_actions()
+
+    def _remove_unwanted_actions(self):
+        """
+        NEW METHOD - Remove any unwanted actions that matplotlib might have added.
+        This is a safety net in case toolitems override doesn't fully work.
+        """
+        # Get all actions currently in the toolbar
+        all_actions = self.actions()
+        
+        # Define the text/tooltips of actions we want to keep
+        keep_texts = {'Reset', 'Back', 'Forward', 'Pan', 'Zoom', 'Save'}
+        
+        # Remove any action that's not in our keep list and isn't a separator
+        for action in all_actions:
+            if action.isSeparator():
+                continue
+            action_text = action.text()
+            if action_text and action_text not in keep_texts:
+                self.removeAction(action)
+                action.setVisible(False)
 
     def _add_streamlined_tools(self):
         """
