@@ -13,6 +13,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - File names in batch and current density dialogs easier to check/uncheck
 - Cursor/spinboxes in MainWindow snap to nearest availalbe time point
 - Maintain zoom state across sweeps
+- One-click zoom
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added

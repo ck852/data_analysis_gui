@@ -17,6 +17,10 @@ from PySide6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont
 # Import centralized configuration from plot_style
 from data_analysis_gui.config.plot_style import TOOLBAR_CONFIG, get_toolbar_style
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class StreamlinedNavigationToolbar(NavigationToolbar):
     """
@@ -262,6 +266,42 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         painter.end()
 
         return QIcon(pixmap)
+
+    def release_zoom(self, event):
+        """
+        Override release_zoom to automatically disable zoom mode after a successful zoom.
+        
+        If the user performs an actual zoom operation (changes the view), zoom mode is
+        automatically turned off. If no zoom occurs (e.g., click without drag), zoom
+        mode stays active for the next attempt.
+        
+        Args:
+            event: Matplotlib mouse button release event.
+        """
+        # Capture current axis limits before zoom operation
+        old_xlim = self.canvas.figure.axes[0].get_xlim() if self.canvas.figure.axes else None
+        old_ylim = self.canvas.figure.axes[0].get_ylim() if self.canvas.figure.axes else None
+        
+        # Perform the actual zoom operation
+        super().release_zoom(event)
+        
+        # Check if limits changed (i.e., zoom actually occurred)
+        if old_xlim is not None and old_ylim is not None and self.canvas.figure.axes:
+            new_xlim = self.canvas.figure.axes[0].get_xlim()
+            new_ylim = self.canvas.figure.axes[0].get_ylim()
+            
+            # Compare limits - if they changed, a zoom occurred
+            zoom_occurred = (old_xlim != new_xlim or old_ylim != new_ylim)
+            
+            if zoom_occurred:
+                # Automatically disable zoom mode by calling zoom() to toggle it off
+                # This properly handles both UI state and matplotlib's internal state
+                if self._actions["zoom"].isChecked():
+                    self.zoom()  # Toggle zoom mode off
+                    logger.debug("Zoom completed - automatically disabled zoom mode")
+            else:
+                # No zoom occurred (e.g., click without drag), keep zoom mode active
+                logger.debug("No zoom change detected - keeping zoom mode active")
 
     def _apply_styling(self):
         """
