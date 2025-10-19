@@ -231,7 +231,7 @@ class PlotManager(QObject):
             t,
             y[:, channel],
             color=line_style["color"],
-            linewidth=line_style["linewidth"],
+            linewidth=0.8,
             alpha=line_style["alpha"],
         )
 
