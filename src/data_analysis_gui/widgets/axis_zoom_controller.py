@@ -211,10 +211,11 @@ class AxisZoomController:
         self,
         axis: str,
         direction: str,
-        current_limits: Tuple[float, float]
+        current_limits: Tuple[float, float],
+        max_bounds: Optional[Tuple[float, float]] = None  # ADD THIS PARAMETER
     ) -> Tuple[float, float]:
         """
-        Calculate new axis limits for zoom operation.
+        Calculate new axis limits for zoom operation with optional bounds clamping.
         
         Does not apply the limits - returns them for coordinator to apply.
         Zoom is centered on the current view's midpoint.
@@ -223,9 +224,10 @@ class AxisZoomController:
             axis: 'x' or 'y' - which axis to zoom.
             direction: 'in' (reduce range) or 'out' (increase range).
             current_limits: Current axis limits as (min, max) tuple.
+            max_bounds: Optional (min, max) to clamp result within data bounds.
         
         Returns:
-            New axis limits as (min, max) tuple.
+            New axis limits as (min, max) tuple, clamped to max_bounds if provided.
         
         Raises:
             ValueError: If axis is not 'x' or 'y', or direction is not 'in' or 'out'.
@@ -252,9 +254,26 @@ class AxisZoomController:
         new_min = center - new_range / 2
         new_max = center + new_range / 2
         
+        # NEW: Clamp to max bounds if provided
+        if max_bounds is not None:
+            bounds_min, bounds_max = max_bounds
+            
+            # If zooming out would exceed bounds, clamp to bounds
+            if new_min < bounds_min:
+                new_min = bounds_min
+            if new_max > bounds_max:
+                new_max = bounds_max
+            
+            # Ensure we don't have invalid range after clamping
+            if new_max <= new_min:
+                # If clamping created invalid range, just use the bounds
+                new_min, new_max = bounds_min, bounds_max
+                logger.debug(f"Zoom clamped to data bounds: [{new_min:.2f}, {new_max:.2f}]")
+        
         logger.debug(
             f"Calculated {axis}-axis zoom {direction}: "
             f"[{current_min:.2f}, {current_max:.2f}] -> [{new_min:.2f}, {new_max:.2f}]"
+            + (f" (clamped to {max_bounds})" if max_bounds else "")
         )
         
         return (new_min, new_max)

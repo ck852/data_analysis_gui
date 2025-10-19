@@ -96,7 +96,7 @@ class PlotManager(QObject):
         self.view_manager = ViewStateManager()
         self.cursor_manager = CursorManager(self.ax)
 
-        # NEW: Axis zoom controller
+        # Axis zoom controller
         self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
         # 3. Initialize range lines
@@ -107,6 +107,10 @@ class PlotManager(QObject):
 
         # 5. Apply initial styling to axes
         self._style_axes()
+
+        # NEW: Maximum time bound for X-axis zoom limiting
+        self._max_time_bound: Optional[float] = None
+        self._y_axis_hard_limits = (-40000, 40000)
 
     def _style_axes(self):
         """
@@ -445,42 +449,44 @@ class PlotManager(QObject):
         if line_id:
             logger.debug(f"Picked cursor: {line_id}")
 
-    def _on_axis_zoom(self, axis: str, direction: str) -> None:
+    def set_max_time_bound(self, max_time: float) -> None:
         """
-        Handle axis zoom button clicks.
-        
-        Called by AxisZoomController when user clicks a zoom button.
-        Calculates new limits, applies them, updates cursor text, and redraws.
+        Set the maximum time bound for X-axis zoom limiting.
         
         Args:
-            axis: 'x' or 'y' - which axis to zoom.
-            direction: 'in' or 'out' - zoom direction.
+            max_time: Maximum sweep time in milliseconds.
         """
+        self._max_time_bound = max_time
+        logger.debug(f"Set max time bound: {max_time:.2f} ms")
+
+    def _on_axis_zoom(self, axis: str, direction: str) -> None:
+        """Handle axis zoom button clicks with bounds limiting."""
+        
         # Get current limits for the specified axis
         if axis == 'x':
             current_limits = self.ax.get_xlim()
+            # X-axis bounds: 0 to max_time
+            max_bounds = (0, self._max_time_bound) if self._max_time_bound else None
         else:
             current_limits = self.ax.get_ylim()
+            # Y-axis bounds: hard-coded limits
+            max_bounds = self._y_axis_hard_limits
         
-        # Calculate new limits using controller
+        # Calculate new limits using controller with bounds
         new_limits = self.axis_zoom_controller.calculate_zoom(
-            axis, direction, current_limits
+            axis, direction, current_limits, max_bounds=max_bounds
         )
         
         # Apply new limits to axes
         if axis == 'x':
             self.ax.set_xlim(new_limits)
-            logger.debug(f"Applied X-axis zoom {direction}: {new_limits}")
         else:
             self.ax.set_ylim(new_limits)
-            logger.debug(f"Applied Y-axis zoom {direction}: {new_limits}")
         
-        # Update cursor text positions to match new limits
-        # (CursorManager handles repositioning text to stay visible)
+        # Update cursor text positions
         current_ylim = self.ax.get_ylim()
         self.cursor_manager.update_all_text_positions(current_ylim)
         
-        # Redraw canvas
         self.redraw()
 
     def restore_home_view(self) -> None:
@@ -565,7 +571,7 @@ class PlotManager(QObject):
         """
         # NEW: Clear zoom buttons before clearing axes
         self.axis_zoom_controller.clear_buttons()
-        
+
         # Clear axes - this removes all artists including lines
         self.ax.clear()
 
