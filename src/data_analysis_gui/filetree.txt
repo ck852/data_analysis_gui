@@ -40,7 +40,8 @@ data_analysis_gui/
 |-- gui_services/
 |   |-- __init__.py
 |   |-- clipboard_service.py
-|   `-- file_dialog_service.py
+|   |-- file_dialog_service.py
+|   `-- main_range_coordinator.py
 |-- services/
 |   |-- __init__.py
 |   |-- analysis_manager.py

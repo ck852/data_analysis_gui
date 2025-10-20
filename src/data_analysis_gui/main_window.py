@@ -66,6 +66,7 @@ from data_analysis_gui.dialogs import ConcentrationResponseDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
+from data_analysis_gui.gui_services.main_range_coordinator import MainRangeCoordinator 
 
 logger = get_logger(__name__)
 
@@ -134,8 +135,18 @@ class MainWindow(QMainWindow):
         self.last_channel_view = "Voltage"
         self.last_directory = None
 
-        # Build UI
+        # Build UI (this calls _connect_signals internally)
         self._init_ui()
+        
+        # Initialize range coordinator AFTER UI is built
+        # (needs control_panel and plot_manager to exist)
+        self.range_coordinator = MainRangeCoordinator(
+            self.control_panel, 
+            self.plot_manager
+        )
+        
+        # Connect coordinator signals (must be after coordinator creation)
+        self._connect_coordinator_signals()
 
         # Apply modern theme to the main window (handles everything including toolbars and menus)
         apply_modern_theme(self)
@@ -407,19 +418,15 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Center Cursor Button - always enabled
+        # Center Cursor Button - now uses coordinator
         self.center_cursor_btn = create_styled_button(
             "Center Nearest Cursor", "secondary"
         )
         self.center_cursor_btn.setToolTip(
             "Moves the nearest cursor to the center of the view"
         )
-        self.center_cursor_btn.clicked.connect(
-            lambda: self._sync_cursor_to_control(
-                *self.plot_manager.center_nearest_cursor()
-            )
-        )
-        # Always enabled - cursor centering works regardless of file state
+        # MODIFIED: Use coordinator to handle the result
+        self.center_cursor_btn.clicked.connect(self._center_nearest_cursor)
         self.center_cursor_btn.setEnabled(True)
         toolbar.addWidget(self.center_cursor_btn)
 
@@ -431,30 +438,14 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         """
         Connect UI signals to their respective logic handlers.
-
-        Ensures that user actions and control changes trigger appropriate updates,
-        including auto-saving settings and synchronizing plot/cursor states.
+        
+        NOTE: This is called from _init_ui(), so it cannot reference
+        self.range_coordinator (which doesn't exist yet).
+        Coordinator signals are connected separately in _connect_coordinator_signals().
         """
-        # Control panel
-        self.control_panel.analysis_requested.connect(self._generate_analysis)
-        self.control_panel.export_requested.connect(self._export_data)
-        self.control_panel.dual_range_toggled.connect(self._toggle_dual_range)
-        self.control_panel.range_values_changed.connect(self._sync_cursors_to_plot)
-
         # Auto-save settings when they change
         self.control_panel.dual_range_toggled.connect(self._auto_save_settings)
         self.control_panel.range_values_changed.connect(self._auto_save_settings)
-
-        # Connect to editingFinished for snap-back behavior on range spinboxes
-        spinboxes = self.control_panel.get_range_spinboxes()
-        if "start1" in spinboxes:
-            spinboxes["start1"].editingFinished.connect(self._on_spinbox_editing_finished)
-        if "end1" in spinboxes:
-            spinboxes["end1"].editingFinished.connect(self._on_spinbox_editing_finished)
-        if "start2" in spinboxes:
-            spinboxes["start2"].editingFinished.connect(self._on_spinbox_editing_finished)
-        if "end2" in spinboxes:
-            spinboxes["end2"].editingFinished.connect(self._on_spinbox_editing_finished)
 
         # Connect to plot setting combo boxes for auto-save
         self.control_panel.x_measure_combo.currentTextChanged.connect(
@@ -472,9 +463,6 @@ class MainWindow(QMainWindow):
         self.control_panel.peak_mode_combo.currentTextChanged.connect(
             self._auto_save_settings
         )
-
-        # Plot manager
-        self.plot_manager.line_state_changed.connect(self._on_cursor_moved)
 
         # Splitter - debounced auto-save when user adjusts position
         self.splitter.splitterMoved.connect(self._on_splitter_moved)
@@ -523,6 +511,30 @@ class MainWindow(QMainWindow):
                 # Auto-save settings to persist the directory choice
                 self._auto_save_settings()
             # Error handling is done by controller callbacks
+
+    def _center_nearest_cursor(self):
+        """
+        Handle center cursor button click.
+        
+        Delegates to PlotManager, then uses coordinator to sync the result.
+        """
+        line_id, position = self.plot_manager.center_nearest_cursor()
+        if line_id and position:
+            # Coordinator will handle syncing to spinbox via its signal connection
+            # No explicit sync needed here
+            pass
+
+    def _connect_coordinator_signals(self):
+        """
+        Connect range coordinator signals.
+        
+        Called from __init__ after range_coordinator is created.
+        Separated from _connect_signals() because the coordinator
+        doesn't exist when _connect_signals() is called.
+        """
+        # Range coordinator handles analysis/export requests
+        self.range_coordinator.analysis_requested.connect(self._generate_analysis)
+        self.range_coordinator.export_requested.connect(self._export_data)
 
     def _on_file_loaded(self, file_info: FileInfo):
         """
@@ -635,11 +647,8 @@ class MainWindow(QMainWindow):
             add_zero_axis_lines(self.plot_manager.ax, alpha=0.4, linewidth=0.8)
             self.plot_manager.redraw()
 
-            # Sync cursors to plot (they will snap to data points)
-            self._sync_cursors_to_plot()
-            
-            # Update spinboxes to match snapped cursor positions
-            self._sync_spinboxes_to_cursors()
+            # Sync cursors and spinboxes (coordinator handles this now)
+            self.range_coordinator.sync_cursors_to_spinboxes()
         else:
             logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
@@ -805,95 +814,6 @@ class MainWindow(QMainWindow):
         dialog = BatchAnalysisDialog(self, self.batch_processor, params)
         dialog.show()
 
-    def _toggle_dual_range(self, enabled):
-        """
-        Toggle dual range cursors on the plot.
-
-        Args:
-            enabled (bool): True to enable dual range, False to disable.
-        """
-        if enabled:
-            vals = self.control_panel.get_range_values()
-            self.plot_manager.toggle_dual_range(
-                True, vals.get("range2_start", 600), vals.get("range2_end", 900)
-            )
-        else:
-            self.plot_manager.toggle_dual_range(False, 0, 0)
-
-    def _sync_cursors_to_plot(self):
-        """
-        Synchronize cursor positions from the control panel to the plot manager.
-        
-        This updates cursors in real-time as the user types.
-        """
-        vals = self.control_panel.get_range_values()
-        self.plot_manager.update_range_lines(
-            vals["range1_start"],
-            vals["range1_end"],
-            vals["use_dual_range"],
-            vals.get("range2_start"),
-            vals.get("range2_end"),
-        )
-
-    def _on_spinbox_editing_finished(self):
-        """
-        Handle editingFinished signal from range spinboxes.
-        
-        When user finishes editing (loses focus or presses Enter), update the
-        spinbox to show the actual cursor position (which has already snapped).
-        """
-        # Get actual cursor positions
-        positions = self.plot_manager.get_line_positions()
-        
-        # Get spinboxes
-        spinboxes = self.control_panel.get_range_spinboxes()
-        
-        # Mapping from spinbox keys to cursor line IDs
-        mapping = {
-            "start1": "range1_start",
-            "end1": "range1_end",
-            "start2": "range2_start",
-            "end2": "range2_end"
-        }
-        
-        # Update each spinbox to match its cursor position
-        for spinbox_key, spinbox in spinboxes.items():
-            line_id = mapping.get(spinbox_key)
-            if line_id and line_id in positions:
-                # Block signals to prevent recursion
-                spinbox.blockSignals(True)
-                spinbox.setValue(positions[line_id])
-                spinbox.blockSignals(False)
-
-    def _sync_spinboxes_to_cursors(self):
-        """
-        Update spinbox values to match current cursor positions.
-        
-        Called after cursors have snapped to ensure spinboxes display actual positions.
-        """
-        # Get actual cursor positions
-        positions = self.plot_manager.get_line_positions()
-        
-        # Get spinboxes
-        spinboxes = self.control_panel.get_range_spinboxes()
-        
-        # Mapping from spinbox keys to cursor line IDs
-        mapping = {
-            "start1": "range1_start",
-            "end1": "range1_end",
-            "start2": "range2_start",
-            "end2": "range2_end"
-        }
-        
-        # Update each spinbox to match its cursor position
-        for spinbox_key, spinbox in spinboxes.items():
-            line_id = mapping.get(spinbox_key)
-            if line_id and line_id in positions:
-                # Block signals to prevent recursion
-                spinbox.blockSignals(True)
-                spinbox.setValue(positions[line_id])
-                spinbox.blockSignals(False)
-
     def _auto_save_settings(self):
         """
         Automatically save current user settings whenever they change.
@@ -907,36 +827,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.warning(f"Failed to auto-save settings: {e}")
             # Don't show error to user for auto-save failures
-
-    def _sync_cursor_to_control(self, line_id, position):
-        """
-        Synchronize cursor position from the plot to the control panel.
-
-        Args:
-            line_id (str): Identifier for the cursor line.
-            position (float): New position value for the cursor.
-        """
-        if line_id and position is not None:
-            mapping = {
-                "range1_start": "start1",
-                "range1_end": "end1",
-                "range2_start": "start2",
-                "range2_end": "end2",
-            }
-            if line_id in mapping:
-                self.control_panel.update_range_value(mapping[line_id], position)
-
-    def _on_cursor_moved(self, action, line_id, position):
-        """
-        Handle cursor movement events from the plot manager.
-
-        Args:
-            action (str): Type of cursor action (e.g., "dragged").
-            line_id (str): Identifier for the cursor line.
-            position (float): New position value for the cursor.
-        """
-        if action == "dragged":
-            self._sync_cursor_to_control(line_id, position)
 
     # Navigation methods
     def _start_navigation(self, direction):
