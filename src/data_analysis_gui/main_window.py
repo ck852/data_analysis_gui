@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.control_panel)
 
         # Plot manager (right)
-        self.plot_manager = PlotManager()
+        self.plot_manager = PlotManager(file_dialog_service=self.file_dialog_service)
         self.splitter.addWidget(self.plot_manager.get_plot_widget())
 
         # Set the plot manager to expand and leave the control panel at its minimum size
@@ -496,6 +496,9 @@ class MainWindow(QMainWindow):
         # Range coordinator handles analysis/export requests
         self.range_coordinator.analysis_requested.connect(self._generate_analysis)
         self.range_coordinator.export_requested.connect(self._export_data)
+
+        # Connect toolbar's plot_saved signal to auto-save settings
+        self.plot_manager.toolbar.plot_saved.connect(self._auto_save_settings)
 
     def _on_file_loaded(self, file_info: FileInfo):
         """

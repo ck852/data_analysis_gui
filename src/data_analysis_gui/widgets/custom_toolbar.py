@@ -39,6 +39,9 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
     # Signal for when zoom/pan state changes
     mode_changed = Signal(str)  # 'zoom', 'pan', or 'none'
 
+    # Signal for when plot is saved
+    plot_saved = Signal(str)  # file path
+
     # Remove unnecessary default tool items
     toolitems = (
         ('Home', 'Reset original view', 'home', 'home'),
@@ -51,7 +54,7 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         ('Save', 'Save the figure', 'filesave', 'save_figure'),
     )
 
-    def __init__(self, canvas, parent=None):
+    def __init__(self, canvas, parent=None, file_dialog_service=None):
         """
         Initialize the streamlined navigation toolbar.
 
@@ -61,6 +64,9 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         """
         # Store the canvas reference before calling parent init
         self._canvas = canvas
+
+        # Store file dialog service for save functionality
+        self._file_dialog_service = file_dialog_service
 
         # Initialize current mode early
         self.current_mode = "none"
@@ -104,9 +110,60 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         # Remove any unwanted default actions that may still exist
         self._remove_unwanted_actions()
 
+    def save_figure(self, *args):
+        """
+        Override save_figure to use FileDialogService for directory memory.
+        
+        If file_dialog_service is available, uses it to remember the last save directory.
+        Otherwise falls back to matplotlib's default save dialog.
+        
+        Emits plot_saved signal after successful save.
+        """
+        if self._file_dialog_service:
+            # Use our file dialog service with directory memory
+            from PySide6.QtWidgets import QMessageBox
+            
+            # Define supported file formats
+            file_types = (
+                "PNG files (*.png);;"
+                "PDF files (*.pdf);;"
+                "SVG files (*.svg);;"
+                "JPEG files (*.jpg *.jpeg);;"
+                "All files (*.*)"
+            )
+            
+            # Get save path using the service
+            file_path = self._file_dialog_service.get_export_path(
+                parent=self.parent() or self._canvas.parent(),
+                suggested_name="plot.png",
+                file_types=file_types,
+                dialog_type="save_plot"
+            )
+            
+            if file_path:
+                try:
+                    # Save the figure using matplotlib
+                    self.canvas.figure.savefig(file_path, dpi=300, bbox_inches='tight')
+                    logger.info(f"Plot saved to: {file_path}")
+                    
+                    # Emit signal after successful save
+                    self.plot_saved.emit(file_path)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save plot: {e}")
+                    # Show error dialog
+                    QMessageBox.critical(
+                        self.parent() or self._canvas.parent(),
+                        "Save Error",
+                        f"Failed to save plot:\n{str(e)}"
+                    )
+        else:
+            # Fallback to matplotlib's default save dialog
+            super().save_figure(*args)
+
     def _remove_unwanted_actions(self):
         """
-        NEW METHOD - Remove any unwanted actions that matplotlib might have added.
+        Remove any unwanted actions that matplotlib might have added.
         This is a safety net in case toolitems override doesn't fully work.
         """
         # Get all actions currently in the toolbar

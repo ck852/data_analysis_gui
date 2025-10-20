@@ -59,12 +59,14 @@ class PlotManager(QObject):
     # Signal for plot updates
     plot_updated = Signal()
 
-    def __init__(self, figure_size: Tuple[int, int] = (8, 6)):
+
+    def __init__(self, figure_size: Tuple[int, int] = (8, 6), file_dialog_service=None):
         """
         Initialize the PlotManager with modern styling and interactive components.
 
         Args:
             figure_size: Tuple specifying the initial figure size (width, height).
+            file_dialog_service: Optional FileDialogService for persistent directory memory.
         """
         super().__init__()
 
@@ -79,9 +81,9 @@ class PlotManager(QObject):
         self.canvas: FigureCanvas = FigureCanvas(self.figure)
         self.ax: Axes = self.figure.add_subplot(111)
 
-        # Use the streamlined toolbar instead of standard NavigationToolbar
+        # Use the streamlined toolbar with file_dialog_service
         self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
-            self.canvas, None
+            self.canvas, None, file_dialog_service=file_dialog_service
         )
 
         # Create the plot widget
@@ -108,7 +110,7 @@ class PlotManager(QObject):
         # 5. Apply initial styling to axes
         self._style_axes()
 
-        # NEW: Maximum time bound for X-axis zoom limiting
+        # Maximum time bound for X-axis zoom limiting
         self._max_time_bound: Optional[float] = None
         self._y_axis_hard_limits = (-40000, 40000)
 
