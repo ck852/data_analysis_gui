@@ -262,10 +262,55 @@ class MainWindow(QMainWindow):
                 self.analysis_manager.clear_caches()
             self.status_bar.showMessage("Background subtraction applied", 3000)
 
+    def _validate_analysis_range(self):
+        """
+        Validate that analysis ranges are valid (end > start).
+        
+        Returns:
+            bool: True if valid, False if invalid.
+        """
+        vals = self.control_panel.get_range_values()
+        
+        # Check Range 1
+        if not self._check_range_valid(vals["range1_start"], vals["range1_end"]):
+            return False
+        
+        # Check Range 2 if dual range is enabled
+        if vals["use_dual_range"]:
+            if not self._check_range_valid(vals["range2_start"], vals["range2_end"]):
+                return False
+        
+        return True
+
+    def _check_range_valid(self, start, end):
+        """
+        Check if a single range is valid (end > start).
+        Shows error message if invalid.
+        
+        Args:
+            start (float): Range start time.
+            end (float): Range end time.
+            
+        Returns:
+            bool: True if valid, False if invalid.
+        """
+        if end <= start:
+            QMessageBox.warning(
+                self, 
+                "Invalid Analysis Range", 
+                "Analysis range is invalid. End time must be greater than start time."
+            )
+            return False
+        return True
+
     def _ramp_iv_analysis(self):
         """Open the ramp IV analysis dialog."""
         if not self.controller.has_data():
             QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            return
+        
+        # Validate analysis range first
+        if not self._validate_analysis_range():
             return
         
         # Get current analysis range from control panel
@@ -681,6 +726,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Data", "Please load a data file first.")
             return
         
+        # Validate analysis range first
+        if not self._validate_analysis_range():
+            return
+        
         # Get current dataset and file path
         dataset = self.controller.current_dataset
         
@@ -745,6 +794,10 @@ class MainWindow(QMainWindow):
 
         Passes current analysis parameters and batch processor to the dialog for batch processing.
         """
+        # Validate analysis range first
+        if not self._validate_analysis_range():
+            return
+        
         # Get current parameters
         params = self.control_panel.get_parameters()
 
