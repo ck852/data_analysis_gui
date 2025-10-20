@@ -23,6 +23,8 @@ from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.config.themes import (style_button, style_scroll_area, style_group_box, style_label, style_checkbox, apply_compact_layout, 
                                              style_spinbox_with_arrows, style_combo_simple, MODERN_COLORS, WIDGET_SIZES)
 
+from typing import Tuple, Optional
+
 
 class ControlPanel(QWidget):
     """
@@ -528,6 +530,43 @@ class ControlPanel(QWidget):
             spinboxes["start2"] = self.start_spin2
             spinboxes["end2"] = self.end_spin2
         return spinboxes
+
+    def validate_ranges(self) -> Tuple[bool, Optional[str]]:
+        """
+        Validate all active analysis ranges.
+        
+        This is a public method for external callers (MainWindow, dialogs) to
+        check if ranges are valid before launching analysis operations.
+        
+        Returns:
+            Tuple[bool, Optional[str]]: 
+                - First element: True if all ranges are valid, False otherwise
+                - Second element: Error message if invalid, None if valid
+        
+        Example:
+            >>> is_valid, error_msg = control_panel.validate_ranges()
+            >>> if not is_valid:
+            ...     QMessageBox.warning(self, "Invalid Range", error_msg)
+            ...     return
+        """
+        vals = self.get_range_values()
+        
+        # Validate Range 1
+        if vals["range1_end"] <= vals["range1_start"]:
+            return False, "Range 1: End time must be greater than start time."
+        
+        # Validate Range 2 if dual range is enabled
+        if vals["use_dual_range"]:
+            range2_start = vals.get("range2_start")
+            range2_end = vals.get("range2_end")
+            
+            if range2_start is None or range2_end is None:
+                return False, "Range 2: Values are missing."
+            
+            if range2_end <= range2_start:
+                return False, "Range 2: End time must be greater than start time."
+        
+        return True, None
 
     def update_range_value(self, spinbox_key: str, value: float):
         """
