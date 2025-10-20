@@ -18,6 +18,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Remove unused MainWindow toolbar buttons
 - IV works for peak or average
 - Remove "View Results" button from batch dialog
+- Home/Reset button in MainWindow plot autoscales to present sweep
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added

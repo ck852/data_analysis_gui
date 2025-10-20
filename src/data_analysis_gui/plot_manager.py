@@ -61,58 +61,61 @@ class PlotManager(QObject):
 
 
     def __init__(self, figure_size: Tuple[int, int] = (8, 6), file_dialog_service=None):
-        """
-        Initialize the PlotManager with modern styling and interactive components.
+            """
+            Initialize the PlotManager with modern styling and interactive components.
 
-        Args:
-            figure_size: Tuple specifying the initial figure size (width, height).
-            file_dialog_service: Optional FileDialogService for persistent directory memory.
-        """
-        super().__init__()
+            Args:
+                figure_size: Tuple specifying the initial figure size (width, height).
+                file_dialog_service: Optional FileDialogService for persistent directory memory.
+            """
+            super().__init__()
 
-        # Apply modern plot style globally
-        apply_plot_style()
+            # Apply modern plot style globally
+            apply_plot_style()
 
-        # Get line styles for consistent appearance
-        self.line_styles = get_line_styles()
+            # Get line styles for consistent appearance
+            self.line_styles = get_line_styles()
 
-        # 1. Matplotlib components setup with styled figure
-        self.figure: Figure = Figure(figsize=figure_size, facecolor="#FAFAFA")
-        self.canvas: FigureCanvas = FigureCanvas(self.figure)
-        self.ax: Axes = self.figure.add_subplot(111)
+            # 1. Matplotlib components setup with styled figure
+            self.figure: Figure = Figure(figsize=figure_size, facecolor="#FAFAFA")
+            self.canvas: FigureCanvas = FigureCanvas(self.figure)
+            self.ax: Axes = self.figure.add_subplot(111)
 
-        # Use the streamlined toolbar with file_dialog_service
-        self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
-            self.canvas, None, file_dialog_service=file_dialog_service
-        )
+            # Use the streamlined toolbar with file_dialog_service
+            self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
+                self.canvas, None, file_dialog_service=file_dialog_service
+            )
 
-        # Create the plot widget
-        self.plot_widget: QWidget = QWidget()
-        plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
-        plot_layout.setContentsMargins(0, 0, 0, 0)
-        plot_layout.setSpacing(0)
-        plot_layout.addWidget(self.toolbar)
-        plot_layout.addWidget(self.canvas)
+            # Create the plot widget
+            self.plot_widget: QWidget = QWidget()
+            plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
+            plot_layout.setContentsMargins(0, 0, 0, 0)
+            plot_layout.setSpacing(0)
+            plot_layout.addWidget(self.toolbar)
+            plot_layout.addWidget(self.canvas)
 
-        # 2. Helper components for state and cursor management
-        self.view_manager = ViewStateManager()
-        self.cursor_manager = CursorManager(self.ax)
+            # 2. Helper components for state and cursor management
+            self.view_manager = ViewStateManager()
+            self.cursor_manager = CursorManager(self.ax)
 
-        # Axis zoom controller
-        self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
+            # Axis zoom controller
+            self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
-        # 3. Initialize range lines
-        self._initialize_range_lines()
+            # 3. Initialize range lines
+            self._initialize_range_lines()
 
-        # 4. Connect interactive events
-        self._connect_events()
+            # 4. Connect interactive events
+            self._connect_events()
 
-        # 5. Apply initial styling to axes
-        self._style_axes()
+            # 5. Apply initial styling to axes
+            self._style_axes()
 
-        # Maximum time bound for X-axis zoom limiting
-        self._max_time_bound: Optional[float] = None
-        self._y_axis_hard_limits = (-40000, 40000)
+            # Maximum time bound for X-axis zoom limiting
+            self._max_time_bound: Optional[float] = None
+            self._y_axis_hard_limits = (-40000, 40000)
+
+            # Connect toolbar reset signal to autofit method
+            self.toolbar.reset_requested.connect(self.autofit_to_data)
 
     def _style_axes(self):
         """
@@ -274,17 +277,16 @@ class PlotManager(QObject):
             self.ax.set_ylim(ylim)
             logger.debug(f"Restored view from previous sweep: X={xlim}, Y={ylim}")
         else:
-            # First plot after file load - autoscale and establish home view
+            # First plot after file load - autoscale
             self.ax.relim()
             self.ax.autoscale_view(tight=True)
             self.ax.margins(x=0.02, y=0.05)
             
-            # Capture the autoscaled limits as the home view
+            # Store the autoscaled limits as current view
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
-            self.view_manager.set_home_view(xlim, ylim)
             self.view_manager.update_current_view(xlim, ylim)
-            logger.debug(f"Set initial home view: X={xlim}, Y={ylim}")
+            logger.debug(f"Set initial view: X={xlim}, Y={ylim}")
 
         # 6. CursorManager recreates text labels with new data
         self.cursor_manager.recreate_all_text_labels(self.ax)
@@ -449,6 +451,64 @@ class PlotManager(QObject):
 
         return nearest_line_id, center_x
 
+    def autofit_to_data(self) -> None:
+        """
+        Autoscale axes to fit all data points in the currently displayed sweep.
+        
+        This replaces the old "home view" behavior. Instead of restoring a stored
+        view, this performs a fresh autoscale on whatever sweep is currently displayed.
+        Useful for resetting after zoom/pan operations.
+        
+        Called when the Reset button is clicked in the toolbar.
+        """
+        # Get data directly from cursor manager
+        time_data = self.cursor_manager._current_time_data
+        y_data = self.cursor_manager._current_y_data
+        
+        if time_data is None or y_data is None or len(time_data) == 0:
+            logger.warning("Cannot autofit: No data currently available")
+            return
+        
+        # Calculate limits directly from data
+        x_min, x_max = float(np.min(time_data)), float(np.max(time_data))
+        y_min, y_max = float(np.min(y_data)), float(np.max(y_data))
+        
+        # Add margins (2% for x, 5% for y)
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+        
+        x_margin = x_range * 0.02
+        y_margin = y_range * 0.05
+        
+        xlim = (x_min - x_margin, x_max + x_margin)
+        ylim = (y_min - y_margin, y_max + y_margin)
+        
+        # Set limits directly
+        self.ax.set_xlim(xlim)
+        self.ax.set_ylim(ylim)
+        
+        # Update cursor text positions for new view
+        self.cursor_manager.update_all_text_positions(ylim)
+        
+        # Store as current view
+        self.view_manager.update_current_view(xlim, ylim)
+        
+        # Push onto toolbar's navigation stack
+        self.toolbar.push_current()
+        
+        logger.info(f"Autofitted to data: X={xlim}, Y={ylim}")
+        self.redraw()
+
+    def reset_for_new_file(self) -> None:
+        """
+        Reset plot state for a new file load.
+        
+        Clears view state so the first sweep will autoscale and establish
+        a fresh current view. Called from MainWindow when loading a new file.
+        """
+        self.view_manager.reset()
+        logger.info("Reset plot manager for new file")
+
     # --- Mouse Interaction Handlers ---
 
     def _on_pick(self, event) -> None:
@@ -502,41 +562,41 @@ class PlotManager(QObject):
         
         self.redraw()
 
-    def reset_for_new_file(self) -> None:
-        """
-        Reset plot state for a new file load.
+    # def reset_for_new_file(self) -> None:
+    #     """
+    #     Reset plot state for a new file load.
         
-        Clears view state so the first sweep will autoscale and establish
-        a new home view. Called from MainWindow when loading a new file.
-        """
-        self.view_manager.reset()
-        logger.info("Reset plot manager for new file")
+    #     Clears view state so the first sweep will autoscale and establish
+    #     a new home view. Called from MainWindow when loading a new file.
+    #     """
+    #     self.view_manager.reset()
+    #     logger.info("Reset plot manager for new file")
 
-    def restore_home_view(self) -> None:
-        """
-        Restore the plot view to initial autoscaled state.
+    # def restore_home_view(self) -> None:
+    #     """
+    #     Restore the plot view to initial autoscaled state.
         
-        Called by the toolbar's Home button. Uses ViewStateManager to restore
-        the home view that was set after autoscaling, rather than matplotlib's
-        default history-based home behavior.
-        """
-        home_view = self.view_manager.reset_to_home()
+    #     Called by the toolbar's Home button. Uses ViewStateManager to restore
+    #     the home view that was set after autoscaling, rather than matplotlib's
+    #     default history-based home behavior.
+    #     """
+    #     home_view = self.view_manager.reset_to_home()
         
-        if home_view is None:
-            logger.warning("No home view stored - cannot restore")
-            return
+    #     if home_view is None:
+    #         logger.warning("No home view stored - cannot restore")
+    #         return
         
-        xlim, ylim = home_view
+    #     xlim, ylim = home_view
         
-        # Apply home view limits
-        self.ax.set_xlim(xlim)
-        self.ax.set_ylim(ylim)
+    #     # Apply home view limits
+    #     self.ax.set_xlim(xlim)
+    #     self.ax.set_ylim(ylim)
         
-        # Update cursor text positions
-        self.cursor_manager.update_all_text_positions(ylim)
+    #     # Update cursor text positions
+    #     self.cursor_manager.update_all_text_positions(ylim)
         
-        logger.info(f"Restored home view: X={xlim}, Y={ylim}")
-        self.redraw()
+    #     logger.info(f"Restored home view: X={xlim}, Y={ylim}")
+    #     self.redraw()
 
     def _on_drag(self, event) -> None:
         """

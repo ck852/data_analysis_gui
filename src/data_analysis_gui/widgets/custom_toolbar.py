@@ -30,6 +30,8 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
 
     Signals:
         mode_changed (str): Emitted when the zoom/pan mode changes ('zoom', 'pan', or 'none').
+        reset_requested: Emitted when the Reset button is clicked to autofit to current data.
+        plot_saved (str): Emitted when plot is saved (file path).
 
     Args:
         canvas: The matplotlib canvas to control.
@@ -41,6 +43,9 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
 
     # Signal for when plot is saved
     plot_saved = Signal(str)  # file path
+
+    # Signal for reset/autofit request
+    reset_requested = Signal()
 
     # Remove unnecessary default tool items
     toolitems = (
@@ -191,9 +196,9 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         toolbar_font = QFont()
         toolbar_font.setPointSize(TOOLBAR_CONFIG["button_font_size"])
 
-        # Home (reset view)
+        # Reset (autofit to current data)
         self.home_action = QAction("Reset", self)
-        self.home_action.setToolTip("Reset to original view")
+        self.home_action.setToolTip("Fit to current data")
         self.home_action.triggered.connect(self.home)
         self.home_action.setIcon(self._create_icon("home"))
         self.home_action.setFont(toolbar_font)
@@ -468,12 +473,10 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
 
     def home(self, *args):
         """
-        Override home action to reset the view and clear pan/zoom modes.
-        Updates the mode indicator and emits mode_changed signal.
+        Override home action to emit reset_requested signal for autofitting
+        to current data. Also clears pan/zoom modes and updates mode indicator.
         """
-        super().home(*args)
-
-        # Uncheck both actions
+        # Uncheck both pan and zoom actions
         if hasattr(self, "pan_action"):
             self.pan_action.setChecked(False)
         if hasattr(self, "zoom_action"):
@@ -485,6 +488,10 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         if hasattr(self, "mode_label") and self.mode_label:
             self.mode_label.setText("")
 
+        # Emit signal for PlotManager to handle autofit
+        self.reset_requested.emit()
+
+        # Emit mode change
         self.mode_changed.emit(self.current_mode)
 
 
