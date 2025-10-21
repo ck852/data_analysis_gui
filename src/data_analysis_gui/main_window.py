@@ -462,6 +462,9 @@ class MainWindow(QMainWindow):
         )
 
         if file_path:
+            self.file_dialog_service._remember_directory("import_data", file_path)
+            self.file_dialog_service._remember_directory("batch_files", file_path)
+            
             # Use controller to load file
             result = self.controller.load_file(file_path)
 

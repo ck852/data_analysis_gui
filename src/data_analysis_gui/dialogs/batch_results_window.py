@@ -495,7 +495,7 @@ class BatchResultsWindow(QMainWindow):
             self, 
             suggested_filename, 
             file_types="CSV files (*.csv)",
-            dialog_type="export_batch_iv_summary"  # Unique dialog type for IV summaries
+            dialog_type="batch_files"  # Unique dialog type for IV summaries
         )
 
         if file_path:
@@ -544,7 +544,7 @@ class BatchResultsWindow(QMainWindow):
         output_dir = self.file_dialog_service.get_directory(
             self, 
             "Select Output Directory",
-            dialog_type="export_batch_csvs"  # Unique dialog type for batch CSV exports
+            dialog_type="batch_files"  # Unique dialog type for batch CSV exports
         )
 
         if output_dir:
@@ -594,7 +594,7 @@ class BatchResultsWindow(QMainWindow):
             self,
             "batch_plot.png",
             file_types="PNG files (*.png);;PDF files (*.pdf);;SVG files (*.svg)",
-            dialog_type="export_batch_plot"  # Unique dialog type for batch plot images
+            dialog_type="batch_files"  
         )
 
         if file_path:

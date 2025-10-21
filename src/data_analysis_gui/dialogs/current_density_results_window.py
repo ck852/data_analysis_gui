@@ -504,7 +504,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         output_dir = self.file_dialog_service.get_directory(
-            self, "Select Output Directory", dialog_type="export_cd_individual"
+            self, "Select Output Directory", dialog_type="batch_files"
         )
         if not output_dir:
             return
@@ -574,7 +574,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         file_path = self.file_dialog_service.get_export_path(
-            self, "Current_Density_Summary.csv", dialog_type="export_cd_summary"
+            self, "Current_Density_Summary.csv", dialog_type="batch_files"
         )
         if not file_path:
             return
@@ -637,7 +637,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             self,
             "current_density_plot.png",
             file_types="PNG (*.png);;PDF (*.pdf);;SVG (*.svg)",
-            dialog_type="export_cd_plot"
+            dialog_type="batch_files"
         )
 
         if file_path:
