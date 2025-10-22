@@ -123,13 +123,9 @@ class AnalysisPlotDialog(QDialog):
         )
         self.canvas = FigureCanvas(self.figure)
 
-        # Create toolbar
-        toolbar = NavigationToolbar(self.canvas, self)
-        layout.addWidget(toolbar)
         layout.addWidget(self.canvas)
 
-        self.figure.tight_layout()
-        self.canvas.draw()
+        self.canvas.draw_idle()
 
         # Add prominent gridlines at x=0 and y=0
         add_zero_axis_lines(self.ax)
