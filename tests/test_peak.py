@@ -1,17 +1,12 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool
-
-Author: Charles Kissell, Northeastern University
-License: MIT (see LICENSE file for details)
-"""
-
-"""
 Test suite for peak analysis functionality with different peak modes.
 
 This module verifies that the analysis engine correctly calculates different
 peak types (Absolute, Positive, Negative, Peak-Peak) and produces output
 matching the golden reference data. It also checks mathematical relationships
 and ensures correct behavior for non-peak measures.
+
+Tests run for both ABF and WCP file formats.
 """
 
 import os
@@ -27,10 +22,13 @@ from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
 
 # Test data paths
 SAMPLE_DATA_DIR = Path(__file__).parent / "fixtures" / "sample_data" / "peak_modes"
-GOLDEN_DATA_DIR = (
-    Path(__file__).parent / "fixtures" / "golden_data" / "golden_peaks" / "abf"
-)
-TEST_FILE = "250514_012[1-11].abf"
+GOLDEN_DATA_BASE = Path(__file__).parent / "fixtures" / "golden_data" / "golden_peaks"
+
+# File mappings for each format
+FILE_MAPPING = {
+    "abf": "250514_012[1-11].abf",
+    "wcp": "250514_012.wcp"
+}
 
 
 class TestPeakAnalysis:
@@ -39,7 +37,22 @@ class TestPeakAnalysis:
 
     Provides tests for peak calculation, output validation, mathematical relationships,
     and correct handling of peak_type for non-peak measures.
+    
+    Tests are automatically run for both ABF and WCP file formats.
     """
+
+    @pytest.fixture(params=["abf", "wcp"])
+    def file_format(self, request):
+        """
+        Parameterized fixture providing both file formats.
+        
+        Args:
+            request: pytest request object
+            
+        Returns:
+            str: File format identifier ("abf" or "wcp")
+        """
+        return request.param
 
     @pytest.fixture
     def controller(self):
@@ -53,17 +66,34 @@ class TestPeakAnalysis:
         return controller
 
     @pytest.fixture
-    def test_file_path(self):
+    def test_file_path(self, file_format):
         """
-        Get the full path to the test ABF file.
+        Get the full path to the test file based on format.
+
+        Args:
+            file_format (str): File format ("abf" or "wcp")
 
         Returns:
-            str: Path to the test ABF file.
+            str: Path to the test file.
         """
-        path = SAMPLE_DATA_DIR / TEST_FILE
+        test_file = FILE_MAPPING[file_format]
+        path = SAMPLE_DATA_DIR / test_file
         if not path.exists():
-            raise AssertionError(f"Test ABF file not found: {path}")
+            raise AssertionError(f"Test {file_format.upper()} file not found: {path}")
         return str(path)
+
+    @pytest.fixture
+    def golden_data_dir(self, file_format):
+        """
+        Get the golden data directory path based on format.
+        
+        Args:
+            file_format (str): File format ("abf" or "wcp")
+            
+        Returns:
+            Path: Path to the golden data directory for this format
+        """
+        return GOLDEN_DATA_BASE / file_format
 
     @pytest.fixture
     def loaded_controller(self, controller, test_file_path):
@@ -72,7 +102,7 @@ class TestPeakAnalysis:
 
         Args:
             controller (ApplicationController): Controller instance.
-            test_file_path (str): Path to the test ABF file.
+            test_file_path (str): Path to the test file.
 
         Returns:
             ApplicationController: Controller with loaded data.
@@ -188,12 +218,16 @@ class TestPeakAnalysis:
             ("Peak-Peak", "250514_012_peak-peak.csv"),
         ],
     )
-    def test_peak_mode_analysis(self, loaded_controller, peak_type, expected_file):
+    def test_peak_mode_analysis(
+        self, loaded_controller, golden_data_dir, file_format, peak_type, expected_file
+    ):
         """
         Test peak analysis for a specific peak mode.
 
         Args:
             loaded_controller (ApplicationController): Controller with test file loaded.
+            golden_data_dir (Path): Directory containing golden data for this format.
+            file_format (str): File format being tested ("abf" or "wcp").
             peak_type (str): The peak calculation mode to test.
             expected_file (str): Name of the expected golden data file.
 
@@ -204,29 +238,33 @@ class TestPeakAnalysis:
 
         # Perform analysis
         result = loaded_controller.perform_analysis(params)
-        assert result.success, f"Analysis failed: {result.error_message}"
-        assert result.data is not None, "Analysis returned no data"
+        assert result.success, f"Analysis failed for {file_format}: {result.error_message}"
+        assert result.data is not None, f"Analysis returned no data for {file_format}"
 
         # Verify we have data
-        assert result.data.x_data.size > 0, "No x_data in analysis result"
-        assert result.data.y_data.size > 0, "No y_data in analysis result"
+        assert result.data.x_data.size > 0, f"No x_data in analysis result for {file_format}"
+        assert result.data.y_data.size > 0, f"No y_data in analysis result for {file_format}"
 
         # Export to temporary file
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = os.path.join(tmpdir, f"test_output_{peak_type.lower()}.csv")
+            output_path = os.path.join(
+                tmpdir, f"test_output_{file_format}_{peak_type.lower()}.csv"
+            )
 
             export_result = loaded_controller.export_analysis_data(params, output_path)
             assert (
                 export_result.success
-            ), f"Export failed: {export_result.error_message}"
+            ), f"Export failed for {file_format}: {export_result.error_message}"
             assert os.path.exists(
                 output_path
             ), f"Output file not created: {output_path}"
 
             # Compare with golden data
-            golden_path = GOLDEN_DATA_DIR / expected_file
+            golden_path = golden_data_dir / expected_file
             if not golden_path.exists():
-                raise AssertionError(f"Golden data file not found: {golden_path}")
+                raise AssertionError(
+                    f"Golden data file not found for {file_format}: {golden_path}"
+                )
             self.compare_csv_files(output_path, str(golden_path))
 
     def test_all_peak_modes_different_results(self, loaded_controller):

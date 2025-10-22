@@ -4,12 +4,12 @@ patchbatch/
 |       |-- release.yaml
 |       `-- test.yml
 |-- images/
+|   |-- abf_data_comparison.png
 |   |-- ba_results.PNG
 |   |-- batch_analysis.PNG
 |   |-- bg_sub_dialog.PNG
 |   |-- cd_cslow.PNG
 |   |-- cd_results.PNG
-|   |-- data_comparison.png
 |   |-- discrepancy.png
 |   |-- dual_analysis_main.PNG
 |   |-- dual_analysis_plot.PNG
@@ -17,6 +17,7 @@ patchbatch/
 |   |-- dual_range_time.png
 |   |-- main_winwcp.PNG
 |   |-- mainwindow.PNG
+|   |-- peak_validation.png
 |   |-- prism_cd_summary.PNG
 |   |-- prism_import.PNG
 |   |-- ramp_analysis.PNG
@@ -24,6 +25,9 @@ patchbatch/
 |   |-- repeat_period.PNG
 |   |-- summary_export.PNG
 |   |-- swapped_current_comparison.png
+|   |-- time_course_validation.png
+|   |-- time_diff_plot.png
+|   |-- wcp_data_comparison.png
 |   `-- winwcp_export.PNG
 |-- src/
 |   `-- data_analysis_gui/
@@ -51,7 +55,8 @@ patchbatch/
 |       |   |-- models.py
 |       |   |-- params.py
 |       |   |-- plot_formatter.py
-|       |   `-- session_settings.py
+|       |   |-- session_settings.py
+|       |   `-- view_state_manager.py
 |       |-- dialogs/
 |       |   |-- __init__.py
 |       |   |-- analysis_plot_dialog.py
@@ -62,10 +67,13 @@ patchbatch/
 |       |   |-- conc_resp_dialog.py
 |       |   |-- current_density_dialog.py
 |       |   |-- current_density_results_window.py
+|       |   |-- extract_sweeps_dialog.py
 |       |   `-- ramp_iv_dialog.py
 |       |-- gui_services/
 |       |   |-- __init__.py
-|       |   `-- file_dialog_service.py
+|       |   |-- clipboard_service.py
+|       |   |-- file_dialog_service.py
+|       |   `-- main_range_coordinator.py
 |       |-- services/
 |       |   |-- __init__.py
 |       |   |-- analysis_manager.py
@@ -76,12 +84,13 @@ patchbatch/
 |       |   |-- current_density_service.py
 |       |   |-- data_manager.py
 |       |   |-- dataset_builder_service.py
-|       |   |-- plot_service.py
 |       |   `-- ramp_iv_service.py
 |       |-- widgets/
 |       |   |-- __init__.py
+|       |   |-- axis_zoom_controller.py
 |       |   |-- concentration_range_table.py
 |       |   |-- control_panel.py
+|       |   |-- cursor_manager.py
 |       |   |-- cursor_spinbox.py
 |       |   |-- custom_inputs.py
 |       |   |-- custom_toolbar.py
@@ -163,61 +172,17 @@ patchbatch/
 |   |   |   |       |-- 250514_011.csv
 |   |   |   |       |-- 250514_012.csv
 |   |   |   |       `-- IV_Summary.csv
-|   |   |   |-- golden_peaks/
-|   |   |   |   |-- abf/
-|   |   |   |   |   |-- 250514_012_absolute.csv
-|   |   |   |   |   |-- 250514_012_negative.csv
-|   |   |   |   |   |-- 250514_012_peak-peak.csv
-|   |   |   |   |   `-- 250514_012_positive.csv
-|   |   |   |   `-- mat/
-|   |   |   |       |-- 250514_012_absolute.csv
-|   |   |   |       |-- 250514_012_negative.csv
-|   |   |   |       |-- 250514_012_peak-peak.csv
-|   |   |   |       `-- 250514_012_positive.csv
-|   |   |   |-- golden_swapped_peaks_IV/
-|   |   |   |   |-- abf/
-|   |   |   |   |   |-- absolute/
-|   |   |   |   |   |   |-- 240809_001.csv
-|   |   |   |   |   |   |-- 240809_002.csv
-|   |   |   |   |   |   `-- 240809_003.csv
-|   |   |   |   |   |-- negative/
-|   |   |   |   |   |   |-- 240809_001.csv
-|   |   |   |   |   |   |-- 240809_002.csv
-|   |   |   |   |   |   `-- 240809_003.csv
-|   |   |   |   |   |-- peak-peak/
-|   |   |   |   |   |   |-- 240809_001.csv
-|   |   |   |   |   |   |-- 240809_002.csv
-|   |   |   |   |   |   `-- 240809_003.csv
-|   |   |   |   |   `-- positive/
-|   |   |   |   |       |-- 240809_001.csv
-|   |   |   |   |       |-- 240809_002.csv
-|   |   |   |   |       `-- 240809_003.csv
-|   |   |   |   `-- mat/
-|   |   |   |       |-- absolute/
-|   |   |   |       |   |-- 240809_001.csv
-|   |   |   |       |   |-- 240809_002.csv
-|   |   |   |       |   `-- 240809_003.csv
-|   |   |   |       |-- negative/
-|   |   |   |       |   |-- 240809_001.csv
-|   |   |   |       |   |-- 240809_002.csv
-|   |   |   |       |   `-- 240809_003.csv
-|   |   |   |       |-- peak-peak/
-|   |   |   |       |   |-- 240809_001.csv
-|   |   |   |       |   |-- 240809_002.csv
-|   |   |   |       |   `-- 240809_003.csv
-|   |   |   |       `-- positive/
-|   |   |   |           |-- 240809_001.csv
-|   |   |   |           |-- 240809_002.csv
-|   |   |   |           `-- 240809_003.csv
-|   |   |   `-- golden_swapped_time_course/
+|   |   |   `-- golden_peaks/
 |   |   |       |-- abf/
-|   |   |       |   |-- 240809_001.csv
-|   |   |       |   |-- 240809_002.csv
-|   |   |       |   `-- 240809_003.csv
-|   |   |       `-- mat/
-|   |   |           |-- 240809_001.csv
-|   |   |           |-- 240809_002.csv
-|   |   |           `-- 240809_003.csv
+|   |   |       |   |-- 250514_012_absolute.csv
+|   |   |       |   |-- 250514_012_negative.csv
+|   |   |       |   |-- 250514_012_peak-peak.csv
+|   |   |       |   `-- 250514_012_positive.csv
+|   |   |       `-- wcp/
+|   |   |           |-- 250514_012_absolute.csv
+|   |   |           |-- 250514_012_negative.csv
+|   |   |           |-- 250514_012_peak-peak.csv
+|   |   |           `-- 250514_012_positive.csv
 |   |   `-- sample_data/
 |   |       |-- dual_range/
 |   |       |   |-- abf/
@@ -256,8 +221,8 @@ patchbatch/
 |   |       |       |-- 250514_011.wcp
 |   |       |       `-- 250514_012.wcp
 |   |       |-- peak_modes/
-|   |       |   |-- 250514_012[1-11].abf
-|   |       |   `-- 250514_012[1-11].mat
+|   |       |   |-- 250514_012.wcp
+|   |       |   `-- 250514_012[1-11].abf
 |   |       `-- swapped/
 |   |           |-- abf/
 |   |           |   |-- 240809_001[1-12].abf

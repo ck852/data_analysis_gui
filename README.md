@@ -23,15 +23,19 @@ Go to https://github.com/ck852/patchbatch?tab=readme-ov-file#patchbatch---electr
 
 ## Option 2: Install from PyPI (Recommended if you have any installation issues with the executables)
 
+### To update:
+
+To update your version if you installed from PyPI, open a terminal and enter `pip install --upgrade patchbatch`
+
 ### Prerequisites: Installing Python
 
 If you don't have Python installed:
 
 1. **Download Python**: Visit [python.org](https://www.python.org/downloads/) and download Python 3.9 or newer
 2. **Install Python**: Run the installer and **check "Add Python to PATH"** during installation (Windows) or use the default settings (Mac/Linux)
-3. **Verify Installation**: Open a terminal/command prompt and type `python --version` to confirm installation
+3. **Verify Installation**: Open a terminal/command prompt and type `python --version` or `python3 --version` to confirm installation
 
-To update, open a terminal and enter `pip install --upgrade patchbatch`
+
 
 ### Opening a Terminal/Command Prompt
 
@@ -58,7 +62,7 @@ If pip isn't recognized, instead try
 
 `python -m pip install patchbatch`
 
-If python is not a recognized command, try replacing it with `python3`.
+**If python is not a recognized command, try replacing `python` with `python3` in all instances.**
 
 If you install from PyPI, you will always start the program by opening a terminal in the same directory where you installed it and simply enter `patchbatch`. 
 
@@ -87,7 +91,7 @@ Welcome to PatchBatch! The purpose of this program is to streamline electrophysi
 ## How to Use
 
 
-Start by clicking "Open" in the top left corner. Select a single file to analyze. The sweeps should appear in the plot. The right and left arrows next to the "Open" button adjust which sweep is displayed. You can drag the green cursors to desired positions to define your analysis time range, very similar to WinWCP. You can also define them in the "Range 1 Start (ms)" and similar fields under "Analysis Settings". Note that you can check "Use Dual Analysis" to extract data from two regions in one output. Below, adjust "Plot Settings" for your desired analysis. This program includes the same four peak analysis modes (absolute, positive, negative, and peak-peak) available in WinWCP. The peak mode can be adjusted in the corresponding drop-down menu in the main window. **All peak modes have aligned with WinWCP in preliminary tests, but final validation with figures is still in progress.**
+Start by clicking "Open" in the top left corner. Select a single file to analyze. The sweeps should appear in the plot. The right and left arrows next to the "Open" button adjust which sweep is displayed. You can drag the green cursors to desired positions to define your analysis time range, very similar to WinWCP. You can also define them in the "Range 1 Start (ms)" and similar fields under "Analysis Settings". Note that you can check "Use Dual Analysis" to extract data from two regions in one output. Below, adjust "Plot Settings" for your desired analysis. This program includes the same four peak analysis modes (absolute, positive, negative, and peak-peak) available in WinWCP. The peak mode can be adjusted in the corresponding drop-down menu in the main window.
 
 
 <img src="images/mainwindow.PNG" alt="main_window" width="1000"/>
@@ -171,14 +175,20 @@ To validate the data processing modules of this program, analyses were performed
 
 ### IV Analysis
 
-This program's data processing methods have been validated by comparing PatchBatch outputs to those of WinWCP. Both analyses used the same dataset of 12 patch-clamp recordings. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. The input abf files are available in the file repository. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049694 pA. Similarly, the distinction in the measured voltage was 0.011475 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored losslessly as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible for the intended applications of this program. These results are summarized as follows:
+This program's data processing methods have been validated by comparing PatchBatch outputs to those of WinWCP. Both analyses used the same dataset of 12 patch-clamp recordings. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. The input abf files are available in the file repository. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049694 pA. Similarly, the distinction in the measured voltage was 0.011475 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible for the intended applications of this program. These results are summarized as follows:
 
-<img src="images/wcp_data_comparison.png" alt="data_comparison" width="1000"/>
+<img src="images/wcp_data_comparison.png" alt="data_comparison"/>
 
 To assess the ABF functionality, the same WCP files were converted to ABF. File format conversions were performed in WinWCP. The ABF dataset was analyzed with the same parameters as the WCP dataset. The results were nearly identical to those of the WCP dataset.
 
 
-<img src="images/discrepancy.png" alt="discrepancy" width="1000"/>
+<img src="images/discrepancy.png" alt="discrepancy"/>
+
+
+For files analyzed in WinWCP, current densities were calculated in Graphpad Prism. A direct comparison of a Current Density vs. Voltage relationship plot produced by WinWCP vs. by PatchBatch shows that the WinWCP results are accurately reproduced by PatchBatch. In this example, the ABF dataset was used:
+
+
+<img src="images/abf_data_comparison.png" alt="data_comparison"/>
 
 For current density analysis, the following Cslow values were used:
 
@@ -197,8 +207,16 @@ For current density analysis, the following Cslow values were used:
 | 250514_011  | 22.2  |
 | 250514_012  | 23.2  |
 
+### Time Course and Dual Range
 
-For files analyzed in WinWCP, current densities were calculated in Graphpad Prism. A direct comparison of a Current Density vs. Voltage relationship plot produced by WinWCP vs. by PatchBatch shows that the WinWCP results are accurately reproduced by PatchBatch. In this example, the ABF dataset was used:
+To validate the functionality of time course analyses, three WCP files were analyzed in WinWCP and PatchBatch. For these files, there were two analysis ranges of interest. Thus, the dual analysis range functionality was also validated. The first analysis range was 50.45 - 249.8 ms and the second range was 250.45 - 449.5 ms. The files were batch-analyzed in PatchBatch using Time (Voltage) on the X-Axis and Average (Current) on the Y-Axis. There was excellent agreement between the analysis of both programs, with a maximum discrepancy of 0.005005 pA found across all data points (n = 1278). Similarly, the Time values extracted from the WCP files in PatchBatch showed very good agreement with WinWCP, with a maximum discrepancy of 0.005 s in this data set (n = 639). 
 
+<img src="images/time_course_validation.png" alt="time-course-validation"/>
 
-<img src="images/abf_data_comparison.png" alt="data_comparison" width="750"/>
+<img src="images/time_diff_plot.png" alt="time_diff_plot_time-course" width="750"/>
+
+### Peak Analysis
+
+The four peak analysis modes (absolute, positive, negative, and peak-peak) were validated using one of the same WCP files from the time course validation. The analysis range was 50.2 - 164.9 ms. The analysis plotted Peak Voltage versus Peak Current. A similar maximum discrepancy of 0.00497 pA and 0.000485 mV was found across all four peak modes (n = 1278). The discrepancies of the peak current values for all four peak modes are summarized in the following figure.
+
+<img src="images/peak_validation.png" alt="peak-validation"/>
