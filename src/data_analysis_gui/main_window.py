@@ -491,6 +491,13 @@ class MainWindow(QMainWindow):
         First opens the background subtraction dialog in batch mode to get
         the background range, then proceeds to batch analysis with that range.
         """
+        # Show experimental feature warning
+        QMessageBox.warning(
+            self,
+            "Experimental Feature",
+            "Warning: This feature has not been tested.\nFor experimental use only."
+        )
+        
         # Check if file is loaded
         if not self.controller.has_data():
             QMessageBox.warning(
