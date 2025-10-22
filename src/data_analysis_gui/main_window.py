@@ -228,6 +228,14 @@ class MainWindow(QMainWindow):
         self.batch_action.setEnabled(True)
         analysis_menu.addAction(self.batch_action)
 
+        # NEW: Batch Analysis with Background Subtraction
+        self.batch_bg_action = QAction("Batch Analyze with BG Subtraction...", self)
+        self.batch_bg_action.triggered.connect(self._batch_analyze_with_bg_subtraction)
+        self.batch_bg_action.setEnabled(True)
+        analysis_menu.addAction(self.batch_bg_action)
+
+        analysis_menu.addSeparator()
+
         # Background Subtraction
         self.bg_subtract_action = QAction("&Background Subtraction...", self)
         self.bg_subtract_action.triggered.connect(self._background_subtraction)
@@ -475,6 +483,58 @@ class MainWindow(QMainWindow):
                 # Auto-save settings to persist the directory choice
                 self._auto_save_settings()
             # Error handling is done by controller callbacks
+
+    def _batch_analyze_with_bg_subtraction(self):
+        """
+        Open batch analysis with background subtraction workflow.
+        
+        First opens the background subtraction dialog in batch mode to get
+        the background range, then proceeds to batch analysis with that range.
+        """
+        # Check if file is loaded
+        if not self.controller.has_data():
+            QMessageBox.warning(
+                self, 
+                "No Data", 
+                "Please load a data file first to define the background range."
+            )
+            return
+        
+        # Validate analysis range using ControlPanel's public method
+        is_valid, error_msg = self.control_panel.validate_ranges()
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Analysis Range", error_msg)
+            return
+        
+        # Get current sweep for preview
+        sweep = self.sweep_combo.currentText()
+        if not sweep:
+            QMessageBox.warning(self, "No Sweep", "No sweep selected.")
+            return
+        
+        # Open background subtraction dialog in batch mode
+        bg_dialog = BackgroundSubtractionDialog(
+            dataset=self.controller.current_dataset,
+            sweep_index=sweep,
+            parent=self,
+            batch_mode=True  # Special mode for batch workflow
+        )
+        
+        if bg_dialog.exec() == QDialog.DialogCode.Accepted:
+            # Get the background range that was defined
+            bg_range = bg_dialog.get_background_range()
+            
+            # Get current analysis parameters
+            params = self.control_panel.get_parameters()
+            
+            # Open batch dialog with background subtraction enabled
+            dialog = BatchAnalysisDialog(
+                parent=self,
+                batch_service=self.batch_processor,
+                params=params,
+                bg_subtraction_range=bg_range  # Pass the BG range
+            )
+            dialog.show()
 
     def _center_nearest_cursor(self):
         """

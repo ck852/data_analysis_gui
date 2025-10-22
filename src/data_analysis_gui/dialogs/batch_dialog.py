@@ -57,11 +57,12 @@ class BatchAnalysisWorker(QThread):
     finished = Signal(object)  # BatchAnalysisResult
     error = Signal(str)
 
-    def __init__(self, batch_service, file_paths, params):
+    def __init__(self, batch_service, file_paths, params, bg_subtraction_range=None):
         super().__init__()
         self.batch_service = batch_service
         self.file_paths = file_paths
         self.params = params
+        self.bg_subtraction_range = bg_subtraction_range
 
     def run(self):
         """
@@ -74,8 +75,12 @@ class BatchAnalysisWorker(QThread):
             self.batch_service.on_progress = lambda c, t, n: self.progress.emit(c, t, n)
             self.batch_service.on_file_complete = lambda r: self.file_complete.emit(r)
 
-            # Simple sequential processing
-            result = self.batch_service.process_files(self.file_paths, self.params)
+            # Simple sequential processing with optional BG subtraction
+            result = self.batch_service.process_files(
+                self.file_paths, 
+                self.params,
+                bg_subtraction_range=self.bg_subtraction_range
+            )
 
             # Ensure result has selection state initialized
             if not hasattr(result, "selected_files") or result.selected_files is None:
@@ -103,7 +108,7 @@ class BatchAnalysisDialog(QDialog):
         - View results after completion.
     """
 
-    def __init__(self, parent, batch_service, params):
+    def __init__(self, parent, batch_service, params, bg_subtraction_range=None):
         """
         Initialize the BatchAnalysisDialog.
 
@@ -111,10 +116,12 @@ class BatchAnalysisDialog(QDialog):
             parent: Parent widget.
             batch_service: Service for batch analysis.
             params: Analysis parameters.
+            bg_subtraction_range: Optional tuple (start_ms, end_ms) for background subtraction.
         """
         super().__init__(parent)
         self.batch_service = batch_service
         self.params = params
+        self.bg_subtraction_range = bg_subtraction_range
         self.file_paths = []
         self.worker = None
         self.batch_result = None
@@ -127,8 +134,11 @@ class BatchAnalysisDialog(QDialog):
             # Fallback to new instance if parent doesn't have one
             self.file_dialog_service = FileDialogService()
 
-        # Set window title before applying theme
-        self.setWindowTitle("Batch Analysis")
+        # Set window title based on whether BG subtraction is enabled
+        if bg_subtraction_range:
+            self.setWindowTitle("Batch Analysis with Background Subtraction")
+        else:
+            self.setWindowTitle("Batch Analysis")
 
         self.init_ui()
 
@@ -136,11 +146,28 @@ class BatchAnalysisDialog(QDialog):
         apply_modern_theme(self)
         apply_compact_layout(self)
 
+
     def init_ui(self):
         """
         Initialize the user interface, including file list, progress bar, and buttons.
         """
         layout = QVBoxLayout(self)
+
+        # Show BG subtraction info if enabled
+        if self.bg_subtraction_range:
+            bg_info_group = QGroupBox("Background Subtraction")
+            style_group_box(bg_info_group)
+            bg_info_layout = QVBoxLayout(bg_info_group)
+            
+            start_ms, end_ms = self.bg_subtraction_range
+            bg_label = QLabel(
+                f"Background subtraction will be applied to all files.\n"
+                f"Range: {start_ms:.1f} - {end_ms:.1f} ms"
+            )
+            style_label(bg_label, "info")
+            bg_info_layout.addWidget(bg_label)
+            
+            layout.addWidget(bg_info_group)
 
         # File List Section
         file_group = QGroupBox("Files to Analyze")
@@ -315,12 +342,15 @@ class BatchAnalysisDialog(QDialog):
         # Reset progress
         self.progress_bar.setMaximum(len(self.file_paths))
         self.progress_bar.setValue(0)
-        style_label(self.status_label, "info")  # Updated to use style_label with type
+        style_label(self.status_label, "info")
         self.status_label.setText("Starting analysis...")
 
-        # Create and start worker thread
+        # Create and start worker thread with BG subtraction range if provided
         self.worker = BatchAnalysisWorker(
-            self.batch_service, self.file_paths.copy(), self.params
+            self.batch_service, 
+            self.file_paths.copy(), 
+            self.params,
+            bg_subtraction_range=self.bg_subtraction_range
         )
 
         # Connect worker signals
@@ -332,7 +362,9 @@ class BatchAnalysisDialog(QDialog):
         # Start analysis
         self.worker.start()
         self.update_button_states()
-        logger.info(f"Started batch analysis of {len(self.file_paths)} files")
+        
+        bg_info = f" with BG subtraction" if self.bg_subtraction_range else ""
+        logger.info(f"Started batch analysis{bg_info} of {len(self.file_paths)} files")
 
     def cancel_analysis(self):
         """

@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - "Copy Data" button for remaining dialogs except dose response
 - Axis-specific zoom buttons
 - "Copy File Names" button for all result dialogs except dose response
+- Batch background subtraction
 
 ### Changed
 - Extract Sweeps dialog receives initial time range from MainWindow

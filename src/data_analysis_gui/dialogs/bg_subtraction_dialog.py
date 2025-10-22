@@ -11,7 +11,7 @@ import numpy as np
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
-    QWidget, QMessageBox, QFormLayout
+    QWidget, QMessageBox, QFormLayout, QLabel
 )
 
 from matplotlib.figure import Figure
@@ -38,24 +38,29 @@ class BackgroundSubtractionDialog(QDialog):
     Uses BackgroundSubtractionService for business logic separation.
     """
     
-    def __init__(self, dataset: ElectrophysiologyDataset, sweep_index: str, parent=None):
+    def __init__(self, dataset: ElectrophysiologyDataset, sweep_index: str, parent=None, batch_mode: bool = False):
         """
         Initialize the background subtraction dialog with centralized styling.
         
         Args:
             dataset: The electrophysiology dataset
             sweep_index: Current sweep index to display
-            default_start: Default start time for background range (ms)
-            default_end: Default end time for background range (ms)
             parent: Parent widget
+            batch_mode: If True, dialog is for defining BG range for batch analysis
         """
         super().__init__(parent)
         
         self.dataset = dataset
         self.sweep_index = sweep_index
+        self.batch_mode = batch_mode
         self.data_extractor = DataExtractor()
         
-        self.setWindowTitle("Background Subtraction")
+        # Set title based on mode
+        if batch_mode:
+            self.setWindowTitle("Define Background Range for Batch Analysis")
+        else:
+            self.setWindowTitle("Background Subtraction")
+        
         self.setModal(True)
         self.setFixedSize(600, 500)
         
@@ -88,6 +93,17 @@ class BackgroundSubtractionDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
+        
+        # Add informational label for batch mode
+        if self.batch_mode:
+            info_label = QLabel(
+                "Define the background range that will be applied to all files in the batch.\n"
+                "Preview shown using the currently loaded file."
+            )
+            info_label.setWordWrap(True)
+            from data_analysis_gui.config.themes import style_label
+            style_label(info_label, "info")
+            layout.addWidget(info_label)
         
         # Create matplotlib plot
         self._create_plot()
@@ -126,18 +142,25 @@ class BackgroundSubtractionDialog(QDialog):
         self.cursor_manager.add_cursor("end", self.end_spinbox, self.default_end, color="#73AB84")
         self.cursor_manager.enable_shading(alpha=0.1)
 
-
         layout.addWidget(range_widget)
         
-        # Buttons
+        # Buttons - different based on mode
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
         self.cancel_button = create_styled_button("Cancel", "secondary")
-        self.apply_button = create_styled_button("Apply Background Subtraction", "primary")
+        
+        if self.batch_mode:
+            # Batch mode: button to proceed to batch analysis
+            self.action_button = create_styled_button("Proceed to Batch Analysis", "primary")
+            self.action_button.clicked.connect(self._proceed_to_batch)
+        else:
+            # Normal mode: button to apply background subtraction
+            self.action_button = create_styled_button("Apply Background Subtraction", "primary")
+            self.action_button.clicked.connect(self._apply_background_subtraction)
         
         button_layout.addWidget(self.cancel_button)
-        button_layout.addWidget(self.apply_button)
+        button_layout.addWidget(self.action_button)
         
         layout.addLayout(button_layout)
         
@@ -153,9 +176,28 @@ class BackgroundSubtractionDialog(QDialog):
         """Connect UI signals to their handlers."""
         self.start_spinbox.valueChanged.connect(self._update_plot)
         self.end_spinbox.valueChanged.connect(self._update_plot)
-        self.apply_button.clicked.connect(self._apply_background_subtraction)
         self.cancel_button.clicked.connect(self.reject)
+
+    def _proceed_to_batch(self):
+        """
+        Handle proceeding to batch analysis (batch mode only).
+        Validates the range and accepts the dialog.
+        """
+        if not self._validate_range():
+            return
         
+        # Just accept - the parent will read the range values
+        self.accept()    
+
+    def get_background_range(self):
+        """
+        Get the background range values defined in the dialog.
+        
+        Returns:
+            Tuple[float, float]: (start_ms, end_ms)
+        """
+        return (self.start_spinbox.value(), self.end_spinbox.value())
+
     def _get_current_channel_data(self):
         """
         Get current channel data for the specified sweep.

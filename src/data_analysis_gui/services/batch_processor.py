@@ -53,7 +53,7 @@ class BatchProcessor:
         logger.info("BatchProcessor initialized")
 
     def process_files(
-        self, file_paths: List[str], params: AnalysisParameters
+        self, file_paths: List[str], params: AnalysisParameters, bg_subtraction_range=None
     ) -> BatchAnalysisResult:
         """
         Process multiple files sequentially using the provided analysis parameters.
@@ -61,6 +61,7 @@ class BatchProcessor:
         Args:
             file_paths (List[str]): List of file paths to process.
             params (AnalysisParameters): Analysis parameters to apply.
+            bg_subtraction_range (Tuple[float, float], optional): Background subtraction range (start_ms, end_ms).
 
         Returns:
             BatchAnalysisResult: Object containing results for all processed files.
@@ -74,7 +75,8 @@ class BatchProcessor:
         # Validate file formats before processing
         self._validate_file_formats(file_paths)
 
-        logger.info(f"Processing {len(file_paths)} files")
+        bg_info = f" with BG subtraction [{bg_subtraction_range[0]:.1f}-{bg_subtraction_range[1]:.1f} ms]" if bg_subtraction_range else ""
+        logger.info(f"Processing {len(file_paths)} files{bg_info}")
         start_time = time.time()
 
         successful_results = []
@@ -86,8 +88,8 @@ class BatchProcessor:
             if self.on_progress:
                 self.on_progress(i + 1, len(file_paths), Path(path).name)
 
-            # Process the file
-            result = self._process_single_file(path, params)
+            # Process the file with optional BG subtraction
+            result = self._process_single_file(path, params, bg_subtraction_range)
 
             # Store result
             if result.success:
@@ -114,17 +116,20 @@ class BatchProcessor:
             end_time=end_time,
         )
 
+
     def _process_single_file(
-        self, file_path: str, params: AnalysisParameters
+        self, file_path: str, params: AnalysisParameters, bg_subtraction_range=None
     ) -> FileAnalysisResult:
         """
         Process a single file and perform analysis.
         
         Channel configuration is automatically detected from each file's metadata.
+        Optionally applies background subtraction before analysis.
 
         Args:
             file_path (str): Path to the file to process.
             params (AnalysisParameters): Analysis parameters to apply.
+            bg_subtraction_range (Tuple[float, float], optional): Background range (start_ms, end_ms).
 
         Returns:
             FileAnalysisResult: Result object containing analysis outcome and data.
@@ -135,6 +140,34 @@ class BatchProcessor:
         try:
             # Load dataset - channel config auto-detected from file
             dataset = self.data_manager.load_dataset(file_path)
+
+            # Apply background subtraction if requested
+            if bg_subtraction_range:
+                from data_analysis_gui.services.bg_subtraction_service import BackgroundSubtractionService
+                
+                start_ms, end_ms = bg_subtraction_range
+                
+                bg_result = BackgroundSubtractionService.apply_background_subtraction(
+                    dataset, start_ms, end_ms
+                )
+                
+                if not bg_result.success:
+                    logger.warning(
+                        f"Background subtraction failed for {base_name}: {bg_result.error_message}"
+                    )
+                    # Return failed result
+                    return FileAnalysisResult(
+                        file_path=file_path,
+                        base_name=base_name,
+                        success=False,
+                        error_message=f"BG subtraction failed: {bg_result.error_message}",
+                        processing_time=time.time() - start_time,
+                    )
+                
+                logger.debug(
+                    f"Applied BG subtraction to {base_name}: "
+                    f"{bg_result.processed_sweeps}/{bg_result.total_sweeps} sweeps"
+                )
 
             # Create analysis manager (no channel defs needed)
             analysis_manager = AnalysisManager()
