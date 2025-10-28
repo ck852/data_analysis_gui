@@ -63,7 +63,8 @@ data_analysis_gui/
 |   |-- custom_inputs.py
 |   |-- custom_toolbar.py
 |   |-- interactive_range_creator.py
-|   `-- shared_widgets.py
+|   |-- shared_widgets.py
+|   `-- sweep_select_list.py
 |-- __init__.py
 |-- filetree.txt
 |-- filetree_full.py

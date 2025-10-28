@@ -26,7 +26,7 @@ Features:
 
 from PySide6.QtWidgets import QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QDoubleValidator
+from PySide6.QtGui import QValidator, QDoubleValidator
 
 
 class SelectAllLineEdit(QLineEdit):
@@ -73,35 +73,6 @@ class SelectAllLineEdit(QLineEdit):
 class SelectAllSpinBox(QDoubleSpinBox):
     """
     QDoubleSpinBox subclass that selects all text when focused and ignores wheel events.
-
-    Features:
-        - Selects all text on focus-in.
-        - Ignores mouse wheel events to prevent accidental value changes.
-    """
-
-    def focusInEvent(self, event):
-        """
-        Handle focus-in event, selecting all text.
-
-        Args:
-            event: QFocusEvent
-        """
-        super().focusInEvent(event)
-        QTimer.singleShot(0, self.selectAll)
-
-    def wheelEvent(self, event):
-        """
-        Ignore mouse wheel events.
-
-        Args:
-            event: QWheelEvent
-        """
-        event.ignore()
-
-
-class SelectAllIntSpinBox(QSpinBox):
-    """
-    QSpinBox subclass that selects all text when focused and ignores wheel events.
 
     Features:
         - Selects all text on focus-in.
@@ -359,3 +330,87 @@ class NumericLineEdit(QLineEdit):
             step: Step value (ignored)
         """
         pass  # No-op for compatibility
+
+class RangeInputValidator(QValidator):
+    """
+    Custom validator that only allows digits, commas, hyphens, and spaces.
+    For sweep range input like "1,2,3-15,20".
+    """
+    
+    def validate(self, input_str, pos):
+        """
+        Validate the input string.
+        
+        Args:
+            input_str: The string to validate
+            pos: Cursor position
+            
+        Returns:
+            Tuple[QValidator.State, str, int]: (state, string, position)
+        """
+        # Allow empty string
+        if not input_str:
+            return (QValidator.State.Acceptable, input_str, pos)
+        
+        # Check if all characters are valid
+        for char in input_str:
+            if char not in '0123456789,- ':
+                return (QValidator.State.Invalid, input_str, pos)
+        
+        return (QValidator.State.Acceptable, input_str, pos)
+
+
+class RangeInputLineEdit(QLineEdit):
+    """
+    QLineEdit subclass for sweep range input (e.g., "1,2,3-15,20").
+    
+    Features:
+        - Selects all text on focus-in unless suppressed
+        - Restricts input to digits, commas, hyphens, and spaces only
+        - Ignores mouse wheel events to prevent accidental changes
+        - Provides method to set focus without selecting all text
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the RangeInputLineEdit.
+
+        Args:
+            *args: Positional arguments for QLineEdit.
+            **kwargs: Keyword arguments for QLineEdit.
+        """
+        super().__init__(*args, **kwargs)
+        self._select_all_on_focus = True
+        
+        # Set up validator for range input
+        validator = RangeInputValidator(self)
+        self.setValidator(validator)
+
+    def focusInEvent(self, event):
+        """
+        Handle focus-in event, selecting all text if enabled.
+
+        Args:
+            event: QFocusEvent
+        """
+        super().focusInEvent(event)
+        if self._select_all_on_focus:
+            QTimer.singleShot(0, self.selectAll)
+        # Reset the flag after the event is handled
+        self._select_all_on_focus = True
+
+    def setFocusAndDoNotSelect(self):
+        """
+        Set focus to the widget without triggering select-all behavior.
+        """
+        self._select_all_on_focus = False
+        self.setFocus()
+
+    def wheelEvent(self, event):
+        """
+        Ignore mouse wheel events to prevent accidental value changes.
+
+        Args:
+            event: QWheelEvent
+        """
+        event.ignore()

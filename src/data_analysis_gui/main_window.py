@@ -27,10 +27,10 @@ Key design principles:
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
-    QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel,
+    QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel, QCheckBox,
     QComboBox, QDialog
 )
 from PySide6.QtCore import Qt, Signal, QTimer
@@ -119,6 +119,8 @@ class MainWindow(QMainWindow):
         # State
         self.current_file_path: Optional[str] = None
         self.analysis_dialog: Optional[AnalysisPlotDialog] = None
+
+        self.rejected_sweeps: Set[int] = set()  # Track rejected sweep indices
 
         # Navigation timer
         self.hold_timer = QTimer()
@@ -275,10 +277,8 @@ class MainWindow(QMainWindow):
         )
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Refresh plot and clear caches
+            # Refresh plot
             self._update_plot()
-            if hasattr(self.analysis_manager, "clear_caches"):
-                self.analysis_manager.clear_caches()
             self.status_bar.showMessage("Background subtraction applied", 3000)
 
     def _ramp_iv_analysis(self):
@@ -323,8 +323,9 @@ class MainWindow(QMainWindow):
         Construct the main toolbar with themed controls.
 
         Toolbar provides file operations, sweep navigation, channel selection,
-        current units, file information, cursor centering, and channel toggling.
-        All controls are styled and sized for a compact, modern appearance.
+        current units, file information, cursor centering, sweep rejection,
+        and channel toggling. All controls are styled and sized for a compact,
+        modern appearance.
         """
         toolbar = QToolBar("Main")
         toolbar.setMovable(False)
@@ -387,17 +388,30 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Center Cursor Button - now uses coordinator
+        # Center Cursor Button
         self.center_cursor_btn = create_styled_button(
             "Center Nearest Cursor", "secondary"
         )
         self.center_cursor_btn.setToolTip(
             "Moves the nearest cursor to the center of the view"
         )
-        # MODIFIED: Use coordinator to handle the result
         self.center_cursor_btn.clicked.connect(self._center_nearest_cursor)
         self.center_cursor_btn.setEnabled(True)
         toolbar.addWidget(self.center_cursor_btn)
+
+        toolbar.addSeparator()
+
+        # NEW: Reject Sweep Checkbox
+        self.reject_sweep_cb = QCheckBox("Reject Sweep")
+        self.reject_sweep_cb.setToolTip(
+            "Exclude this sweep from analysis (Generate Analysis Plot and Export Analysis Data)"
+        )
+        self.reject_sweep_cb.setEnabled(False)  # Disabled until file loaded
+        self.reject_sweep_cb.stateChanged.connect(self._on_reject_sweep_toggled)
+        # Apply checkbox styling from themes
+        from data_analysis_gui.config.themes import style_checkbox
+        style_checkbox(self.reject_sweep_cb)
+        toolbar.addWidget(self.reject_sweep_cb)
 
         toolbar.addSeparator()
 
@@ -575,8 +589,11 @@ class MainWindow(QMainWindow):
         Respond to successful file load and update UI components.
 
         Updates file labels, sweep count, revalidates ranges,
-        and populates the sweep selection combo box.
+        populates the sweep selection combo box, and clears rejected sweeps.
         """
+        # Clear rejected sweeps for new file
+        self.rejected_sweeps.clear()
+        
         # Update file labels with proper theme styling
         self.file_label.setText(f"File: {file_info.name}")
         style_label(self.file_label, "normal")  # Switch from muted to normal
@@ -592,11 +609,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, "last_channel_view"):
             self.channel_combo.setCurrentText(self.last_channel_view)
 
-        # Enable navigation controls (these still depend on having a file loaded)
+        # Enable navigation controls and reject checkbox
         self.prev_btn.setEnabled(True)
         self.next_btn.setEnabled(True)
         self.sweep_combo.setEnabled(True)
         self.channel_combo.setEnabled(True)
+        self.reject_sweep_cb.setEnabled(True)  # Enable reject checkbox
 
         # Set max time bound for X-axis zoom limiting
         if file_info.max_sweep_time:
@@ -613,10 +631,49 @@ class MainWindow(QMainWindow):
         if file_info.sweep_names:
             self.sweep_combo.setCurrentIndex(0)
 
+    def _on_reject_sweep_toggled(self, state):
+        """
+        Handle the reject sweep checkbox toggle.
+        
+        Updates the rejected_sweeps set based on the current sweep selection.
+        
+        Args:
+            state: Qt check state (Qt.CheckState.Checked or Qt.CheckState.Unchecked)
+        """
+        sweep = self.sweep_combo.currentText()
+        if not sweep:
+            return
+        
+        try:
+            sweep_idx = int(sweep)
+        except ValueError:
+            logger.warning(f"Could not parse sweep index: {sweep}")
+            return
+        
+        if state == Qt.CheckState.Checked.value:
+            self.rejected_sweeps.add(sweep_idx)
+            logger.debug(f"Rejected sweep {sweep_idx}")
+        else:
+            self.rejected_sweeps.discard(sweep_idx)
+            logger.debug(f"Un-rejected sweep {sweep_idx}")
+
     def _on_sweep_changed(self):
         """
         Update the plot when the sweep selection changes.
+        Also updates the reject sweep checkbox state.
         """
+        # Update reject checkbox to match current sweep's rejection state
+        sweep = self.sweep_combo.currentText()
+        if sweep:
+            try:
+                sweep_idx = int(sweep)
+                # Block signals to prevent triggering toggle handler
+                self.reject_sweep_cb.blockSignals(True)
+                self.reject_sweep_cb.setChecked(sweep_idx in self.rejected_sweeps)
+                self.reject_sweep_cb.blockSignals(False)
+            except ValueError:
+                pass
+        
         self._update_plot()
 
     def _on_channel_changed(self):
@@ -687,81 +744,83 @@ class MainWindow(QMainWindow):
             logger.debug(f"Could not load sweep {sweep}: {result.error_message}")
 
     def _generate_analysis(self):
-            """
-            Generate and display an analysis plot using the controller.
+        """
+        Generate and display an analysis plot using the controller.
 
-            Validates data availability, retrieves analysis parameters, performs analysis,
-            and displays results in a dedicated dialog. Handles errors and empty results gracefully.
-            """
-            if not self.controller.has_data():
-                QMessageBox.warning(self, "No Data", "Please load a data file first.")
-                return
+        Validates data availability, retrieves analysis parameters, performs analysis
+        excluding rejected sweeps, and displays results in a dedicated dialog.
+        Handles errors and empty results gracefully.
+        """
+        if not self.controller.has_data():
+            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            return
 
-            params = self.control_panel.get_parameters()
+        params = self.control_panel.get_parameters()
 
-            # Get current units from loaded file metadata
-            dataset = self.controller.current_dataset
-            channel_config = dataset.metadata.get("channel_config")
-            if not channel_config:
-                logger.warning("No channel configuration found - using default units")
-                current_units = "pA"
-            else:
-                current_units = channel_config.get("current_units", "pA")
+        # Get current units from loaded file metadata
+        dataset = self.controller.current_dataset
+        channel_config = dataset.metadata.get("channel_config")
+        if not channel_config:
+            logger.warning("No channel configuration found - using default units")
+            current_units = "pA"
+        else:
+            current_units = channel_config.get("current_units", "pA")
 
-            # Add current units from metadata to parameters
-            params = params.with_updates(
-                channel_config={
-                    **params.channel_config,
-                    "current_units": current_units,
-                }
-            )
-
-            result = self.controller.perform_analysis(params)
-
-            if not result.success:
-                QMessageBox.critical(
-                    self, "Analysis Failed", f"Analysis failed:\n{result.error_message}"
-                )
-                return
-
-            analysis_result = result.data
-
-            if not analysis_result or not analysis_result.x_data.size:
-                QMessageBox.warning(
-                    self, "No Results", "No data available for selected parameters."
-                )
-                return
-
-            plot_data = {
-                "x_data": analysis_result.x_data,
-                "y_data": analysis_result.y_data,
-                "sweep_indices": analysis_result.sweep_indices,
-                "use_dual_range": analysis_result.use_dual_range,
+        # Add current units from metadata to parameters
+        params = params.with_updates(
+            channel_config={
+                **params.channel_config,
+                "current_units": current_units,
             }
+        )
 
-            if analysis_result.use_dual_range and hasattr(analysis_result, "y_data2"):
-                plot_data["y_data2"] = analysis_result.y_data2
-                plot_data["y_label_r1"] = getattr(
-                    analysis_result, "y_label_r1", analysis_result.y_label
-                )
-                plot_data["y_label_r2"] = getattr(
-                    analysis_result, "y_label_r2", analysis_result.y_label
-                )
+        # Pass rejected sweeps to controller
+        result = self.controller.perform_analysis(params, rejected_sweeps=self.rejected_sweeps)
 
-            if self.analysis_dialog:
-                self.analysis_dialog.close()
-
-            # Pass AnalysisManager and dataset explicitly instead of controller
-            self.analysis_dialog = AnalysisPlotDialog(
-                parent=self,
-                plot_data=plot_data,
-                params=params,
-                file_path=self.current_file_path,
-                analysis_manager=self.analysis_manager,
-                dataset=self.controller.current_dataset,
+        if not result.success:
+            QMessageBox.critical(
+                self, "Analysis Failed", f"Analysis failed:\n{result.error_message}"
             )
-            self.analysis_dialog.show()
-            self.analysis_completed.emit()
+            return
+
+        analysis_result = result.data
+
+        if not analysis_result or not analysis_result.x_data.size:
+            QMessageBox.warning(
+                self, "No Results", "No data available for selected parameters."
+            )
+            return
+
+        plot_data = {
+            "x_data": analysis_result.x_data,
+            "y_data": analysis_result.y_data,
+            "sweep_indices": analysis_result.sweep_indices,
+            "use_dual_range": analysis_result.use_dual_range,
+        }
+
+        if analysis_result.use_dual_range and hasattr(analysis_result, "y_data2"):
+            plot_data["y_data2"] = analysis_result.y_data2
+            plot_data["y_label_r1"] = getattr(
+                analysis_result, "y_label_r1", analysis_result.y_label
+            )
+            plot_data["y_label_r2"] = getattr(
+                analysis_result, "y_label_r2", analysis_result.y_label
+            )
+
+        if self.analysis_dialog:
+            self.analysis_dialog.close()
+
+        # Pass AnalysisManager and dataset explicitly instead of controller
+        self.analysis_dialog = AnalysisPlotDialog(
+            parent=self,
+            plot_data=plot_data,
+            params=params,
+            file_path=self.current_file_path,
+            analysis_manager=self.analysis_manager,
+            dataset=self.controller.current_dataset,
+        )
+        self.analysis_dialog.show()
+        self.analysis_completed.emit()
 
     def _sweep_extraction(self):
         """Open the sweep extraction dialog."""
@@ -794,9 +853,10 @@ class MainWindow(QMainWindow):
 
     def _export_data(self):
         """
-        Export analysis data using the controller.
+        Export analysis data using the controller, excluding rejected sweeps.
 
-        Presents a file dialog for export location, performs export, and displays success or error messages.
+        Presents a file dialog for export location, performs export, and displays
+        success or error messages.
         """
         if not self.controller.has_data():
             QMessageBox.warning(self, "No Data", "Please load a data file first.")
@@ -819,8 +879,10 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        # Export using controller
-        result = self.controller.export_analysis_data(params, file_path)
+        # Export using controller, passing rejected sweeps
+        result = self.controller.export_analysis_data(
+            params, file_path, rejected_sweeps=self.rejected_sweeps
+        )
 
         if result.success:
             QMessageBox.information(

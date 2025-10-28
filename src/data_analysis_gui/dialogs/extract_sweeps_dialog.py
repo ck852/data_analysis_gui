@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QRadioButton, QCheckBox, QFormLayout, QWidget,
     QMessageBox, QApplication
 )
-from PySide6.QtCore import Qt
 
 import numpy as np
 
@@ -26,8 +25,8 @@ from data_analysis_gui.config.themes import (
 )
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.data_extractor import DataExtractor
-from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
-from data_analysis_gui.widgets.shared_widgets import SweepSelectionWidget
+from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
+from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.config.logging import get_logger
 
@@ -85,7 +84,7 @@ class SweepExtractorDialog(QDialog):
         
         screen = self.screen() or QApplication.primaryScreen()
         avail = screen.availableGeometry()
-        self.resize(int(500), int(avail.height() * 0.9))
+        self.resize(int(420), int(avail.height() * 0.9))
 
         
         self._init_ui()
@@ -106,11 +105,17 @@ class SweepExtractorDialog(QDialog):
         # Sweep selection section
         self._create_sweep_selection_section(layout)
         
+        # Horizontal layout for channel and time range sections
+        horizontal_section = QHBoxLayout()
+        horizontal_section.setSpacing(15)
+        
         # Channel selection section
-        self._create_channel_selection_section(layout)
+        self._create_channel_selection_section(horizontal_section)
         
         # Time range section
-        self._create_time_range_section(layout)
+        self._create_time_range_section(horizontal_section)
+        
+        layout.addLayout(horizontal_section)
         
         # Action buttons
         self._create_action_buttons(layout)
@@ -204,23 +209,21 @@ class SweepExtractorDialog(QDialog):
         # Use default_end if provided, otherwise use max_time
         end_value = self.default_end if self.default_end is not None else max_time
         
-        # Start time spinbox - use default_start
-        self.start_spinbox = SelectAllSpinBox()
+        # Start time input - use default_start
+        self.start_spinbox = NumericLineEdit()
+        self.start_spinbox.setRange(0.0, max_time)
         self.start_spinbox.setDecimals(1)
-        self.start_spinbox.setSuffix(" ms")
-        self.start_spinbox.setMinimum(0.0)
-        self.start_spinbox.setMaximum(max_time)
         self.start_spinbox.setValue(self.default_start)
-        self.start_spinbox.setMinimumWidth(120)
+        self.start_spinbox.setMinimumWidth(80)
+        self.start_spinbox.setMaximumWidth(100)
         
         # End time spinbox - use default_end or max_time
-        self.end_spinbox = SelectAllSpinBox()
+        self.end_spinbox = NumericLineEdit()
+        self.end_spinbox.setRange(0.0, max_time)
         self.end_spinbox.setDecimals(1)
-        self.end_spinbox.setSuffix(" ms")
-        self.end_spinbox.setMinimum(0.0)
-        self.end_spinbox.setMaximum(max_time)
         self.end_spinbox.setValue(end_value)
-        self.end_spinbox.setMinimumWidth(120)
+        self.end_spinbox.setMinimumWidth(80)
+        self.end_spinbox.setMaximumWidth(100)
         
         range_layout.addRow("Start (ms):", self.start_spinbox)
         range_layout.addRow("End (ms):", self.end_spinbox)
@@ -270,8 +273,16 @@ class SweepExtractorDialog(QDialog):
         Allows users to paste data directly into Excel, Prism, or other applications
         without needing to save a CSV file first.
         """
-        # Validate selection (same as export)
-        selected_sweeps = self.sweep_selection.get_selected_sweeps()
+        # Validate selection - handle new tuple return
+        selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
+        
+        # Show warning if invalid sweeps were requested
+        if invalid_sweeps:
+            QMessageBox.warning(
+                self, "Invalid Sweeps",
+                f"Sweep(s) {', '.join(invalid_sweeps)} not found in file.\n"
+                f"Proceeding with valid sweeps only."
+            )
         
         if not selected_sweeps:
             QMessageBox.warning(
@@ -384,8 +395,16 @@ class SweepExtractorDialog(QDialog):
             
     def _export_sweeps(self):
         """Export selected sweeps to CSV."""
-        # Validate selection
-        selected_sweeps = self.sweep_selection.get_selected_sweeps()
+        # Validate selection - handle new tuple return
+        selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
+        
+        # Show warning if invalid sweeps were requested
+        if invalid_sweeps:
+            QMessageBox.warning(
+                self, "Invalid Sweeps",
+                f"Sweep(s) {', '.join(invalid_sweeps)} not found in file.\n"
+                f"Proceeding with valid sweeps only."
+            )
         
         if not selected_sweeps:
             QMessageBox.warning(

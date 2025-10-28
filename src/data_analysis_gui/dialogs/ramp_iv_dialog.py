@@ -30,7 +30,7 @@ from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.services.ramp_iv_service import RampIVService, RampIVResult
 from data_analysis_gui.services.data_manager import DataManager
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
-from data_analysis_gui.widgets.shared_widgets import SweepSelectionWidget
+from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 
 from data_analysis_gui.config.logging import get_logger
 
@@ -376,13 +376,22 @@ class RampIVDialog(QDialog):
         
     def _generate_analysis_plot(self):
         """Generate the ramp IV analysis plot using the service."""
-        selected_sweeps = self.sweep_selection.get_selected_sweeps()
+        # Handle new tuple return from get_selected_sweeps
+        selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
         
-        selected_sweeps = self.sweep_selection.get_selected_sweeps()
+        # Show warning if invalid sweeps were requested
+        if invalid_sweeps:
+            QMessageBox.warning(
+                self, "Invalid Sweeps",
+                f"Sweep(s) {', '.join(invalid_sweeps)} not found in file.\n"
+                f"Proceeding with valid sweeps only."
+            )
         
         if not selected_sweeps:
-            QMessageBox.warning(self, "No Sweeps Selected", 
-                            "Please select at least one sweep from the table or enter a valid range.")
+            QMessageBox.warning(
+                self, "No Sweeps Selected", 
+                "Please select at least one sweep from the table or enter a valid range."
+            )
             return
             
         # Update status
@@ -402,7 +411,7 @@ class RampIVDialog(QDialog):
             
             if not self.current_result.success:
                 QMessageBox.critical(self, "Analysis Failed", 
-                                   f"Analysis failed: {self.current_result.error_message}")
+                                f"Analysis failed: {self.current_result.error_message}")
                 self.status_label.setText("Analysis failed")
                 return
                 
@@ -423,7 +432,7 @@ class RampIVDialog(QDialog):
         except Exception as e:
             logger.error(f"Error during ramp IV analysis: {e}")
             QMessageBox.critical(self, "Analysis Error", 
-                               f"An error occurred during analysis:\n{str(e)}")
+                            f"An error occurred during analysis:\n{str(e)}")
             self.status_label.setText("Analysis error")
         finally:
             self.generate_plot_btn.setEnabled(True)

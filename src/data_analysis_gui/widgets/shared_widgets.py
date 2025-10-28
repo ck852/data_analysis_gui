@@ -4,7 +4,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides shared widget components for batch analysis windows.
+This module provides shared widget components for batch analysis and current density analysis windows.
 It includes reusable components for displaying batch analysis results with
 consistent behavior and appearance, such as a dynamic plot widget and a
 file list widget that maintains selection state across windows.
@@ -14,7 +14,7 @@ from typing import Dict, List, Set, Optional, Tuple, Callable
 import numpy as np
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView, QLabel,
-                                 QRadioButton, QLineEdit)
+                                )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap, QPainter, QBrush
 
@@ -858,145 +858,3 @@ class BatchFileListWidget(QTableWidget):
             Set[str]: The set of selected files.
         """
         return self.selection_state.get_selected_files()
-
-class SweepSelectionWidget(QWidget):
-    """
-    Widget for selecting which sweeps to analyze.
-    """
-    
-    def __init__(self, sweep_names: List[str], parent=None):
-        super().__init__(parent)
-        
-        self.sweep_names = sweep_names
-        self._init_ui()
-        
-    def _init_ui(self):
-        """Initialize the UI with selection mode and table."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        
-        # Selection mode radio buttons
-        mode_layout = QHBoxLayout()
-        self.table_mode_radio = QRadioButton("Select from table")
-        self.range_mode_radio = QRadioButton("Enter range:")
-        self.table_mode_radio.setChecked(True)  # Default to table mode
-        
-        self.range_input = QLineEdit()
-        self.range_input.setPlaceholderText("e.g., 3-15")
-        self.range_input.setMaximumWidth(100)
-        self.range_input.setEnabled(False)  # Disabled by default
-        
-        mode_layout.addWidget(self.table_mode_radio)
-        mode_layout.addWidget(self.range_mode_radio)
-        mode_layout.addWidget(self.range_input)
-        mode_layout.addStretch()
-        
-        layout.addLayout(mode_layout)
-        
-        # Table widget
-        self.table = QTableWidget()
-        self._init_table()
-        layout.addWidget(self.table)
-        
-        # Connect mode change signals
-        self.table_mode_radio.toggled.connect(self._on_mode_changed)
-        
-    def _init_table(self):
-        """Initialize the table with sweep selection."""
-        self.table.setRowCount(len(self.sweep_names))
-        self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Select", "Sweep"])
-        
-        # Configure headers
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        
-        # Hide vertical header
-        self.table.verticalHeader().setVisible(False)
-        
-        # Set alternating row colors
-        self.table.setAlternatingRowColors(True)
-        
-        # Populate rows
-        for i, sweep_name in enumerate(self.sweep_names):
-            # Checkbox
-            checkbox = QCheckBox()
-            checkbox.setChecked(True)
-            self.table.setCellWidget(i, 0, checkbox)
-            
-            # Sweep name
-            item = QTableWidgetItem(f"Sweep {sweep_name}")
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.table.setItem(i, 1, item)
-            
-        self.table.setMaximumHeight(600)
-        
-        # Connect signal to make entire row clickable
-        self.table.cellClicked.connect(self._on_cell_clicked)
-    
-    def _on_mode_changed(self, table_mode_checked: bool):
-        """Enable/disable table and range input based on mode."""
-        self.table.setEnabled(table_mode_checked)
-        self.range_input.setEnabled(not table_mode_checked)
-        
-    def _on_cell_clicked(self, row: int, column: int):
-        """Toggle checkbox when any cell in the row is clicked."""
-        checkbox = self.table.cellWidget(row, 0)
-        if checkbox:
-            checkbox.setChecked(not checkbox.isChecked())
-            
-    def select_all(self, checked: bool = True):
-        """Select or deselect all sweeps in table."""
-        for i in range(self.table.rowCount()):
-            checkbox = self.table.cellWidget(i, 0)
-            if checkbox:
-                checkbox.setChecked(checked)
-                
-    def get_selected_sweeps(self) -> List[str]:
-        """Get list of selected sweep names based on current mode."""
-        if self.table_mode_radio.isChecked():
-            # Table mode - return checked sweeps
-            selected = []
-            for i in range(self.table.rowCount()):
-                checkbox = self.table.cellWidget(i, 0)
-                if checkbox and checkbox.isChecked():
-                    selected.append(self.sweep_names[i])
-            return selected
-        else:
-            # Range mode - parse range input
-            return self._parse_range_input()
-    
-    def _parse_range_input(self) -> List[str]:
-        """Parse range input like '3-15' and return matching sweep names."""
-        range_text = self.range_input.text().strip()
-        if not range_text:
-            return []
-        
-        try:
-            if '-' not in range_text:
-                raise ValueError("Invalid format")
-            
-            start_str, end_str = range_text.split('-', 1)
-            start = int(start_str.strip())
-            end = int(end_str.strip())
-            
-            if start > end:
-                raise ValueError("Start must be <= end")
-            
-            # Find sweeps in range
-            selected = []
-            for sweep_name in self.sweep_names:
-                try:
-                    sweep_num = int(sweep_name)
-                    if start <= sweep_num <= end:
-                        selected.append(sweep_name)
-                except ValueError:
-                    # Skip non-numeric sweep names
-                    continue
-            
-            return selected
-            
-        except (ValueError, AttributeError):
-            return []

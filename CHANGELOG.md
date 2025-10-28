@@ -2,7 +2,14 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.9.2-b.4]
+## [0.9.2-b.5]
+### Added
+- "Reject Sweep" button
+
+### Changed
+- Dual analysis cursors remove when box unchecked
+
+## [0.9.2-b.4] 2025-10-22
 ### Added
 - "Copy Data" button for remaining dialogs except dose response
 - Axis-specific zoom buttons
@@ -20,6 +27,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 - IV works for peak or average
 - Remove "View Results" button from batch dialog
 - Home/Reset button in MainWindow plot autoscales to present sweep
+
+### Known Issues
+- Dual Analysis cursors don't remove after unchecking box
 
 ## [0.9.2-b.3] 2025-10-09
 ### Added

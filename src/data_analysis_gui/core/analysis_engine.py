@@ -20,7 +20,7 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.params import AnalysisParameters
@@ -105,19 +105,24 @@ class AnalysisEngine:
         logger.debug("AnalysisEngine initialized successfully")
 
     def analyze_dataset(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> List[SweepMetrics]:
         """
         Perform complete analysis of an electrophysiology dataset.
 
-        Orchestrates extraction of sweep data and computation of metrics for all valid sweeps.
+        Orchestrates extraction of sweep data and computation of metrics for all valid sweeps,
+        excluding any sweeps in the rejected_sweeps set.
 
         Args:
             dataset (ElectrophysiologyDataset): The dataset to analyze.
             params (AnalysisParameters): Analysis parameters defining ranges, measures, etc.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
 
         Returns:
-            List[SweepMetrics]: List of computed metrics for all valid sweeps.
+            List[SweepMetrics]: List of computed metrics for all valid, non-rejected sweeps.
 
         Raises:
             ValidationError: If inputs are invalid.
@@ -133,21 +138,33 @@ class AnalysisEngine:
         if dataset.is_empty():
             raise DataError("Dataset is empty, no sweeps to analyze")
 
+        # Default to empty set if None
+        if rejected_sweeps is None:
+            rejected_sweeps = set()
+
         # Log the analysis request
         dataset_info = {
             "sweep_count": dataset.sweep_count(),
             "identifier": f"{dataset.source_file if hasattr(dataset, 'source_file') else 'unknown'}",
+            "rejected_count": len(rejected_sweeps),
         }
         log_analysis_request(logger, params.to_export_dict(), dataset_info)
 
+        # Log rejected sweeps if any
+        if rejected_sweeps:
+            logger.info(f"Excluding {len(rejected_sweeps)} rejected sweeps: {sorted(rejected_sweeps)}")
+
         # Perform analysis directly (no caching)
         with log_performance(logger, f"analyze {dataset.sweep_count()} sweeps"):
-            metrics = self._compute_all_metrics(dataset, params)
+            metrics = self._compute_all_metrics(dataset, params, rejected_sweeps)
 
         return metrics
 
     def get_plot_data(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
         """
         Get analysis results formatted for plotting.
@@ -155,13 +172,18 @@ class AnalysisEngine:
         Args:
             dataset (ElectrophysiologyDataset): The dataset to analyze.
             params (AnalysisParameters): Analysis parameters.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
 
         Returns:
             Dict[str, Any]: Dictionary containing plot-ready data.
         """
         try:
+            # Default to empty set if None
+            if rejected_sweeps is None:
+                rejected_sweeps = set()
+
             # Get metrics through main analysis method
-            metrics = self.analyze_dataset(dataset, params)
+            metrics = self.analyze_dataset(dataset, params, rejected_sweeps)
 
             # Format for plotting
             return self.plot_formatter.format_for_plot(metrics, params)
@@ -172,7 +194,10 @@ class AnalysisEngine:
             return self.plot_formatter.empty_plot_data()
 
     def get_export_table(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
         """
         Get analysis results formatted for export.
@@ -180,12 +205,17 @@ class AnalysisEngine:
         Args:
             dataset (ElectrophysiologyDataset): The dataset to analyze.
             params (AnalysisParameters): Analysis parameters.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
 
         Returns:
             Dict[str, Any]: Dictionary with 'headers', 'data', and 'format_spec' for export.
         """
-        # Get plot data first
-        plot_data = self.get_plot_data(dataset, params)
+        # Default to empty set if None
+        if rejected_sweeps is None:
+            rejected_sweeps = set()
+
+        # Get plot data first (with rejected sweeps filtering)
+        plot_data = self.get_plot_data(dataset, params, rejected_sweeps)
 
         # Format for export
         return self.plot_formatter.format_for_export(plot_data, params)
@@ -253,33 +283,28 @@ class AnalysisEngine:
             # Format peak analysis data
             return self.plot_formatter.format_peak_analysis(metrics, params, peak_types)
 
-    def clear_caches(self) -> None:
-        """
-        No-op method maintained for compatibility.
-
-        Since caching has been removed, this method does nothing.
-        Kept to avoid breaking existing code that calls it.
-        """
-        logger.debug("clear_caches called (no-op - caching removed)")
-
     # =========================================================================
     # Private Helper Methods
     # =========================================================================
 
     def _compute_all_metrics(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> List[SweepMetrics]:
         """
-        Compute metrics for all sweeps in the dataset.
+        Compute metrics for all sweeps in the dataset, excluding rejected sweeps.
 
         Orchestrates extraction and computation for each sweep, delegating work to injected components.
 
         Args:
             dataset (ElectrophysiologyDataset): Dataset to analyze.
             params (AnalysisParameters): Analysis parameters.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from computation.
 
         Returns:
-            List[SweepMetrics]: List of computed metrics for all valid sweeps.
+            List[SweepMetrics]: List of computed metrics for all valid, non-rejected sweeps.
 
         Raises:
             ProcessingError: If no valid metrics could be computed.
@@ -287,6 +312,11 @@ class AnalysisEngine:
         """
         metrics = []
         failed_sweeps = []
+        skipped_sweeps = []
+
+        # Default to empty set if None
+        if rejected_sweeps is None:
+            rejected_sweeps = set()
 
         # Get sweep times from metadata (required for all files)
         sweep_times = dataset.metadata.get('sweep_times', {})
@@ -306,6 +336,19 @@ class AnalysisEngine:
         )
 
         for sweep_number, sweep_index in enumerate(sweep_list):
+            # Convert sweep_index to int for rejection check
+            try:
+                sweep_idx_int = int(sweep_index)
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert sweep index to int: {sweep_index}")
+                sweep_idx_int = None
+            
+            # Skip rejected sweeps
+            if sweep_idx_int is not None and sweep_idx_int in rejected_sweeps:
+                logger.debug(f"Skipping rejected sweep {sweep_index}")
+                skipped_sweeps.append(sweep_index)
+                continue
+
             try:
                 # Extract sweep data
                 sweep_data = self.data_extractor.extract_sweep_data(
@@ -342,6 +385,9 @@ class AnalysisEngine:
                 failed_sweeps.append(sweep_index)
 
         # Log summary
+        if skipped_sweeps:
+            logger.info(f"Skipped {len(skipped_sweeps)} rejected sweeps: {skipped_sweeps}")
+        
         if failed_sweeps:
             logger.warning(
                 f"Failed to process {len(failed_sweeps)} of {len(sweep_list)} sweeps. "
@@ -355,6 +401,7 @@ class AnalysisEngine:
                 details={
                     "total_sweeps": len(sweep_list),
                     "failed_sweeps": len(failed_sweeps),
+                    "rejected_sweeps": len(skipped_sweeps),
                 },
             )
 

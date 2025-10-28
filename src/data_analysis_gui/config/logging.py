@@ -293,38 +293,6 @@ def log_analysis_request(
         },
     )
 
-
-def log_cache_operation(
-    logger: logging.Logger,
-    operation: str,
-    key: str,
-    hit: bool = False,
-    size: Optional[int] = None,
-) -> None:
-    """
-    Log cache operations for monitoring cache usage and effectiveness.
-
-    Args:
-        logger (logging.Logger): Logger instance to use for logging.
-        operation (str): Type of cache operation (e.g., 'get', 'set', 'clear').
-        key (str): Cache key associated with the operation.
-        hit (bool, optional): True if the operation was a cache hit (for 'get' operations). Defaults to False.
-        size (Optional[int]): Size of the cached item, if applicable.
-
-    Returns:
-        None
-    """
-    logger.debug(
-        f"Cache {operation}",
-        extra={
-            "cache_key": key,
-            "cache_hit": hit,
-            "cache_size": size,
-            "timestamp": datetime.now().isoformat(),
-        },
-    )
-
-
 def log_error_with_context(
     logger: logging.Logger, error: Exception, operation: str, **context
 ) -> None:

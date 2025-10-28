@@ -23,7 +23,7 @@ License: MIT (see LICENSE file for details)
 """
 
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Set
 from dataclasses import dataclass
 
 # Core imports
@@ -279,10 +279,6 @@ class ApplicationController:
             self.current_dataset = dataset
             self.loaded_file_path = file_path
 
-            # Clear analysis caches
-            if hasattr(self.analysis_manager, "clear_caches"):
-                self.analysis_manager.clear_caches()
-
             # Prepare file info for GUI
             sweep_names = sorted(
                 dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0
@@ -340,15 +336,19 @@ class ApplicationController:
         """
         return self.current_dataset is not None and not self.current_dataset.is_empty()
 
-    def perform_analysis(self, params: AnalysisParameters) -> AnalysisOperationResult:
+    def perform_analysis(
+        self, params: AnalysisParameters, rejected_sweeps: Optional[Set[int]] = None
+    ) -> AnalysisOperationResult:
         """
         Perform analysis on the currently loaded dataset using the provided parameters.
 
         Args:
             params (AnalysisParameters): Analysis parameters for the operation.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
 
         Returns:
-            AnalysisOperationResult: Object containing the analysis result or error details. Always returns a result object (never None).
+            AnalysisOperationResult: Object containing the analysis result or error details.
+                Always returns a result object (never None).
         """
         if not self.has_data():
             logger.warning("No data loaded for analysis")
@@ -357,7 +357,13 @@ class ApplicationController:
             )
 
         try:
-            result = self.analysis_manager.analyze(self.current_dataset, params)
+            # Pass rejected_sweeps to analysis manager
+            if rejected_sweeps is None:
+                rejected_sweeps = set()
+            
+            result = self.analysis_manager.analyze(
+                self.current_dataset, params, rejected_sweeps=rejected_sweeps
+            )
             logger.debug("Analysis completed successfully")
             return AnalysisOperationResult(True, result)
 
@@ -376,7 +382,7 @@ class ApplicationController:
             )
 
     def export_analysis_data(
-        self, params: AnalysisParameters, file_path: str
+        self, params: AnalysisParameters, file_path: str, rejected_sweeps: Optional[Set[int]] = None
     ) -> ExportResult:
         """
         Export analyzed data for the currently loaded dataset to a CSV file.
@@ -384,16 +390,24 @@ class ApplicationController:
         Args:
             params (AnalysisParameters): Analysis parameters for export.
             file_path (str): Path to the output CSV file.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
 
         Returns:
-            ExportResult: Object containing export status, number of records exported, and error details if any.
+            ExportResult: Object containing export status, number of records exported,
+                and error details if any.
         """
         if not self.has_data():
             logger.warning("No data loaded for export")
             return ExportResult(success=False, error_message="No data loaded")
 
         try:
-            table = self.analysis_manager.get_export_table(self.current_dataset, params)
+            # Pass rejected_sweeps to analysis manager
+            if rejected_sweeps is None:
+                rejected_sweeps = set()
+            
+            table = self.analysis_manager.get_export_table(
+                self.current_dataset, params, rejected_sweeps=rejected_sweeps
+            )
             result = self.data_manager.export_to_csv(table, file_path)
 
             if result.success:

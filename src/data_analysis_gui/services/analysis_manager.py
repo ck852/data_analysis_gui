@@ -23,7 +23,7 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Set
 import numpy as np
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
@@ -62,7 +62,10 @@ class AnalysisManager:
         logger.info("AnalysisManager initialized")
 
     def analyze(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> AnalysisResult:
         """
         Perform analysis on an electrophysiology dataset.
@@ -70,6 +73,7 @@ class AnalysisManager:
         Args:
             dataset (ElectrophysiologyDataset): Dataset to analyze.
             params (AnalysisParameters): Parameters for analysis.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
 
         Returns:
             AnalysisResult: Object containing analysis and plot data.
@@ -80,10 +84,13 @@ class AnalysisManager:
         if not dataset or dataset.is_empty():
             raise DataError("Cannot analyze empty dataset")
 
-        logger.debug(f"Analyzing {dataset.sweep_count()} sweeps")
+        if rejected_sweeps is None:
+            rejected_sweeps = set()
 
-        # Get plot data from engine
-        plot_data = self.engine.get_plot_data(dataset, params)
+        logger.debug(f"Analyzing {dataset.sweep_count()} sweeps (excluding {len(rejected_sweeps)} rejected)")
+
+        # Get plot data from engine, passing rejected_sweeps for filtering
+        plot_data = self.engine.get_plot_data(dataset, params, rejected_sweeps=rejected_sweeps)
 
         if not plot_data or "x_data" not in plot_data:
             raise DataError("Analysis produced no results")
@@ -164,6 +171,7 @@ class AnalysisManager:
         dataset: ElectrophysiologyDataset,
         params: AnalysisParameters,
         filepath: str,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> ExportResult:
         """
         Analyze a dataset and export results to a CSV file.
@@ -172,6 +180,7 @@ class AnalysisManager:
             dataset (ElectrophysiologyDataset): Dataset to analyze.
             params (AnalysisParameters): Analysis parameters.
             filepath (str): Output file path.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
 
         Returns:
             ExportResult: Status and details of the export operation.
@@ -180,8 +189,11 @@ class AnalysisManager:
             return ExportResult(success=False, error_message="Dataset is empty")
 
         try:
-            # Get export table from engine
-            table_data = self.engine.get_export_table(dataset, params)
+            if rejected_sweeps is None:
+                rejected_sweeps = set()
+
+            # Get export table from engine, passing rejected_sweeps for filtering
+            table_data = self.engine.get_export_table(dataset, params, rejected_sweeps=rejected_sweeps)
 
             if not table_data or not table_data.get("data", []).size:
                 return ExportResult(success=False, error_message="No data to export")
@@ -233,7 +245,10 @@ class AnalysisManager:
         )
 
     def get_export_table(
-        self, dataset: ElectrophysiologyDataset, params: AnalysisParameters
+        self,
+        dataset: ElectrophysiologyDataset,
+        params: AnalysisParameters,
+        rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
         """
         Retrieve the raw export table for a dataset and parameters.
@@ -241,6 +256,7 @@ class AnalysisManager:
         Args:
             dataset (ElectrophysiologyDataset): Dataset to analyze.
             params (AnalysisParameters): Analysis parameters.
+            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
 
         Returns:
             Dict[str, Any]: Dictionary with 'headers', 'data', and 'format_spec'.
@@ -248,11 +264,8 @@ class AnalysisManager:
         if dataset.is_empty():
             return {"headers": [], "data": np.array([[]]), "format_spec": "%.6f"}
 
-        return self.engine.get_export_table(dataset, params)
+        if rejected_sweeps is None:
+            rejected_sweeps = set()
 
-    def clear_caches(self):
-        """
-        Clear any internal analysis engine caches.
-        """
-        self.engine.clear_caches()
-        logger.debug("Analysis caches cleared")
+        # Pass rejected_sweeps to engine for filtering
+        return self.engine.get_export_table(dataset, params, rejected_sweeps=rejected_sweeps)

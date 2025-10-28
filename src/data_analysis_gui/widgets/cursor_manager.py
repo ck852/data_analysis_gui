@@ -103,7 +103,7 @@ class CursorManager:
         Create a vertical cursor line at the specified position.
         
         The Line2D is created but NOT added to axes - caller must add it.
-        This allows the coordinator to control when lines are added.
+        This allows explicit control over when lines are added/removed.
         
         Args:
             line_id: Unique identifier for this cursor.
@@ -116,13 +116,17 @@ class CursorManager:
         Returns:
             Line2D object (not yet added to axes).
         """
-        line = self._ax.axvline(
-            position,
+        # Create Line2D manually without adding to axes
+        # Use axes transform to span full y-axis regardless of data limits
+        line = Line2D(
+            [position, position],  # xdata - same x for vertical line
+            [0, 1],  # ydata in axes coordinates (0=bottom, 1=top)
             color=color,
             linestyle=linestyle,
             linewidth=linewidth,
             alpha=alpha,
-            picker=5
+            picker=5,
+            transform=self._ax.get_xaxis_transform()  # x in data coords, y in axes coords
         )
         
         self._cursors[line_id] = line
@@ -142,17 +146,28 @@ class CursorManager:
         # Remove line
         if line_id in self._cursors:
             line = self._cursors[line_id]
-            if line.axes:
+            try:
+                # Try to remove the line from axes
+                # This may raise ValueError if line is not in axes
                 line.remove()
+                logger.debug(f"Removed cursor line '{line_id}' from axes")
+            except (ValueError, AttributeError) as e:
+                # Line may not be in axes or already removed - not an error
+                logger.debug(f"Line '{line_id}' not in axes or already removed: {e}")
+            
             del self._cursors[line_id]
-            logger.debug(f"Removed cursor '{line_id}'")
+            logger.debug(f"Removed cursor '{line_id}' from tracking")
         
         # Remove text label
         if line_id in self._cursor_texts:
             text = self._cursor_texts[line_id]
-            text.remove()
+            try:
+                text.remove()
+                logger.debug(f"Removed text label for '{line_id}'")
+            except (ValueError, AttributeError) as e:
+                logger.debug(f"Text for '{line_id}' not in axes or already removed: {e}")
+            
             del self._cursor_texts[line_id]
-            logger.debug(f"Removed text label for '{line_id}'")
     
     def update_cursor_position(self, line_id: str, position: float) -> None:
         """
