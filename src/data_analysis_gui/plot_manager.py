@@ -59,63 +59,72 @@ class PlotManager(QObject):
     # Signal for plot updates
     plot_updated = Signal()
 
+    # Clickable welcome message
+    welcome_clicked = Signal() 
+
 
     def __init__(self, figure_size: Tuple[int, int] = (8, 6), file_dialog_service=None):
-            """
-            Initialize the PlotManager with modern styling and interactive components.
+        """
+        Initialize the PlotManager with modern styling and interactive components.
 
-            Args:
-                figure_size: Tuple specifying the initial figure size (width, height).
-                file_dialog_service: Optional FileDialogService for persistent directory memory.
-            """
-            super().__init__()
+        Args:
+            figure_size: Tuple specifying the initial figure size (width, height).
+            file_dialog_service: Optional FileDialogService for persistent directory memory.
+        """
+        super().__init__()
 
-            # Apply modern plot style globally
-            apply_plot_style()
+        # Apply modern plot style globally
+        apply_plot_style()
 
-            # Get line styles for consistent appearance
-            self.line_styles = get_line_styles()
+        # Get line styles for consistent appearance
+        self.line_styles = get_line_styles()
 
-            # 1. Matplotlib components setup with styled figure
-            self.figure: Figure = Figure(figsize=figure_size, facecolor="#FAFAFA")
-            self.canvas: FigureCanvas = FigureCanvas(self.figure)
-            self.ax: Axes = self.figure.add_subplot(111)
+        # 1. Matplotlib components setup with styled figure
+        self.figure: Figure = Figure(figsize=figure_size, facecolor="#FAFAFA")
+        self.canvas: FigureCanvas = FigureCanvas(self.figure)
+        self.ax: Axes = self.figure.add_subplot(111)
 
-            # Use the streamlined toolbar with file_dialog_service
-            self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
-                self.canvas, None, file_dialog_service=file_dialog_service
-            )
+        # Use the streamlined toolbar with file_dialog_service
+        self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
+            self.canvas, None, file_dialog_service=file_dialog_service
+        )
 
-            # Create the plot widget
-            self.plot_widget: QWidget = QWidget()
-            plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
-            plot_layout.setContentsMargins(0, 0, 0, 0)
-            plot_layout.setSpacing(0)
-            plot_layout.addWidget(self.toolbar)
-            plot_layout.addWidget(self.canvas)
+        # Create the plot widget
+        self.plot_widget: QWidget = QWidget()
+        plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
+        plot_layout.setContentsMargins(0, 0, 0, 0)
+        plot_layout.setSpacing(0)
+        plot_layout.addWidget(self.toolbar)
+        plot_layout.addWidget(self.canvas)
 
-            # 2. Helper components for state and cursor management
-            self.view_manager = ViewStateManager()
-            self.cursor_manager = CursorManager(self.ax)
+        # 2. Helper components for state and cursor management
+        self.view_manager = ViewStateManager()
+        self.cursor_manager = CursorManager(self.ax)
 
-            # Axis zoom controller
-            self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
+        # Axis zoom controller
+        self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
-            # 3. Initialize range lines
-            self._initialize_range_lines()
+        # 3. Initialize range lines (but don't add to axes yet)
+        self._initialize_range_lines()
 
-            # 4. Connect interactive events
-            self._connect_events()
+        # 4. Connect interactive events
+        self._connect_events()
 
-            # 5. Apply initial styling to axes
-            self._style_axes()
+        # 5. Apply initial styling to axes
+        self._style_axes()
 
-            # Maximum time bound for X-axis zoom limiting
-            self._max_time_bound: Optional[float] = None
-            self._y_axis_hard_limits = (-40000, 40000)
+        # Maximum time bound for X-axis zoom limiting
+        self._max_time_bound: Optional[float] = None
+        self._y_axis_hard_limits = (-40000, 40000)
 
-            # Connect toolbar reset signal to autofit method
-            self.toolbar.reset_requested.connect(self.autofit_to_data)
+        # Connect toolbar reset signal to autofit method
+        self.toolbar.reset_requested.connect(self.autofit_to_data)
+
+        # Welcome message state
+        self._welcome_text = None
+        
+        # Show welcome message on startup
+        self.show_welcome_message()
 
     def _style_axes(self):
         """
@@ -451,6 +460,55 @@ class PlotManager(QObject):
 
         return nearest_line_id, center_x
 
+    def show_welcome_message(self) -> None:
+        """Display a clickable welcome message on the empty plot at startup."""
+        self.ax.clear()
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+        self.ax.spines['left'].set_visible(False)
+        self.ax.spines['bottom'].set_visible(False)
+        self.ax.set_xlim(0, 1)
+        self.ax.set_ylim(0, 1)
+        
+        self._welcome_text = self.ax.text(
+            0.5, 0.5,
+            'Open a data file to begin analysis',
+            horizontalalignment='center',
+            verticalalignment='center',
+            fontsize=16,
+            color='#4A90E2',
+            transform=self.ax.transAxes,
+            picker=True  # Make it pickable
+        )
+        
+        self.redraw()
+        logger.info("Displayed welcome message on empty plot")
+
+
+    def clear_welcome_state(self) -> None:
+        """
+        Clear the welcome message and restore normal plot appearance.
+        
+        Called when the first data file is loaded. Removes the welcome text
+        and restores axis decorations for normal plotting.
+        """
+        if self._welcome_text is not None:
+            self._welcome_text.remove()
+            self._welcome_text = None
+            logger.debug("Removed welcome message")
+        
+        # Restore normal axis appearance (will be properly styled when data loads)
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        
+        # Restore spines (they'll be styled by _style_axes via update_sweep_plot)
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+        self.ax.spines['left'].set_visible(True)
+        self.ax.spines['bottom'].set_visible(True)
+
     def autofit_to_data(self) -> None:
         """
         Autoscale axes to fit all data points in the currently displayed sweep.
@@ -512,12 +570,14 @@ class PlotManager(QObject):
     # --- Mouse Interaction Handlers ---
 
     def _on_pick(self, event) -> None:
-        """
-        Handle pick events to initiate dragging a range line.
-
-        Args:
-            event: Matplotlib pick event.
-        """
+        """Handle pick events for dragging range lines or clicking welcome text."""
+        # Check if welcome text was clicked
+        if self._welcome_text is not None and event.artist == self._welcome_text:
+            logger.debug("Welcome text clicked - opening file dialog")
+            self.welcome_clicked.emit()
+            return
+        
+        # Otherwise, handle cursor dragging
         line_id = self.cursor_manager.handle_pick(event.artist)
         if line_id:
             logger.debug(f"Picked cursor: {line_id}")

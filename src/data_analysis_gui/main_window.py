@@ -586,6 +586,8 @@ class MainWindow(QMainWindow):
         # Connect toolbar's plot_saved signal to auto-save settings
         self.plot_manager.toolbar.plot_saved.connect(self._auto_save_settings)
 
+        self.plot_manager.welcome_clicked.connect(self._open_file)
+
     def _on_file_loaded(self, file_info: FileInfo):
         """
         Respond to successful file load and update UI components.
@@ -593,6 +595,9 @@ class MainWindow(QMainWindow):
         Updates file labels, sweep count, revalidates ranges,
         populates the sweep selection combo box, and clears rejected sweeps.
         """
+        # Clear welcome message on first file load
+        self.plot_manager.clear_welcome_state()
+        
         # Clear rejected sweeps for new file
         self.rejected_sweeps.clear()
         
