@@ -241,6 +241,10 @@ class SweepExtractorDialog(QDialog):
         # Export button (primary action)
         self.export_btn = create_styled_button("Export to CSV...", "primary")
         self.export_btn.setMinimumHeight(40)
+        
+        # NEW: Batch Extract button
+        self.batch_extract_btn = create_styled_button("Batch Extract...", "accent")
+        self.batch_extract_btn.setMinimumHeight(40)
 
         self.copy_btn = create_styled_button("Copy Data", "secondary")
         self.copy_btn.setMinimumHeight(40)
@@ -249,6 +253,7 @@ class SweepExtractorDialog(QDialog):
         self.close_btn = create_styled_button("Close", "secondary")
         
         button_layout.addWidget(self.export_btn)
+        button_layout.addWidget(self.batch_extract_btn)
         button_layout.addWidget(self.copy_btn)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
@@ -263,6 +268,7 @@ class SweepExtractorDialog(QDialog):
         self.end_spinbox.valueChanged.connect(self._on_spinbox_changed)
         
         self.export_btn.clicked.connect(self._export_sweeps)
+        self.batch_extract_btn.clicked.connect(self._batch_extract_sweeps)
         self.copy_btn.clicked.connect(self._copy_sweeps_to_clipboard)
         self.close_btn.clicked.connect(self.close)
         
@@ -464,6 +470,79 @@ class SweepExtractorDialog(QDialog):
                 self, "Export Error",
                 f"Failed to export sweeps:\n{str(e)}"
             )
+    
+    def _batch_extract_sweeps(self):
+        """Open batch sweep extraction dialog."""
+        # Validate selection - handle new tuple return
+        selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
+        
+        # Show warning if invalid sweeps were requested
+        if invalid_sweeps:
+            QMessageBox.warning(
+                self, "Invalid Sweeps",
+                f"Sweep(s) {', '.join(invalid_sweeps)} not found in file.\n"
+                f"Please adjust your selection."
+            )
+            return
+        
+        if not selected_sweeps:
+            QMessageBox.warning(
+                self, "No Sweeps Selected",
+                "Please select at least one sweep to extract."
+            )
+            return
+        
+        # Get channel mode
+        channel_mode = self._get_selected_channel_mode()
+        
+        # Get time range
+        if self.full_trace_checkbox.isChecked():
+            time_range = (0.0, self.dataset.get_max_sweep_time())
+        else:
+            start_time = self.start_spinbox.value()
+            end_time = self.end_spinbox.value()
+            
+            # Validate time range
+            if start_time >= end_time:
+                QMessageBox.warning(
+                    self, "Invalid Time Range",
+                    "Start time must be less than end time."
+                )
+                return
+            
+            time_range = (start_time, end_time)
+        
+        # Show file selection dialog
+        file_types = (
+            "WCP files (*.wcp);;"
+            "ABF files (*.abf);;"
+            "Data files (*.wcp *.abf);;"
+            "All files (*.*)"
+        )
+        
+        file_paths = self.file_dialog_service.get_import_paths(
+            self,
+            "Select Files for Batch Extraction",
+            default_directory=None,
+            file_types=file_types,
+            dialog_type="batch_sweep_extract"
+        )
+        
+        if not file_paths:
+            return
+        
+        # Import the batch dialog
+        from data_analysis_gui.dialogs.batch_sweep_extractor_dialog import BatchSweepExtractorDialog
+        
+        # Open batch extraction dialog
+        dialog = BatchSweepExtractorDialog(
+            parent=self,
+            initial_files=file_paths,
+            sweep_indices=selected_sweeps,
+            channel_mode=channel_mode,
+            time_range=time_range
+        )
+        dialog.exec()
             
     def _perform_export(self, selected_sweeps: List[str], channel_mode: str,
                        start_time: float, end_time: float, file_path: str):
