@@ -30,6 +30,7 @@ data_analysis_gui/
 |   |-- analysis_plot_dialog.py
 |   |-- batch_dialog.py
 |   |-- batch_results_window.py
+|   |-- batch_sweep_extractor_dialog.py
 |   |-- bg_subtraction_dialog.py
 |   |-- conc_dataset_dialog.py
 |   |-- conc_resp_dialog.py

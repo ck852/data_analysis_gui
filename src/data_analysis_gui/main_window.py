@@ -224,13 +224,14 @@ class MainWindow(QMainWindow):
         # Analysis menu
         analysis_menu = menubar.addMenu("&Analysis")
 
+        # Batch Analysis
         self.batch_action = QAction("&Batch Analyze...", self)
         self.batch_action.setShortcut("Ctrl+B")
         self.batch_action.triggered.connect(self._batch_analyze)
         self.batch_action.setEnabled(True)
         analysis_menu.addAction(self.batch_action)
 
-        # NEW: Batch Analysis with Background Subtraction
+        # Batch Analysis with Background Subtraction
         self.batch_bg_action = QAction("Batch Analyze with BG Subtraction...", self)
         self.batch_bg_action.triggered.connect(self._batch_analyze_with_bg_subtraction)
         self.batch_bg_action.setEnabled(True)
@@ -263,7 +264,7 @@ class MainWindow(QMainWindow):
 
     def _background_subtraction(self):
         if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            self._show_no_data_warning()
             return
         
         sweep = self.sweep_combo.currentText()
@@ -284,7 +285,7 @@ class MainWindow(QMainWindow):
     def _ramp_iv_analysis(self):
         """Open the ramp IV analysis dialog."""
         if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            self._show_no_data_warning()
             return
         
         # Validate analysis range using ControlPanel's public method
@@ -317,6 +318,10 @@ class MainWindow(QMainWindow):
         # Use the special show method that gets voltage targets first
         # This will show voltage input dialog, then main dialog if user doesn't cancel
         dialog.show_with_voltage_input()
+
+    def _show_no_data_warning(self):
+        """Display a warning that no data file is loaded."""
+        QMessageBox.warning(self, "No Data", "Please load a data file first.")
 
     def _create_toolbar(self):
         """
@@ -515,11 +520,7 @@ class MainWindow(QMainWindow):
         
         # Check if file is loaded
         if not self.controller.has_data():
-            QMessageBox.warning(
-                self, 
-                "No Data", 
-                "Please load a data file first to define the background range."
-            )
+            self._show_no_data_warning()
             return
         
         # Validate analysis range using ControlPanel's public method
@@ -753,7 +754,7 @@ class MainWindow(QMainWindow):
         Handles errors and empty results gracefully.
         """
         if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            self._show_no_data_warning()
             return
 
         params = self.control_panel.get_parameters()
@@ -826,7 +827,7 @@ class MainWindow(QMainWindow):
     def _sweep_extraction(self):
         """Open the sweep extraction dialog."""
         if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            self._show_no_data_warning()
             return
         
         # Validate analysis range using ControlPanel's public method
@@ -860,7 +861,7 @@ class MainWindow(QMainWindow):
         success or error messages.
         """
         if not self.controller.has_data():
-            QMessageBox.warning(self, "No Data", "Please load a data file first.")
+            self._show_no_data_warning()
             return
 
         # Get parameters
@@ -902,6 +903,11 @@ class MainWindow(QMainWindow):
 
         Passes current analysis parameters and batch processor to the dialog for batch processing.
         """
+        # Check if file is loaded
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return
+        
         # Validate analysis range using ControlPanel's public method
         is_valid, error_msg = self.control_panel.validate_ranges()
         if not is_valid:
