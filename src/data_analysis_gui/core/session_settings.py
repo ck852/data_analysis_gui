@@ -37,6 +37,7 @@ def get_settings_dir() -> Path:
 def save_session_settings(settings: Dict[str, Any]) -> bool:
     """
     Saves session settings to disk, including version information.
+    Preserves other settings sections (like extract_sweeps) that are managed independently.
 
     Args:
         settings (Dict[str, Any]): Complete settings dictionary.
@@ -47,11 +48,22 @@ def save_session_settings(settings: Dict[str, Any]) -> bool:
     try:
         settings_file = get_settings_dir() / "session_settings.json"
 
-        # Add version for future compatibility
-        settings_with_version = {"version": SETTINGS_VERSION, "settings": settings}
-
+        # Load existing data to preserve other sections
+        existing_data = {}
+        if settings_file.exists():
+            with open(settings_file, "r") as f:
+                existing_data = json.load(f)
+        
+        # Ensure we have the version/settings structure
+        if "version" not in existing_data:
+            existing_data = {"version": SETTINGS_VERSION, "settings": {}}
+        
+        # Update only the main window settings, preserve everything else
+        existing_data["settings"] = settings
+        
+        # Write back to file
         with open(settings_file, "w") as f:
-            json.dump(settings_with_version, f, indent=2)
+            json.dump(existing_data, f, indent=2)
         return True
     except Exception as e:
         print(f"Failed to save session settings: {e}")
@@ -245,3 +257,64 @@ def load_last_session() -> dict:
         dict: Loaded session settings.
     """
     return load_session_settings()
+
+def save_extract_sweeps_settings(settings: dict) -> bool:
+    """
+    Saves extract sweeps dialog settings independently of main window settings.
+    
+    Args:
+        settings (dict): Extract sweeps dialog settings.
+        
+    Returns:
+        bool: True if saved successfully, False otherwise.
+    """
+    try:
+        settings_file = get_settings_dir() / "session_settings.json"
+        
+        # Load existing settings to preserve other sections
+        existing_data = {}
+        if settings_file.exists():
+            with open(settings_file, "r") as f:
+                existing_data = json.load(f)
+        
+        # Ensure we have the version/settings structure
+        if "version" not in existing_data:
+            existing_data = {"version": SETTINGS_VERSION, "settings": {}}
+        
+        # Update just the extract_sweeps section
+        existing_data["extract_sweeps"] = settings
+        
+        # Save back to disk
+        with open(settings_file, "w") as f:
+            json.dump(existing_data, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Failed to save extract sweeps settings: {e}")
+        return False
+
+
+def load_extract_sweeps_settings() -> Optional[dict]:
+    """
+    Loads extract sweeps dialog settings independently of main window settings.
+    
+    Returns:
+        Optional[dict]: Extract sweeps settings dictionary if valid, None otherwise.
+    """
+    try:
+        settings_file = get_settings_dir() / "session_settings.json"
+        if not settings_file.exists():
+            return None
+        
+        with open(settings_file, "r") as f:
+            data = json.load(f)
+        
+        # Handle both old and new format
+        if isinstance(data, dict):
+            # New format with version
+            if "extract_sweeps" in data:
+                return data["extract_sweeps"]
+        
+        return None
+    except Exception as e:
+        print(f"Failed to load extract sweeps settings: {e}")
+        return None

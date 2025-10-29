@@ -42,7 +42,7 @@ class BatchSweepExtractorDialog(QDialog):
     """
     
     def __init__(self, parent, initial_files: List[str], sweep_indices: List[str],
-                 channel_mode: str, time_range: Tuple[float, float]):
+                channel_mode: str, time_range: Tuple[float, float]):
         """
         Initialize the batch sweep extractor dialog.
         
@@ -72,6 +72,9 @@ class BatchSweepExtractorDialog(QDialog):
             self.file_dialog_service = parent.file_dialog_service
         else:
             self.file_dialog_service = FileDialogService()
+        
+        # Initialize batch directory from parent's import_data directory
+        self._initialize_batch_directory()
         
         # State
         self.extraction_result: Optional[Dict] = None
@@ -104,7 +107,26 @@ class BatchSweepExtractorDialog(QDialog):
         
         # Action buttons
         self._create_action_buttons(layout)
+
+    def _initialize_batch_directory(self):
+        """
+        Initialize batch_sweep_extract directory from parent's current import_data directory.
         
+        This ensures that the batch dialog always starts with the same directory
+        that was last used in MainWindow for opening data files. Each time the dialog
+        is opened, it syncs with the current MainWindow directory, but within the dialog
+        session, Add Files and Export CSV will remember their own locations.
+        """
+        dirs = self.file_dialog_service.get_last_directories()
+        
+        # Always sync batch_sweep_extract with current import_data when dialog opens
+        if 'import_data' in dirs and dirs['import_data']:
+            logger.debug(f"Initializing batch directory from import_data: {dirs['import_data']}")
+            dirs['batch_sweep_extract'] = dirs['import_data']
+            self.file_dialog_service.set_last_directories(dirs)
+        else:
+            logger.debug("No import_data directory found, batch dialog will use default") 
+
     def _create_file_list_section(self, layout):
         """Create the file list management section."""
         file_group = QGroupBox("Files to Process")

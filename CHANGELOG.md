@@ -5,9 +5,12 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## [0.9.2-b.5]
 ### Added
 - "Reject Sweep" button
+- Batch Sweep extraction
 
 ### Changed
 - Dual analysis cursors remove when box unchecked
+- MainWindow Toolbar streamlined
+- Extract Sweeps dialog saves settings, better UI
 
 ## [0.9.2-b.4] 2025-10-22
 ### Added

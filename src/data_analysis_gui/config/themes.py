@@ -591,8 +591,33 @@ def _get_base_stylesheet() -> str:
             color: {MODERN_COLORS['border']};
             max-width: 1px;
         }}
+        
+        /* Input field base styling - includes disabled state */
+        QLineEdit, QSpinBox, QDoubleSpinBox {{
+            border: 1px solid {MODERN_COLORS['border']};
+            border-radius: {SPACING['border_radius']};
+            padding: 4px 8px;
+            background-color: {MODERN_COLORS['background']};
+            font-size: {FONT_SIZES['normal']};
+            min-height: {WIDGET_SIZES['input_height']}px;
+            color: {MODERN_COLORS['text']};
+        }}
+        
+        QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
+            border-color: {MODERN_COLORS['primary']};
+        }}
+        
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+            border-color: {MODERN_COLORS['focus']};
+            outline: none;
+        }}
+        
+        QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+            background-color: {MODERN_COLORS['disabled']};
+            color: {MODERN_COLORS['text_muted']};
+            border-color: {MODERN_COLORS['border']};
+        }}
     """
-
 
 def _apply_palette(widget: QWidget) -> None:
     """

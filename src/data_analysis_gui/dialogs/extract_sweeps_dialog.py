@@ -28,6 +28,9 @@ from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
 from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
+
+from data_analysis_gui.core.session_settings import load_session_settings, save_session_settings
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -89,6 +92,9 @@ class SweepExtractorDialog(QDialog):
         
         self._init_ui()
         self._connect_signals()
+        
+        # Load saved channel mode preference AFTER UI is initialized
+        self._load_channel_mode()
         
         # Apply modern theme
         apply_modern_theme(self)
@@ -187,6 +193,7 @@ class SweepExtractorDialog(QDialog):
         
         layout.addWidget(channel_group)
         
+
     def _create_time_range_section(self, layout):
         """Create the time range configuration section."""
         time_group = QGroupBox("Analysis Time Range")
@@ -230,7 +237,10 @@ class SweepExtractorDialog(QDialog):
         
         time_layout.addWidget(range_widget)
         
-        # Spinboxes remain enabled - clicking them will uncheck the checkbox
+        # IMPORTANT: Set initial disabled state AFTER widgets are added to layout
+        # Since checkbox is checked by default, disable the spinboxes
+        self.start_spinbox.setEnabled(False)
+        self.end_spinbox.setEnabled(False)
         
         layout.addWidget(time_group)
         
@@ -262,16 +272,81 @@ class SweepExtractorDialog(QDialog):
         
     def _connect_signals(self):
         """Connect UI signals to handlers."""
-        # Checkbox doesn't disable spinboxes anymore
-        # Spinbox interaction unchecks the checkbox
+        # Connect checkbox to enable/disable spinboxes
+        self.full_trace_checkbox.toggled.connect(self._on_full_trace_toggled)
+        
+        # Spinbox interaction unchecks the checkbox (which will then enable them)
         self.start_spinbox.valueChanged.connect(self._on_spinbox_changed)
         self.end_spinbox.valueChanged.connect(self._on_spinbox_changed)
+        
+        # Save channel mode when radio buttons change
+        self.voltage_radio.toggled.connect(self._save_channel_mode)
+        self.current_radio.toggled.connect(self._save_channel_mode)
+        self.both_radio.toggled.connect(self._save_channel_mode)
         
         self.export_btn.clicked.connect(self._export_sweeps)
         self.batch_extract_btn.clicked.connect(self._batch_extract_sweeps)
         self.copy_btn.clicked.connect(self._copy_sweeps_to_clipboard)
         self.close_btn.clicked.connect(self.close)
+
+    def _load_channel_mode(self):
+        """
+        Load the saved channel mode preference from session settings.
         
+        Restores the last selected channel mode (voltage/current/both).
+        If no saved preference exists, voltage is selected by default.
+        """
+        from data_analysis_gui.core.session_settings import load_extract_sweeps_settings
+        
+        settings = load_extract_sweeps_settings()
+        if settings and 'channel_mode' in settings:
+            mode = settings['channel_mode']
+            logger.debug(f"Loading saved channel mode: {mode}")
+            
+            # Block signals temporarily to prevent triggering save while loading
+            self.voltage_radio.blockSignals(True)
+            self.current_radio.blockSignals(True)
+            self.both_radio.blockSignals(True)
+            
+            if mode == 'voltage':
+                self.voltage_radio.setChecked(True)
+            elif mode == 'current':
+                self.current_radio.setChecked(True)
+            elif mode == 'both':
+                self.both_radio.setChecked(True)
+            
+            # Re-enable signals
+            self.voltage_radio.blockSignals(False)
+            self.current_radio.blockSignals(False)
+            self.both_radio.blockSignals(False)
+
+
+    def _save_channel_mode(self):
+        """
+        Save the current channel mode selection to session settings.
+        
+        This is called automatically when any channel radio button changes,
+        or explicitly when action buttons are clicked.
+        """
+        from data_analysis_gui.core.session_settings import save_extract_sweeps_settings
+        
+        # Only filter out unchecked radio buttons when called from radio button signals
+        sender = self.sender()
+        if sender and isinstance(sender, QRadioButton) and not sender.isChecked():
+            return
+        
+        mode = self._get_selected_channel_mode()
+        
+        settings = {
+            'channel_mode': mode
+        }
+        
+        success = save_extract_sweeps_settings(settings)
+        if success:
+            logger.debug(f"Saved channel mode: {mode}")
+        else:
+            logger.warning(f"Failed to save channel mode preference: {mode}")
+
     def _copy_sweeps_to_clipboard(self):
         """
         Copy sweep data to clipboard as tab-separated values.
@@ -279,6 +354,7 @@ class SweepExtractorDialog(QDialog):
         Allows users to paste data directly into Excel, Prism, or other applications
         without needing to save a CSV file first.
         """
+        self._save_channel_mode()
         # Validate selection - handle new tuple return
         selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
         
@@ -380,10 +456,36 @@ class SweepExtractorDialog(QDialog):
                 f"Failed to copy data:\n{str(e)}"
             )
 
+    def _on_full_trace_toggled(self, checked: bool):
+        """
+        Handle the 'Use full trace' checkbox state change.
+        
+        Enables/disables the time range spinboxes based on checkbox state.
+        
+        Args:
+            checked: True if checkbox is checked, False otherwise
+        """
+        # Enable spinboxes when unchecked, disable when checked
+        enabled = not checked
+        self.start_spinbox.setEnabled(enabled)
+        self.end_spinbox.setEnabled(enabled)
+
     def _on_spinbox_changed(self):
-        """Handle spinbox value changes - uncheck 'use full trace' if checked."""
+        """
+        Handle spinbox value changes.
+        
+        If 'Use full trace' is checked, uncheck it and enable the spinboxes.
+        This allows users to start editing time ranges by simply clicking on the spinboxes.
+        """
         if self.full_trace_checkbox.isChecked():
+            # Block signals temporarily to prevent recursive calls
+            self.full_trace_checkbox.blockSignals(True)
             self.full_trace_checkbox.setChecked(False)
+            self.full_trace_checkbox.blockSignals(False)
+            
+            # Manually enable the spinboxes since we blocked the signal
+            self.start_spinbox.setEnabled(True)
+            self.end_spinbox.setEnabled(True)
         
     def _get_selected_channel_mode(self) -> str:
         """
@@ -401,6 +503,8 @@ class SweepExtractorDialog(QDialog):
             
     def _export_sweeps(self):
         """Export selected sweeps to CSV."""
+        self._save_channel_mode()
+
         # Validate selection - handle new tuple return
         selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
         
@@ -473,6 +577,7 @@ class SweepExtractorDialog(QDialog):
     
     def _batch_extract_sweeps(self):
         """Open batch sweep extraction dialog."""
+        self._save_channel_mode()
         # Validate selection - handle new tuple return
         selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
         
