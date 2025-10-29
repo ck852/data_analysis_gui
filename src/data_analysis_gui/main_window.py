@@ -366,10 +366,11 @@ class MainWindow(QMainWindow):
 
         self.channel_combo = QComboBox()
         self.channel_combo.addItems(["Voltage", "Current"])
-        self.channel_combo.setMaximumWidth(80)
+        #self.channel_combo.setMaximumWidth(100)
         self.channel_combo.setEnabled(True)
         self.channel_combo.currentTextChanged.connect(self._on_channel_changed)
         style_combo_box(self.channel_combo)
+        self.channel_combo.setMinimumWidth(100)
         toolbar.addWidget(self.channel_combo)
 
         toolbar.addSeparator()

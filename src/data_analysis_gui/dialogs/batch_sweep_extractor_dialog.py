@@ -197,7 +197,7 @@ class BatchSweepExtractorDialog(QDialog):
         button_layout = QHBoxLayout()
         
         # Perform extraction (primary action)
-        self.extract_btn = create_styled_button("Perform Extraction", "primary")
+        self.extract_btn = create_styled_button("Extract", "primary")
         self.extract_btn.setMinimumHeight(40)
         
         # Export and copy (disabled until extraction complete)
@@ -207,12 +207,17 @@ class BatchSweepExtractorDialog(QDialog):
         self.copy_btn = create_styled_button("Copy Data", "secondary")
         self.copy_btn.setEnabled(False)
         
+        # Copy file names button (disabled until extraction complete)
+        self.copy_filenames_btn = create_styled_button("Copy File Names", "secondary")
+        self.copy_filenames_btn.setEnabled(False)
+        
         # Close button
         self.close_btn = create_styled_button("Close", "secondary")
         
         button_layout.addWidget(self.extract_btn)
         button_layout.addWidget(self.export_btn)
         button_layout.addWidget(self.copy_btn)
+        button_layout.addWidget(self.copy_filenames_btn)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
         
@@ -222,7 +227,9 @@ class BatchSweepExtractorDialog(QDialog):
         self.extract_btn.clicked.connect(self._perform_extraction)
         self.export_btn.clicked.connect(self._export_to_csv)
         self.copy_btn.clicked.connect(self._copy_to_clipboard)
+        self.copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
         self.close_btn.clicked.connect(self.close)
+
         
     def _update_file_list(self):
         """Update the file list display."""
@@ -616,6 +623,7 @@ class BatchSweepExtractorDialog(QDialog):
         """Enable export and copy buttons after successful extraction."""
         self.export_btn.setEnabled(True)
         self.copy_btn.setEnabled(True)
+        self.copy_filenames_btn.setEnabled(True)
         
     def _export_to_csv(self):
         """Export extracted data to CSV."""
@@ -681,7 +689,50 @@ class BatchSweepExtractorDialog(QDialog):
             logger.error(f"Copy failed: {e}", exc_info=True)
             style_label(self.status_label, "error")
             self.status_label.setText(f"Copy failed: {str(e)}")
+
+    def _copy_file_names_to_clipboard(self):
+        """
+        Copy all file names to clipboard as a column (one per line).
+        
+        Copies all files in the extraction list in sorted order,
+        using cleaned file names (without extensions and bracketed content).
+        """
+        if not self.file_paths:
+            QMessageBox.warning(self, "No Files", "No files in the list to copy.")
+            return
+        
+        try:
+            # Sort files using same logic as display
+            sorted_files = self._sort_files(self.file_paths)
             
+            # Extract and clean file names
+            file_names = [self._clean_filename(file_path) for file_path in sorted_files]
+            
+            # Join with newlines to create a column
+            text = "\n".join(file_names)
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_to_clipboard(text)
+            
+            if success:
+                logger.info(f"Copied {len(file_names)} file names to clipboard")
+                style_label(self.status_label, "success")
+                self.status_label.setText(f"Copied {len(file_names)} file names to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Copy Failed", 
+                    "Failed to copy file names to clipboard."
+                )
+                style_label(self.status_label, "error")
+                self.status_label.setText("Failed to copy file names")
+        
+        except Exception as e:
+            logger.error(f"Error copying file names: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
+            style_label(self.status_label, "error")
+            self.status_label.setText(f"Copy failed: {str(e)}")         
+
     def _sort_files(self, file_paths: List[str]) -> List[str]:
         """
         Sort file paths using numeric ordering.

@@ -242,7 +242,7 @@ class DynamicBatchPlotWidget(QWidget):
         self.toolbar = MinimalNavigationToolbar(self.canvas, self)
 
         # Add to layout with proper spacing
-        self.layout.addWidget(self.toolbar)
+        self.layout.addWidget(self.toolbar, alignment=Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.canvas)
 
         self.plot_initialized = True
