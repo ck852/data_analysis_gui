@@ -54,6 +54,7 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
         #('Redo', 'Forward to next view', 'forward', 'forward'),
         (None, None, None, None),  # Separator
         ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
+        (None, None, None, None),  # Separator
         ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
         (None, None, None, None),  # Separator
         #('Save', 'Save the figure', 'filesave', 'save_figure'),
