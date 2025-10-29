@@ -49,14 +49,14 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
 
     # Remove unnecessary default tool items
     toolitems = (
-        ('Home', 'Reset original view', 'home', 'home'),
-        ('Back', 'Back to previous view', 'back', 'back'),
-        ('Forward', 'Forward to next view', 'forward', 'forward'),
+        ('Fit to Data', 'Reset original view', 'home', 'home'),
+        #('Undo', 'Back to previous view', 'back', 'back'),
+        #('Redo', 'Forward to next view', 'forward', 'forward'),
         (None, None, None, None),  # Separator
         ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
         ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
         (None, None, None, None),  # Separator
-        ('Save', 'Save the figure', 'filesave', 'save_figure'),
+        #('Save', 'Save the figure', 'filesave', 'save_figure'),
     )
 
     def __init__(self, canvas, parent=None, file_dialog_service=None):

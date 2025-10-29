@@ -114,9 +114,9 @@ class AxisZoomController:
         }
         
         # === X-axis buttons (bottom-left corner, horizontal) ===
-        x_button_width = 0.025
-        x_button_height = 0.035
-        x_left_position = 0.05  # Left side of plot area
+        x_button_width = 0.035
+        x_button_height = 0.055
+        x_left_position = 0.04  # Left side of plot area
         x_spacing = 0.002  # Gap between buttons
         x_y_position = 0.0  # Just above X-axis label area
         
@@ -147,10 +147,10 @@ class AxisZoomController:
         self._buttons.append(btn_xplus)
         
         # === Y-axis buttons (bottom-left corner, vertical) ===
-        y_button_width = 0.025
-        y_button_height = 0.035
-        y_x_position = 0.01  # Left edge, before X buttons
-        y_bottom_position = 0.05  # Aligned with plot area
+        y_button_width = 0.035
+        y_button_height = 0.055
+        y_x_position = 0.005  # Left edge, before X buttons
+        y_bottom_position = 0.2  # Aligned with plot area
         y_spacing = 0.002  # Gap between buttons
         
         # Y- button (zoom out)
