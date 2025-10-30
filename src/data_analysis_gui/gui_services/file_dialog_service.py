@@ -19,6 +19,10 @@ from typing import Optional, List, Dict
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QWidget
 
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class FileDialogService:
     """
@@ -38,6 +42,7 @@ class FileDialogService:
         """
         # Dictionary to track last used directories by dialog type
         self._last_directories: Dict[str, str] = {}
+        logger.debug("FileDialogService initialized")
 
     def set_last_directories(self, directories: Dict[str, str]) -> None:
         """
@@ -48,9 +53,18 @@ class FileDialogService:
         """
         # Only set directories that actually exist
         self._last_directories = {}
+        valid_count = 0
+        invalid_count = 0
+
         for dialog_type, directory in directories.items():
             if directory and os.path.isdir(directory):
                 self._last_directories[dialog_type] = directory
+                valid_count += 1
+            else:
+                invalid_count += 1
+                logger.debug(f"Skipped invalid directory for {dialog_type}: {directory}")
+
+        logger.info(f"Loaded directory memory: {valid_count} valid, {invalid_count} invalid")
 
     def get_last_directories(self) -> Dict[str, str]:
         """
@@ -59,6 +73,7 @@ class FileDialogService:
         Returns:
             Dict[str, str]: Mapping of dialog types to directory paths.
         """
+        logger.debug(f"Retrieved {len(self._last_directories)} stored directories")
         return self._last_directories.copy()
 
     def _get_default_directory(
@@ -78,13 +93,18 @@ class FileDialogService:
         if dialog_type in self._last_directories:
             stored_dir = self._last_directories[dialog_type]
             if os.path.isdir(stored_dir):
+                logger.debug(f"Using stored directory for {dialog_type}: {stored_dir}")
                 return stored_dir
+            else:
+                logger.warning(f"Stored directory no longer exists for {dialog_type}: {stored_dir}")
 
         # Then try the fallback
         if fallback and os.path.isdir(fallback):
+            logger.debug(f"Using fallback directory for {dialog_type}: {fallback}")
             return fallback
 
         # No valid directory found
+        logger.debug(f"No valid directory found for {dialog_type}")
         return None
 
     def _remember_directory(self, dialog_type: str, file_path: str) -> None:
@@ -99,6 +119,9 @@ class FileDialogService:
             directory = str(Path(file_path).parent)
             if os.path.isdir(directory):
                 self._last_directories[dialog_type] = directory
+                logger.debug(f"Remembered directory for {dialog_type}: {directory}")
+            else:
+                logger.warning(f"Cannot remember invalid directory for {dialog_type}: {directory}")
 
     def get_export_path(
         self,
@@ -121,9 +144,12 @@ class FileDialogService:
         Returns:
             Optional[str]: Selected file path or None if cancelled.
         """
+        logger.debug(f"Opening export dialog: type={dialog_type}, suggested={suggested_name}")
+
         # Determine the default directory
         if default_directory and os.path.isdir(default_directory):
             start_dir = default_directory
+            logger.debug(f"Using override directory: {start_dir}")
         else:
             start_dir = self._get_default_directory(dialog_type)
 
@@ -132,6 +158,7 @@ class FileDialogService:
             suggested_path = os.path.join(start_dir, suggested_name)
         else:
             suggested_path = suggested_name
+            logger.debug("No start directory available, using suggested name only")
 
         # Show the dialog
         file_path, _ = QFileDialog.getSaveFileName(
@@ -141,8 +168,10 @@ class FileDialogService:
         # Remember the directory if a file was selected
         if file_path:
             self._remember_directory(dialog_type, file_path)
+            logger.info(f"Export path selected: {Path(file_path).name}")
             return file_path
 
+        logger.debug(f"Export dialog cancelled for {dialog_type}")
         return None
 
     def get_import_path(
@@ -166,6 +195,8 @@ class FileDialogService:
         Returns:
             Optional[str]: Selected file path or None if cancelled.
         """
+        logger.debug(f"Opening import dialog: type={dialog_type}, title='{title}'")
+
         # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
@@ -176,8 +207,10 @@ class FileDialogService:
         # Remember the directory if a file was selected
         if file_path:
             self._remember_directory(dialog_type, file_path)
+            logger.info(f"Import file selected: {Path(file_path).name}")
             return file_path
 
+        logger.debug(f"Import dialog cancelled for {dialog_type}")
         return None
 
     def get_import_paths(
@@ -201,6 +234,8 @@ class FileDialogService:
         Returns:
             List[str]: List of selected file paths (empty if cancelled).
         """
+        logger.debug(f"Opening multi-file import dialog: type={dialog_type}, title='{title}'")
+
         # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
@@ -211,8 +246,10 @@ class FileDialogService:
         # Remember the directory if files were selected
         if file_paths:
             self._remember_directory(dialog_type, file_paths[0])
+            logger.info(f"Selected {len(file_paths)} files for import")
             return file_paths
 
+        logger.debug(f"Multi-file import dialog cancelled for {dialog_type}")
         return []
 
     def get_directory(
@@ -234,6 +271,8 @@ class FileDialogService:
         Returns:
             Optional[str]: Selected directory path or None if cancelled.
         """
+        logger.debug(f"Opening directory selection dialog: type={dialog_type}, title='{title}'")
+
         # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
@@ -247,6 +286,8 @@ class FileDialogService:
         # Remember the directory if one was selected
         if directory:
             self._last_directories[dialog_type] = directory
+            logger.info(f"Directory selected: {Path(directory).name}")
             return directory
 
+        logger.debug(f"Directory selection cancelled for {dialog_type}")
         return None

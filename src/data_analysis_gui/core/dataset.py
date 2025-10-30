@@ -1,25 +1,6 @@
 """
 Electrophysiology Dataset Abstraction for PatchBatch Data Analysis Tool
 
-This module defines a unified, format-agnostic data structure for managing electrophysiology recordings,
-supporting multiple sweeps and channels. It provides a consistent interface for accessing, manipulating,
-and annotating time-series data from various acquisition formats.
-
-Features:
-    - Stores sweeps as (time, data) pairs, with all time values in milliseconds.
-    - Supports arbitrary numbers of sweeps and channels per dataset.
-    - Metadata management for channel labels, units, sampling rate, and source file information.
-    - Methods for sweep/channel access, duration calculation, and sampling rate estimation.
-    - Format detection and loading utilities for supported file types.
-    - Channel mapping and metadata updating for flexible labeling and unit assignment.
-
-Typical Usage:
-    >>> dataset = ElectrophysiologyDataset()
-    >>> dataset.add_sweep("1", time_ms, data_matrix)
-    >>> time, data = dataset.get_sweep("1")
-    >>> time, voltage = dataset.get_channel_vector("1", 0)
-    >>> print(dataset.metadata)
-
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 """
@@ -28,6 +9,10 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, Iterable, Any, Union
 import numpy as np
 import scipy.io
+
+from data_analysis_gui.config.logging import get_logger, log_performance
+
+logger = get_logger(__name__)
 
 
 class ElectrophysiologyDataset:
@@ -57,15 +42,16 @@ class ElectrophysiologyDataset:
         """
         self._sweeps: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         self.metadata: Dict[str, Any] = {
-            "channel_labels": [],  # List of channel names
-            "channel_units": [],  # List of unit strings
-            "sampling_rate_hz": None,  # Sampling rate in Hz
-            "format": None,  # Original file format
-            "source_file": None,  # Path to source file
-            "channel_count": 0,  # Number of channels
-            "sweep_count": 0,  # Number of sweeps
-            "sweep_times": {},  # Optional dict of sweep times (if available)
+            "channel_labels": [],
+            "channel_units": [],
+            "sampling_rate_hz": None,
+            "format": None,
+            "source_file": None,
+            "channel_count": 0,
+            "sweep_count": 0,
+            "sweep_times": {},
         }
+        logger.debug("Initialized empty ElectrophysiologyDataset")
 
     def add_sweep(
         self, sweep_index: str, time_ms: np.ndarray, data_matrix: np.ndarray
@@ -91,10 +77,12 @@ class ElectrophysiologyDataset:
 
         # Check dimensions match
         if len(time_ms) != data_matrix.shape[0]:
-            raise ValueError(
+            error_msg = (
                 f"Time vector length ({len(time_ms)}) doesn't match "
                 f"data samples ({data_matrix.shape[0]})"
             )
+            logger.error(f"Failed to add sweep {sweep_index}: {error_msg}")
+            raise ValueError(error_msg)
 
         # Store the sweep
         self._sweeps[sweep_index] = (time_ms, data_matrix)
@@ -103,6 +91,11 @@ class ElectrophysiologyDataset:
         self.metadata["sweep_count"] = len(self._sweeps)
         if data_matrix.shape[1] > self.metadata["channel_count"]:
             self.metadata["channel_count"] = data_matrix.shape[1]
+
+        logger.debug(
+            f"Added sweep {sweep_index}: {len(time_ms)} samples, "
+            f"{data_matrix.shape[1]} channel(s)"
+        )
 
     def sweeps(self) -> Iterable[str]:
         """
@@ -128,7 +121,10 @@ class ElectrophysiologyDataset:
             Optional[Tuple[np.ndarray, np.ndarray]]: Tuple of (time_ms, data_matrix) if sweep exists,
             otherwise None. time_ms has shape (N,), data_matrix has shape (N, C).
         """
-        return self._sweeps.get(sweep_index)
+        result = self._sweeps.get(sweep_index)
+        if result is None:
+            logger.warning(f"Sweep {sweep_index} not found in dataset")
+        return result
 
     def get_channel_vector(
         self, sweep_index: str, channel_id: int
@@ -150,12 +146,17 @@ class ElectrophysiologyDataset:
         """
         sweep_data = self.get_sweep(sweep_index)
         if sweep_data is None:
+            logger.warning(f"Cannot get channel {channel_id}: sweep {sweep_index} not found")
             return None, None
 
         time_ms, data_matrix = sweep_data
 
         # Check channel bounds
         if channel_id < 0 or channel_id >= data_matrix.shape[1]:
+            logger.warning(
+                f"Channel {channel_id} out of range for sweep {sweep_index} "
+                f"(available channels: 0-{data_matrix.shape[1] - 1})"
+            )
             return None, None
 
         # Extract specific channel
@@ -264,6 +265,7 @@ class ElectrophysiologyDataset:
         """
         Remove all sweeps and reset metadata to default values.
         """
+        sweep_count = len(self._sweeps)
         self._sweeps.clear()
         self.metadata = {
             "channel_labels": [],
@@ -274,6 +276,7 @@ class ElectrophysiologyDataset:
             "channel_count": 0,
             "sweep_count": 0,
         }
+        logger.info(f"Cleared dataset: removed {sweep_count} sweep(s)")
 
     def __len__(self) -> int:
         """
@@ -324,7 +327,14 @@ class DatasetLoader:
         """
         file_path = Path(file_path)
         extension = file_path.suffix.lower()
-        return DatasetLoader.FORMAT_EXTENSIONS.get(extension)
+        format_type = DatasetLoader.FORMAT_EXTENSIONS.get(extension)
+        
+        if format_type:
+            logger.debug(f"Detected format '{format_type}' for file: {file_path.name}")
+        else:
+            logger.warning(f"Unknown file format for extension '{extension}': {file_path.name}")
+        
+        return format_type
 
     @staticmethod
     def load(filepath: str) -> "ElectrophysiologyDataset":
@@ -343,16 +353,32 @@ class DatasetLoader:
         Raises:
             ValueError: If file format is not supported
         """
+        logger.info(f"Loading dataset from: {Path(filepath).name}")
+        
         format_type = DatasetLoader.detect_format(filepath)
 
-        if format_type == "wcp":
-            from data_analysis_gui.core.loaders.wcp_loader import load_wcp
-            return load_wcp(filepath)
-        elif format_type == "abf":
-            from data_analysis_gui.core.loaders.abf_loader import load_abf
-            return load_abf(filepath)
-        else:
-            raise ValueError(f"Unsupported file format: {format_type}")
+        try:
+            with log_performance(logger, f"load {format_type} file"):
+                if format_type == "wcp":
+                    from data_analysis_gui.core.loaders.wcp_loader import load_wcp
+                    dataset = load_wcp(filepath)
+                elif format_type == "abf":
+                    from data_analysis_gui.core.loaders.abf_loader import load_abf
+                    dataset = load_abf(filepath)
+                else:
+                    error_msg = f"Unsupported file format: {format_type}"
+                    logger.error(f"Load failed: {error_msg}")
+                    raise ValueError(error_msg)
+            
+            logger.info(
+                f"Successfully loaded {dataset.sweep_count()} sweep(s), "
+                f"{dataset.channel_count()} channel(s) from {format_type.upper()} file"
+            )
+            return dataset
+            
+        except Exception as e:
+            logger.error(f"Failed to load {filepath}: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def load_wcp(file_path: Union[str, Path], channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
@@ -366,9 +392,12 @@ class DatasetLoader:
         Returns:
             ElectrophysiologyDataset: Loaded dataset with actual sweep times.
         """
+        logger.info(f"Loading WCP file: {Path(file_path).name}")
+        
         try:
             from data_analysis_gui.core.loaders.wcp_loader import load_wcp
         except ImportError as e:
+            logger.error("WCP loader module not found", exc_info=True)
             raise ImportError(
                 "WCP loader not found. Ensure wcp_loader.py is in core/loaders/"
             ) from e

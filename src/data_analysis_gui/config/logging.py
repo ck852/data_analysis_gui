@@ -34,25 +34,36 @@ def setup_logging(
     log_file: Optional[str] = None,
     console: bool = True,
     log_dir: Optional[str] = None,
+    console_level: Optional[int] = None,  # NEW: separate console level
+    file_level: Optional[int] = None,     # NEW: separate file level
 ) -> logging.Logger:
     """
     Configure and initialize application-wide logging.
 
-    This function sets up both file and console logging handlers with consistent formatting and log levels. Should be called once at application startup to ensure all modules use the same logging configuration.
+    This function sets up both file and console logging handlers with consistent 
+    formatting and log levels. Should be called once at application startup to 
+    ensure all modules use the same logging configuration.
 
     Args:
-        level (int): Logging level (e.g., logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL).
-        log_file (Optional[str]): Name of the log file to write logs to. If provided, logs are saved in the specified file.
+        level (int): Base logging level for all handlers if not overridden.
+        log_file (Optional[str]): Name of the log file to write logs to.
         console (bool): If True, logs are also output to the console (stdout).
-        log_dir (Optional[str]): Directory where log files are stored. Defaults to 'logs' in the current working directory if not specified.
+        log_dir (Optional[str]): Directory where log files are stored.
+        console_level (Optional[int]): Override level for console output. 
+                                       If None, uses 'level'.
+        file_level (Optional[int]): Override level for file output. 
+                                    If None, uses DEBUG (captures everything).
 
     Returns:
         logging.Logger: The configured root logger instance.
 
     Example:
-        >>> from config.logging import setup_logging
-        >>> logger = setup_logging(logging.DEBUG, log_file="analysis.log")
-        >>> logger.info("Application started")
+        >>> # Quiet console, verbose file
+        >>> logger = setup_logging(
+        ...     console_level=logging.WARNING,  # Only warnings+ in console
+        ...     file_level=logging.DEBUG,       # Everything in file
+        ...     log_file="analysis.log"
+        ... )
     """
     # Get root logger
     root_logger = logging.getLogger()
@@ -60,8 +71,14 @@ def setup_logging(
     # Clear any existing handlers
     root_logger.handlers.clear()
 
-    # Set base level
-    root_logger.setLevel(level)
+    # Set base level to the most verbose we'll use
+    # This allows handlers to filter down from here
+    if file_level is not None:
+        root_logger.setLevel(min(level, file_level))
+    elif console_level is not None:
+        root_logger.setLevel(min(level, console_level))
+    else:
+        root_logger.setLevel(level)
 
     # Create formatters
     detailed_formatter = logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT)
@@ -70,7 +87,8 @@ def setup_logging(
     # Add console handler if requested
     if console:
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(level)
+        # Use console_level if provided, otherwise use base level
+        console_handler.setLevel(console_level if console_level is not None else level)
         console_handler.setFormatter(console_formatter)
         root_logger.addHandler(console_handler)
 
@@ -82,14 +100,16 @@ def setup_logging(
         else:
             log_path = Path("logs")
 
-        log_path.mkdir(exist_ok=True)
+        # Create directory and any missing parent directories
+        log_path.mkdir(parents=True, exist_ok=True)
 
         # Add timestamp to log file name for uniqueness
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file_path = log_path / f"{timestamp}_{log_file}"
 
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)  # File gets everything
+        # Use file_level if provided, otherwise DEBUG (capture everything)
+        file_handler.setLevel(file_level if file_level is not None else logging.DEBUG)
         file_handler.setFormatter(detailed_formatter)
         root_logger.addHandler(file_handler)
 
@@ -100,7 +120,6 @@ def setup_logging(
     configure_module_levels(root_logger)
 
     return root_logger
-
 
 def configure_module_levels(root_logger: logging.Logger) -> None:
     """

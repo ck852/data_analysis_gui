@@ -13,6 +13,10 @@ current view (last known limits for change detection and preservation).
 
 from typing import Optional, Tuple
 
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class ViewStateManager:
     """
@@ -48,6 +52,7 @@ class ViewStateManager:
         """Initialize view state manager with no views set."""
         self._current_xlim: Optional[Tuple[float, float]] = None
         self._current_ylim: Optional[Tuple[float, float]] = None
+        logger.debug("ViewStateManager initialized")
     
     def update_current_view(self, xlim: Tuple[float, float], ylim: Tuple[float, float]) -> None:
         """
@@ -63,6 +68,7 @@ class ViewStateManager:
         """
         self._current_xlim = xlim
         self._current_ylim = ylim
+        logger.debug(f"Updated current view: X={xlim}, Y={ylim}")
     
     def get_current_view(self) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
         """
@@ -72,6 +78,7 @@ class ViewStateManager:
             Tuple of (xlim, ylim) if view is set, None otherwise.
         """
         if self._current_xlim is None or self._current_ylim is None:
+            logger.debug("No current view set")
             return None
         return (self._current_xlim, self._current_ylim)
     
@@ -99,9 +106,13 @@ class ViewStateManager:
             False if limits match stored current view exactly.
         """
         if self._current_xlim is None or self._current_ylim is None:
+            logger.debug("View change detected: No previous view stored")
             return True
         
-        return self._current_xlim != xlim or self._current_ylim != ylim
+        changed = self._current_xlim != xlim or self._current_ylim != ylim
+        if changed:
+            logger.debug(f"View change detected: X={xlim}, Y={ylim}")
+        return changed
     
     def reset(self) -> None:
         """
@@ -114,3 +125,4 @@ class ViewStateManager:
         """
         self._current_xlim = None
         self._current_ylim = None
+        logger.info("View state reset for new file")

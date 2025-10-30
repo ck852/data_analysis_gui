@@ -36,6 +36,9 @@ from data_analysis_gui.config.plot_style import (
     format_analysis_plot,
     get_line_styles,
 )
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -72,6 +75,7 @@ class AnalysisPlotData:
         Returns:
             AnalysisPlotData: Instance populated from the dictionary.
         """
+        logger.debug("Creating AnalysisPlotData from dictionary")
         return cls(
             x_data=np.array(data.get("x_data", [])),
             y_data=np.array(data.get("y_data", [])),
@@ -110,6 +114,8 @@ class AnalysisPlotter:
         Returns:
             Tuple[Figure, Axes]: The created matplotlib Figure and Axes objects.
         """
+        logger.debug(f"Creating analysis figure: {title}, size={figsize}")
+        
         # Apply global style
         apply_plot_style()
 
@@ -118,8 +124,13 @@ class AnalysisPlotter:
         ax = figure.add_subplot(111)
 
         # Extract voltage-annotated labels from plot_data for legend
-        y_label_r1 = plot_data.y_label_r1  # ADDED
-        y_label_r2 = plot_data.y_label_r2  # ADDED
+        y_label_r1 = plot_data.y_label_r1
+        y_label_r2 = plot_data.y_label_r2
+
+        logger.debug(
+            f"Configuring plot with {len(plot_data.x_data)} data points, "
+            f"dual_range={plot_data.use_dual_range}"
+        )
 
         # Configure plot with modern styling
         AnalysisPlotter._configure_plot(
@@ -128,8 +139,8 @@ class AnalysisPlotter:
             x_label, 
             y_label, 
             title,
-            y_label_r1=y_label_r1,  # ADDED
-            y_label_r2=y_label_r2   # ADDED
+            y_label_r1=y_label_r1,
+            y_label_r2=y_label_r2
         )
 
         # Apply analysis-specific formatting
@@ -137,6 +148,10 @@ class AnalysisPlotter:
 
         # Ensure proper layout
         figure.tight_layout(pad=1.5)
+
+        logger.info(
+            f"Created analysis figure: '{title}' with {len(plot_data.sweep_indices)} sweeps"
+        )
 
         return figure, ax
 
@@ -147,8 +162,8 @@ class AnalysisPlotter:
         x_label: str, 
         y_label: str, 
         title: str,
-        y_label_r1: Optional[str] = None,  # NEW
-        y_label_r2: Optional[str] = None   # NEW
+        y_label_r1: Optional[str] = None,
+        y_label_r2: Optional[str] = None
     ) -> None:
         """
         Configure the matplotlib Axes object with analysis plot data and modern styling.
@@ -171,7 +186,9 @@ class AnalysisPlotter:
 
         if len(x_data) > 0 and len(y_data) > 0:
             # Use voltage-annotated label if provided, otherwise fallback
-            range1_label = y_label_r1 or "Range 1"  # CHANGED
+            range1_label = y_label_r1 or "Range 1"
+            
+            logger.debug(f"Plotting Range 1 data: {len(x_data)} points, label='{range1_label}'")
             
             # Create plot with modern styling for Range 1
             primary_style = line_styles["primary"]
@@ -184,7 +201,7 @@ class AnalysisPlotter:
                 linewidth=primary_style["linewidth"],
                 color=primary_style["color"],
                 alpha=primary_style["alpha"],
-                label=range1_label,  # CHANGED
+                label=range1_label,
             )[0]
 
         # Plot Range 2 if available with contrasting style
@@ -192,7 +209,9 @@ class AnalysisPlotter:
             y_data2 = plot_data.y_data2
             if len(x_data) > 0 and len(y_data2) > 0:
                 # Use voltage-annotated label if provided, otherwise fallback
-                range2_label = y_label_r2 or "Range 2"  # CHANGED
+                range2_label = y_label_r2 or "Range 2"
+                
+                logger.debug(f"Plotting Range 2 data: {len(y_data2)} points, label='{range2_label}'")
                 
                 secondary_style = line_styles["secondary"]
                 line2 = ax.plot(
@@ -205,11 +224,12 @@ class AnalysisPlotter:
                     linestyle=secondary_style.get("linestyle", "-"),
                     color=secondary_style["color"],
                     alpha=secondary_style["alpha"],
-                    label=range2_label,  # CHANGED
+                    label=range2_label,
                 )[0]
 
         # Modern legend styling if dual range
         if plot_data.use_dual_range:
+            logger.debug("Adding legend for dual-range plot")
             ax.legend(
                 loc="best",
                 frameon=True,
@@ -252,6 +272,11 @@ class AnalysisPlotter:
             y_padding_bottom = y_range * padding_factor if y_range > 0 else 0.1
             y_padding_top = y_range * (padding_factor * 1.2) if y_range > 0 else 0.1
 
+            logger.debug(
+                f"Applied axis padding: X=[{x_min - x_padding:.2f}, {x_max + x_padding:.2f}], "
+                f"Y=[{y_min - y_padding_bottom:.2f}, {y_max + y_padding_top:.2f}]"
+            )
+
             ax.set_xlim(x_min - x_padding, x_max + x_padding)
             ax.set_ylim(y_min - y_padding_bottom, y_max + y_padding_top)
 
@@ -268,8 +293,15 @@ class AnalysisPlotter:
         Note:
             File I/O may require external synchronization if multiple threads write to the same directory.
         """
-        figure.tight_layout()
-        figure.savefig(filepath, dpi=dpi, bbox_inches="tight")
+        logger.debug(f"Saving figure to {filepath} at {dpi} DPI")
+        
+        try:
+            figure.tight_layout()
+            figure.savefig(filepath, dpi=dpi, bbox_inches="tight")
+            logger.info(f"Successfully saved figure to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save figure to {filepath}: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def create_and_save_plot(
@@ -296,10 +328,13 @@ class AnalysisPlotter:
         Returns:
             Figure: The created matplotlib Figure object.
         """
+        logger.info(f"Creating and saving plot: '{title}' to {filepath}")
+        
         figure, _ = AnalysisPlotter.create_figure(
             plot_data, x_label, y_label, title, figsize
         )
         AnalysisPlotter.save_figure(figure, filepath, dpi)
+        
         return figure
 
 
@@ -329,28 +364,39 @@ def create_analysis_plot(
     Note:
         Displaying plots with show=True is not thread-safe and should only be called from the main thread.
     """
-    plot_data = AnalysisPlotData.from_dict(plot_data_dict)
+    logger.info(f"CLI plot creation requested: '{title}', save={output_path is not None}, show={show}")
+    
+    try:
+        plot_data = AnalysisPlotData.from_dict(plot_data_dict)
 
-    # Use stateless methods
-    if output_path:
-        # Use the combined method for efficiency
-        fig = AnalysisPlotter.create_and_save_plot(
-            plot_data, x_label, y_label, title, output_path
-        )
-    else:
-        # Just create without saving
-        fig, ax = AnalysisPlotter.create_figure(plot_data, x_label, y_label, title)
+        # Use stateless methods
+        if output_path:
+            # Use the combined method for efficiency
+            logger.debug(f"Creating plot with save to {output_path}")
+            fig = AnalysisPlotter.create_and_save_plot(
+                plot_data, x_label, y_label, title, output_path
+            )
+        else:
+            # Just create without saving
+            logger.debug("Creating plot without saving")
+            fig, ax = AnalysisPlotter.create_figure(plot_data, x_label, y_label, title)
 
-    if show:
-        # Note: This requires GUI backend and is NOT thread-safe
-        # Should only be called from main thread
-        import warnings
+        if show:
+            # Note: This requires GUI backend and is NOT thread-safe
+            # Should only be called from main thread
+            import warnings
 
-        warnings.warn(
-            "Displaying plots with show=True is not thread-safe. "
-            "Use only from main thread.",
-            RuntimeWarning,
-        )
-        plt.show()
+            logger.warning("Displaying plot with show=True (not thread-safe)")
+            warnings.warn(
+                "Displaying plots with show=True is not thread-safe. "
+                "Use only from main thread.",
+                RuntimeWarning,
+            )
+            plt.show()
 
-    return fig
+        logger.info(f"Successfully created analysis plot: '{title}'")
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Failed to create analysis plot '{title}': {e}", exc_info=True)
+        return None

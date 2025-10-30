@@ -23,7 +23,12 @@ from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.config.themes import (style_button, style_scroll_area, style_group_box, style_label, style_checkbox, apply_compact_layout, 
                                              style_spinbox_with_arrows, style_combo_simple, MODERN_COLORS, WIDGET_SIZES)
 
+# Import logging
+from data_analysis_gui.config.logging import get_logger
+
 from typing import Tuple, Optional
+
+logger = get_logger(__name__)
 
 
 class ControlPanel(QWidget):
@@ -56,6 +61,8 @@ class ControlPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        logger.debug("Initializing ControlPanel")
 
         # Dictionary to track previous valid values
         self._previous_valid_values = {}
@@ -85,12 +92,16 @@ class ControlPanel(QWidget):
         }
 
         self._connect_signals()
+        
+        logger.info("ControlPanel initialized with default settings")
 
     def _setup_ui(self):
         """
         Set up the control panel UI with full theme integration.
         Creates all controls, layouts, and applies styling.
         """
+        logger.debug("Setting up ControlPanel UI")
+        
         # Create scroll area for the controls
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -337,6 +348,8 @@ class ControlPanel(QWidget):
         """
         Connect internal widget signals and perform initial validation.
         """
+        logger.debug("Connecting ControlPanel signals")
+        
         # Validate on any value change
         self.start_spin.valueChanged.connect(self._validate_and_update)
         self.end_spin.valueChanged.connect(self._validate_and_update)
@@ -359,9 +372,12 @@ class ControlPanel(QWidget):
         is_range1_valid = end1_val > start1_val
 
         if not is_range1_valid:
+            logger.warning(f"Range 1 validation failed: start={start1_val}, end={end1_val}")
             self._mark_field_invalid("start1")
             self._mark_field_invalid("end1")
         else:
+            if "start1" in self._invalid_fields or "end1" in self._invalid_fields:
+                logger.debug(f"Range 1 validation passed: start={start1_val}, end={end1_val}")
             self._clear_invalid_state("start1")
             self._clear_invalid_state("end1")
 
@@ -373,9 +389,12 @@ class ControlPanel(QWidget):
             is_range2_valid = end2_val > start2_val
 
             if not is_range2_valid:
+                logger.warning(f"Range 2 validation failed: start={start2_val}, end={end2_val}")
                 self._mark_field_invalid("start2")
                 self._mark_field_invalid("end2")
             else:
+                if "start2" in self._invalid_fields or "end2" in self._invalid_fields:
+                    logger.debug(f"Range 2 validation passed: start={start2_val}, end={end2_val}")
                 self._clear_invalid_state("start2")
                 self._clear_invalid_state("end2")
         else:
@@ -386,8 +405,12 @@ class ControlPanel(QWidget):
         # --- Update Button State ---
         # Buttons are enabled based on validation only
         is_all_valid = is_range1_valid and is_range2_valid
+        previous_button_state = self.update_plot_btn.isEnabled()
         self.update_plot_btn.setEnabled(is_all_valid)
         self.export_plot_btn.setEnabled(is_all_valid)
+        
+        if previous_button_state != is_all_valid:
+            logger.debug(f"Analysis buttons {'enabled' if is_all_valid else 'disabled'} (validation: {is_all_valid})")
 
         # --- Sync Cursors ---
         self.range_values_changed.emit()
@@ -408,6 +431,7 @@ class ControlPanel(QWidget):
         spinbox = spinbox_map.get(spinbox_key)
         if spinbox and spinbox_key not in self._invalid_fields:
             self._invalid_fields.add(spinbox_key)
+            logger.debug(f"Marking field {spinbox_key} as invalid")
             # Save the current style before applying invalid state
             if spinbox_key not in self._original_styles:
                 self._original_styles[spinbox_key] = spinbox.styleSheet()
@@ -427,6 +451,7 @@ class ControlPanel(QWidget):
         """
         if spinbox_key in self._invalid_fields:
             self._invalid_fields.remove(spinbox_key)
+            logger.debug(f"Clearing invalid state from field {spinbox_key}")
             spinbox_map = {
                 "start1": self.start_spin,
                 "end1": self.end_spin,
@@ -443,6 +468,8 @@ class ControlPanel(QWidget):
         Handle changes to the dual range checkbox, enabling/disabling controls.
         """
         enabled = self.dual_range_cb.isChecked()
+        logger.info(f"Dual range {'enabled' if enabled else 'disabled'}")
+        
         self.start_spin2.setEnabled(enabled)
         self.end_spin2.setEnabled(enabled)
 
@@ -481,8 +508,7 @@ class ControlPanel(QWidget):
             peak_type=peak_mode if y_measure == "Peak" else None,
         )
 
-        # Return clean parameters object (no current_units, no channels_swapped)
-        return AnalysisParameters(
+        params = AnalysisParameters(
             range1_start=self.start_spin.value(),
             range1_end=self.end_spin.value(),
             use_dual_range=self.dual_range_cb.isChecked(),
@@ -496,6 +522,11 @@ class ControlPanel(QWidget):
             y_axis=y_axis,
             channel_config={},  # No longer needed from UI
         )
+        
+        logger.debug(f"Generated parameters: R1=[{params.range1_start}, {params.range1_end}], "
+                    f"dual={params.use_dual_range}, X={x_measure}/{x_axis.channel}, Y={y_measure}/{y_axis.channel}")
+        
+        return params
 
     # --- Public methods for data access and updates ---
 
@@ -553,6 +584,7 @@ class ControlPanel(QWidget):
         
         # Validate Range 1
         if vals["range1_end"] <= vals["range1_start"]:
+            logger.warning(f"Range validation failed: Range 1 end ({vals['range1_end']}) <= start ({vals['range1_start']})")
             return False, "Range 1: End time must be greater than start time."
         
         # Validate Range 2 if dual range is enabled
@@ -561,11 +593,14 @@ class ControlPanel(QWidget):
             range2_end = vals.get("range2_end")
             
             if range2_start is None or range2_end is None:
+                logger.warning("Range validation failed: Range 2 values are missing")
                 return False, "Range 2: Values are missing."
             
             if range2_end <= range2_start:
+                logger.warning(f"Range validation failed: Range 2 end ({range2_end}) <= start ({range2_start})")
                 return False, "Range 2: End time must be greater than start time."
         
+        logger.debug("Range validation passed")
         return True, None
 
     def update_range_value(self, spinbox_key: str, value: float):
@@ -583,6 +618,7 @@ class ControlPanel(QWidget):
             "end2": self.end_spin2,
         }
         if spinbox_key in spinbox_map:
+            logger.debug(f"Updating {spinbox_key} to {value}")
             # setValue() triggers validation automatically
             spinbox_map[spinbox_key].setValue(value)
 
@@ -593,20 +629,30 @@ class ControlPanel(QWidget):
         Args:
             max_time (float): Maximum allowed time value.
         """
+        logger.info(f"Setting analysis range maximum to {max_time} ms")
+        
         self.start_spin.setRange(0, max_time)
         self.end_spin.setRange(0, max_time)
         self.start_spin2.setRange(0, max_time)
         self.end_spin2.setRange(0, max_time)
 
         # Clamp existing values to the new range
+        clamped_values = []
         if self.start_spin.value() > max_time:
             self.start_spin.setValue(max_time)
+            clamped_values.append("start1")
         if self.end_spin.value() > max_time:
             self.end_spin.setValue(max_time)
+            clamped_values.append("end1")
         if self.start_spin2.value() > max_time:
             self.start_spin2.setValue(max_time)
+            clamped_values.append("start2")
         if self.end_spin2.value() > max_time:
             self.end_spin2.setValue(max_time)
+            clamped_values.append("end2")
+        
+        if clamped_values:
+            logger.debug(f"Clamped values to max_time: {', '.join(clamped_values)}")
 
         # After clamping, sync the valid state
         self._previous_valid_values = {
@@ -623,6 +669,8 @@ class ControlPanel(QWidget):
         Args:
             params (dict): Dictionary of analysis parameter values.
         """
+        logger.debug(f"Setting parameters from dict: {params}")
+        
         # Store current signal state and disconnect
         signals_were_blocked = [
             self.start_spin.blockSignals(True),
@@ -630,7 +678,6 @@ class ControlPanel(QWidget):
             self.start_spin2.blockSignals(True),
             self.end_spin2.blockSignals(True),
             self.dual_range_cb.blockSignals(True),
-            # self.period_spin.blockSignals(True),
         ]
 
         try:
@@ -662,7 +709,6 @@ class ControlPanel(QWidget):
             self.start_spin2.blockSignals(signals_were_blocked[2])
             self.end_spin2.blockSignals(signals_were_blocked[3])
             self.dual_range_cb.blockSignals(signals_were_blocked[4])
-            #self.period_spin.blockSignals(signals_were_blocked[5])
 
             # Re-apply styling to ensure correct appearance
             style_spinbox_with_arrows(self.start_spin2)
@@ -672,6 +718,8 @@ class ControlPanel(QWidget):
             self._validate_and_update()
             if use_dual:
                 self.dual_range_toggled.emit(use_dual)
+        
+        logger.info("Parameters applied from dict")
 
     def set_plot_settings_from_dict(self, params: dict):
         """
@@ -680,6 +728,8 @@ class ControlPanel(QWidget):
         Args:
             params (dict): Dictionary of plot setting values.
         """
+        logger.debug(f"Setting plot settings from dict: {params}")
+        
         # Block signals during mass update
         signals_blocked = [
             self.x_measure_combo.blockSignals(True),
@@ -728,6 +778,8 @@ class ControlPanel(QWidget):
 
             # Update peak mode visibility based on current selections
             self._update_peak_mode_visibility()
+        
+        logger.info("Plot settings applied from dict")
 
     def get_all_settings_dict(self) -> dict:
         """
@@ -736,7 +788,7 @@ class ControlPanel(QWidget):
         Returns:
             dict: Dictionary containing all current settings.
         """
-        return {
+        settings = {
             "analysis": {
                 "range1_start": self.start_spin.value(),
                 "range1_end": self.end_spin.value(),
@@ -756,3 +808,6 @@ class ControlPanel(QWidget):
                 "peak_mode": self.peak_mode_combo.currentText(),
             },
         }
+        
+        logger.debug(f"Retrieved all settings: {settings}")
+        return settings

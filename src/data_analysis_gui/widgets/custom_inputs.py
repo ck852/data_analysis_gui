@@ -28,6 +28,10 @@ from PySide6.QtWidgets import QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QValidator, QDoubleValidator
 
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class SelectAllLineEdit(QLineEdit):
     """
@@ -48,6 +52,7 @@ class SelectAllLineEdit(QLineEdit):
         """
         super().__init__(*args, **kwargs)
         self._select_all_on_focus = True
+        logger.debug("Initialized SelectAllLineEdit")
 
     def focusInEvent(self, event):
         """
@@ -58,7 +63,10 @@ class SelectAllLineEdit(QLineEdit):
         """
         super().focusInEvent(event)
         if self._select_all_on_focus:
+            logger.debug(f"SelectAllLineEdit gained focus, selecting all text: '{self.text()}'")
             QTimer.singleShot(0, self.selectAll)
+        else:
+            logger.debug(f"SelectAllLineEdit gained focus without selection: '{self.text()}'")
         # Reset the flag after the event is handled
         self._select_all_on_focus = True
 
@@ -66,6 +74,7 @@ class SelectAllLineEdit(QLineEdit):
         """
         Set focus to the widget without triggering select-all behavior.
         """
+        logger.debug("Setting focus without text selection")
         self._select_all_on_focus = False
         self.setFocus()
 
@@ -79,6 +88,17 @@ class SelectAllSpinBox(QDoubleSpinBox):
         - Ignores mouse wheel events to prevent accidental value changes.
     """
 
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the SelectAllSpinBox.
+
+        Args:
+            *args: Positional arguments for QDoubleSpinBox.
+            **kwargs: Keyword arguments for QDoubleSpinBox.
+        """
+        super().__init__(*args, **kwargs)
+        logger.debug("Initialized SelectAllSpinBox")
+
     def focusInEvent(self, event):
         """
         Handle focus-in event, selecting all text.
@@ -87,6 +107,7 @@ class SelectAllSpinBox(QDoubleSpinBox):
             event: QFocusEvent
         """
         super().focusInEvent(event)
+        logger.debug(f"SelectAllSpinBox gained focus, value={self.value()}")
         QTimer.singleShot(0, self.selectAll)
 
     def wheelEvent(self, event):
@@ -96,6 +117,7 @@ class SelectAllSpinBox(QDoubleSpinBox):
         Args:
             event: QWheelEvent
         """
+        logger.debug("SelectAllSpinBox ignoring wheel event")
         event.ignore()
 
 
@@ -104,6 +126,17 @@ class NoScrollComboBox(QComboBox):
     QComboBox subclass that ignores mouse wheel events to prevent accidental selection changes.
     """
 
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the NoScrollComboBox.
+
+        Args:
+            *args: Positional arguments for QComboBox.
+            **kwargs: Keyword arguments for QComboBox.
+        """
+        super().__init__(*args, **kwargs)
+        logger.debug("Initialized NoScrollComboBox")
+
     def wheelEvent(self, event):
         """
         Ignore mouse wheel events.
@@ -111,6 +144,7 @@ class NoScrollComboBox(QComboBox):
         Args:
             event: QWheelEvent
         """
+        logger.debug("NoScrollComboBox ignoring wheel event")
         event.ignore()
 
 class PositiveFloatLineEdit(QLineEdit):
@@ -140,6 +174,8 @@ class PositiveFloatLineEdit(QLineEdit):
         validator = QDoubleValidator(0.0, 1e6, 2, self)
         validator.setNotation(QDoubleValidator.Notation.StandardNotation)
         self.setValidator(validator)
+        
+        logger.debug("Initialized PositiveFloatLineEdit with range [0.0, 1e6]")
 
     def focusInEvent(self, event):
         """
@@ -150,7 +186,10 @@ class PositiveFloatLineEdit(QLineEdit):
         """
         super().focusInEvent(event)
         if self._select_all_on_focus:
+            logger.debug(f"PositiveFloatLineEdit gained focus, selecting all: '{self.text()}'")
             QTimer.singleShot(0, self.selectAll)
+        else:
+            logger.debug(f"PositiveFloatLineEdit gained focus without selection: '{self.text()}'")
         # Reset the flag after the event is handled
         self._select_all_on_focus = True
 
@@ -158,6 +197,7 @@ class PositiveFloatLineEdit(QLineEdit):
         """
         Set focus to the widget without triggering select-all behavior.
         """
+        logger.debug("Setting focus without text selection")
         self._select_all_on_focus = False
         self.setFocus()
 
@@ -168,6 +208,7 @@ class PositiveFloatLineEdit(QLineEdit):
         Args:
             event: QWheelEvent
         """
+        logger.debug("PositiveFloatLineEdit ignoring wheel event")
         event.ignore()
     
     def value(self) -> float:
@@ -179,8 +220,11 @@ class PositiveFloatLineEdit(QLineEdit):
         """
         text = self.text()
         try:
-            return float(text) if text else 0.0
+            val = float(text) if text else 0.0
+            logger.debug(f"PositiveFloatLineEdit value retrieved: {val}")
+            return val
         except ValueError:
+            logger.warning(f"Invalid value in PositiveFloatLineEdit: '{text}', returning 0.0")
             return 0.0
     
     def setValue(self, value: float):
@@ -191,6 +235,7 @@ class PositiveFloatLineEdit(QLineEdit):
             value: The value to set (will be clamped to >= 0)
         """
         value = max(0.0, value)
+        logger.debug(f"PositiveFloatLineEdit value set to: {value:.2f}")
         self.setText(f"{value:.2f}")
 
 class NumericLineEdit(QLineEdit):
@@ -228,14 +273,18 @@ class NumericLineEdit(QLineEdit):
         
         # Connect textChanged to emit valueChanged
         self.textChanged.connect(self._on_text_changed)
+        
+        logger.debug(f"Initialized NumericLineEdit with range [{self._min_value}, {self._max_value}]")
     
     def _on_text_changed(self):
         """Emit valueChanged signal when valid numeric input changes."""
         try:
             val = self.value()
+            logger.debug(f"NumericLineEdit text changed, emitting valueChanged: {val}")
             self.valueChanged.emit(val)
         except (ValueError, AttributeError):
             # Invalid or empty input, don't emit
+            logger.debug("NumericLineEdit text changed to invalid value, not emitting signal")
             pass
     
     def focusInEvent(self, event):
@@ -247,7 +296,10 @@ class NumericLineEdit(QLineEdit):
         """
         super().focusInEvent(event)
         if self._select_all_on_focus:
+            logger.debug(f"NumericLineEdit gained focus, selecting all: '{self.text()}'")
             QTimer.singleShot(0, self.selectAll)
+        else:
+            logger.debug(f"NumericLineEdit gained focus without selection: '{self.text()}'")
         # Reset the flag after the event is handled
         self._select_all_on_focus = True
 
@@ -255,6 +307,7 @@ class NumericLineEdit(QLineEdit):
         """
         Set focus to the widget without triggering select-all behavior.
         """
+        logger.debug("Setting focus without text selection")
         self._select_all_on_focus = False
         self.setFocus()
 
@@ -265,6 +318,7 @@ class NumericLineEdit(QLineEdit):
         Args:
             event: QWheelEvent
         """
+        logger.debug("NumericLineEdit ignoring wheel event")
         event.ignore()
     
     def value(self) -> float:
@@ -276,8 +330,10 @@ class NumericLineEdit(QLineEdit):
         """
         text = self.text()
         try:
-            return float(text) if text else 0.0
+            val = float(text) if text else 0.0
+            return val
         except ValueError:
+            logger.warning(f"Invalid value in NumericLineEdit: '{text}', returning 0.0")
             return 0.0
     
     def setValue(self, value: float):
@@ -287,6 +343,7 @@ class NumericLineEdit(QLineEdit):
         Args:
             value: The value to set
         """
+        logger.debug(f"NumericLineEdit value set to: {value:.{self._decimals}f}")
         self.setText(f"{value:.{self._decimals}f}")
     
     def setRange(self, minimum: float, maximum: float):
@@ -303,6 +360,8 @@ class NumericLineEdit(QLineEdit):
         self._min_value = minimum
         self._max_value = maximum
         
+        logger.debug(f"NumericLineEdit range set to [{minimum}, {maximum}]")
+        
         # Update validator range
         validator = self.validator()
         if isinstance(validator, QDoubleValidator):
@@ -316,6 +375,7 @@ class NumericLineEdit(QLineEdit):
             decimals: Number of decimal places
         """
         self._decimals = decimals
+        logger.debug(f"NumericLineEdit decimals set to: {decimals}")
         
         # Update validator decimals
         validator = self.validator()
@@ -329,6 +389,7 @@ class NumericLineEdit(QLineEdit):
         Args:
             step: Step value (ignored)
         """
+        logger.debug(f"NumericLineEdit setSingleStep called (no-op): {step}")
         pass  # No-op for compatibility
 
 class RangeInputValidator(QValidator):
@@ -355,8 +416,10 @@ class RangeInputValidator(QValidator):
         # Check if all characters are valid
         for char in input_str:
             if char not in '0123456789,- ':
+                logger.debug(f"RangeInputValidator rejected invalid character: '{char}' in '{input_str}'")
                 return (QValidator.State.Invalid, input_str, pos)
         
+        logger.debug(f"RangeInputValidator accepted input: '{input_str}'")
         return (QValidator.State.Acceptable, input_str, pos)
 
 
@@ -385,6 +448,8 @@ class RangeInputLineEdit(QLineEdit):
         # Set up validator for range input
         validator = RangeInputValidator(self)
         self.setValidator(validator)
+        
+        logger.debug("Initialized RangeInputLineEdit with range validator")
 
     def focusInEvent(self, event):
         """
@@ -395,7 +460,10 @@ class RangeInputLineEdit(QLineEdit):
         """
         super().focusInEvent(event)
         if self._select_all_on_focus:
+            logger.debug(f"RangeInputLineEdit gained focus, selecting all: '{self.text()}'")
             QTimer.singleShot(0, self.selectAll)
+        else:
+            logger.debug(f"RangeInputLineEdit gained focus without selection: '{self.text()}'")
         # Reset the flag after the event is handled
         self._select_all_on_focus = True
 
@@ -403,6 +471,7 @@ class RangeInputLineEdit(QLineEdit):
         """
         Set focus to the widget without triggering select-all behavior.
         """
+        logger.debug("Setting focus without text selection")
         self._select_all_on_focus = False
         self.setFocus()
 
@@ -413,4 +482,5 @@ class RangeInputLineEdit(QLineEdit):
         Args:
             event: QWheelEvent
         """
+        logger.debug("RangeInputLineEdit ignoring wheel event")
         event.ignore()

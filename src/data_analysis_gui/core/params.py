@@ -13,6 +13,10 @@ License: MIT (see LICENSE file for details)
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any, Tuple
 
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class AxisConfig:
@@ -32,6 +36,13 @@ class AxisConfig:
     peak_type: Optional[str] = (
         "Absolute"  # "Absolute", "Positive", "Negative", "Peak-Peak"
     )
+
+    def __post_init__(self):
+        """Log axis configuration creation for debugging."""
+        logger.debug(
+            f"Created AxisConfig: measure={self.measure}, "
+            f"channel={self.channel}, peak_type={self.peak_type}"
+        )
 
 
 @dataclass(frozen=True)
@@ -90,20 +101,35 @@ class AnalysisParameters:
         Raises:
             ValueError: If validation fails.
         """
+        logger.debug(
+            f"Validating AnalysisParameters: "
+            f"R1=[{self.range1_start}, {self.range1_end}], "
+            f"dual={self.use_dual_range}, "
+            f"R2=[{self.range2_start}, {self.range2_end}]"
+        )
+        
         # Validate Range 1
         if self.range1_end <= self.range1_start:
-            raise ValueError(
+            error_msg = (
                 f"Range 1 end ({self.range1_end}) must be after start ({self.range1_start})"
             )
+            logger.error(f"Validation failed: {error_msg}")
+            raise ValueError(error_msg)
 
         # Validate Range 2 if dual range is enabled
         if self.use_dual_range:
             if self.range2_start is None or self.range2_end is None:
-                raise ValueError("Dual range enabled but range 2 values not provided")
+                error_msg = "Dual range enabled but range 2 values not provided"
+                logger.error(f"Validation failed: {error_msg}")
+                raise ValueError(error_msg)
             if self.range2_end <= self.range2_start:
-                raise ValueError(
+                error_msg = (
                     f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})"
                 )
+                logger.error(f"Validation failed: {error_msg}")
+                raise ValueError(error_msg)
+        
+        logger.debug("AnalysisParameters validation passed")
 
     def cache_key(self) -> Tuple:
         """
@@ -129,7 +155,7 @@ class AnalysisParameters:
             return v
 
         # Create cache key with all relevant parameters
-        return (
+        key = (
             round_value(self.range1_start),
             round_value(self.range1_end),
             self.use_dual_range,
@@ -139,6 +165,9 @@ class AnalysisParameters:
             freeze_value(asdict(self.y_axis)),
             freeze_value(self.channel_config),
         )
+        
+        logger.debug(f"Generated cache key with hash: {hash(key)}")
+        return key
 
     def with_updates(self, **kwargs) -> "AnalysisParameters":
         """
@@ -156,6 +185,8 @@ class AnalysisParameters:
         Example:
             >>> new_params = params.with_updates(range1_start=200.0)
         """
+        logger.debug(f"Creating updated parameters with changes: {list(kwargs.keys())}")
+        
         # Get current values as dict
         current = asdict(self)
 
@@ -169,7 +200,10 @@ class AnalysisParameters:
             current["y_axis"] = AxisConfig(**current["y_axis"])
 
         # Create new instance
-        return AnalysisParameters(**current)
+        new_params = AnalysisParameters(**current)
+        logger.debug(f"Created updated parameters: {new_params.describe()}")
+        
+        return new_params
 
     def to_export_dict(self) -> Dict[str, Any]:
         """
@@ -180,7 +214,9 @@ class AnalysisParameters:
         Returns:
             Dictionary representation of parameters.
         """
-        return {
+        logger.debug("Exporting parameters to dictionary")
+        
+        export_dict = {
             "range1_start": self.range1_start,
             "range1_end": self.range1_end,
             "use_dual_range": self.use_dual_range,
@@ -190,6 +226,9 @@ class AnalysisParameters:
             "y_axis": asdict(self.y_axis),
             "channel_config": self.channel_config,
         }
+        
+        logger.debug(f"Exported {len(export_dict)} parameter fields")
+        return export_dict
 
     def describe(self) -> str:
         """
@@ -217,4 +256,7 @@ class AnalysisParameters:
         if self.y_axis.measure == "Peak" and self.y_axis.peak_type:
             desc.append(f"Y Peak Type: {self.y_axis.peak_type}")
 
-        return " | ".join(desc)
+        description = " | ".join(desc)
+        logger.debug(f"Generated parameter description: {description}")
+        
+        return description

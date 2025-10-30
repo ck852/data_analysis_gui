@@ -6,6 +6,7 @@ License: MIT (see LICENSE file for details)
 
 Cursor-Spinbox synchronization manager for interactive matplotlib plots.
 """
+
 # ===============================================================
 # For any dialog that needs draggable cursors synced with spinboxes (example):
 #
@@ -16,6 +17,10 @@ Cursor-Spinbox synchronization manager for interactive matplotlib plots.
 from PySide6.QtCore import QObject, Signal
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
+
+from data_analysis_gui.config.logging import get_logger
+
+logger = get_logger(__name__)
 
 class CursorSpinbox(QObject):
     """
@@ -34,6 +39,8 @@ class CursorSpinbox(QObject):
         self.canvas.mpl_connect('pick_event', self._on_pick)
         self.canvas.mpl_connect('motion_notify_event', self._on_drag)
         self.canvas.mpl_connect('button_release_event', self._on_release)
+        
+        logger.debug("CursorSpinbox manager initialized")
     
     def add_cursor(self, cursor_id, spinbox, initial_position, color="#73AB84", 
                    linestyle="-", linewidth=2, alpha=0.7):
@@ -57,6 +64,8 @@ class CursorSpinbox(QObject):
         spinbox.valueChanged.connect(
             lambda value, cid=cursor_id: self._update_cursor_from_spinbox(cid, value)
         )
+        
+        logger.debug(f"Added cursor '{cursor_id}' at position {initial_position:.2f}")
     
     def enable_shading(self, alpha=0.1):
         """Enable shaded region between the first two cursors."""
@@ -72,6 +81,8 @@ class CursorSpinbox(QObject):
                 'end_id': cursor_ids[1],
                 'alpha': alpha
             }
+            
+            logger.debug(f"Enabled shading between {cursor_ids[0]} and {cursor_ids[1]}")
     
     def recreate_shading_after_clear(self):
         """
@@ -88,6 +99,8 @@ class CursorSpinbox(QObject):
                 alpha=self.shaded_region['alpha'], 
                 color=color
             )
+            
+            logger.debug("Recreated shading after axes clear")
 
     def _update_shading(self):
         """Update the shaded region position if enabled."""
@@ -106,12 +119,16 @@ class CursorSpinbox(QObject):
                 color=color
             )
     
+            logger.debug(f"Updated shading: [{start_pos:.2f}, {end_pos:.2f}]")
+    
     def _update_cursor_from_spinbox(self, cursor_id, value):
         """Update cursor position when spinbox changes."""
         line = self.cursors[cursor_id]['line']
         line.set_xdata([value, value])
         self._update_shading()
         self.canvas.draw_idle()
+        
+        logger.debug(f"Updated cursor '{cursor_id}' from spinbox: {value:.2f}")
     
     def _on_pick(self, event):
         """Handle cursor pick event."""
@@ -119,6 +136,7 @@ class CursorSpinbox(QObject):
             for cursor_id, data in self.cursors.items():
                 if event.artist == data['line']:
                     self.dragging_cursor = cursor_id
+                    logger.debug(f"Picked cursor '{cursor_id}' for dragging")
                     break
     
     def _on_drag(self, event):
@@ -145,10 +163,15 @@ class CursorSpinbox(QObject):
     def _on_release(self, event):
         """Handle mouse release."""
         if self.dragging_cursor:
+            released_id = self.dragging_cursor
+            final_pos = self.cursors[released_id]['spinbox'].value()
+            
             self.dragging_cursor = None
             # Update shading after drag completes
             self._update_shading()
             self.canvas.draw_idle()
+            
+            logger.debug(f"Released cursor '{released_id}' at position {final_pos:.2f}")
 
 class ConcRespCursors(QObject):
     """
@@ -194,6 +217,8 @@ class ConcRespCursors(QObject):
         self.canvas.mpl_connect('pick_event', self._on_pick)
         self.canvas.mpl_connect('motion_notify_event', self._on_drag)
         self.canvas.mpl_connect('button_release_event', self._on_release)
+        
+        logger.debug("ConcRespCursors manager initialized")
     
     def add_range_pair(
         self, 
@@ -213,6 +238,7 @@ class ConcRespCursors(QObject):
         """
         if range_id in self.ranges:
             # Already exists, update instead
+            logger.debug(f"Range '{range_id}' already exists, updating position")
             self.update_range_position(range_id, start_val, end_val)
             return
         
@@ -264,6 +290,9 @@ class ConcRespCursors(QObject):
         }
         
         self.canvas.draw_idle()
+        
+        range_type = "background" if is_background else "analysis"
+        logger.debug(f"Added {range_type} range '{range_id}': [{start_val:.2f}, {end_val:.2f}]")
     
     def remove_range_pair(self, range_id: str):
         """
@@ -273,6 +302,7 @@ class ConcRespCursors(QObject):
             range_id: Identifier of the range to remove
         """
         if range_id not in self.ranges:
+            logger.warning(f"Attempted to remove non-existent range '{range_id}'")
             return
         
         range_data = self.ranges[range_id]
@@ -297,6 +327,8 @@ class ConcRespCursors(QObject):
         del self.ranges[range_id]
         
         self.canvas.draw_idle()
+        
+        logger.debug(f"Removed range pair '{range_id}'")
     
     def update_range_position(self, range_id: str, start_val: float, end_val: float):
         """
@@ -308,6 +340,7 @@ class ConcRespCursors(QObject):
             end_val: New end time value
         """
         if range_id not in self.ranges:
+            logger.warning(f"Attempted to update non-existent range '{range_id}'")
             return
         
         range_data = self.ranges[range_id]
@@ -327,6 +360,8 @@ class ConcRespCursors(QObject):
         range_data['end_val'] = end_val
         
         self.canvas.draw_idle()
+        
+        logger.debug(f"Updated range '{range_id}' position: [{start_val:.2f}, {end_val:.2f}]")
     
     def get_dragged_range(self) -> tuple:
         """
@@ -364,6 +399,8 @@ class ConcRespCursors(QObject):
                 range_info['end_val'],
                 range_info['is_background']
             )
+        
+        logger.info(f"Recreated {len(ranges_to_recreate)} range pairs after axes clear")
     
     def _on_pick(self, event):
         """Handle line pick event to start dragging."""
@@ -374,9 +411,11 @@ class ConcRespCursors(QObject):
         for range_id, data in self.ranges.items():
             if event.artist == data['start_line']:
                 self.dragging_range = (range_id, 'start')
+                logger.debug(f"Picked start boundary of range '{range_id}'")
                 return
             elif event.artist == data['end_line']:
                 self.dragging_range = (range_id, 'end')
+                logger.debug(f"Picked end boundary of range '{range_id}'")
                 return
     
     def _on_drag(self, event):
@@ -418,5 +457,12 @@ class ConcRespCursors(QObject):
     def _on_release(self, event):
         """Handle mouse release to end dragging."""
         if self.dragging_range:
+            range_id, boundary = self.dragging_range
+            
+            # Get final position before clearing drag state
+            if range_id in self.ranges:
+                final_pos = self.ranges[range_id]['start_val'] if boundary == 'start' else self.ranges[range_id]['end_val']
+                logger.debug(f"Released {boundary} boundary of range '{range_id}' at {final_pos:.2f}")
+            
             self.dragging_range = None
             self.canvas.draw_idle()
