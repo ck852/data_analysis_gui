@@ -122,6 +122,7 @@ class PlotManager(QObject):
 
         # Welcome message state
         self._welcome_text = None
+        self._welcome_click_cid = None 
         
         # Show welcome message on startup
         self.show_welcome_message()
@@ -483,21 +484,47 @@ class PlotManager(QObject):
             picker=True  # Make it pickable
         )
         
+        # Make entire plot clickable during welcome state
+        self._welcome_click_cid = self.canvas.mpl_connect(
+            'button_press_event', 
+            self._on_welcome_click
+        )
+        
         self.redraw()
-        logger.info("Displayed welcome message on empty plot")
+        logger.info("Displayed welcome message on empty plot (entire plot is clickable)")
 
+    def _on_welcome_click(self, event) -> None:
+        """
+        Handle mouse clicks during welcome state.
+        
+        When the welcome message is displayed, any click on the plot area
+        will emit the welcome_clicked signal to open the file dialog.
+        
+        Args:
+            event: Matplotlib button press event.
+        """
+        # Only respond if we're in welcome state
+        if self._welcome_text is not None:
+            logger.debug("Welcome plot clicked - opening file dialog")
+            self.welcome_clicked.emit()
 
     def clear_welcome_state(self) -> None:
         """
         Clear the welcome message and restore normal plot appearance.
         
-        Called when the first data file is loaded. Removes the welcome text
-        and restores axis decorations for normal plotting.
+        Called when the first data file is loaded. Removes the welcome text,
+        disconnects the click handler, and restores axis decorations for normal plotting.
         """
         if self._welcome_text is not None:
             self._welcome_text.remove()
             self._welcome_text = None
             logger.debug("Removed welcome message")
+        
+        # Disconnect the welcome click handler
+        if self._welcome_click_cid is not None:
+            self.canvas.mpl_disconnect(self._welcome_click_cid)
+            self._welcome_click_cid = None
+            logger.debug("Disconnected welcome click handler")
         
         # Restore normal axis appearance (will be properly styled when data loads)
         self.ax.set_xticks([])
