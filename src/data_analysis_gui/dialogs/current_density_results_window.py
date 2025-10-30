@@ -78,6 +78,8 @@ class CurrentDensityResultsWindow(QMainWindow):
         """
         super().__init__(parent)
 
+        self.setModal(True)
+
         self.original_batch_result = batch_result
         self.active_batch_result = deepcopy(batch_result)
 

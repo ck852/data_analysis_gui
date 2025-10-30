@@ -67,6 +67,8 @@ class AnalysisPlotDialog(QDialog):
         """
         super().__init__(parent)
 
+        self.setModal(True)
+
         # Store required objects
         self.params = params
         self.analysis_manager = analysis_manager

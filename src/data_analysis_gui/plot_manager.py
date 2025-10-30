@@ -763,7 +763,7 @@ class PlotManager(QObject):
         """
         Force a redraw of the plot canvas.
         """
-        self.canvas.draw_idle()
+        self.canvas.draw()
 
     def toggle_dual_range(self, enabled: bool, start2: float, end2: float) -> None:
         """

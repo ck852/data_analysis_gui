@@ -142,6 +142,8 @@ class BatchAnalysisDialog(QDialog):
 
         self.init_ui()
 
+        self.setModal(True)
+
         # Apply theme and layout helpers from refactored themes.py
         apply_modern_theme(self)
         apply_compact_layout(self)

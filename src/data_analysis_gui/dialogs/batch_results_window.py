@@ -69,6 +69,8 @@ class BatchResultsWindow(QMainWindow):
         """
         super().__init__(parent)
 
+        self.setModal(True)
+
         # Initialize selection state if not present
         if batch_result.selected_files is None:
             from dataclasses import replace

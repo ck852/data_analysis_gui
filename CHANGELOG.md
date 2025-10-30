@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Dual analysis cursors remove when box unchecked
 - MainWindow Toolbar streamlined
 - Extract Sweeps dialog saves settings, better UI
+- Cursor labels sticking to MainWindow plot fixed
 
 ## [0.9.2-b.4] 2025-10-22
 ### Added
