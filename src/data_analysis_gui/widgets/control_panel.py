@@ -811,3 +811,17 @@ class ControlPanel(QWidget):
         
         logger.debug(f"Retrieved all settings: {settings}")
         return settings
+
+    def update_range_value_silent(self, spinbox_key: str, value: float):
+        """Update spinbox without emitting signals (prevents feedback loop)."""
+        spinbox_map = {
+            "start1": self.start_spin,
+            "end1": self.end_spin,
+            "start2": self.start_spin2,
+            "end2": self.end_spin2,
+        }
+        if spinbox_key in spinbox_map:
+            spinbox = spinbox_map[spinbox_key]
+            spinbox.blockSignals(True)
+            spinbox.setValue(value)
+            spinbox.blockSignals(False)

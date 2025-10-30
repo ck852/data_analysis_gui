@@ -179,10 +179,6 @@ class MainRangeCoordinator(QObject):
     def _sync_cursor_to_spinbox(self, line_id: str, position: float):
         """
         Synchronize a single cursor position to its corresponding spinbox.
-        
-        Args:
-            line_id: Cursor line identifier (e.g., "range1_start").
-            position: New position value.
         """
         if line_id is None or position is None:
             return
@@ -195,7 +191,8 @@ class MainRangeCoordinator(QObject):
                 break
         
         if spinbox_key:
-            self.control_panel.update_range_value(spinbox_key, position)
+            # NEW: Block signals to prevent feedback loop
+            self.control_panel.update_range_value_silent(spinbox_key, position)
             logger.debug(f"Synced cursor '{line_id}' → spinbox '{spinbox_key}' = {position:.2f}")
     
     def sync_cursors_to_spinboxes(self):

@@ -297,13 +297,23 @@ class CursorManager:
         """
         Recreate text labels for all cursors using current plot data.
         
-        Called after axes.clear() and new plot data is available.
+        Called after axes.clear() and new plot data is available, OR when
+        adding/removing cursor sets (e.g., toggling dual range).
         Samples y-values at each cursor position and creates Text objects.
         
         Args:
             ax: Axes to create text on (may differ from stored _ax after clear).
         """
-        # Clear existing text references (they're removed by axes.clear())
+        # Remove existing Text objects from axes before clearing references
+        for line_id, text in self._cursor_texts.items():
+            try:
+                text.remove()
+                logger.debug(f"Removed existing text label for '{line_id}'")
+            except (ValueError, AttributeError) as e:
+                # Text may not be in axes or already removed - not an error
+                logger.debug(f"Text for '{line_id}' not in axes or already removed: {e}")
+        
+        # Clear text references
         self._cursor_texts.clear()
         
         # Create new text for each cursor
