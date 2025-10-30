@@ -120,6 +120,9 @@ class PlotManager(QObject):
         # Track current channel type for per-channel view state management
         self._current_channel_type: str = 'Voltage'
 
+        # Track which channels have been auto-fitted for the current file
+        self._autofitted_channels: set = set()
+
         # Connect toolbar reset signal to autofit method
         self.toolbar.reset_requested.connect(self.autofit_to_data)
 
@@ -310,8 +313,28 @@ class PlotManager(QObject):
         # Create zoom buttons AFTER tight_layout
         self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
         self.redraw()
+        
+        # 7. Auto-fit if this is the first time viewing this channel
+        if channel_type not in self._autofitted_channels:
+            logger.info(f"Auto-fitting {channel_type} channel on first view")
+            self.autofit_to_data()
+            self._autofitted_channels.add(channel_type)
+        
         self.plot_updated.emit()
         logger.info(f"Updated plot for sweep {sweep_index}, channel {channel} ({channel_type}).")
+
+
+    def reset_for_new_file(self) -> None:
+        """
+        Reset plot state for a new file load.
+        
+        Clears view state for all channels so first sweep will autoscale
+        and establish fresh views. Called from MainWindow when loading a new file.
+        """
+        self.view_manager.reset()
+        self._current_channel_type = 'Voltage'
+        self._autofitted_channels.clear()  # Reset auto-fit tracking for new file
+        logger.info("Reset plot manager for new file (all channel views cleared, auto-fit tracking reset)")
 
 
     def update_range_lines(
