@@ -113,9 +113,9 @@ class PlotManager(QObject):
         # 5. Apply initial styling to axes
         self._style_axes()
 
-        # Maximum time bound for X-axis zoom limiting
-        self._max_time_bound: Optional[float] = None
-        self._y_axis_hard_limits = (-40000, 40000)
+        # Data bounds with margins for zoom limiting (calculated from actual data)
+        self._data_bounds_x: Optional[Tuple[float, float]] = None
+        self._data_bounds_y: Optional[Tuple[float, float]] = None
 
         # Track current channel type for per-channel view state management
         self._current_channel_type: str = 'Voltage'
@@ -242,6 +242,22 @@ class PlotManager(QObject):
         """
         # Store current channel type for per-channel view state management
         self._current_channel_type = channel_type
+        
+        # Calculate data bounds with margins for zoom limiting
+        # Same margins as autofit_to_data: 2% for X, 5% for Y
+        x_min, x_max = float(np.min(t)), float(np.max(t))
+        y_min, y_max = float(np.min(y[:, channel])), float(np.max(y[:, channel]))
+        
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+        
+        x_margin = x_range * 0.02
+        y_margin = y_range * 0.05
+        
+        self._data_bounds_x = (x_min - x_margin, x_max + x_margin)
+        self._data_bounds_y = (y_min - y_margin, y_max + y_margin)
+        
+        logger.debug(f"Updated data bounds: X={self._data_bounds_x}, Y={self._data_bounds_y}")
         
         # Clear zoom buttons BEFORE clearing axes
         self.axis_zoom_controller.clear_buttons()
@@ -657,10 +673,10 @@ class PlotManager(QObject):
         # Get current limits for the specified axis
         if axis == 'x':
             current_limits = self.ax.get_xlim()
-            max_bounds = (0, self._max_time_bound) if self._max_time_bound else None
+            max_bounds = self._data_bounds_x
         else:
             current_limits = self.ax.get_ylim()
-            max_bounds = self._y_axis_hard_limits
+            max_bounds = self._data_bounds_y
         
         # Calculate new limits using controller with bounds
         new_limits = self.axis_zoom_controller.calculate_zoom(
@@ -713,6 +729,9 @@ class PlotManager(QObject):
             positions = self.cursor_manager.get_cursor_positions()
             x_pos = positions.get(line_id, 0)
             logger.debug(f"Released cursor {line_id} at x={x_pos:.2f}.")
+            
+            # NEW: Emit signal that drag is complete
+            self.line_state_changed.emit("released", line_id, x_pos)
 
     def _on_draw(self, event) -> None:
         """

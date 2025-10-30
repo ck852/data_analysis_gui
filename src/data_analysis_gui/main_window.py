@@ -453,6 +453,24 @@ class MainWindow(QMainWindow):
             self._auto_save_settings
         )
 
+        # DIAGNOSTIC: Add logging wrappers to see if signals fire
+        logger.info(f"DIAGNOSTIC: Range 2 spinboxes exist? start={hasattr(self.control_panel, 'start_spin2')}, end={hasattr(self.control_panel, 'end_spin2')}")
+        logger.info(f"DIAGNOSTIC: Range 2 spinbox types: start={type(self.control_panel.start_spin2).__name__}, end={type(self.control_panel.end_spin2).__name__}")
+        
+        def debug_range2_start_changed(value):
+            logger.info(f"DIAGNOSTIC: Range 2 START changed to {value}")
+            self._auto_save_settings()
+        
+        def debug_range2_end_changed(value):
+            logger.info(f"DIAGNOSTIC: Range 2 END changed to {value}")
+            self._auto_save_settings()
+        
+        # Connect Range 2 spinboxes directly with debug wrappers
+        self.control_panel.start_spin2.valueChanged.connect(debug_range2_start_changed)
+        self.control_panel.end_spin2.valueChanged.connect(debug_range2_end_changed)
+        
+        logger.info("DIAGNOSTIC: Connected Range 2 spinboxes to debug handlers")
+
         # Splitter - debounced auto-save when user adjusts position
         self.splitter.splitterMoved.connect(self._on_splitter_moved)
 
@@ -582,6 +600,9 @@ class MainWindow(QMainWindow):
         # Range coordinator handles analysis/export requests
         self.range_coordinator.analysis_requested.connect(self._generate_analysis)
         self.range_coordinator.export_requested.connect(self._export_data)
+        
+        # NEW: Auto-save when cursor operations complete
+        self.range_coordinator.settings_changed.connect(self._auto_save_settings)
 
         # Connect toolbar's plot_saved signal to auto-save settings
         self.plot_manager.toolbar.plot_saved.connect(self._auto_save_settings)
@@ -929,16 +950,21 @@ class MainWindow(QMainWindow):
     def _auto_save_settings(self):
         """
         Automatically save current user settings whenever they change.
-
-        Ensures user preferences are preserved across sessions. Silent on failure.
         """
         try:
             settings = extract_settings_from_main_window(self)
+            
+            # DIAGNOSTIC: Log what we're about to save
+            if 'analysis' in settings:
+                logger.info(f"AUTO-SAVE triggered - Range 2 values: "
+                        f"start={settings['analysis'].get('range2_start')}, "
+                        f"end={settings['analysis'].get('range2_end')}, "
+                        f"dual={settings['analysis'].get('use_dual_range')}")
+            
             save_session_settings(settings)
             logger.debug("Auto-saved settings")
         except Exception as e:
             logger.warning(f"Failed to auto-save settings: {e}")
-            # Don't show error to user for auto-save failures
 
     # Navigation methods
     def _start_navigation(self, direction):

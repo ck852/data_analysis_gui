@@ -362,58 +362,59 @@ class ControlPanel(QWidget):
         self._validate_and_update()
 
     def _validate_and_update(self):
-        """
-        Validate all range inputs, update UI feedback, and emit range change signals.
-        Enables or disables action buttons based on validation.
-        """
-        # --- Validate Range 1 ---
-        start1_val = self.start_spin.value()
-        end1_val = self.end_spin.value()
-        is_range1_valid = end1_val > start1_val
+            """
+            Validate all range inputs, update UI feedback, and emit range change signals.
+            Enables or disables action buttons based on validation.
+            """
+            # --- Validate Range 1 ---
+            start1_val = self.start_spin.value()
+            end1_val = self.end_spin.value()
+            is_range1_valid = end1_val > start1_val
 
-        if not is_range1_valid:
-            logger.warning(f"Range 1 validation failed: start={start1_val}, end={end1_val}")
-            self._mark_field_invalid("start1")
-            self._mark_field_invalid("end1")
-        else:
-            if "start1" in self._invalid_fields or "end1" in self._invalid_fields:
-                logger.debug(f"Range 1 validation passed: start={start1_val}, end={end1_val}")
-            self._clear_invalid_state("start1")
-            self._clear_invalid_state("end1")
-
-        # --- Validate Range 2 (if enabled) ---
-        is_range2_valid = True
-        if self.dual_range_cb.isChecked():
-            start2_val = self.start_spin2.value()
-            end2_val = self.end_spin2.value()
-            is_range2_valid = end2_val > start2_val
-
-            if not is_range2_valid:
-                logger.warning(f"Range 2 validation failed: start={start2_val}, end={end2_val}")
-                self._mark_field_invalid("start2")
-                self._mark_field_invalid("end2")
+            if not is_range1_valid:
+                logger.warning(f"Range 1 validation failed: start={start1_val}, end={end1_val}")
+                self._mark_field_invalid("start1")
+                self._mark_field_invalid("end1")
             else:
-                if "start2" in self._invalid_fields or "end2" in self._invalid_fields:
-                    logger.debug(f"Range 2 validation passed: start={start2_val}, end={end2_val}")
+                if "start1" in self._invalid_fields or "end1" in self._invalid_fields:
+                    logger.debug(f"Range 1 validation passed: start={start1_val}, end={end1_val}")
+                self._clear_invalid_state("start1")
+                self._clear_invalid_state("end1")
+
+            # --- Validate Range 2 (if enabled) ---
+            is_range2_valid = True
+            if self.dual_range_cb.isChecked():
+                start2_val = self.start_spin2.value()
+                end2_val = self.end_spin2.value()
+                is_range2_valid = end2_val > start2_val
+
+                if not is_range2_valid:
+                    logger.warning(f"Range 2 validation failed: start={start2_val}, end={end2_val}")
+                    self._mark_field_invalid("start2")
+                    self._mark_field_invalid("end2")
+                else:
+                    if "start2" in self._invalid_fields or "end2" in self._invalid_fields:
+                        logger.debug(f"Range 2 validation passed: start={start2_val}, end={end2_val}")
+                    self._clear_invalid_state("start2")
+                    self._clear_invalid_state("end2")
+            else:
+                # If dual range is disabled, its fields can't be invalid
                 self._clear_invalid_state("start2")
                 self._clear_invalid_state("end2")
-        else:
-            # If dual range is disabled, its fields can't be invalid
-            self._clear_invalid_state("start2")
-            self._clear_invalid_state("end2")
 
-        # --- Update Button State ---
-        # Buttons are enabled based on validation only
-        is_all_valid = is_range1_valid and is_range2_valid
-        previous_button_state = self.update_plot_btn.isEnabled()
-        self.update_plot_btn.setEnabled(is_all_valid)
-        self.export_plot_btn.setEnabled(is_all_valid)
-        
-        if previous_button_state != is_all_valid:
-            logger.debug(f"Analysis buttons {'enabled' if is_all_valid else 'disabled'} (validation: {is_all_valid})")
+            # --- Update Button State ---
+            is_all_valid = is_range1_valid and is_range2_valid
+            previous_button_state = self.update_plot_btn.isEnabled()
+            self.update_plot_btn.setEnabled(is_all_valid)
+            self.export_plot_btn.setEnabled(is_all_valid)
+            
+            if previous_button_state != is_all_valid:
+                logger.debug(f"Analysis buttons {'enabled' if is_all_valid else 'disabled'} (validation: {is_all_valid})")
 
-        # --- Sync Cursors ---
-        self.range_values_changed.emit()
+            # --- Sync Cursors ---
+            logger.info(f"DIAGNOSTIC: About to emit range_values_changed signal")
+            self.range_values_changed.emit()
+            logger.info(f"DIAGNOSTIC: Emitted range_values_changed signal")
 
     def _mark_field_invalid(self, spinbox_key: str):
         """
@@ -695,12 +696,12 @@ class ControlPanel(QWidget):
             self.start_spin2.setEnabled(use_dual)
             self.end_spin2.setEnabled(use_dual)
 
-            # Set Range 2 values
-            if use_dual:
-                if "range2_start" in params and params["range2_start"] is not None:
-                    self.start_spin2.setValue(params["range2_start"])
-                if "range2_end" in params and params["range2_end"] is not None:
-                    self.end_spin2.setValue(params["range2_end"])
+            # Always restore Range 2 values if they exist
+            # This preserves user's configured values even when checkbox is unchecked
+            if "range2_start" in params and params["range2_start"] is not None:
+                self.start_spin2.setValue(params["range2_start"])
+            if "range2_end" in params and params["range2_end"] is not None:
+                self.end_spin2.setValue(params["range2_end"])
 
         finally:
             # Restore signal states
@@ -794,10 +795,10 @@ class ControlPanel(QWidget):
                 "range1_end": self.end_spin.value(),
                 "use_dual_range": self.dual_range_cb.isChecked(),
                 "range2_start": (
-                    self.start_spin2.value() if self.dual_range_cb.isChecked() else None
+                    self.start_spin2.value()
                 ),
                 "range2_end": (
-                    self.end_spin2.value() if self.dual_range_cb.isChecked() else None
+                    self.end_spin2.value()
                 ),
             },
             "plot": {

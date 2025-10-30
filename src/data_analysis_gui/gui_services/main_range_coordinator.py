@@ -50,6 +50,8 @@ class MainRangeCoordinator(QObject):
     # Pass-through signals from ControlPanel for MainWindow convenience
     analysis_requested = Signal()
     export_requested = Signal()
+
+    settings_changed = Signal()
     
     def __init__(self, control_panel, plot_manager):
         """
@@ -166,15 +168,27 @@ class MainRangeCoordinator(QObject):
         Handle cursor movement events from PlotManager.
         
         When user drags a cursor, update the corresponding spinbox to show
-        the new position in real-time.
+        the new position in real-time. When drag completes, trigger auto-save.
         
         Args:
-            action: Type of cursor action (e.g., "dragged", "centered").
+            action: Type of cursor action (e.g., "dragged", "centered", "released").
             line_id: Identifier for the cursor line.
             position: New position value for the cursor.
         """
-        if action == "dragged" or action == "centered":
+        if action == "dragged":
+            # During drag - update spinbox silently (no auto-save)
             self._sync_cursor_to_spinbox(line_id, position)
+        
+        elif action == "centered":
+            # After centering - update spinbox and trigger save
+            self._sync_cursor_to_spinbox(line_id, position)
+            logger.debug("Cursor centered - triggering settings save")
+            self.settings_changed.emit()
+        
+        elif action == "released":
+            # After drag completes - trigger save
+            logger.debug(f"Cursor '{line_id}' drag completed - triggering settings save")
+            self.settings_changed.emit()
     
     def _sync_cursor_to_spinbox(self, line_id: str, position: float):
         """
