@@ -309,9 +309,9 @@ class CursorManager:
             try:
                 text.remove()
                 logger.debug(f"Removed existing text label for '{line_id}'")
-            except (ValueError, AttributeError, NotImplementedError) as e:
-                # Text may not be in axes or already removed - not an error
-                logger.debug(f"Text for '{line_id}' not in axes or already removed: {e}")
+            except (ValueError, AttributeError, NotImplementedError):
+                # Text already removed by ax.clear() - this is expected, no need to log
+                pass
         
         # Clear text references
         self._cursor_texts.clear()
