@@ -117,12 +117,15 @@ class PlotManager(QObject):
         self._max_time_bound: Optional[float] = None
         self._y_axis_hard_limits = (-40000, 40000)
 
+        # Track current channel type for per-channel view state management
+        self._current_channel_type: str = 'Voltage'
+
         # Connect toolbar reset signal to autofit method
         self.toolbar.reset_requested.connect(self.autofit_to_data)
 
         # Welcome message state
         self._welcome_text = None
-        self._welcome_click_cid = None 
+        self._welcome_click_cid = None
         
         # Show welcome message on startup
         self.show_welcome_message()
@@ -228,12 +231,15 @@ class PlotManager(QObject):
             y: Data array (2D).
             channel: Channel index to plot.
             sweep_index: Index of the sweep.
-            channel_type: Type of channel.
+            channel_type: Type of channel ('Voltage' or 'Current').
             channel_config: Optional channel configuration.
             title: Optional plot title.
             x_label: Optional x-axis label.
             y_label: Optional y-axis label.
         """
+        # Store current channel type for per-channel view state management
+        self._current_channel_type = channel_type
+        
         # Clear zoom buttons BEFORE clearing axes
         self.axis_zoom_controller.clear_buttons()
 
@@ -277,36 +283,36 @@ class PlotManager(QObject):
         for line in self.cursor_manager.get_all_lines():
             self.ax.add_line(line)
 
-        # 5. Handle view limits: restore existing zoom/pan or autoscale for first sweep
-        current_view = self.view_manager.get_current_view()
+        # 5. Handle view limits with per-channel view state
+        current_view = self.view_manager.get_current_view(channel_type)
 
         if current_view is not None:
-            # Restore the preserved zoom/pan state from previous sweep
+            # Restore the preserved zoom/pan state for this channel
             xlim, ylim = current_view
             self.ax.set_xlim(xlim)
             self.ax.set_ylim(ylim)
-            logger.debug(f"Restored view from previous sweep: X={xlim}, Y={ylim}")
+            logger.debug(f"Restored {channel_type} view: X={xlim}, Y={ylim}")
         else:
-            # First plot after file load - autoscale
+            # First time viewing this channel - autoscale
             self.ax.relim()
             self.ax.autoscale_view(tight=True)
             self.ax.margins(x=0.02, y=0.05)
             
-            # Store the autoscaled limits as current view
+            # Store the autoscaled limits as current view for this channel
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
-            self.view_manager.update_current_view(xlim, ylim)
-            logger.debug(f"Set initial view: X={xlim}, Y={ylim}")
+            self.view_manager.update_current_view(xlim, ylim, channel_type)
+            logger.debug(f"Set initial {channel_type} view: X={xlim}, Y={ylim}")
 
         # 6. CursorManager recreates text labels with new data
         self.cursor_manager.recreate_all_text_labels(self.ax)
 
-        #self.figure.tight_layout(pad=1.0)
         # Create zoom buttons AFTER tight_layout
         self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
         self.redraw()
         self.plot_updated.emit()
-        logger.info(f"Updated plot for sweep {sweep_index}, channel {channel}.")
+        logger.info(f"Updated plot for sweep {sweep_index}, channel {channel} ({channel_type}).")
+
 
     def update_range_lines(
         self,
@@ -540,11 +546,8 @@ class PlotManager(QObject):
         """
         Autoscale axes to fit all data points in the currently displayed sweep.
         
-        This replaces the old "home view" behavior. Instead of restoring a stored
-        view, this performs a fresh autoscale on whatever sweep is currently displayed.
-        Useful for resetting after zoom/pan operations.
-        
-        Called when the Reset button is clicked in the toolbar.
+        Performs a fresh autoscale on current sweep data and stores the result
+        for the current channel type. Called when Reset button is clicked.
         """
         # Get data directly from cursor manager
         time_data = self.cursor_manager._current_time_data
@@ -575,24 +578,25 @@ class PlotManager(QObject):
         # Update cursor text positions for new view
         self.cursor_manager.update_all_text_positions(ylim)
         
-        # Store as current view
-        self.view_manager.update_current_view(xlim, ylim)
+        # Store as current view for the current channel type
+        self.view_manager.update_current_view(xlim, ylim, self._current_channel_type)
         
         # Push onto toolbar's navigation stack
         self.toolbar.push_current()
         
-        logger.info(f"Autofitted to data: X={xlim}, Y={ylim}")
+        logger.info(f"Autofitted {self._current_channel_type} to data: X={xlim}, Y={ylim}")
         self.redraw()
 
     def reset_for_new_file(self) -> None:
         """
         Reset plot state for a new file load.
         
-        Clears view state so the first sweep will autoscale and establish
-        a fresh current view. Called from MainWindow when loading a new file.
+        Clears view state for all channels so first sweep will autoscale
+        and establish fresh views. Called from MainWindow when loading a new file.
         """
         self.view_manager.reset()
-        logger.info("Reset plot manager for new file")
+        self._current_channel_type = 'Voltage'
+        logger.info("Reset plot manager for new file (all channel views cleared)")
 
     # --- Mouse Interaction Handlers ---
 
@@ -620,16 +624,19 @@ class PlotManager(QObject):
         logger.debug(f"Set max time bound: {max_time:.2f} ms")
 
     def _on_axis_zoom(self, axis: str, direction: str) -> None:
-        """Handle axis zoom button clicks with bounds limiting."""
+        """
+        Handle axis zoom button clicks with bounds limiting.
         
+        Args:
+            axis: 'x' or 'y' - which axis to zoom.
+            direction: 'in' or 'out' - zoom direction.
+        """
         # Get current limits for the specified axis
         if axis == 'x':
             current_limits = self.ax.get_xlim()
-            # X-axis bounds: 0 to max_time
             max_bounds = (0, self._max_time_bound) if self._max_time_bound else None
         else:
             current_limits = self.ax.get_ylim()
-            # Y-axis bounds: hard-coded limits
             max_bounds = self._y_axis_hard_limits
         
         # Calculate new limits using controller with bounds
@@ -647,43 +654,11 @@ class PlotManager(QObject):
         current_ylim = self.ax.get_ylim()
         self.cursor_manager.update_all_text_positions(current_ylim)
         
+        # Store new view state for current channel
+        current_xlim = self.ax.get_xlim()
+        self.view_manager.update_current_view(current_xlim, current_ylim, self._current_channel_type)
+        
         self.redraw()
-
-    # def reset_for_new_file(self) -> None:
-    #     """
-    #     Reset plot state for a new file load.
-        
-    #     Clears view state so the first sweep will autoscale and establish
-    #     a new home view. Called from MainWindow when loading a new file.
-    #     """
-    #     self.view_manager.reset()
-    #     logger.info("Reset plot manager for new file")
-
-    # def restore_home_view(self) -> None:
-    #     """
-    #     Restore the plot view to initial autoscaled state.
-        
-    #     Called by the toolbar's Home button. Uses ViewStateManager to restore
-    #     the home view that was set after autoscaling, rather than matplotlib's
-    #     default history-based home behavior.
-    #     """
-    #     home_view = self.view_manager.reset_to_home()
-        
-    #     if home_view is None:
-    #         logger.warning("No home view stored - cannot restore")
-    #         return
-        
-    #     xlim, ylim = home_view
-        
-    #     # Apply home view limits
-    #     self.ax.set_xlim(xlim)
-    #     self.ax.set_ylim(ylim)
-        
-    #     # Update cursor text positions
-    #     self.cursor_manager.update_all_text_positions(ylim)
-        
-    #     logger.info(f"Restored home view: X={xlim}, Y={ylim}")
-    #     self.redraw()
 
     def _on_drag(self, event) -> None:
         """
@@ -727,13 +702,13 @@ class PlotManager(QObject):
         current_xlim = self.ax.get_xlim()
         current_ylim = self.ax.get_ylim()
         
-        # Check if view has changed
-        if self.view_manager.has_view_changed(current_xlim, current_ylim):
+        # Check if view has changed for the current channel
+        if self.view_manager.has_view_changed(current_xlim, current_ylim, self._current_channel_type):
             # Update cursor text positions to match new limits
             self.cursor_manager.update_all_text_positions(current_ylim)
             
-            # Store new limits
-            self.view_manager.update_current_view(current_xlim, current_ylim)
+            # Store new limits for the current channel
+            self.view_manager.update_current_view(current_xlim, current_ylim, self._current_channel_type)
 
     def clear(self) -> None:
         """

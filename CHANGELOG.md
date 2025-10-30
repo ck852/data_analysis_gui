@@ -6,6 +6,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Added
 - "Reject Sweep" button
 - Batch Sweep extraction
+- Current and Voltage sweep views now independent
 
 ### Changed
 - Dual analysis cursors remove when box unchecked

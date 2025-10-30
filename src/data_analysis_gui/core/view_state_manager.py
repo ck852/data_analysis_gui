@@ -6,13 +6,12 @@ License: MIT (see LICENSE file for details)
 
 View State Manager
 
-Manages axis limit state for plot views, specifically for preserving zoom/pan
-state when changing between sweeps. Provides explicit state management for
-current view (last known limits for change detection and preservation).
+Manages plot view state (axis limits) independently for Voltage and Current channels.
+Each channel maintains its own zoom/pan state, allowing users to switch between
+channels without losing their view settings.
 """
 
 from typing import Optional, Tuple
-
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,109 +19,123 @@ logger = get_logger(__name__)
 
 class ViewStateManager:
     """
-    Manages axis limit state for plot views.
+    Manages plot view state with independent tracking for Voltage and Current channels.
     
-    Tracks current view state for zoom/pan preservation across sweep changes.
-    The "Reset" button now performs fresh autoscaling rather than restoring
-    a stored home view.
-    
-    This class is a pure Python state manager with no matplotlib or Qt dependencies.
-    It replaces the manual _last_xlim and _last_ylim tracking previously done
-    in PlotManager.
+    Each channel type stores its own xlim/ylim state, allowing users to:
+    - Zoom into Current data
+    - Switch to Voltage channel
+    - See Voltage at its own zoom level (or autoscaled on first view)
+    - Switch back to Current and see the previous Current zoom level
     
     Example Usage:
-        >>> view_manager = ViewStateManager()
-        >>> # After initial plot
-        >>> view_manager.update_current_view(xlim=(0, 100), ylim=(-50, 50))
+        >>> view_mgr = ViewStateManager()
         >>> 
-        >>> # Later, check if view changed
-        >>> new_xlim = ax.get_xlim()
-        >>> new_ylim = ax.get_ylim()
-        >>> if view_manager.has_view_changed(new_xlim, new_ylim):
-        ...     # Handle view change (e.g., reposition text)
-        ...     view_manager.update_current_view(new_xlim, new_ylim)
-    
-    Future Feature Hooks:
-        - Per-sweep view storage: Add dict mapping sweep_id to view tuples
-        - Zoom calculations: Add methods that operate on current_view for
-          calculating zoom in/out by factor
+        >>> # Store Voltage view
+        >>> view_mgr.update_current_view((0, 1000), (-80, 40), 'Voltage')
+        >>> 
+        >>> # Store Current view  
+        >>> view_mgr.update_current_view((0, 1000), (-500, 100), 'Current')
+        >>> 
+        >>> # Retrieve Voltage view
+        >>> view = view_mgr.get_current_view('Voltage')
+        >>> # Returns: ((0, 1000), (-80, 40))
     """
     
     def __init__(self):
-        """Initialize view state manager with no views set."""
-        self._current_xlim: Optional[Tuple[float, float]] = None
-        self._current_ylim: Optional[Tuple[float, float]] = None
-        logger.debug("ViewStateManager initialized")
+        """Initialize view state manager with separate storage for each channel."""
+        self._channel_views = {
+            'Voltage': None,
+            'Current': None
+        }
+        logger.debug("ViewStateManager initialized with per-channel storage")
     
-    def update_current_view(self, xlim: Tuple[float, float], ylim: Tuple[float, float]) -> None:
+    def update_current_view(
+        self, 
+        xlim: Tuple[float, float], 
+        ylim: Tuple[float, float],
+        channel_type: str
+    ) -> None:
         """
-        Update the stored current view limits.
-        
-        This should be called after detecting a view change (via has_view_changed)
-        to store the new limits as the "last known" state for future change detection.
-        Typically called after handling zoom/pan events.
+        Store the current view state for a specific channel.
         
         Args:
             xlim: X-axis limits as (min, max) tuple.
             ylim: Y-axis limits as (min, max) tuple.
+            channel_type: Channel type ('Voltage' or 'Current').
         """
-        self._current_xlim = xlim
-        self._current_ylim = ylim
-        logger.debug(f"Updated current view: X={xlim}, Y={ylim}")
+        if channel_type not in self._channel_views:
+            logger.warning(f"Unknown channel type '{channel_type}', defaulting to 'Voltage'")
+            channel_type = 'Voltage'
+        
+        self._channel_views[channel_type] = (xlim, ylim)
+        logger.debug(f"Stored view for {channel_type}: X={xlim}, Y={ylim}")
     
-    def get_current_view(self) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+    def get_current_view(self, channel_type: str) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
         """
-        Get the stored current view limits.
-        
-        Returns:
-            Tuple of (xlim, ylim) if view is set, None otherwise.
-        """
-        if self._current_xlim is None or self._current_ylim is None:
-            logger.debug("No current view set")
-            return None
-        return (self._current_xlim, self._current_ylim)
-    
-    def has_view_changed(self, xlim: Tuple[float, float], ylim: Tuple[float, float]) -> bool:
-        """
-        Check if the provided limits differ from the stored current view.
-        
-        This is used to detect zoom/pan operations by comparing axes limits
-        to the last known stored limits. Returns True on first call (when no
-        view is stored yet) or when limits differ.
-        
-        Usage pattern:
-            current_xlim = ax.get_xlim()
-            current_ylim = ax.get_ylim()
-            if view_manager.has_view_changed(current_xlim, current_ylim):
-                # Handle the change
-                view_manager.update_current_view(current_xlim, current_ylim)
+        Retrieve the stored view state for a specific channel.
         
         Args:
-            xlim: X-axis limits to compare.
-            ylim: Y-axis limits to compare.
+            channel_type: Channel type ('Voltage' or 'Current').
         
         Returns:
-            True if limits differ from stored current view or if no view is stored,
-            False if limits match stored current view exactly.
+            Tuple of (xlim, ylim) if view exists, None if channel has no stored view.
         """
-        if self._current_xlim is None or self._current_ylim is None:
-            logger.debug("View change detected: No previous view stored")
+        if channel_type not in self._channel_views:
+            logger.warning(f"Unknown channel type '{channel_type}', defaulting to 'Voltage'")
+            channel_type = 'Voltage'
+        
+        view = self._channel_views[channel_type]
+        
+        if view is not None:
+            logger.debug(f"Retrieved view for {channel_type}: X={view[0]}, Y={view[1]}")
+        else:
+            logger.debug(f"No stored view for {channel_type} (will autoscale)")
+        
+        return view
+    
+    def has_view_changed(
+        self, 
+        current_xlim: Tuple[float, float], 
+        current_ylim: Tuple[float, float],
+        channel_type: str
+    ) -> bool:
+        """
+        Check if the current view differs from stored view for a channel.
+        
+        Used to detect zoom/pan operations for updating cursor text positions.
+        
+        Args:
+            current_xlim: Current X-axis limits.
+            current_ylim: Current Y-axis limits.
+            channel_type: Channel type to check against.
+        
+        Returns:
+            True if view has changed from stored state, False otherwise.
+        """
+        if channel_type not in self._channel_views:
+            channel_type = 'Voltage'
+        
+        stored_view = self._channel_views[channel_type]
+        
+        if stored_view is None:
             return True
         
-        changed = self._current_xlim != xlim or self._current_ylim != ylim
+        stored_xlim, stored_ylim = stored_view
+        changed = (current_xlim != stored_xlim) or (current_ylim != stored_ylim)
+        
         if changed:
-            logger.debug(f"View change detected: X={xlim}, Y={ylim}")
+            logger.debug(f"View changed for {channel_type}")
+        
         return changed
     
     def reset(self) -> None:
         """
-        Clear all stored view state.
+        Reset view state for all channels.
         
-        Called when loading a new file to ensure the first sweep
-        establishes a fresh view via autoscaling. After reset,
-        get_current_view() will return None, triggering autoscale
-        on the next plot update.
+        Called when loading a new file to clear old view state.
         """
-        self._current_xlim = None
-        self._current_ylim = None
-        logger.info("View state reset for new file")
+        self._channel_views = {
+            'Voltage': None,
+            'Current': None
+        }
+        logger.debug("Reset view state for all channels")
