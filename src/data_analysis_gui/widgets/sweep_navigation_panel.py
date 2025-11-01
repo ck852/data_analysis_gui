@@ -29,12 +29,13 @@ class SweepNavigationPanel(QWidget):
     
     Provides three methods of sweep selection:
     1. Dropdown combo box for direct selection
-    2. Arrow buttons for sequential navigation
+    2. Arrow buttons for sequential navigation (with click-and-hold support)
     3. Horizontal slider for quick browsing
     
     Features:
     - Synchronized controls prevent signal loops
     - Rate-limited slider dragging for performance
+    - Click-and-hold arrow buttons for continuous scrolling
     - Sweep timing display from dataset metadata
     - Consistent theming with application style
     """
@@ -55,6 +56,25 @@ class SweepNavigationPanel(QWidget):
         self.update_timer.setSingleShot(False)
         self.update_timer.setInterval(50)  # 50ms throttle
         self.update_timer.timeout.connect(self._emit_pending_change)
+        
+        # Click-and-hold timers for arrow buttons
+        self.prev_hold_timer = QTimer(self)
+        self.prev_hold_timer.setSingleShot(True)
+        self.prev_hold_timer.setInterval(500)  # Initial delay
+        self.prev_hold_timer.timeout.connect(self._start_prev_repeat)
+        
+        self.next_hold_timer = QTimer(self)
+        self.next_hold_timer.setSingleShot(True)
+        self.next_hold_timer.setInterval(500)  # Initial delay
+        self.next_hold_timer.timeout.connect(self._start_next_repeat)
+        
+        self.prev_repeat_timer = QTimer(self)
+        self.prev_repeat_timer.setInterval(100)  # Repeat rate
+        self.prev_repeat_timer.timeout.connect(self._prev_sweep)
+        
+        self.next_repeat_timer = QTimer(self)
+        self.next_repeat_timer.setInterval(100)  # Repeat rate
+        self.next_repeat_timer.timeout.connect(self._next_sweep)
         
         self._init_ui()
         self._connect_signals()
@@ -176,9 +196,15 @@ class SweepNavigationPanel(QWidget):
         self.sweep_slider.sliderPressed.connect(self._on_slider_pressed)
         self.sweep_slider.sliderReleased.connect(self._on_slider_released)
         
-        # Arrow buttons -> modify combo directly
+        # Arrow buttons -> single click navigation
         self.prev_btn.clicked.connect(self._prev_sweep)
         self.next_btn.clicked.connect(self._next_sweep)
+        
+        # Arrow buttons -> click-and-hold navigation
+        self.prev_btn.pressed.connect(self._on_prev_pressed)
+        self.prev_btn.released.connect(self._on_prev_released)
+        self.next_btn.pressed.connect(self._on_next_pressed)
+        self.next_btn.released.connect(self._on_next_released)
     
     def _on_combo_changed(self, index: int):
         """
@@ -290,6 +316,40 @@ class SweepNavigationPanel(QWidget):
         if current_idx < self.sweep_combo.count() - 1:
             self.sweep_combo.setCurrentIndex(current_idx + 1)
     
+    # ========== Click-and-Hold Implementation ==========
+    
+    def _on_prev_pressed(self):
+        """Handle previous button press - start hold timer."""
+        self.prev_hold_timer.start()
+        logger.debug("Previous button pressed - starting hold timer")
+    
+    def _on_prev_released(self):
+        """Handle previous button release - stop all timers."""
+        self.prev_hold_timer.stop()
+        self.prev_repeat_timer.stop()
+        logger.debug("Previous button released - stopped timers")
+    
+    def _start_prev_repeat(self):
+        """Start continuous previous navigation after initial delay."""
+        self.prev_repeat_timer.start()
+        logger.debug("Previous button held - starting auto-repeat")
+    
+    def _on_next_pressed(self):
+        """Handle next button press - start hold timer."""
+        self.next_hold_timer.start()
+        logger.debug("Next button pressed - starting hold timer")
+    
+    def _on_next_released(self):
+        """Handle next button release - stop all timers."""
+        self.next_hold_timer.stop()
+        self.next_repeat_timer.stop()
+        logger.debug("Next button released - stopped timers")
+    
+    def _start_next_repeat(self):
+        """Start continuous next navigation after initial delay."""
+        self.next_repeat_timer.start()
+        logger.debug("Next button held - starting auto-repeat")
+    
     # ========== Public API ==========
     
     def get_current_sweep(self) -> str:
@@ -380,6 +440,12 @@ class SweepNavigationPanel(QWidget):
         Clear all sweep data and reset the panel to empty state.
         Called when no file is loaded.
         """
+        # Stop any active timers
+        self.prev_hold_timer.stop()
+        self.next_hold_timer.stop()
+        self.prev_repeat_timer.stop()
+        self.next_repeat_timer.stop()
+        
         self.sweep_combo.blockSignals(True)
         self.sweep_slider.blockSignals(True)
         
