@@ -38,7 +38,7 @@ from PySide6.QtGui import QKeySequence, QAction
 
 # Import refactored theme functions
 from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_button, style_combo_box,
-                                            style_label
+                                            style_label, style_checkbox
                                 )
 
 from data_analysis_gui.core.session_settings import (extract_settings_from_main_window, apply_settings_to_main_window,
@@ -55,6 +55,7 @@ from data_analysis_gui.core.plot_formatter import PlotFormatter
 
 # Widget imports
 from data_analysis_gui.widgets.control_panel import ControlPanel
+from data_analysis_gui.widgets.sweep_navigation_panel import SweepNavigationPanel
 from data_analysis_gui.plot_manager import PlotManager
 
 # Dialog imports
@@ -121,11 +122,6 @@ class MainWindow(QMainWindow):
         self.analysis_dialog: Optional[AnalysisPlotDialog] = None
 
         self.rejected_sweeps: Set[int] = set()  # Track rejected sweep indices
-
-        # Navigation timer
-        self.hold_timer = QTimer()
-        self.hold_timer.timeout.connect(self._continue_navigation)
-        self.navigation_direction = None
 
         # Splitter auto-save timer
         self.splitter_save_timer = QTimer()
@@ -267,7 +263,7 @@ class MainWindow(QMainWindow):
             self._show_no_data_warning()
             return
         
-        sweep = self.sweep_combo.currentText()
+        sweep = self.sweep_nav_panel.get_current_sweep()
         if not sweep:
             return
         
@@ -340,38 +336,13 @@ class MainWindow(QMainWindow):
         open_action = toolbar.addAction("Open", self._open_file)
         toolbar.addSeparator()
 
-        # Navigation buttons - start disabled until file is loaded
-        self.prev_btn = create_styled_button("◀", "secondary")
-        self.prev_btn.setMaximumWidth(10)
-        self.prev_btn.setEnabled(False)
-        self.prev_btn.pressed.connect(lambda: self._start_navigation(self._prev_sweep))
-        self.prev_btn.released.connect(self._stop_navigation)
-        toolbar.addWidget(self.prev_btn)
-
-        # Sweep combo - disabled until file is loaded
-        self.sweep_combo = QComboBox()
-        self.sweep_combo.setMinimumWidth(80)
-        self.sweep_combo.setEnabled(True)
-        self.sweep_combo.currentTextChanged.connect(self._on_sweep_changed)
-        style_combo_box(self.sweep_combo)
-        toolbar.addWidget(self.sweep_combo)
-
-        self.next_btn = create_styled_button("▶", "secondary")
-        self.next_btn.setMaximumWidth(10)
-        self.next_btn.setEnabled(False)
-        self.next_btn.pressed.connect(lambda: self._start_navigation(self._next_sweep))
-        self.next_btn.released.connect(self._stop_navigation)
-        toolbar.addWidget(self.next_btn)
-
-        toolbar.addSeparator()
-
+        # Channel selection
         channel_label = QLabel("Channel:")
         style_label(channel_label, "normal")
         toolbar.addWidget(channel_label)
 
         self.channel_combo = QComboBox()
         self.channel_combo.addItems(["Voltage", "Current"])
-        #self.channel_combo.setMaximumWidth(100)
         self.channel_combo.setEnabled(True)
         self.channel_combo.currentTextChanged.connect(self._on_channel_changed)
         style_combo_box(self.channel_combo)
@@ -407,19 +378,21 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # NEW: Reject Sweep Checkbox
+        # Sweep Navigation Panel (replaces individual controls)
+        self.sweep_nav_panel = SweepNavigationPanel()
+        toolbar.addWidget(self.sweep_nav_panel)
+
+        toolbar.addSeparator()
+
+        # Reject Sweep Checkbox
         self.reject_sweep_cb = QCheckBox("Reject Sweep")
         self.reject_sweep_cb.setToolTip(
             "Exclude this sweep from analysis (Generate Analysis Plot and Export Analysis Data)"
         )
         self.reject_sweep_cb.setEnabled(False)  # Disabled until file loaded
         self.reject_sweep_cb.stateChanged.connect(self._on_reject_sweep_toggled)
-        # Apply checkbox styling from themes
-        from data_analysis_gui.config.themes import style_checkbox
         style_checkbox(self.reject_sweep_cb)
         toolbar.addWidget(self.reject_sweep_cb)
-
-        toolbar.addSeparator()
 
         # Connect toolbar controls to auto-save
         self.channel_combo.currentTextChanged.connect(self._auto_save_settings)
@@ -432,6 +405,9 @@ class MainWindow(QMainWindow):
         self.range_coordinator (which doesn't exist yet).
         Coordinator signals are connected separately in _connect_coordinator_signals().
         """
+        # Connect sweep navigation panel
+        self.sweep_nav_panel.sweep_changed.connect(self._on_sweep_changed)
+
         # Auto-save settings when they change
         self.control_panel.dual_range_toggled.connect(self._auto_save_settings)
         self.control_panel.range_values_changed.connect(self._auto_save_settings)
@@ -548,7 +524,7 @@ class MainWindow(QMainWindow):
             return
         
         # Get current sweep for preview
-        sweep = self.sweep_combo.currentText()
+        sweep = self.sweep_nav_panel.get_current_sweep()
         if not sweep:
             QMessageBox.warning(self, "No Sweep", "No sweep selected.")
             return
@@ -637,10 +613,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "last_channel_view"):
             self.channel_combo.setCurrentText(self.last_channel_view)
 
-        # Enable navigation controls and reject checkbox
-        self.prev_btn.setEnabled(True)
-        self.next_btn.setEnabled(True)
-        self.sweep_combo.setEnabled(True)
+        # Enable channel selection
         self.channel_combo.setEnabled(True)
         self.reject_sweep_cb.setEnabled(True)  # Enable reject checkbox
 
@@ -651,13 +624,20 @@ class MainWindow(QMainWindow):
         # Reset plot manager for new file - clears view state so first sweep autoscales
         self.plot_manager.reset_for_new_file()
 
-        # Populate sweeps
-        self.sweep_combo.clear()
-        self.sweep_combo.addItems(file_info.sweep_names)
+        # Initialize sweep navigation panel
+        self.sweep_nav_panel.set_sweep_list(file_info.sweep_names)
+        
+        # Set sweep timing data from dataset metadata
+        dataset = self.controller.current_dataset
+        sweep_times = dataset.metadata.get("sweep_times", {})
+        self.sweep_nav_panel.set_sweep_times(sweep_times)
+        
+        # Enable the navigation panel
+        self.sweep_nav_panel.set_enabled(True)
 
         # Show first sweep
         if file_info.sweep_names:
-            self.sweep_combo.setCurrentIndex(0)
+            self.sweep_nav_panel.set_current_sweep(file_info.sweep_names[0])
 
     def _on_reject_sweep_toggled(self, state):
         """
@@ -668,7 +648,7 @@ class MainWindow(QMainWindow):
         Args:
             state: Qt check state (Qt.CheckState.Checked or Qt.CheckState.Unchecked)
         """
-        sweep = self.sweep_combo.currentText()
+        sweep = self.sweep_nav_panel.get_current_sweep()
         if not sweep:
             return
         
@@ -685,16 +665,18 @@ class MainWindow(QMainWindow):
             self.rejected_sweeps.discard(sweep_idx)
             logger.debug(f"Un-rejected sweep {sweep_idx}")
 
-    def _on_sweep_changed(self):
+    def _on_sweep_changed(self, sweep_index: str):
         """
         Update the plot when the sweep selection changes.
         Also updates the reject sweep checkbox state.
+        
+        Args:
+            sweep_index: The new sweep index as a string (e.g., "0", "1", "2")
         """
         # Update reject checkbox to match current sweep's rejection state
-        sweep = self.sweep_combo.currentText()
-        if sweep:
+        if sweep_index:
             try:
-                sweep_idx = int(sweep)
+                sweep_idx = int(sweep_index)
                 # Block signals to prevent triggering toggle handler
                 self.reject_sweep_cb.blockSignals(True)
                 self.reject_sweep_cb.setChecked(sweep_idx in self.rejected_sweeps)
@@ -717,7 +699,7 @@ class MainWindow(QMainWindow):
         if not self.controller.has_data():
             return
 
-        sweep = self.sweep_combo.currentText()
+        sweep = self.sweep_nav_panel.get_current_sweep()
         if not sweep:
             return
 
@@ -965,45 +947,3 @@ class MainWindow(QMainWindow):
             logger.debug("Auto-saved settings")
         except Exception as e:
             logger.warning(f"Failed to auto-save settings: {e}")
-
-    # Navigation methods
-    def _start_navigation(self, direction):
-        """
-        Start continuous sweep navigation in the specified direction.
-
-        Args:
-            direction (callable): Function to invoke for navigation.
-        """
-        direction()
-        self.navigation_direction = direction
-        self.hold_timer.start(150)
-
-    def _stop_navigation(self):
-        """
-        Stop continuous sweep navigation.
-        """
-        self.hold_timer.stop()
-        self.navigation_direction = None
-
-    def _continue_navigation(self):
-        """
-        Continue sweep navigation while navigation button is held.
-        """
-        if self.navigation_direction:
-            self.navigation_direction()
-
-    def _next_sweep(self):
-        """
-        Navigate to the next sweep in the sweep combo box.
-        """
-        idx = self.sweep_combo.currentIndex()
-        if idx < self.sweep_combo.count() - 1:
-            self.sweep_combo.setCurrentIndex(idx + 1)
-
-    def _prev_sweep(self):
-        """
-        Navigate to the previous sweep in the sweep combo box.
-        """
-        idx = self.sweep_combo.currentIndex()
-        if idx > 0:
-            self.sweep_combo.setCurrentIndex(idx - 1)
