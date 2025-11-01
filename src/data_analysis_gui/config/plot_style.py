@@ -286,19 +286,19 @@ def get_line_styles():
             "marker": "s",
             "markersize": 5,  # Increased from 4
             "markeredgewidth": 0,
-            "alpha": 0.9,
+            "alpha": 1.0,
             "linestyle": "--",
         },
         "range_line": {"linewidth": 2, "alpha": 0.7, "linestyle": "-"},
         "range1": {
-            "color": "#73AB84",  # Sage green
-            "linewidth": 2,
+            "color": "#32CD32",  # Sage green
+            "linewidth": 1.2,
             "alpha": 1.0,
             "linestyle": "-",
         },
         "range2": {
             "color": "#C73E1D",  # Rust red
-            "linewidth": 2,
+            "linewidth": 1.2,
             "alpha": 1.0,
             "linestyle": "-",
         },
