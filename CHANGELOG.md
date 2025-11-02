@@ -7,12 +7,14 @@ This project follows [Semantic Versioning](https://semver.org/).
 - "Reject Sweep" button
 - Batch Sweep extraction
 - Current and Voltage sweep views now independent
+- Slider to adjust which sweep is displayed
 
 ### Changed
 - Dual analysis cursors remove when box unchecked
 - MainWindow Toolbar streamlined
 - Extract Sweeps dialog saves settings, better UI
 - Cursor labels sticking to MainWindow plot fixed
+- MainWindow plot has thinner, more prominent lines
 
 ## [0.9.2-b.4] 2025-10-22
 ### Added
