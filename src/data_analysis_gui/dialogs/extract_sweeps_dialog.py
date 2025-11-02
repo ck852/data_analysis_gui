@@ -219,7 +219,7 @@ class SweepExtractorDialog(QDialog):
         # Start time input - use default_start
         self.start_spinbox = NumericLineEdit()
         self.start_spinbox.setRange(0.0, max_time)
-        self.start_spinbox.setDecimals(1)
+        self.start_spinbox.setDecimals(2)
         self.start_spinbox.setValue(self.default_start)
         self.start_spinbox.setMinimumWidth(80)
         self.start_spinbox.setMaximumWidth(100)
@@ -227,7 +227,7 @@ class SweepExtractorDialog(QDialog):
         # End time spinbox - use default_end or max_time
         self.end_spinbox = NumericLineEdit()
         self.end_spinbox.setRange(0.0, max_time)
-        self.end_spinbox.setDecimals(1)
+        self.end_spinbox.setDecimals(2)
         self.end_spinbox.setValue(end_value)
         self.end_spinbox.setMinimumWidth(80)
         self.end_spinbox.setMaximumWidth(100)
