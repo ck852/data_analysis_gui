@@ -11,6 +11,7 @@ from .current_density_dialog import CurrentDensityDialog
 from .current_density_results_window import CurrentDensityResultsWindow
 from .ramp_iv_dialog import RampIVDialog, VoltageInputDialog
 from .conc_resp_dialog import ConcentrationResponseDialog
+from data_analysis_gui.dialogs.sweep_filter_dialog import SweepFilterDialog
 
 __all__ = [
     "BatchAnalysisDialog",
@@ -21,4 +22,5 @@ __all__ = [
     "RampIVDialog",
     "VoltageInputDialog",
     "ConcentrationResponseDialog",
+    "SweepFilterDialog",
 ]

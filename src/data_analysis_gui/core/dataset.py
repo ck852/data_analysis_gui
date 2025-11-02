@@ -261,6 +261,57 @@ class ElectrophysiologyDataset:
 
         return self.metadata.get("sampling_rate_hz")
 
+    def remove_sweep(self, sweep_index: str) -> bool:
+        """
+        Remove a sweep from the dataset.
+        
+        Args:
+            sweep_index: Sweep identifier to remove
+            
+        Returns:
+            bool: True if sweep was removed, False if not found
+        """
+        if sweep_index in self._sweeps:
+            del self._sweeps[sweep_index]
+            
+            # Update metadata
+            self.metadata['sweep_count'] = len(self._sweeps)
+            if sweep_index in self.metadata.get('sweep_times', {}):
+                del self.metadata['sweep_times'][sweep_index]
+            
+            logger.debug(f"Removed sweep {sweep_index}")
+            return True
+        
+        logger.warning(f"Cannot remove sweep {sweep_index}: not found")
+        return False
+
+    def adjust_all_sweep_times(self, offset_seconds: float) -> None:
+        """
+        Subtract time offset from all sweep time arrays and metadata.
+        
+        Args:
+            offset_seconds: Time offset to subtract (in seconds)
+        
+        Note:
+            Modifies sweep time arrays in place.
+            Also updates metadata['sweep_times'] dictionary.
+        """
+        offset_ms = offset_seconds * 1000  # Convert to milliseconds
+        
+        # Adjust time arrays in each sweep
+        for sweep_idx, (time_ms, data_matrix) in self._sweeps.items():
+            adjusted_time = time_ms - offset_ms
+            self._sweeps[sweep_idx] = (adjusted_time, data_matrix)
+        
+        # Adjust metadata sweep_times
+        if 'sweep_times' in self.metadata:
+            adjusted_times = {}
+            for sweep_idx, time_sec in self.metadata['sweep_times'].items():
+                adjusted_times[sweep_idx] = time_sec - offset_seconds
+            self.metadata['sweep_times'] = adjusted_times
+        
+        logger.info(f"Adjusted all sweep times by -{offset_seconds:.3f}s")
+
     def clear(self) -> None:
         """
         Remove all sweeps and reset metadata to default values.

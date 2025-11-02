@@ -64,6 +64,7 @@ from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
 from data_analysis_gui.dialogs import ConcentrationResponseDialog
+from data_analysis_gui.dialogs.sweep_filter_dialog import SweepFilterDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
@@ -396,6 +397,11 @@ class MainWindow(QMainWindow):
 
         # Connect toolbar controls to auto-save
         self.channel_combo.currentTextChanged.connect(self._auto_save_settings)
+
+        toolbar.addSeparator()
+        filter_sweeps_btn = create_styled_button("Filter Sweeps...", "secondary")
+        filter_sweeps_btn.clicked.connect(self._open_sweep_filter_dialog)
+        toolbar.addWidget(filter_sweeps_btn)
 
     def _connect_signals(self):
         """
@@ -947,3 +953,104 @@ class MainWindow(QMainWindow):
             logger.debug("Auto-saved settings")
         except Exception as e:
             logger.warning(f"Failed to auto-save settings: {e}")
+
+    def _open_sweep_filter_dialog(self):
+        """Open sweep filter dialog."""
+        if not self.controller.has_data():
+            return
+        
+        dataset = self.controller.current_dataset
+        sweep_names = list(dataset.sweeps())
+        sweep_times = dataset.metadata.get('sweep_times', {})
+        
+        dialog = SweepFilterDialog(sweep_names, sweep_times, self)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            config = dialog.get_filter_config()
+            self._apply_sweep_filter(config)
+
+    def _apply_sweep_filter(self, config):
+        """
+        Apply sweep filter to current dataset.
+        
+        NOTE: This modifies the dataset in place and closes any open analysis dialogs
+        to prevent them from holding stale references to filtered-out sweeps.
+        User must reload file to restore original dataset.
+        """
+        # CRITICAL: Close analysis dialogs before modifying dataset
+        # Open dialogs may hold references to sweep data that will be removed
+        if self.analysis_dialog:
+            self.analysis_dialog.close()
+            self.analysis_dialog = None
+        
+        # Store for reload functionality
+        self.filtered_file_path = self.current_file_path
+        
+        dataset = self.controller.current_dataset
+        selected_sweeps = set(config['selected_sweeps'])
+        
+        # Remove unselected sweeps
+        removed_count = 0
+        for sweep_idx in list(dataset.sweeps()):
+            if sweep_idx not in selected_sweeps:
+                dataset.remove_sweep(sweep_idx)  # New method
+                removed_count += 1
+        
+        # Apply time offset if requested
+        if config['reset_time'] and config['time_offset'] > 0:
+            dataset.adjust_all_sweep_times(config['time_offset'])  # New method
+        
+        # Update UI
+        self._refresh_after_filter(removed_count, config['reset_time'])
+
+    def _refresh_after_filter(self, removed_count, time_reset):
+        """Update UI after filtering."""
+        # Rebuild sweep navigation
+        dataset = self.controller.current_dataset
+        remaining_sweeps = sorted(dataset.sweeps(), key=lambda x: int(x) if x.isdigit() else 0)
+        self.sweep_nav_panel.set_sweep_list(remaining_sweeps)
+        
+        # Update sweep times in navigation
+        sweep_times = dataset.metadata.get('sweep_times', {})
+        self.sweep_nav_panel.set_sweep_times(sweep_times)
+        
+        # Jump to first available sweep
+        if remaining_sweeps:
+            self.sweep_nav_panel.set_current_sweep(remaining_sweeps[0])
+        
+        # Show filter indicator
+        filter_msg = f"FILTERED: {removed_count} sweeps removed"
+        if time_reset:
+            filter_msg += " | Time reset to zero"
+        self.file_label.setText(f"{Path(self.current_file_path).name} ({filter_msg})")
+        
+        # Show reload button
+        self._show_reload_button()
+        
+        self.status_bar.showMessage(f"Dataset filtered: {len(remaining_sweeps)} sweeps remaining", 5000)
+
+    def _show_reload_button(self):
+        """Add reload button to toolbar."""
+        if not hasattr(self, 'reload_btn'):
+            self.reload_btn = create_styled_button("Reload Original", "warning")
+            self.reload_btn.clicked.connect(self._reload_original_file)
+            # Insert after file operations
+            self.toolbar.insertWidget(2, self.reload_btn)  # Adjust index as needed
+
+    def _reload_original_file(self):
+        """
+        Reload original file to undo filtering.
+        
+        This restores the complete dataset and removes the filter indicator.
+        """
+        if self.filtered_file_path:
+            # Reload file (this will clear current dataset)
+            self.controller.load_file(self.filtered_file_path)
+            self.filtered_file_path = None
+            
+            # Hide reload button
+            if hasattr(self, 'reload_btn'):
+                self.toolbar.removeAction(self.reload_btn)
+                delattr(self, 'reload_btn')
+            
+            self.status_bar.showMessage("Original file reloaded", 3000)
