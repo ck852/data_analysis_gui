@@ -344,7 +344,8 @@ class ConcentrationResponseDialog(QDialog):
         
         # Add minimal toolbar (consistent with other dialogs)
         toolbar = MinimalNavigationToolbar(self.canvas, self)
-        layout.addWidget(toolbar)
+        
+        layout.addWidget(toolbar, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.canvas)
         
         return group
