@@ -182,6 +182,14 @@ class CurrentDensityDialog(QDialog):
             cslow_input = QLineEdit()
             cslow_input.setValidator(QDoubleValidator(0.01, 10000.0, 2))
             style_input_field(cslow_input)  # Apply theme styling
+            # Override padding and height to fit in table rows
+            cslow_input.setStyleSheet(cslow_input.styleSheet() + """
+                QLineEdit {
+                    padding: 2px 6px;
+                    min-height: 18px;
+                    max-height: 24px;
+                }
+            """)
             cslow_input.textChanged.connect(lambda _, r=row: self._update_status(r))
             self.table.setCellWidget(row, 1, cslow_input)
             self.cslow_inputs[result.base_name] = cslow_input

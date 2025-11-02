@@ -21,7 +21,7 @@ from data_analysis_gui.config.themes import apply_modern_theme, create_styled_bu
 from data_analysis_gui.config.plot_style import (apply_plot_style, style_axis, get_line_styles, 
                                                  add_zero_axis_lines, COLORS
 )
-from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
+from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.services.bg_subtraction_service import BackgroundSubtractionService
@@ -117,24 +117,20 @@ class BackgroundSubtractionDialog(QDialog):
         self.default_start = 5  # Default start time for background range (ms)
         self.default_end = 45  # Default end time for background range (ms)
         
-        self.start_spinbox = SelectAllSpinBox()
-        self.start_spinbox.setDecimals(1)
-        self.start_spinbox.setSuffix(" ms")
-        self.start_spinbox.setMinimum(0)
-        self.start_spinbox.setMaximum(self.max_time)
+        self.start_spinbox = NumericLineEdit()
+        self.start_spinbox.setDecimals(2)
+        self.start_spinbox.setRange(0, self.max_time)
         self.start_spinbox.setValue(self.default_start)
         self.start_spinbox.setMinimumWidth(120)
         
-        self.end_spinbox = SelectAllSpinBox()
-        self.end_spinbox.setDecimals(1)
-        self.end_spinbox.setSuffix(" ms")
-        self.end_spinbox.setMinimum(0)
-        self.end_spinbox.setMaximum(self.max_time)
+        self.end_spinbox = NumericLineEdit()
+        self.end_spinbox.setDecimals(2)
+        self.end_spinbox.setRange(0, self.max_time)
         self.end_spinbox.setValue(self.default_end)
         self.end_spinbox.setMinimumWidth(120)
         
-        range_layout.addRow("Background Start:", self.start_spinbox)
-        range_layout.addRow("Background End:", self.end_spinbox)
+        range_layout.addRow("Background Start (ms):", self.start_spinbox)
+        range_layout.addRow("Background End (ms):", self.end_spinbox)
         
         # Add cursor manager for draggable cursors
         self.cursor_manager = CursorSpinbox(self.ax, self.canvas)
@@ -163,7 +159,7 @@ class BackgroundSubtractionDialog(QDialog):
         button_layout.addWidget(self.action_button)
         
         layout.addLayout(button_layout)
-        
+
     def _create_plot(self):
         """Create the matplotlib plot widget with centralized styling."""
         self.figure = Figure(figsize=(7, 3.5), facecolor=self.colors["light"])
