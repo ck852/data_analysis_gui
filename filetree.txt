@@ -14,21 +14,18 @@ patchbatch/
 |   |-- dual_analysis_main.PNG
 |   |-- dual_analysis_plot.PNG
 |   |-- dual_range_comparison.png
-|   |-- dual_range_time.png
-|   |-- main_winwcp.PNG
+|   |-- logo.icns
+|   |-- logo.ico
 |   |-- mainwindow.PNG
 |   |-- peak_validation.png
 |   |-- prism_cd_summary.PNG
 |   |-- prism_import.PNG
 |   |-- ramp_analysis.PNG
 |   |-- ramp_iv_setup.PNG
-|   |-- repeat_period.PNG
 |   |-- summary_export.PNG
-|   |-- swapped_current_comparison.png
 |   |-- time_course_validation.png
 |   |-- time_diff_plot.png
-|   |-- wcp_data_comparison.png
-|   `-- winwcp_export.PNG
+|   `-- wcp_data_comparison.png
 |-- LICENSES/
 |   |-- LICENSE-LGPLv3.txt
 |   `-- THIRD-PARTY-NOTICES.txt
@@ -140,7 +137,13 @@ patchbatch/
 |   |-- 20251102_123349_patchbatch.log
 |   |-- 20251102_130721_patchbatch.log
 |   |-- 20251102_131030_patchbatch.log
-|   `-- 20251102_131104_patchbatch.log
+|   |-- 20251102_131104_patchbatch.log
+|   |-- 20251102_143101_patchbatch.log
+|   |-- 20251102_143700_patchbatch.log
+|   |-- 20251102_143851_patchbatch.log
+|   |-- 20251102_144002_patchbatch.log
+|   |-- 20251102_144018_patchbatch.log
+|   `-- 20251102_153319_patchbatch.log
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/

@@ -112,7 +112,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='PatchBatch.app',
-    icon=None,  # Add 'icon.icns' if you have one
+    icon='images/logo.icns',  
     bundle_identifier='com.northeastern.patchbatch',
     version='{__version_mac__}',
     info_plist={{

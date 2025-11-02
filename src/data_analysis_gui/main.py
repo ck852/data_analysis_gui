@@ -19,6 +19,7 @@ import re
 
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt
 from data_analysis_gui.main_window import MainWindow
 from data_analysis_gui.core.session_settings import (
@@ -125,20 +126,12 @@ def get_version_from_pyproject():
 def main():
     """
     Launches the PatchBatch Electrophysiology Data Analysis Tool.
-
-    Key features:
-    - Applies a modern theme to the application.
-    - Configures application metadata (name, version, organization).
-    - Sets a default font size if needed.
-    - Creates and sizes the main window based on available screen geometry.
-    - Ensures the window is centered and not maximized on start.
-    - Processes initial events and enters the Qt event loop.
     """
     
     # Parse command line arguments for logging configuration
     console_level, file_level, mode = parse_arguments()
     
-    # Initialize logging FIRST - save to project root /logs directory
+    # Initialize logging
     project_root = Path(__file__).parent.parent.parent
     log_dir = project_root / "logs"
     
@@ -150,17 +143,27 @@ def main():
         log_dir=str(log_dir)
     )
     
-    # Get logger for this module
     logger = get_logger(__name__)
     logger.info("="*60)
     logger.info("Starting PatchBatch Electrophysiology Data Analysis Tool")
     logger.info(f"Logging mode: {mode}")
-    logger.info(f"Console level: {logging.getLevelName(console_level)}")
-    logger.info(f"File level: {logging.getLevelName(file_level)}")
-    logger.info(f"Log directory: {log_dir}")
     logger.info("="*60)
 
+    # FIX: Set Windows AppUserModelID before creating QApplication
+    if sys.platform == 'win32':
+        import ctypes
+        myappid = 'com.northeastern.patchbatch'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
     app = QApplication(sys.argv)
+    
+    # FIX: Set icon on both app and window
+    icon_path = project_root / "images" / "logo.ico"
+    if not icon_path.exists():
+        icon_path = project_root / "images" / "logo.png"
+    
+    app_icon = QIcon(str(icon_path))
+    app.setWindowIcon(app_icon)
 
     # Apply modern theme globally
     apply_theme_to_application(app)
@@ -170,7 +173,7 @@ def main():
     app.setApplicationVersion(get_version_from_pyproject())
     app.setOrganizationName("CKS")
 
-    # Set a reasonable default font size
+    # Set reasonable default font size
     font = app.font()
     if font.pointSize() < 7:
         font.setPointSize(7)
@@ -178,6 +181,7 @@ def main():
 
     # Create main window
     window = MainWindow()
+    window.setWindowIcon(app_icon)  # FIX: Set explicitly on window
 
     # Ensure we are not starting maximized
     window.setWindowState(Qt.WindowState.WindowNoState)

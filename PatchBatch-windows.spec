@@ -34,5 +34,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='version_info.txt',  # Added: Use generated version file
+    version='version_info.txt',
+    icon='images/logo.ico',
 )
