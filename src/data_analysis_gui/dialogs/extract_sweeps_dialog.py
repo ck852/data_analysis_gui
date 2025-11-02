@@ -551,7 +551,7 @@ class SweepExtractorDialog(QDialog):
             suggested_name=suggested_name,
             default_directory=None,
             file_types="CSV files (*.csv)",
-            dialog_type="sweep_export"
+            dialog_type="export"
         )
         
         if not file_path:
@@ -630,7 +630,7 @@ class SweepExtractorDialog(QDialog):
             "Select Files for Batch Extraction",
             default_directory=None,
             file_types=file_types,
-            dialog_type="batch_sweep_extract"
+            dialog_type="batch_import"
         )
         
         if not file_paths:

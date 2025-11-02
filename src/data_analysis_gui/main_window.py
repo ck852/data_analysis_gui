@@ -473,8 +473,6 @@ class MainWindow(QMainWindow):
             "All files (*.*)"
         )
 
-        # Use ONLY the service's stored directory - no fallback logic
-        # The service handles fallbacks internally if needed
         file_path = self.file_dialog_service.get_import_path(
             parent=self,
             title="Open Data File",
@@ -484,14 +482,18 @@ class MainWindow(QMainWindow):
         )
 
         if file_path:
-            self.file_dialog_service._remember_directory("import_data", file_path)
-            self.file_dialog_service._remember_directory("batch_files", file_path)
-            
             # Use controller to load file
             result = self.controller.load_file(file_path)
 
             if result.success:
                 self.current_file_path = file_path
+                
+                # Update batch_import to match current import_data location
+                # (so batch dialogs start near your current work)
+                dirs = self.file_dialog_service.get_last_directories()
+                dirs['batch_import'] = dirs.get('import_data')
+                self.file_dialog_service.set_last_directories(dirs)
+                
                 self.file_loaded.emit(file_path)
                 
                 # Auto-save settings to persist the directory choice
@@ -877,13 +879,16 @@ class MainWindow(QMainWindow):
 
         # Get suggested filename
         suggested = self.controller.get_suggested_export_filename(params)
+        
+        # Use current file's directory as fallback for first export
+        fallback = str(Path(self.current_file_path).parent) if self.current_file_path else None
 
         file_path = self.file_dialog_service.get_export_path(
             parent=self,
             suggested_name=suggested,
-            default_directory=None,  # Let service use its memory
+            default_directory=fallback,
             file_types="CSV files (*.csv);;All files (*.*)",
-            dialog_type="export_analysis",
+            dialog_type="export",
         )
 
         if not file_path:

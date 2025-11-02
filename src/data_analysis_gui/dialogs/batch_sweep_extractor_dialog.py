@@ -122,7 +122,7 @@ class BatchSweepExtractorDialog(QDialog):
         # Always sync batch_sweep_extract with current import_data when dialog opens
         if 'import_data' in dirs and dirs['import_data']:
             logger.debug(f"Initializing batch directory from import_data: {dirs['import_data']}")
-            dirs['batch_sweep_extract'] = dirs['import_data']
+            dirs['batch_import'] = dirs['import_data']
             self.file_dialog_service.set_last_directories(dirs)
         else:
             logger.debug("No import_data directory found, batch dialog will use default") 
@@ -285,7 +285,7 @@ class BatchSweepExtractorDialog(QDialog):
             "Select Files for Batch Extraction",
             default_directory=None,
             file_types=file_types,
-            dialog_type="batch_sweep_extract"
+            dialog_type="batch_import"
         )
         
         if not new_files:
@@ -660,7 +660,7 @@ class BatchSweepExtractorDialog(QDialog):
             suggested_name=suggested_name,
             default_directory=None,
             file_types="CSV files (*.csv)",
-            dialog_type="batch_sweep_extract"
+            dialog_type="export"
         )
         
         if not file_path:

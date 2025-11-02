@@ -505,7 +505,8 @@ class RampIVDialog(QDialog):
         file_path = self.file_dialog_service.get_export_path(
             parent=self,
             suggested_name="ramp_iv_summary.csv",
-            file_types="CSV files (*.csv)"
+            file_types="CSV files (*.csv)",
+            dialog_type="export"
         )
         
         if not file_path:

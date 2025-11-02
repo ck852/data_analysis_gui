@@ -179,7 +179,7 @@ class AnalysisPlotDialog(QDialog):
             parent=self,
             suggested_name="analysis_plot.png",
             file_types="PNG files (*.png);;PDF files (*.pdf);;SVG files (*.svg);;All files (*.*)",
-            dialog_type="export_plot_image",
+            dialog_type="export",
         )
 
         if file_path:
@@ -224,7 +224,7 @@ class AnalysisPlotDialog(QDialog):
             parent=self,
             suggested_name=suggested_filename,
             file_types="CSV files (*.csv);;All files (*.*)",
-            dialog_type="export_analysis_plot",
+            dialog_type="export",
         )
 
         if file_path:

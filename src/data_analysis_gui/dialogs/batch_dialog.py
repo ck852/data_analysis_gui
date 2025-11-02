@@ -264,7 +264,7 @@ class BatchAnalysisDialog(QDialog):
             "Select Files for Batch Analysis", 
             default_directory=None,  # Let service use its memory
             file_types=file_types,
-            dialog_type="batch_files"  # Separate memory for batch imports
+            dialog_type="batch_import"  # Separate memory for batch imports
         )
 
         if file_paths:

@@ -78,7 +78,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         """
         super().__init__(parent)
 
-        self.setModal(True)
+        #self.setModal(True)
 
         self.original_batch_result = batch_result
         self.active_batch_result = deepcopy(batch_result)
@@ -506,7 +506,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         output_dir = self.file_dialog_service.get_directory(
-            self, "Select Output Directory", dialog_type="batch_files"
+            self, "Select Output Directory", dialog_type="export"
         )
         if not output_dir:
             return
@@ -576,7 +576,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             return
 
         file_path = self.file_dialog_service.get_export_path(
-            self, "Current_Density_Summary.csv", dialog_type="batch_files"
+            self, "Current_Density_Summary.csv", dialog_type="export"
         )
         if not file_path:
             return
@@ -639,7 +639,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             self,
             "current_density_plot.png",
             file_types="PNG (*.png);;PDF (*.pdf);;SVG (*.svg)",
-            dialog_type="batch_files"
+            dialog_type="export"
         )
 
         if file_path:

@@ -10,6 +10,7 @@ This service encapsulates all file dialog interactions for the GUI.
 
 Features:
 - Remembers the last used directory for each dialog type independently.
+- Smart fallbacks: batch imports start near your data, exports preserve location.
 - Provides methods for importing, exporting, batch selection, and directory selection.
 - Ensures a consistent user experience across sessions.
 """
@@ -28,12 +29,10 @@ class FileDialogService:
     """
     Centralized service for all file dialog operations with directory memory.
 
-    Each dialog type remembers its last used directory independently:
-        - 'import_data': Opening data files
-        - 'export_analysis': Exporting analysis results
-        - 'export_batch': Batch exports
-        - 'import_batch': Batch file selection
-        - 'select_directory': Directory selection
+    Three dialog types with smart fallbacks:
+        - 'import_data': MainWindow file opening
+        - 'batch_import': All batch file selection (falls back to import_data location)
+        - 'export': All export operations (one location for all exports)
     """
 
     def __init__(self):
@@ -76,20 +75,45 @@ class FileDialogService:
         logger.debug(f"Retrieved {len(self._last_directories)} stored directories")
         return self._last_directories.copy()
 
+    def _get_fallback_for_dialog_type(self, dialog_type: str) -> Optional[str]:
+        """
+        Get intelligent fallback directory for a dialog type.
+        
+        Fallback logic:
+        - batch_import: Falls back to import_data (start near your current work)
+        - export: No automatic fallback (use explicit fallback parameter)
+        - import_data: No fallback (Qt default is fine)
+        
+        Args:
+            dialog_type: Type of dialog requesting fallback
+            
+        Returns:
+            Optional[str]: Fallback directory path or None
+        """
+        if dialog_type == "batch_import":
+            # Batch imports start near where you last opened a file in MainWindow
+            if "import_data" in self._last_directories:
+                import_dir = self._last_directories["import_data"]
+                if os.path.isdir(import_dir):
+                    logger.debug(f"batch_import falling back to import_data: {import_dir}")
+                    return import_dir
+        
+        return None
+
     def _get_default_directory(
         self, dialog_type: str, fallback: Optional[str] = None
     ) -> Optional[str]:
         """
-        Get the default directory for a dialog type.
+        Get the default directory for a dialog type with smart fallbacks.
 
         Args:
-            dialog_type (str): Type of dialog (e.g., 'import_data', 'export_analysis').
-            fallback (Optional[str]): Fallback directory if no stored directory exists.
+            dialog_type (str): Type of dialog (e.g., 'import_data', 'batch_import', 'export').
+            fallback (Optional[str]): Explicit fallback directory (e.g., current file's directory).
 
         Returns:
             Optional[str]: Directory path to use as default, or None.
         """
-        # First try the stored directory for this dialog type
+        # 1. First try the stored directory for this dialog type
         if dialog_type in self._last_directories:
             stored_dir = self._last_directories[dialog_type]
             if os.path.isdir(stored_dir):
@@ -98,13 +122,18 @@ class FileDialogService:
             else:
                 logger.warning(f"Stored directory no longer exists for {dialog_type}: {stored_dir}")
 
-        # Then try the fallback
+        # 2. Then try explicit fallback parameter
         if fallback and os.path.isdir(fallback):
-            logger.debug(f"Using fallback directory for {dialog_type}: {fallback}")
+            logger.debug(f"Using explicit fallback for {dialog_type}: {fallback}")
             return fallback
 
-        # No valid directory found
-        logger.debug(f"No valid directory found for {dialog_type}")
+        # 3. Try intelligent dialog-type-specific fallback
+        type_fallback = self._get_fallback_for_dialog_type(dialog_type)
+        if type_fallback:
+            return type_fallback
+
+        # 4. No valid directory found, let Qt use OS default
+        logger.debug(f"No valid directory found for {dialog_type}, using Qt default")
         return None
 
     def _remember_directory(self, dialog_type: str, file_path: str) -> None:
@@ -129,7 +158,7 @@ class FileDialogService:
         suggested_name: str,
         default_directory: Optional[str] = None,
         file_types: str = "CSV files (*.csv);;All files (*.*)",
-        dialog_type: str = "export_analysis",
+        dialog_type: str = "export",
     ) -> Optional[str]:
         """
         Show a save file dialog and return the selected path.
@@ -139,7 +168,7 @@ class FileDialogService:
             suggested_name (str): Suggested filename (without path).
             default_directory (Optional[str]): Directory to open dialog in (overrides remembered directory).
             file_types (str): File type filter string.
-            dialog_type (str): Type of dialog for directory memory.
+            dialog_type (str): Type of dialog for directory memory (should always be 'export').
 
         Returns:
             Optional[str]: Selected file path or None if cancelled.
@@ -147,11 +176,7 @@ class FileDialogService:
         logger.debug(f"Opening export dialog: type={dialog_type}, suggested={suggested_name}")
 
         # Determine the default directory
-        if default_directory and os.path.isdir(default_directory):
-            start_dir = default_directory
-            logger.debug(f"Using override directory: {start_dir}")
-        else:
-            start_dir = self._get_default_directory(dialog_type)
+        start_dir = self._get_default_directory(dialog_type, default_directory)
 
         # Construct the suggested full path
         if start_dir:
@@ -162,7 +187,7 @@ class FileDialogService:
 
         # Show the dialog
         file_path, _ = QFileDialog.getSaveFileName(
-            parent, "Export Analysis Data", suggested_path, file_types
+            parent, "Export File", suggested_path, file_types
         )
 
         # Remember the directory if a file was selected
@@ -219,7 +244,7 @@ class FileDialogService:
         title: str = "Select Files",
         default_directory: Optional[str] = None,
         file_types: str = "All files (*.*)",
-        dialog_type: str = "import_batch",
+        dialog_type: str = "batch_import",
     ) -> List[str]:
         """
         Show a multi-file selection dialog and return selected paths.
@@ -229,7 +254,7 @@ class FileDialogService:
             title (str): Dialog window title.
             default_directory (Optional[str]): Directory to open dialog in (overrides remembered directory).
             file_types (str): File type filter string.
-            dialog_type (str): Type of dialog for directory memory.
+            dialog_type (str): Type of dialog for directory memory (should always be 'batch_import').
 
         Returns:
             List[str]: List of selected file paths (empty if cancelled).
@@ -257,7 +282,7 @@ class FileDialogService:
         parent: QWidget,
         title: str = "Select Directory",
         default_directory: Optional[str] = None,
-        dialog_type: str = "select_directory",
+        dialog_type: str = "export",
     ) -> Optional[str]:
         """
         Show a directory selection dialog and return the selected path.
@@ -266,7 +291,7 @@ class FileDialogService:
             parent (QWidget): Parent widget for the dialog.
             title (str): Dialog window title.
             default_directory (Optional[str]): Directory to open dialog in (overrides remembered directory).
-            dialog_type (str): Type of dialog for directory memory.
+            dialog_type (str): Type of dialog for directory memory (should always be 'export').
 
         Returns:
             Optional[str]: Selected directory path or None if cancelled.

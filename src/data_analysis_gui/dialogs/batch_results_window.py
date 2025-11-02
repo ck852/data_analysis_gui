@@ -69,7 +69,7 @@ class BatchResultsWindow(QMainWindow):
         """
         super().__init__(parent)
 
-        self.setModal(True)
+        #self.setModal(True)
 
         # Initialize selection state if not present
         if batch_result.selected_files is None:
@@ -497,7 +497,7 @@ class BatchResultsWindow(QMainWindow):
             self, 
             suggested_filename, 
             file_types="CSV files (*.csv)",
-            dialog_type="batch_files"  # Unique dialog type for IV summaries
+            dialog_type="export"  # Unique dialog type for IV summaries
         )
 
         if file_path:
@@ -546,7 +546,7 @@ class BatchResultsWindow(QMainWindow):
         output_dir = self.file_dialog_service.get_directory(
             self, 
             "Select Output Directory",
-            dialog_type="batch_files"  # Unique dialog type for batch CSV exports
+            dialog_type="export"  # Unique dialog type for batch CSV exports
         )
 
         if output_dir:
@@ -596,7 +596,7 @@ class BatchResultsWindow(QMainWindow):
             self,
             "batch_plot.png",
             file_types="PNG files (*.png);;PDF files (*.pdf);;SVG files (*.svg)",
-            dialog_type="batch_files"  
+            dialog_type="export"  
         )
 
         if file_path:
