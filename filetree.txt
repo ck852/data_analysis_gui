@@ -29,6 +29,112 @@ patchbatch/
 |   |-- time_diff_plot.png
 |   |-- wcp_data_comparison.png
 |   `-- winwcp_export.PNG
+|-- logs/
+|   |-- 20251029_181617_patchbatch.log
+|   |-- 20251029_183611_patchbatch.log
+|   |-- 20251029_183630_patchbatch.log
+|   |-- 20251029_185203_patchbatch.log
+|   |-- 20251029_193259_patchbatch.log
+|   |-- 20251029_193804_patchbatch.log
+|   |-- 20251030_094746_patchbatch.log
+|   |-- 20251030_094755_patchbatch.log
+|   |-- 20251030_094829_patchbatch.log
+|   |-- 20251030_100140_patchbatch.log
+|   |-- 20251030_100903_patchbatch.log
+|   |-- 20251030_101605_patchbatch.log
+|   |-- 20251030_102304_patchbatch.log
+|   |-- 20251030_102342_patchbatch.log
+|   |-- 20251030_102829_patchbatch.log
+|   |-- 20251030_103459_patchbatch.log
+|   |-- 20251030_103704_patchbatch.log
+|   |-- 20251030_103756_patchbatch.log
+|   |-- 20251030_104200_patchbatch.log
+|   |-- 20251030_104251_patchbatch.log
+|   |-- 20251030_105213_patchbatch.log
+|   |-- 20251030_105633_patchbatch.log
+|   |-- 20251030_161925_patchbatch.log
+|   |-- 20251030_163149_patchbatch.log
+|   |-- 20251030_163916_patchbatch.log
+|   |-- 20251030_164100_patchbatch.log
+|   |-- 20251030_165635_patchbatch.log
+|   |-- 20251030_171125_patchbatch.log
+|   |-- 20251030_172909_patchbatch.log
+|   |-- 20251030_173330_patchbatch.log
+|   |-- 20251030_173429_patchbatch.log
+|   |-- 20251030_174358_patchbatch.log
+|   |-- 20251030_174557_patchbatch.log
+|   |-- 20251030_174751_patchbatch.log
+|   |-- 20251030_175311_patchbatch.log
+|   |-- 20251030_175325_patchbatch.log
+|   |-- 20251030_175516_patchbatch.log
+|   |-- 20251030_180206_patchbatch.log
+|   |-- 20251030_180737_patchbatch.log
+|   |-- 20251030_180746_patchbatch.log
+|   |-- 20251030_180802_patchbatch.log
+|   |-- 20251030_180814_patchbatch.log
+|   |-- 20251030_181100_patchbatch.log
+|   |-- 20251030_181122_patchbatch.log
+|   |-- 20251030_181135_patchbatch.log
+|   |-- 20251030_181800_patchbatch.log
+|   |-- 20251031_094421_patchbatch.log
+|   |-- 20251031_094735_patchbatch.log
+|   |-- 20251031_095930_patchbatch.log
+|   |-- 20251031_100637_patchbatch.log
+|   |-- 20251031_100800_patchbatch.log
+|   |-- 20251031_100932_patchbatch.log
+|   |-- 20251031_101011_patchbatch.log
+|   |-- 20251031_101035_patchbatch.log
+|   |-- 20251031_101057_patchbatch.log
+|   |-- 20251031_101125_patchbatch.log
+|   |-- 20251031_101407_patchbatch.log
+|   |-- 20251031_101741_patchbatch.log
+|   |-- 20251031_101806_patchbatch.log
+|   |-- 20251031_140427_patchbatch.log
+|   |-- 20251031_152438_patchbatch.log
+|   |-- 20251031_172514_patchbatch.log
+|   |-- 20251031_174923_patchbatch.log
+|   |-- 20251031_175838_patchbatch.log
+|   |-- 20251031_180212_patchbatch.log
+|   |-- 20251031_180429_patchbatch.log
+|   |-- 20251031_180504_patchbatch.log
+|   |-- 20251031_185705_patchbatch.log
+|   |-- 20251101_130938_patchbatch.log
+|   |-- 20251101_151956_patchbatch.log
+|   |-- 20251101_152206_patchbatch.log
+|   |-- 20251101_153558_patchbatch.log
+|   |-- 20251101_154100_patchbatch.log
+|   |-- 20251101_154321_patchbatch.log
+|   |-- 20251101_160935_patchbatch.log
+|   |-- 20251101_161102_patchbatch.log
+|   |-- 20251101_165921_patchbatch.log
+|   |-- 20251101_170847_patchbatch.log
+|   |-- 20251101_171138_patchbatch.log
+|   |-- 20251101_171219_patchbatch.log
+|   |-- 20251101_171246_patchbatch.log
+|   |-- 20251101_171412_patchbatch.log
+|   |-- 20251101_171431_patchbatch.log
+|   |-- 20251101_171613_patchbatch.log
+|   |-- 20251101_173339_patchbatch.log
+|   |-- 20251101_174653_patchbatch.log
+|   |-- 20251101_175505_patchbatch.log
+|   |-- 20251101_175621_patchbatch.log
+|   |-- 20251101_180017_patchbatch.log
+|   |-- 20251101_180123_patchbatch.log
+|   |-- 20251101_180455_patchbatch.log
+|   |-- 20251101_181244_patchbatch.log
+|   |-- 20251101_181620_patchbatch.log
+|   |-- 20251101_181646_patchbatch.log
+|   |-- 20251101_182057_patchbatch.log
+|   |-- 20251101_182113_patchbatch.log
+|   |-- 20251101_183342_patchbatch.log
+|   |-- 20251102_111420_patchbatch.log
+|   |-- 20251102_112850_patchbatch.log
+|   |-- 20251102_113519_patchbatch.log
+|   |-- 20251102_114045_patchbatch.log
+|   |-- 20251102_114610_patchbatch.log
+|   |-- 20251102_122741_patchbatch.log
+|   |-- 20251102_123201_patchbatch.log
+|   `-- 20251102_123349_patchbatch.log
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/
@@ -62,6 +168,7 @@ patchbatch/
 |       |   |-- analysis_plot_dialog.py
 |       |   |-- batch_dialog.py
 |       |   |-- batch_results_window.py
+|       |   |-- batch_sweep_extractor_dialog.py
 |       |   |-- bg_subtraction_dialog.py
 |       |   |-- conc_dataset_dialog.py
 |       |   |-- conc_resp_dialog.py
@@ -95,7 +202,9 @@ patchbatch/
 |       |   |-- custom_inputs.py
 |       |   |-- custom_toolbar.py
 |       |   |-- interactive_range_creator.py
-|       |   `-- shared_widgets.py
+|       |   |-- shared_widgets.py
+|       |   |-- sweep_navigation_panel.py
+|       |   `-- sweep_select_list.py
 |       |-- __init__.py
 |       |-- filetree.txt
 |       |-- filetree_full.py
