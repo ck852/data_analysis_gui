@@ -119,12 +119,13 @@ def build_executable():
         print("Building with command line options...")
         cmd = [
             "pyinstaller",
-            "--onefile",
+            "--onedir",
             "--windowed",
             "--name=PatchBatch",
             f"--version-file={version_file}",
             "--add-data=README.md;.",
             "--add-data=LICENSE.md;.",
+            "--add-data=LICENSES;LICENSES", 
             "--hidden-import=PySide6",
             "--hidden-import=numpy",
             "--hidden-import=scipy",

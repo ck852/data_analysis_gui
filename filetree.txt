@@ -29,6 +29,9 @@ patchbatch/
 |   |-- time_diff_plot.png
 |   |-- wcp_data_comparison.png
 |   `-- winwcp_export.PNG
+|-- LICENSES/
+|   |-- LICENSE-LGPLv3.txt
+|   `-- THIRD-PARTY-NOTICES.txt
 |-- logs/
 |   |-- 20251029_181617_patchbatch.log
 |   |-- 20251029_183611_patchbatch.log
@@ -134,7 +137,10 @@ patchbatch/
 |   |-- 20251102_114610_patchbatch.log
 |   |-- 20251102_122741_patchbatch.log
 |   |-- 20251102_123201_patchbatch.log
-|   `-- 20251102_123349_patchbatch.log
+|   |-- 20251102_123349_patchbatch.log
+|   |-- 20251102_130721_patchbatch.log
+|   |-- 20251102_131030_patchbatch.log
+|   `-- 20251102_131104_patchbatch.log
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/
@@ -346,6 +352,7 @@ patchbatch/
 |   |-- test_dual_batch.py
 |   |-- test_dual_range.py
 |   `-- test_peak.py
+|-- BUILD-INSTRUCTIONS.md
 |-- build_macos.py
 |-- build_windows.py
 |-- CHANGELOG.md

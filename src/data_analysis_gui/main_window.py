@@ -28,10 +28,11 @@ Key design principles:
 
 from pathlib import Path
 from typing import Optional, Set
+import re
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
     QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel, QCheckBox,
-    QComboBox, QDialog
+    QComboBox, QDialog, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QAction
@@ -252,6 +253,11 @@ class MainWindow(QMainWindow):
         # Sweep Extractor
         sweep_extract_action = analysis_menu.addAction("Extract Sweeps...")
         sweep_extract_action.triggered.connect(self._sweep_extraction)
+
+        # About button (no submenu)
+        about_action = QAction("&About", self)
+        about_action.triggered.connect(self._show_about_dialog)
+        menubar.addAction(about_action)
 
     def _open_concentration_response(self):
         """Open the concentration-response analysis dialog."""
@@ -952,3 +958,22 @@ class MainWindow(QMainWindow):
             logger.debug("Auto-saved settings")
         except Exception as e:
             logger.warning(f"Failed to auto-save settings: {e}")
+
+    def _show_about_dialog(self):
+        """
+        Display the About dialog with application information.
+        """
+        version = QApplication.applicationVersion()
+        
+        about_text = f"""<h3>PatchBatch v{version}</h3>
+    <p>© 2025 Ralph C Kissell<br>
+    Licensed under MIT License</p>
+
+    <p><b>This software uses:</b><br>
+    • PySide6 (Qt for Python) © The Qt Company Ltd.<br>
+    &nbsp;&nbsp;Licensed under GNU LGPLv3<br>
+    &nbsp;&nbsp;<a href="https://www.qt.io/qt-for-python">https://www.qt.io/qt-for-python</a></p>
+
+    """
+        
+        QMessageBox.about(self, "About PatchBatch", about_text)

@@ -67,7 +67,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ('README.md', '.'),
-        ('LICENSE.md', '.')
+        ('LICENSE.md', '.'),
+        ('LICENSES', 'LICENSES'),
     ],
     hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf', 'pandas'],
     hookspath=[],

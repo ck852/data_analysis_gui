@@ -1,0 +1,34 @@
+# Third-Party Software Notices
+
+PatchBatch itself is licensed under the MIT License (see ../LICENSE.md in the root directory).
+This directory contains licenses for third-party components used in PatchBatch.
+
+## PySide6 (Qt for Python)
+
+This software uses PySide6, the official Python bindings for Qt.
+
+- **Copyright:** © The Qt Company Ltd.
+- **License:** GNU Lesser General Public License v3.0 (LGPLv3)
+- **Website:** https://www.qt.io/qt-for-python
+- **Source Code:** https://code.qt.io/cgit/pyside/pyside-setup.git/
+
+The complete LGPLv3 license text is available in LICENSES/LICENSE-LGPLv3.txt.
+
+PySide6 version used: 6.2.0 or later (see requirements.txt for exact version)
+
+### Modifying PySide6
+
+Users are free to:
+- Modify PySide6
+- Replace the PySide6 libraries with different versions
+- Debug and reverse-engineer PySide6 components
+
+See BUILD-INSTRUCTIONS.md for details on rebuilding PatchBatch with modified PySide6.
+
+## Other Dependencies
+
+- **pyABF:** MIT License
+- **NumPy:** BSD License
+- **SciPy:** BSD License
+- **Matplotlib:** PSF-based license
+- **Pandas:** BSD License

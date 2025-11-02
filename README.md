@@ -220,3 +220,20 @@ To validate the functionality of time course analyses, three WCP files were anal
 The four peak analysis modes (absolute, positive, negative, and peak-peak) were validated using one of the same WCP files from the time course validation. The analysis range was 50.2 - 164.9 ms. The analysis plotted Peak Voltage versus Peak Current. A similar maximum discrepancy of 0.00497 pA and 0.000485 mV was found across all four peak modes (n = 1278). The discrepancies of the peak current values for all four peak modes are summarized in the following figure.
 
 <img src="images/peak_validation.png" alt="peak-validation"/>
+
+## License
+
+### PatchBatch License
+PatchBatch is released under the MIT License. See [LICENSE.md](LICENSE.md) for details.
+
+### Third-Party Components
+PatchBatch uses PySide6 (Qt for Python), which is licensed under LGPLv3. 
+This means:
+- PatchBatch itself remains MIT-licensed
+- PySide6 components remain LGPLv3-licensed
+- You can modify and redistribute both, subject to their respective licenses
+
+See [LICENSES/THIRD-PARTY-NOTICES.txt](LICENSES/THIRD-PARTY-NOTICES.txt) for complete attribution and [LICENSES/LICENSE-LGPLv3.txt](LICENSES/LICENSE-LGPLv3.txt) for the full LGPLv3 terms.
+
+### Rebuilding with Modified PySide6
+Advanced users can replace or modify the PySide6 library. See [BUILD-INSTRUCTIONS.md](BUILD-INSTRUCTIONS.md) for details.

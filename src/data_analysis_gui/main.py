@@ -15,6 +15,8 @@ startup. Designed for extensibility and ease of integration with external script
 import sys
 import logging
 import argparse
+import re
+
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
@@ -96,6 +98,29 @@ Available logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
     
     return console_level, file_level, mode
 
+def get_version_from_pyproject():
+    """
+    Read version directly from pyproject.toml.
+    
+    Returns:
+        str: Version string (e.g., "0.9.2b4") or "unknown" if not found
+    """
+    try:
+        # Navigate from main.py location to project root
+        # main.py is in src/data_analysis_gui/main.py
+        project_root = Path(__file__).parent.parent.parent
+        pyproject_path = project_root / "pyproject.toml"
+        
+        if pyproject_path.exists():
+            content = pyproject_path.read_text(encoding='utf-8')
+            # Match: version = "0.9.2b4"
+            match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+            if match:
+                return match.group(1)
+    except Exception as e:
+        print(f"Warning: Could not read version from pyproject.toml: {e}")
+    
+    return "unknown"
 
 def main():
     """
@@ -142,7 +167,7 @@ def main():
 
     # Set application properties
     app.setApplicationName("Electrophysiology File Sweep Analyzer")
-    app.setApplicationVersion("1.0")
+    app.setApplicationVersion(get_version_from_pyproject())
     app.setOrganizationName("CKS")
 
     # Set a reasonable default font size
