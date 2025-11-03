@@ -30,8 +30,8 @@ class PlotFormatter:
         self, metrics: List[SweepMetrics], params: AnalysisParameters
     ) -> Dict[str, Any]:
         """
-        Format analysis metrics for plotting, supporting dynamic current units
-        and dual range data.
+        Format analysis metrics for plotting, supporting dynamic current units,
+        dual range data, and conductance calculations.
 
         Args:
             metrics: List of SweepMetrics objects containing analysis results.
@@ -55,13 +55,19 @@ class PlotFormatter:
         if params.y_axis.measure == "Peak":
             logger.debug(f"Y-axis peak type: {params.y_axis.peak_type}")
 
-        # Extract data with current units
+        # Extract X-axis data
         x_data, x_label = self._extract_axis_data(
             metrics, params.x_axis, 1, current_units
         )
-        y_data, y_label = self._extract_axis_data(
-            metrics, params.y_axis, 1, current_units
-        )
+        
+        # Extract Y-axis data - check for conductance
+        if params.y_axis.measure == "Conductance":
+            y_data = self._calculate_conductance_array(metrics, params, current_units)
+            y_label = f"Conductance ({params.conductance_config.units})"
+        else:
+            y_data, y_label = self._extract_axis_data(
+                metrics, params.y_axis, 1, current_units
+            )
 
         result = {
             "x_data": np.array(x_data),
@@ -98,6 +104,7 @@ class PlotFormatter:
                 result["x_data2"] = np.array(x_data2)
 
             # Y-data is always extracted separately for range 2
+            # Note: Conductance should never reach here due to validation in AnalysisParameters
             y_data2, _ = self._extract_axis_data(
                 metrics, params.y_axis, 2, current_units
             )
@@ -261,6 +268,42 @@ class PlotFormatter:
             "y_label": "",
             "sweep_indices": [],
         }
+
+    def _calculate_conductance_array(
+        self,
+        metrics: List[SweepMetrics],
+        params: AnalysisParameters,
+        current_units: str
+    ) -> List[float]:
+        """
+        Calculate conductance values for all sweeps in the metrics list.
+        
+        Args:
+            metrics: List of SweepMetrics objects.
+            params: AnalysisParameters with conductance_config.
+            current_units: Current measurement units.
+        
+        Returns:
+            List of conductance values (may contain np.nan for skipped points).
+        """
+        # Import here to avoid potential circular imports
+        from data_analysis_gui.services.conductance_calculator import calculate_conductance
+        
+        conductance_data = [
+            calculate_conductance(m, params, current_units, range_num=1)
+            for m in metrics
+        ]
+        
+        # Log summary
+        valid_count = sum(1 for g in conductance_data if not np.isnan(g))
+        skipped_count = len(conductance_data) - valid_count
+        if skipped_count > 0:
+            logger.info(
+                f"Conductance calculation: {valid_count} valid points, {skipped_count} skipped "
+                f"(V too close to Vrev)"
+            )
+        
+        return conductance_data
 
     def _extract_axis_data(
         self,
@@ -582,6 +625,9 @@ class PlotFormatter:
         """
         if axis_config.measure == "Time":
             return "Time (s)"
+        
+        if axis_config.measure == "Conductance":
+            return "Conductance"  # Units added by format_for_plot
 
         # Determine channel and unit
         unit = "mV" if axis_config.channel == "Voltage" else current_units
@@ -632,6 +678,7 @@ class PlotFormatter:
             # Fallback
             return f"{axis_config.measure} {axis_config.channel} ({unit})"
 
+
     def get_plot_titles_and_labels(
         self,
         plot_type: str,
@@ -659,16 +706,32 @@ class PlotFormatter:
             current_units = sweep_info["current_units"]
 
         if plot_type == "analysis" and params:
+            x_label = self.get_axis_label(params.x_axis, current_units)
+            
+            # Handle conductance Y-axis label specially
+            if params.y_axis.measure == "Conductance":
+                y_label = f"Conductance ({params.conductance_config.units})"
+            else:
+                y_label = self.get_axis_label(params.y_axis, current_units)
+            
             return {
                 "title": f"Analysis - {file_name}" if file_name else "Analysis",
-                "x_label": self.get_axis_label(params.x_axis, current_units),
-                "y_label": self.get_axis_label(params.y_axis, current_units),
+                "x_label": x_label,
+                "y_label": y_label,
             }
         elif plot_type == "batch" and params:
+            x_label = self.get_axis_label(params.x_axis, current_units)
+            
+            # Handle conductance Y-axis label specially
+            if params.y_axis.measure == "Conductance":
+                y_label = f"Conductance ({params.conductance_config.units})"
+            else:
+                y_label = self.get_axis_label(params.y_axis, current_units)
+            
             return {
-                "title": f"{self.get_axis_label(params.y_axis, current_units)} vs. {self.get_axis_label(params.x_axis, current_units)}",
-                "x_label": self.get_axis_label(params.x_axis, current_units),
-                "y_label": self.get_axis_label(params.y_axis, current_units),
+                "title": f"{y_label} vs. {x_label}",
+                "x_label": x_label,
+                "y_label": y_label,
             }
         elif plot_type == "current_density":
             return {

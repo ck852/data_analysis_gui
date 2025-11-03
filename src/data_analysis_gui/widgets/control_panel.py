@@ -257,7 +257,6 @@ class ControlPanel(QWidget):
 
         # X-axis settings with NoScrollComboBox
         x_label = QLabel("X-Axis:")
-        #x_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(x_label, "normal")
         plot_layout.addWidget(x_label, 0, 0)
 
@@ -277,12 +276,11 @@ class ControlPanel(QWidget):
 
         # Y-axis settings with NoScrollComboBox
         y_label = QLabel("Y-Axis:")
-        #y_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(y_label, "normal")
         plot_layout.addWidget(y_label, 1, 0)
 
         self.y_measure_combo = NoScrollComboBox()
-        self.y_measure_combo.addItems(["Peak", "Average", "Time"])
+        self.y_measure_combo.addItems(["Peak", "Average", "Time", "Conductance"])
         self.y_measure_combo.setCurrentText("Average")
         self.y_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_combo_simple(self.y_measure_combo)
@@ -295,39 +293,177 @@ class ControlPanel(QWidget):
         style_combo_simple(self.y_channel_combo)
         plot_layout.addWidget(self.y_channel_combo, 1, 2)
 
+        # Conductance settings group (initially hidden)
+        self.conductance_group = self._create_conductance_settings_group()
+        plot_layout.addWidget(self.conductance_group, 2, 0, 1, 3)
+
         # Update plot button with theme styling
         self.update_plot_btn = QPushButton("Generate Analysis Plot")
         style_button(self.update_plot_btn, "primary")
         self.update_plot_btn.clicked.connect(self.analysis_requested.emit)
-        # Start disabled - will be validated immediately
         self.update_plot_btn.setEnabled(False)
-        plot_layout.addWidget(self.update_plot_btn, 2, 0, 1, 3)
+        plot_layout.addWidget(self.update_plot_btn, 3, 0, 1, 3)
 
         # Peak Mode settings with NoScrollComboBox
         peak_label = QLabel("Peak Mode:")
         peak_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         style_label(peak_label, "normal")
-        plot_layout.addWidget(peak_label, 3, 0)
+        plot_layout.addWidget(peak_label, 4, 0)
 
         self.peak_mode_combo = NoScrollComboBox()
         self.peak_mode_combo.addItems(["Absolute", "Positive", "Negative", "Peak-Peak"])
         self.peak_mode_combo.setCurrentText("Absolute")
         self.peak_mode_combo.setToolTip(
-            "Peak calculation mode (applies when X or Y axis is set to Peak)"
+            "Peak calculation mode (applies when X or Y axis is set to Peak, "
+            "or when Conductance uses Peak measurements)"
         )
         self.peak_mode_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_combo_simple(self.peak_mode_combo)
-        plot_layout.addWidget(self.peak_mode_combo, 3, 1, 1, 2)
+        plot_layout.addWidget(self.peak_mode_combo, 4, 1, 1, 2)
 
-        # Connect signal to enable/disable peak mode based on axis selection
+        # Connect signals to enable/disable peak mode and channel combos
         self.x_measure_combo.currentTextChanged.connect(
-            self._update_peak_mode_visibility
+            self._update_axis_dependent_controls
         )
         self.y_measure_combo.currentTextChanged.connect(
-            self._update_peak_mode_visibility
+            self._update_axis_dependent_controls
         )
 
         return plot_group
+
+
+    def _create_conductance_settings_group(self):
+        """
+        Create the conductance configuration group box with themed controls.
+        
+        Returns:
+            QGroupBox: Group box containing conductance settings.
+        """
+        conductance_group = QGroupBox("Conductance Settings")
+        style_group_box(conductance_group)
+        
+        cond_layout = QGridLayout(conductance_group)
+        apply_compact_layout(conductance_group, spacing=4, margin=4)
+        
+        # Current measure selection
+        i_label = QLabel("Current:")
+        style_label(i_label, "normal")
+        cond_layout.addWidget(i_label, 0, 0)
+        
+        self.cond_i_measure_combo = NoScrollComboBox()
+        self.cond_i_measure_combo.addItems(["Average", "Peak"])
+        self.cond_i_measure_combo.setCurrentText("Average")
+        self.cond_i_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
+        style_combo_simple(self.cond_i_measure_combo)
+        cond_layout.addWidget(self.cond_i_measure_combo, 0, 1)
+        
+        # Voltage measure selection
+        v_label = QLabel("Voltage:")
+        style_label(v_label, "normal")
+        cond_layout.addWidget(v_label, 1, 0)
+        
+        self.cond_v_measure_combo = NoScrollComboBox()
+        self.cond_v_measure_combo.addItems(["Average", "Peak"])
+        self.cond_v_measure_combo.setCurrentText("Average")
+        self.cond_v_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
+        style_combo_simple(self.cond_v_measure_combo)
+        cond_layout.addWidget(self.cond_v_measure_combo, 1, 1)
+        
+        # Reversal potential input
+        vrev_label = QLabel("Vrev (mV):")
+        style_label(vrev_label, "normal")
+        cond_layout.addWidget(vrev_label, 2, 0)
+        
+        self.cond_vrev_input = NumericLineEdit()
+        self.cond_vrev_input.setRange(-200, 200)
+        self.cond_vrev_input.setValue(0)
+        self.cond_vrev_input.setSingleStep(1.0)
+        self.cond_vrev_input.setDecimals(1)
+        self.cond_vrev_input.setMinimumHeight(WIDGET_SIZES["input_height"])
+        style_spinbox_with_arrows(self.cond_vrev_input)
+        cond_layout.addWidget(self.cond_vrev_input, 2, 1)
+        self.cond_vrev_input.setMaximumWidth(90)
+        
+        # Units selection
+        units_label = QLabel("Units:")
+        style_label(units_label, "normal")
+        cond_layout.addWidget(units_label, 3, 0)
+        
+        self.cond_units_combo = NoScrollComboBox()
+        self.cond_units_combo.addItems(["nS", "μS", "pS"])
+        self.cond_units_combo.setCurrentText("nS")
+        self.cond_units_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
+        style_combo_simple(self.cond_units_combo)
+        cond_layout.addWidget(self.cond_units_combo, 3, 1)
+        
+        # Initially hidden
+        conductance_group.setVisible(False)
+        
+        # Connect measure combos to update peak mode visibility
+        self.cond_i_measure_combo.currentTextChanged.connect(
+            self._update_axis_dependent_controls
+        )
+        self.cond_v_measure_combo.currentTextChanged.connect(
+            self._update_axis_dependent_controls
+        )
+        
+        return conductance_group
+
+    def _update_axis_dependent_controls(self):
+        """
+        Update visibility and enabled state of controls based on axis selections.
+        
+        Handles:
+        - Peak mode combo (enabled when Peak is used anywhere)
+        - X/Y channel combos (disabled for Time and Conductance)
+        - Conductance settings group (shown when Y-axis is Conductance)
+        - Dual range checkbox (disabled when Conductance selected)
+        """
+        x_measure = self.x_measure_combo.currentText()
+        y_measure = self.y_measure_combo.currentText()
+        
+        # Update X-axis channel combo visibility (disabled for Time)
+        x_is_time = x_measure == "Time"
+        self.x_channel_combo.setEnabled(not x_is_time)
+        if not x_is_time:
+            style_combo_simple(self.x_channel_combo)
+        
+        # Update Y-axis channel combo visibility (disabled for Time and Conductance)
+        y_needs_channel = y_measure not in ["Time", "Conductance"]
+        self.y_channel_combo.setEnabled(y_needs_channel)
+        if y_needs_channel:
+            style_combo_simple(self.y_channel_combo)
+        
+        # Show/hide conductance settings group
+        is_conductance = y_measure == "Conductance"
+        self.conductance_group.setVisible(is_conductance)
+        
+        # If conductance selected and dual range is checked, uncheck it
+        if is_conductance and self.dual_range_cb.isChecked():
+            logger.warning("Conductance selected: disabling dual range (not supported)")
+            self.dual_range_cb.setChecked(False)
+        
+        # Disable dual range checkbox when conductance is selected
+        self.dual_range_cb.setEnabled(not is_conductance)
+        if is_conductance:
+            style_checkbox(self.dual_range_cb)
+        
+        # Determine if peak mode should be enabled
+        # Peak mode is used when:
+        # 1. X or Y axis is set to "Peak", OR
+        # 2. Conductance is selected and either I or V measure is "Peak"
+        is_peak_used = (x_measure == "Peak" or y_measure == "Peak")
+        
+        if is_conductance:
+            i_measure = self.cond_i_measure_combo.currentText()
+            v_measure = self.cond_v_measure_combo.currentText()
+            is_peak_used = is_peak_used or (i_measure == "Peak" or v_measure == "Peak")
+        
+        self.peak_mode_combo.setEnabled(is_peak_used)
+        
+        # Re-apply styling to ensure disabled state looks correct
+        if not is_peak_used:
+            style_combo_simple(self.peak_mode_combo)
 
     def _update_peak_mode_visibility(self):
         """
@@ -488,7 +624,7 @@ class ControlPanel(QWidget):
         Returns:
             AnalysisParameters: Object containing all current control values.
         """
-        from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
+        from data_analysis_gui.core.params import AnalysisParameters, AxisConfig, ConductanceConfig
 
         # Determine peak mode
         peak_mode = self.peak_mode_combo.currentText()
@@ -497,7 +633,7 @@ class ControlPanel(QWidget):
         x_measure = self.x_measure_combo.currentText()
         x_axis = AxisConfig(
             measure=x_measure,
-            channel=self.x_channel_combo.currentText() if x_measure != "Time" else None,
+            channel=self.x_channel_combo.currentText() if x_measure not in ["Time"] else None,
             peak_type=peak_mode if x_measure == "Peak" else None,
         )
 
@@ -505,9 +641,19 @@ class ControlPanel(QWidget):
         y_measure = self.y_measure_combo.currentText()
         y_axis = AxisConfig(
             measure=y_measure,
-            channel=self.y_channel_combo.currentText() if y_measure != "Time" else None,
+            channel=self.y_channel_combo.currentText() if y_measure not in ["Time", "Conductance"] else None,
             peak_type=peak_mode if y_measure == "Peak" else None,
         )
+
+        # Create conductance config if Y-axis is Conductance
+        conductance_config = None
+        if y_measure == "Conductance":
+            conductance_config = ConductanceConfig(
+                i_measure=self.cond_i_measure_combo.currentText(),
+                v_measure=self.cond_v_measure_combo.currentText(),
+                vrev=self.cond_vrev_input.value(),
+                units=self.cond_units_combo.currentText(),
+            )
 
         params = AnalysisParameters(
             range1_start=self.start_spin.value(),
@@ -521,11 +667,13 @@ class ControlPanel(QWidget):
             ),
             x_axis=x_axis,
             y_axis=y_axis,
-            channel_config={},  # No longer needed from UI
+            channel_config={},
+            conductance_config=conductance_config,
         )
         
         logger.debug(f"Generated parameters: R1=[{params.range1_start}, {params.range1_end}], "
-                    f"dual={params.use_dual_range}, X={x_measure}/{x_axis.channel}, Y={y_measure}/{y_axis.channel}")
+                    f"dual={params.use_dual_range}, X={x_measure}/{x_axis.channel}, "
+                    f"Y={y_measure}/{y_axis.channel}, conductance={conductance_config is not None}")
         
         return params
 
@@ -690,6 +838,19 @@ class ControlPanel(QWidget):
 
             # Set dual range checkbox
             use_dual = params.get("use_dual_range", False)
+            
+            # EDGE CASE HANDLING: If loading settings with conductance + dual range,
+            # force dual_range to False to maintain valid state
+            # (This shouldn't happen normally, but defensive programming)
+            if hasattr(self, 'y_measure_combo'):
+                y_measure = self.y_measure_combo.currentText()
+                if y_measure == "Conductance" and use_dual:
+                    logger.warning(
+                        "Loaded settings had Conductance with dual_range=True. "
+                        "Forcing dual_range to False."
+                    )
+                    use_dual = False
+            
             self.dual_range_cb.setChecked(use_dual)
 
             # Enable/disable Range 2 controls based on dual range
@@ -697,7 +858,6 @@ class ControlPanel(QWidget):
             self.end_spin2.setEnabled(use_dual)
 
             # Always restore Range 2 values if they exist
-            # This preserves user's configured values even when checkbox is unchecked
             if "range2_start" in params and params["range2_start"] is not None:
                 self.start_spin2.setValue(params["range2_start"])
             if "range2_end" in params and params["range2_end"] is not None:
@@ -768,6 +928,41 @@ class ControlPanel(QWidget):
                 index = self.peak_mode_combo.findText(params["peak_mode"])
                 if index >= 0:
                     self.peak_mode_combo.setCurrentIndex(index)
+            
+            # Set conductance settings if present
+            if "conductance" in params:
+                cond = params["conductance"]
+                
+                # Block signals for conductance controls
+                self.cond_i_measure_combo.blockSignals(True)
+                self.cond_v_measure_combo.blockSignals(True)
+                self.cond_vrev_input.blockSignals(True)
+                self.cond_units_combo.blockSignals(True)
+                
+                try:
+                    if "i_measure" in cond:
+                        index = self.cond_i_measure_combo.findText(cond["i_measure"])
+                        if index >= 0:
+                            self.cond_i_measure_combo.setCurrentIndex(index)
+                    
+                    if "v_measure" in cond:
+                        index = self.cond_v_measure_combo.findText(cond["v_measure"])
+                        if index >= 0:
+                            self.cond_v_measure_combo.setCurrentIndex(index)
+                    
+                    if "vrev" in cond:
+                        self.cond_vrev_input.setValue(cond["vrev"])
+                    
+                    if "units" in cond:
+                        index = self.cond_units_combo.findText(cond["units"])
+                        if index >= 0:
+                            self.cond_units_combo.setCurrentIndex(index)
+                finally:
+                    # Unblock conductance control signals
+                    self.cond_i_measure_combo.blockSignals(False)
+                    self.cond_v_measure_combo.blockSignals(False)
+                    self.cond_vrev_input.blockSignals(False)
+                    self.cond_units_combo.blockSignals(False)
 
         finally:
             # Restore signals
@@ -777,8 +972,8 @@ class ControlPanel(QWidget):
             self.y_channel_combo.blockSignals(signals_blocked[3])
             self.peak_mode_combo.blockSignals(signals_blocked[4])
 
-            # Update peak mode visibility based on current selections
-            self._update_peak_mode_visibility()
+            # Update control visibility and states
+            self._update_axis_dependent_controls()
         
         logger.info("Plot settings applied from dict")
 
@@ -794,12 +989,8 @@ class ControlPanel(QWidget):
                 "range1_start": self.start_spin.value(),
                 "range1_end": self.end_spin.value(),
                 "use_dual_range": self.dual_range_cb.isChecked(),
-                "range2_start": (
-                    self.start_spin2.value()
-                ),
-                "range2_end": (
-                    self.end_spin2.value()
-                ),
+                "range2_start": self.start_spin2.value(),
+                "range2_end": self.end_spin2.value(),
             },
             "plot": {
                 "x_measure": self.x_measure_combo.currentText(),
@@ -809,6 +1000,15 @@ class ControlPanel(QWidget):
                 "peak_mode": self.peak_mode_combo.currentText(),
             },
         }
+        
+        # Add conductance settings if present
+        if self.y_measure_combo.currentText() == "Conductance":
+            settings["plot"]["conductance"] = {
+                "i_measure": self.cond_i_measure_combo.currentText(),
+                "v_measure": self.cond_v_measure_combo.currentText(),
+                "vrev": self.cond_vrev_input.value(),
+                "units": self.cond_units_combo.currentText(),
+            }
         
         logger.debug(f"Retrieved all settings: {settings}")
         return settings

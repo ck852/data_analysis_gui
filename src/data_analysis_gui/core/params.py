@@ -26,13 +26,13 @@ class AxisConfig:
     Specifies how data should be extracted and displayed for a particular axis.
 
     Args:
-        measure: Type of measurement ("Time", "Average", or "Peak").
-        channel: Channel type ("Voltage" or "Current"), or None for Time.
+        measure: Type of measurement ("Time", "Average", "Peak", or "Conductance").
+        channel: Channel type ("Voltage" or "Current"), or None for Time/Conductance.
         peak_type: Peak type for "Peak" measure ("Absolute", "Positive", "Negative", "Peak-Peak").
     """
 
-    measure: str  # "Time", "Average", or "Peak"
-    channel: Optional[str]  # "Voltage" or "Current" (None for Time)
+    measure: str  # "Time", "Average", "Peak", or "Conductance"
+    channel: Optional[str]  # "Voltage" or "Current" (None for Time/Conductance)
     peak_type: Optional[str] = (
         "Absolute"  # "Absolute", "Positive", "Negative", "Peak-Peak"
     )
@@ -43,6 +43,52 @@ class AxisConfig:
             f"Created AxisConfig: measure={self.measure}, "
             f"channel={self.channel}, peak_type={self.peak_type}"
         )
+
+
+@dataclass(frozen=True)
+class ConductanceConfig:
+    """
+    Immutable configuration for conductance calculations.
+    
+    Conductance is calculated as G = I / (V - Vrev) with configurable
+    measurement types, reversal potential, and output units.
+    
+    Args:
+        i_measure: Measurement type for current ("Average" or "Peak").
+        v_measure: Measurement type for voltage ("Average" or "Peak").
+        vrev: Reversal potential in mV.
+        units: Output units ("nS", "μS", or "pS").
+        tolerance: Minimum |V - Vrev| threshold in mV (default 0.1).
+    """
+    
+    i_measure: str  # "Average" or "Peak"
+    v_measure: str  # "Average" or "Peak"
+    vrev: float  # Reversal potential in mV
+    units: str  # "nS", "μS", or "pS"
+    tolerance: float = 0.1  # mV
+    
+    def __post_init__(self):
+        """Validate conductance configuration."""
+        logger.debug(
+            f"Created ConductanceConfig: I={self.i_measure}, V={self.v_measure}, "
+            f"Vrev={self.vrev}mV, units={self.units}, tolerance={self.tolerance}mV"
+        )
+        
+        # Validate measure types
+        valid_measures = ["Average", "Peak"]
+        if self.i_measure not in valid_measures:
+            raise ValueError(f"Invalid i_measure: {self.i_measure}. Must be {valid_measures}")
+        if self.v_measure not in valid_measures:
+            raise ValueError(f"Invalid v_measure: {self.v_measure}. Must be {valid_measures}")
+        
+        # Validate units
+        valid_units = ["nS", "μS", "pS"]
+        if self.units not in valid_units:
+            raise ValueError(f"Invalid units: {self.units}. Must be {valid_units}")
+        
+        # Validate tolerance
+        if self.tolerance <= 0:
+            raise ValueError(f"Tolerance must be positive, got {self.tolerance}")
 
 
 @dataclass(frozen=True)
@@ -62,6 +108,7 @@ class AnalysisParameters:
         x_axis: AxisConfig for X-axis.
         y_axis: AxisConfig for Y-axis.
         channel_config: Dictionary mapping channel configuration.
+        conductance_config: Optional ConductanceConfig for conductance calculations.
 
     Example:
         >>> params = AnalysisParameters(
@@ -89,6 +136,9 @@ class AnalysisParameters:
 
     # Channel mapping
     channel_config: Dict[str, Any] = field(default_factory=dict)
+    
+    # Conductance configuration
+    conductance_config: Optional[ConductanceConfig] = None
 
     def __post_init__(self):
         """
@@ -97,6 +147,8 @@ class AnalysisParameters:
         Ensures that:
             - Range end times are after start times.
             - Dual range parameters are provided when dual range is enabled.
+            - Conductance configuration is valid when Y-axis is Conductance.
+            - Conductance is not used with dual range.
 
         Raises:
             ValueError: If validation fails.
@@ -126,6 +178,18 @@ class AnalysisParameters:
                 error_msg = (
                     f"Range 2 end ({self.range2_end}) must be after start ({self.range2_start})"
                 )
+                logger.error(f"Validation failed: {error_msg}")
+                raise ValueError(error_msg)
+        
+        # Validate Conductance configuration
+        if self.y_axis.measure == "Conductance":
+            if self.conductance_config is None:
+                error_msg = "Y-axis is Conductance but conductance_config not provided"
+                logger.error(f"Validation failed: {error_msg}")
+                raise ValueError(error_msg)
+            
+            if self.use_dual_range:
+                error_msg = "Conductance measurement does not support dual range analysis"
                 logger.error(f"Validation failed: {error_msg}")
                 raise ValueError(error_msg)
         
@@ -164,6 +228,7 @@ class AnalysisParameters:
             freeze_value(asdict(self.x_axis)),
             freeze_value(asdict(self.y_axis)),
             freeze_value(self.channel_config),
+            freeze_value(asdict(self.conductance_config)) if self.conductance_config else None,
         )
         
         logger.debug(f"Generated cache key with hash: {hash(key)}")
@@ -198,6 +263,11 @@ class AnalysisParameters:
             current["x_axis"] = AxisConfig(**current["x_axis"])
         if "y_axis" in current and isinstance(current["y_axis"], dict):
             current["y_axis"] = AxisConfig(**current["y_axis"])
+        
+        # Handle nested ConductanceConfig objects
+        if "conductance_config" in current and current["conductance_config"] is not None:
+            if isinstance(current["conductance_config"], dict):
+                current["conductance_config"] = ConductanceConfig(**current["conductance_config"])
 
         # Create new instance
         new_params = AnalysisParameters(**current)
@@ -225,6 +295,7 @@ class AnalysisParameters:
             "x_axis": asdict(self.x_axis),
             "y_axis": asdict(self.y_axis),
             "channel_config": self.channel_config,
+            "conductance_config": asdict(self.conductance_config) if self.conductance_config else None,
         }
         
         logger.debug(f"Exported {len(export_dict)} parameter fields")
@@ -255,6 +326,14 @@ class AnalysisParameters:
             desc.append(f"X Peak Type: {self.x_axis.peak_type}")
         if self.y_axis.measure == "Peak" and self.y_axis.peak_type:
             desc.append(f"Y Peak Type: {self.y_axis.peak_type}")
+        
+        if self.conductance_config:
+            desc.append(
+                f"Conductance: I={self.conductance_config.i_measure}, "
+                f"V={self.conductance_config.v_measure}, "
+                f"Vrev={self.conductance_config.vrev}mV, "
+                f"units={self.conductance_config.units}"
+            )
 
         description = " | ".join(desc)
         logger.debug(f"Generated parameter description: {description}")
