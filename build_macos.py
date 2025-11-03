@@ -128,8 +128,8 @@ app = BUNDLE(
                 'CFBundleTypeRole': 'Viewer',
             }},
             {{
-                'CFBundleTypeName': 'MAT File',
-                'CFBundleTypeExtensions': ['mat'],
+                'CFBundleTypeName': 'WCP File',
+                'CFBundleTypeExtensions': ['wcp'],
                 'CFBundleTypeRole': 'Viewer',
             }}
         ]
