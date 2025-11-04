@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.2-b.6]
+### Changed
+- Fixed mu character in plots
+
 ## [0.9.2-b.5] 2025-11-03
 ### Added
 - "Reject Sweep" button

@@ -54,7 +54,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
                 'signal_type': 'voltage'
             })
         # Identify current channels
-        elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
+        elif any(u in units_lower for u in ['pa', 'na', '\u00b5a', 'ua', 'ma', 'a']):
             current_channels.append({
                 'index': i,
                 'name': ch.name,
@@ -68,7 +68,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_channel': voltage_channels[0]['index'],
             'current_channel': current_channels[0]['index'],
             'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'],
+            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
             'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
                       f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
