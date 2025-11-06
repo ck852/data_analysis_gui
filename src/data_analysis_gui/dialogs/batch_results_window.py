@@ -44,6 +44,8 @@ from data_analysis_gui.config.themes import (style_main_window, create_styled_bu
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
 
+from data_analysis_gui.services.summary_export import GeneralizedSummaryExporter
+
 logger = get_logger(__name__)
 
 
@@ -433,6 +435,221 @@ class BatchResultsWindow(QMainWindow):
             and params.x_axis.measure in ["Average", "Peak"]
             and params.y_axis.measure in ["Average", "Peak"]
         )
+
+    def _add_export_controls(self, layout):
+        """
+        Add export controls for CSVs, plots, IV summary, and generalized summary.
+        
+        Shows different summary export options based on analysis type:
+        - IV analysis: Shows IV-specific summary export (existing functionality)
+        - Other analyses: Shows generalized summary export (new functionality)
+
+        Args:
+            layout: The layout to which export controls are added.
+        """
+        export_group = QGroupBox("Export Options")
+        style_group_box(export_group)
+
+        button_layout = QHBoxLayout(export_group)
+
+        # Create common buttons
+        export_csvs_btn = create_styled_button(
+            "Export Individual CSVs...", "primary", self
+        )
+        export_plot_btn = create_styled_button("Export Plot...", "secondary", self)
+        copy_filenames_btn = create_styled_button("Copy File Names", "secondary", self)
+
+        button_layout.addWidget(export_csvs_btn)
+        button_layout.addWidget(export_plot_btn)
+        button_layout.addWidget(copy_filenames_btn)
+        button_layout.addStretch()
+
+        # Conditional summary exports based on analysis type
+        if self._is_iv_analysis():
+            # IV-specific summary exports
+            export_iv_summary_btn = create_styled_button(
+                "Export IV Summary...", "primary", self
+            )
+            button_layout.addWidget(export_iv_summary_btn)
+            export_iv_summary_btn.clicked.connect(self._export_iv_summary)
+
+            copy_iv_summary_btn = create_styled_button(
+                "Copy IV Summary", "secondary", self
+            )
+            button_layout.addWidget(copy_iv_summary_btn)
+            copy_iv_summary_btn.clicked.connect(self._copy_iv_summary_to_clipboard)
+
+            current_density_btn = create_styled_button(
+                "Current Density Analysis...", "accent", self
+            )
+            button_layout.addWidget(current_density_btn)
+            current_density_btn.clicked.connect(self._open_current_density_analysis)
+        else:
+            # Generalized summary exports (for time-course and other analyses)
+            export_summary_btn = create_styled_button(
+                "Export Summary...", "primary", self
+            )
+            button_layout.addWidget(export_summary_btn)
+            export_summary_btn.clicked.connect(self._export_generalized_summary)
+
+            copy_summary_btn = create_styled_button(
+                "Copy Summary", "secondary", self
+            )
+            button_layout.addWidget(copy_summary_btn)
+            copy_summary_btn.clicked.connect(self._copy_generalized_summary_to_clipboard)
+
+        button_layout.addStretch()
+
+        layout.addWidget(export_group)
+
+        # Connect common signals
+        export_csvs_btn.clicked.connect(self._export_individual_csvs)
+        export_plot_btn.clicked.connect(self._export_plot)
+        copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
+
+    def _export_generalized_summary(self):
+        """
+        Export generalized summary for selected files.
+        
+        Uses two-column-per-file format suitable for any analysis parameter combination.
+        Prompts user for export location and writes summary CSV.
+        """
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for export.")
+            return
+
+        # Build batch data dictionary
+        batch_data = {
+            r.base_name: {
+                "x_values": r.x_data.tolist(),
+                "y_values": r.y_data.tolist(),
+            }
+            for r in filtered_results
+        }
+
+        # Extract current units from parameters
+        current_units = "pA"  # default
+        if (
+            hasattr(self.batch_result.parameters, "channel_config")
+            and self.batch_result.parameters.channel_config
+        ):
+            current_units = self.batch_result.parameters.channel_config.get(
+                "current_units", "pA"
+            )
+
+        # Prepare summary table
+        selected_set = set(r.base_name for r in filtered_results)
+        export_table = GeneralizedSummaryExporter.prepare_summary_table(
+            batch_data, 
+            self.batch_result.parameters, 
+            selected_set, 
+            current_units
+        )
+
+        if not export_table["data"].size:
+            QMessageBox.warning(self, "No Data", "No data available for export.")
+            return
+
+        # Generate filename
+        suggested_filename = "Summary.csv"
+
+        file_path = self.file_dialog_service.get_export_path(
+            self, 
+            suggested_filename, 
+            file_types="CSV files (*.csv)",
+            dialog_type="export"
+        )
+
+        if file_path:
+            try:
+                result = self.data_service.export_to_csv(export_table, file_path)
+
+                if result.success:
+                    QMessageBox.information(
+                        self,
+                        "Export Complete",
+                        f"Exported summary with {len(filtered_results)} files",
+                    )
+                    
+                    # Trigger auto-save on parent to persist directory choice
+                    if hasattr(self.parent(), '_auto_save_settings'):
+                        try:
+                            self.parent()._auto_save_settings()
+                        except Exception as e:
+                            # Silent fail - don't show error for auto-save failures
+                            pass
+                else:
+                    QMessageBox.warning(self, "Export Failed", result.error_message)
+
+            except Exception as e:
+                logger.error(f"Generalized summary export failed: {e}", exc_info=True)
+                QMessageBox.critical(self, "Export Failed", str(e))
+
+
+    def _copy_generalized_summary_to_clipboard(self):
+        """
+        Copy generalized summary data to clipboard as tab-separated values.
+        
+        Uses the two-column-per-file format suitable for any analysis.
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first. Respects current file selection.
+        """
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for copying.")
+            return
+
+        try:
+            # Build batch data dictionary
+            batch_data = {
+                r.base_name: {
+                    "x_values": r.x_data.tolist(),
+                    "y_values": r.y_data.tolist(),
+                }
+                for r in filtered_results
+            }
+
+            # Extract current units from parameters
+            current_units = "pA"  # default
+            if (
+                hasattr(self.batch_result.parameters, "channel_config")
+                and self.batch_result.parameters.channel_config
+            ):
+                current_units = self.batch_result.parameters.channel_config.get(
+                    "current_units", "pA"
+                )
+
+            # Prepare summary table
+            selected_set = set(r.base_name for r in filtered_results)
+            export_table = GeneralizedSummaryExporter.prepare_summary_table(
+                batch_data,
+                self.batch_result.parameters,
+                selected_set,
+                current_units
+            )
+
+            if not export_table["data"].size:
+                QMessageBox.warning(self, "No Data", "No data available for copying.")
+                return
+
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_table)
+
+            if success:
+                logger.info("Generalized summary copied to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Copy Failed", 
+                    "Failed to copy summary to clipboard."
+                )
+
+        except Exception as e:
+            logger.error(f"Error copying generalized summary: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _get_filtered_results(self):
         """

@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.2-b.6]
+### Added
+- Conductance measurement option
+- Batch analysis summaries for non-IV analyses
+
 ### Changed
 - Fixed mu character in plots
 
