@@ -9,6 +9,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Fixed mu character in plots
+- Auto-open file dialog on batch analysis open
 
 ## [0.9.2-b.5] 2025-11-03
 ### Added

@@ -27,7 +27,7 @@ Features:
 from pathlib import Path
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QProgressBar, QLabel, QMessageBox, QAbstractItemView,
                                 QGroupBox)
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Signal, QTimer
 
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.core.models import FileAnalysisResult, BatchAnalysisResult
@@ -147,6 +147,8 @@ class BatchAnalysisDialog(QDialog):
         # Apply theme and layout helpers from refactored themes.py
         apply_modern_theme(self)
         apply_compact_layout(self)
+
+        QTimer.singleShot(0, self.add_files)
 
 
     def init_ui(self):
