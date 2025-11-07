@@ -23,9 +23,11 @@ logger = get_logger(__name__)
 # Base unit is nS (nanoSiemens)
 # Formula: result = conductance_nS / factor
 CONDUCTANCE_UNITS = {
+    "pS": 0.001,    # 1 nS = 1000 pS, so divide by 0.001 (multiply by 1000)
     "nS": 1.0,      # Base unit (no conversion)
     "μS": 1000.0,   # 1000 nS = 1 μS, so divide by 1000
-    "pS": 0.001,    # 1 nS = 1000 pS, so divide by 0.001 (multiply by 1000)
+    "mS": 1e6,      # 1,000,000 nS = 1 mS, so divide by 1e6
+    "S": 1e9,       # 1,000,000,000 nS = 1 S, so divide by 1e9
 }
 
 # Current unit conversion factors to pA (picoAmperes)

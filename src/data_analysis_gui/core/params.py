@@ -82,7 +82,7 @@ class ConductanceConfig:
             raise ValueError(f"Invalid v_measure: {self.v_measure}. Must be {valid_measures}")
         
         # Validate units
-        valid_units = ["nS", "μS", "pS"]
+        valid_units = ["pS", "nS", "μS", "mS", "S"]
         if self.units not in valid_units:
             raise ValueError(f"Invalid units: {self.units}. Must be {valid_units}")
         

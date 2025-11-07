@@ -390,7 +390,7 @@ class ControlPanel(QWidget):
         cond_layout.addWidget(units_label, 3, 0)
         
         self.cond_units_combo = NoScrollComboBox()
-        self.cond_units_combo.addItems(["nS", "μS", "pS"])
+        self.cond_units_combo.addItems(["pS", "nS", "μS", "mS", "S"])
         self.cond_units_combo.setCurrentText("nS")
         self.cond_units_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
         style_combo_simple(self.cond_units_combo)
