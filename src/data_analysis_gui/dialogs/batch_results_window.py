@@ -482,13 +482,37 @@ class BatchResultsWindow(QMainWindow):
             and params.y_axis.measure in ["Average", "Peak"]
         )
 
+    def _is_gv_analysis(self):
+        """
+        Check if the current analysis is a GV (conductance-voltage) analysis.
+        
+        Returns:
+            bool: True if GV analysis, False otherwise.
+        """
+        params = self.batch_result.parameters
+        
+        if params is None:
+            return False
+        
+        # Check if conductance_config exists (required for conductance measure)
+        if params.conductance_config is None:
+            return False
+        
+        return (
+            params.x_axis.channel == "Voltage"
+            and params.x_axis.measure in ["Average", "Peak"]
+            and params.y_axis.measure == "Conductance"
+        )
+
+
     def _add_export_controls(self, layout):
         """
-        Add export controls for CSVs, plots, IV summary, and generalized summary.
+        Add export controls for CSVs, plots, and analysis-specific summaries.
         
         Shows different summary export options based on analysis type:
-        - IV analysis: Shows IV-specific summary export (existing functionality)
-        - Other analyses: Shows generalized summary export (new functionality)
+        - IV analysis: Shows IV-specific summary export
+        - GV analysis: Shows GV-specific summary export  
+        - Other analyses: Shows generalized summary export
 
         Args:
             layout: The layout to which export controls are added.
@@ -510,8 +534,11 @@ class BatchResultsWindow(QMainWindow):
         button_layout.addWidget(copy_filenames_btn)
         button_layout.addStretch()
 
-        # Conditional summary exports based on analysis type
-        if self._is_iv_analysis():
+        # Determine analysis type and add appropriate controls
+        is_iv = self._is_iv_analysis()
+        is_gv = self._is_gv_analysis()
+        
+        if is_iv:
             # IV-specific summary exports
             export_iv_summary_btn = create_styled_button(
                 "Export IV Summary...", "primary", self
@@ -530,6 +557,27 @@ class BatchResultsWindow(QMainWindow):
             )
             button_layout.addWidget(current_density_btn)
             current_density_btn.clicked.connect(self._open_current_density_analysis)
+            
+        elif is_gv:
+            # GV-specific summary exports
+            export_gv_summary_btn = create_styled_button(
+                "Export GV Summary...", "primary", self
+            )
+            button_layout.addWidget(export_gv_summary_btn)
+            export_gv_summary_btn.clicked.connect(self._export_gv_summary)
+
+            copy_gv_summary_btn = create_styled_button(
+                "Copy GV Summary", "secondary", self
+            )
+            button_layout.addWidget(copy_gv_summary_btn)
+            copy_gv_summary_btn.clicked.connect(self._copy_gv_summary_to_clipboard)
+
+            conductance_density_btn = create_styled_button(
+                "Conductance Density Analysis...", "accent", self
+            )
+            button_layout.addWidget(conductance_density_btn)
+            conductance_density_btn.clicked.connect(self._open_current_density_analysis)
+            
         else:
             # Generalized summary exports (for time-course and other analyses)
             export_summary_btn = create_styled_button(
@@ -552,6 +600,151 @@ class BatchResultsWindow(QMainWindow):
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
         copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
+
+
+    def _export_gv_summary(self):
+        """
+        Export GV summary for selected files only.
+
+        Prompts user for export location and writes summary CSV.
+        """
+        from data_analysis_gui.core.iv_analysis import (
+            IVAnalysisService,
+            IVSummaryExporter,
+        )
+
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for export.")
+            return
+
+        batch_data = {
+            r.base_name: {
+                "x_values": r.x_data.tolist(),
+                "y_values": r.y_data.tolist(),
+                "x_values2": r.x_data2.tolist() if r.x_data2 is not None else None,
+                "y_values2": r.y_data2.tolist() if r.y_data2 is not None else None,
+            }
+            for r in filtered_results
+        }
+
+        iv_data_r1, mapping, iv_data_r2 = IVAnalysisService.prepare_iv_data(
+            batch_data, self.batch_result.parameters
+        )
+
+        # Extract conductance units from parameters
+        conductance_units = "nS"  # default
+        if (
+            hasattr(self.batch_result.parameters, "conductance_config")
+            and self.batch_result.parameters.conductance_config
+        ):
+            conductance_units = self.batch_result.parameters.conductance_config.units
+
+        # Generate filename
+        suggested_filename = "GV_Summary.csv"
+
+        file_path = self.file_dialog_service.get_export_path(
+            self, 
+            suggested_filename, 
+            file_types="CSV files (*.csv)",
+            dialog_type="export"
+        )
+
+        if file_path:
+            try:
+                selected_set = set(r.base_name for r in filtered_results)
+                # Pass conductance_units to prepare_summary_table
+                table = IVSummaryExporter.prepare_summary_table(
+                    iv_data_r1, mapping, selected_set, conductance_units
+                )
+
+                result = self.data_service.export_to_csv(table, file_path)
+
+                if result.success:
+                    QMessageBox.information(
+                        self,
+                        "Export Complete",
+                        f"Exported GV summary ({conductance_units}) with {len(filtered_results)} files",
+                    )
+                    
+                    # Trigger auto-save on parent to persist directory choice
+                    if hasattr(self.parent(), '_auto_save_settings'):
+                        try:
+                            self.parent()._auto_save_settings()
+                        except Exception as e:
+                            # Silent fail - don't show error for auto-save failures
+                            pass
+                else:
+                    QMessageBox.warning(self, "Export Failed", result.error_message)
+
+            except Exception as e:
+                logger.error(f"GV summary export failed: {e}", exc_info=True)
+                QMessageBox.critical(self, "Export Failed", str(e))
+
+
+    def _copy_gv_summary_to_clipboard(self):
+        """
+        Copy GV summary data to clipboard as tab-separated values.
+        
+        Allows users to paste data directly into Excel, Prism, or other applications
+        without needing to save a CSV file first. Respects current file selection.
+        """
+        from data_analysis_gui.core.iv_analysis import (
+            IVAnalysisService,
+            IVSummaryExporter,
+        )
+
+        filtered_results = self._get_filtered_results()
+
+        if not filtered_results:
+            QMessageBox.warning(self, "No Data", "No files selected for copying.")
+            return
+
+        try:
+            batch_data = {
+                r.base_name: {
+                    "x_values": r.x_data.tolist(),
+                    "y_values": r.y_data.tolist(),
+                    "x_values2": r.x_data2.tolist() if r.x_data2 is not None else None,
+                    "y_values2": r.y_data2.tolist() if r.y_data2 is not None else None,
+                }
+                for r in filtered_results
+            }
+
+            iv_data_r1, mapping, iv_data_r2 = IVAnalysisService.prepare_iv_data(
+                batch_data, self.batch_result.parameters
+            )
+
+            # Extract conductance units from parameters
+            conductance_units = "nS"  # default
+            if (
+                hasattr(self.batch_result.parameters, "conductance_config")
+                and self.batch_result.parameters.conductance_config
+            ):
+                conductance_units = self.batch_result.parameters.conductance_config.units
+
+            selected_set = set(r.base_name for r in filtered_results)
+            export_table = IVSummaryExporter.prepare_summary_table(
+                iv_data_r1, mapping, selected_set, conductance_units
+            )
+
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(export_table)
+
+            if success:
+                logger.info("GV summary copied to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Copy Failed", 
+                    "Failed to copy GV summary to clipboard."
+                )
+
+        except Exception as e:
+            logger.error(f"Error copying GV summary: {e}", exc_info=True)
+            QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
+
 
     def _export_generalized_summary(self):
         """
