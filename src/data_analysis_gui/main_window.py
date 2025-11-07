@@ -58,6 +58,7 @@ from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.widgets.control_panel import ControlPanel
 from data_analysis_gui.widgets.sweep_navigation_panel import SweepNavigationPanel
 from data_analysis_gui.plot_manager import PlotManager
+from data_analysis_gui.widgets.custom_inputs import ToggleComboBox
 
 # Dialog imports
 from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
@@ -516,7 +517,7 @@ class MainWindow(QMainWindow):
         style_label(channel_label, "normal")
         toolbar.addWidget(channel_label)
 
-        self.channel_combo = QComboBox()
+        self.channel_combo = ToggleComboBox()
         self.channel_combo.addItems(["Voltage", "Current"])
         self.channel_combo.setEnabled(True)
         self.channel_combo.currentTextChanged.connect(self._on_channel_changed)

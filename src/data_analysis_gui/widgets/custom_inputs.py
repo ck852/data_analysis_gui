@@ -484,3 +484,50 @@ class RangeInputLineEdit(QLineEdit):
         """
         logger.debug("RangeInputLineEdit ignoring wheel event")
         event.ignore()
+
+class ToggleComboBox(QComboBox):
+    """
+    QComboBox subclass that toggles between items instead of showing a dropdown.
+    
+    Features:
+        - Looks like a standard QComboBox
+        - Clicking toggles to the next item instead of showing dropdown
+        - Wraps around to first item after last item
+        - Still emits currentTextChanged signal for compatibility
+        - Ignores mouse wheel events to prevent accidental changes
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the ToggleComboBox.
+
+        Args:
+            *args: Positional arguments for QComboBox.
+            **kwargs: Keyword arguments for QComboBox.
+        """
+        super().__init__(*args, **kwargs)
+        logger.debug("Initialized ToggleComboBox")
+
+    def showPopup(self):
+        """
+        Override showPopup to toggle to next item instead of showing dropdown.
+        """
+        current_index = self.currentIndex()
+        next_index = (current_index + 1) % self.count()
+        
+        logger.debug(
+            f"ToggleComboBox toggling from '{self.itemText(current_index)}' "
+            f"to '{self.itemText(next_index)}'"
+        )
+        
+        self.setCurrentIndex(next_index)
+
+    def wheelEvent(self, event):
+        """
+        Ignore mouse wheel events to prevent accidental changes.
+
+        Args:
+            event: QWheelEvent
+        """
+        logger.debug("ToggleComboBox ignoring wheel event")
+        event.ignore()
