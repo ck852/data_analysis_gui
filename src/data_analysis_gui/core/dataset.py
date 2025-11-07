@@ -230,6 +230,96 @@ class ElectrophysiologyDataset:
 
         return max_duration
 
+    def create_filtered_copy(
+        self, keep_sweeps: Iterable[str], reset_time: bool = False
+    ) -> "ElectrophysiologyDataset":
+        """
+        Create a new dataset containing only specified sweeps with optional time recalibration.
+        
+        This creates a completely new dataset object, leaving the original unchanged.
+        Useful for permanently removing equilibration or rundown sweeps from analysis.
+        
+        Args:
+            keep_sweeps: Iterable of sweep indices to keep in the new dataset
+            reset_time: If True, recalibrate sweep times so first kept sweep is at t=0
+        
+        Returns:
+            ElectrophysiologyDataset: New dataset with only the specified sweeps
+        
+        Example:
+            >>> # Keep sweeps 20-80, reset time axis
+            >>> filtered = dataset.create_filtered_copy(
+            ...     keep_sweeps=['20', '21', '22', ..., '80'],
+            ...     reset_time=True
+            ... )
+        """
+        logger.info(f"Creating filtered dataset copy with {len(list(keep_sweeps))} sweeps")
+        
+        # Convert to list to allow multiple iterations
+        keep_sweeps_list = list(keep_sweeps)
+        
+        if not keep_sweeps_list:
+            raise ValueError("keep_sweeps cannot be empty")
+        
+        # Validate all sweeps exist
+        for sweep_idx in keep_sweeps_list:
+            if sweep_idx not in self._sweeps:
+                raise ValueError(f"Sweep '{sweep_idx}' not found in dataset")
+        
+        # Create new dataset
+        new_dataset = ElectrophysiologyDataset()
+        
+        # Calculate time offset for sweep_times if resetting
+        time_offset_sec = 0.0
+        if reset_time:
+            sweep_times = self.metadata.get('sweep_times', {})
+            if sweep_times and keep_sweeps_list:
+                first_sweep_time = sweep_times.get(keep_sweeps_list[0], 0.0)
+                time_offset_sec = first_sweep_time
+                logger.info(f"Time reset enabled: offsetting by {time_offset_sec:.3f} seconds")
+        
+        # Copy sweeps to new dataset
+        for sweep_idx in keep_sweeps_list:
+            time_ms, data = self.get_sweep(sweep_idx)
+            if time_ms is None or data is None:
+                logger.warning(f"Skipping sweep {sweep_idx}: failed to retrieve data")
+                continue
+            # Add sweep with original time array (within-sweep timing unchanged)
+            new_dataset.add_sweep(sweep_idx, time_ms.copy(), data.copy())
+        
+        # Copy metadata (deep copy for mutable nested structures)
+        new_dataset.metadata = {
+            'channel_labels': self.metadata.get('channel_labels', []).copy(),
+            'channel_units': self.metadata.get('channel_units', []).copy(),
+            'sampling_rate_hz': self.metadata.get('sampling_rate_hz'),
+            'format': self.metadata.get('format'),
+            'source_file': self.metadata.get('source_file'),
+            'channel_count': self.metadata.get('channel_count', 0),
+            'sweep_count': len(keep_sweeps_list),
+        }
+        
+        # Copy channel_config if present
+        if 'channel_config' in self.metadata:
+            new_dataset.metadata['channel_config'] = self.metadata['channel_config'].copy()
+        
+        # Handle sweep_times with optional offset
+        old_sweep_times = self.metadata.get('sweep_times', {})
+        if old_sweep_times:
+            new_sweep_times = {}
+            for sweep_idx in keep_sweeps_list:
+                if sweep_idx in old_sweep_times:
+                    old_time = old_sweep_times[sweep_idx]
+                    # Apply offset if resetting time
+                    new_sweep_times[sweep_idx] = old_time - time_offset_sec
+            new_dataset.metadata['sweep_times'] = new_sweep_times
+        
+        logger.info(
+            f"Created filtered dataset: {new_dataset.sweep_count()} sweeps, "
+            f"time_offset={time_offset_sec:.3f}s"
+        )
+        
+        return new_dataset
+
     def get_sampling_rate(self, sweep_index: Optional[str] = None) -> Optional[float]:
         """
         Estimate the sampling rate for a sweep or the dataset.

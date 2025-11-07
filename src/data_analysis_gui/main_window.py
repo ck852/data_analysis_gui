@@ -65,6 +65,7 @@ from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
 from data_analysis_gui.dialogs import ConcentrationResponseDialog
+from data_analysis_gui.dialogs.reject_sweeps_dialog import RejectSweepsDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
@@ -270,6 +271,11 @@ class MainWindow(QMainWindow):
         copy_sweep_action.setShortcut("Ctrl+Shift+C")
         copy_sweep_action.triggered.connect(self._copy_current_sweep_data)
 
+        # Reject Sweeps
+        self.reject_sweeps_action = QAction("Reject Sweeps...", self)
+        self.reject_sweeps_action.triggered.connect(self._open_reject_sweeps_dialog)
+        analysis_menu.addAction(self.reject_sweeps_action)
+
         # About button (no submenu)
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
@@ -299,6 +305,153 @@ class MainWindow(QMainWindow):
             # Refresh plot
             self._update_plot()
             self.status_bar.showMessage("Background subtraction applied", 3000)
+
+    def _open_reject_sweeps_dialog(self):
+        """
+        Open dialog to reject sweeps from beginning/end of recording.
+        
+        Allows user to permanently remove equilibration or rundown sweeps
+        with optional time axis recalibration.
+        """
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return
+        
+        dataset = self.controller.current_dataset
+        file_name = Path(self.current_file_path).name if self.current_file_path else "Unknown"
+        total_sweeps = dataset.sweep_count()
+        
+        # Open dialog
+        dialog = RejectSweepsDialog(self, file_name, total_sweeps)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            skip_first, skip_last, reset_time = dialog.get_rejection_params()
+            
+            # Apply the filter
+            self._apply_sweep_rejection_filter(skip_first, skip_last, reset_time)
+
+
+    def _apply_sweep_rejection_filter(self, skip_first: int, skip_last: int, reset_time: bool):
+        """
+        Apply permanent sweep rejection by creating filtered dataset.
+        
+        This replaces the current dataset with a filtered copy containing only
+        the specified range of sweeps, with optional time recalibration.
+        
+        Args:
+            skip_first: Number of sweeps to skip from beginning
+            skip_last: Number of sweeps to skip from end
+            reset_time: Whether to recalibrate time axis to start at 0
+        """
+        if not self.controller.has_data():
+            return
+        
+        dataset = self.controller.current_dataset
+        
+        # Get all sweep names in sorted order
+        all_sweeps = sorted(
+            dataset.sweeps(), 
+            key=lambda x: int(x) if x.isdigit() else 0
+        )
+        
+        total = len(all_sweeps)
+        
+        # Calculate which sweeps to keep
+        if skip_last > 0:
+            keep_sweeps = all_sweeps[skip_first : total - skip_last]
+        else:
+            keep_sweeps = all_sweeps[skip_first:]
+        
+        if not keep_sweeps:
+            logger.error("Cannot reject all sweeps")
+            QMessageBox.critical(
+                self, 
+                "Invalid Operation", 
+                "Cannot reject all sweeps. At least one sweep must remain."
+            )
+            return
+        
+        try:
+            logger.info(
+                f"Applying sweep rejection: skip_first={skip_first}, "
+                f"skip_last={skip_last}, reset_time={reset_time}"
+            )
+            
+            # Create filtered dataset
+            filtered_dataset = dataset.create_filtered_copy(
+                keep_sweeps=keep_sweeps,
+                reset_time=reset_time
+            )
+            
+            # Replace current dataset
+            self.controller.current_dataset = filtered_dataset
+            
+            # Clear rejection set (no longer relevant after filtering)
+            self.rejected_sweeps.clear()
+            
+            # Update UI to reflect new sweep list
+            self._update_ui_after_filtering(keep_sweeps)
+            
+            # Show success message
+            action = "with time reset" if reset_time else ""
+            self.status_bar.showMessage(
+                f"Filtered to {len(keep_sweeps)} sweeps {action}", 
+                5000
+            )
+            
+            logger.info(f"Successfully filtered dataset to {len(keep_sweeps)} sweeps")
+            
+        except Exception as e:
+            logger.error(f"Failed to apply sweep rejection filter: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "Filter Failed",
+                f"Failed to apply sweep rejection:\n{str(e)}"
+            )
+
+
+    def _update_ui_after_filtering(self, keep_sweeps: list):
+        """
+        Update UI components after filtering sweeps.
+        
+        Updates sweep navigation panel with new sweep list and selects
+        the first available sweep for display.
+        
+        Args:
+            keep_sweeps: List of sweep indices that were kept
+        """
+        if not keep_sweeps:
+            logger.warning("No sweeps to update UI with")
+            return
+        
+        # Update file labels with new sweep count
+        self.sweep_count_label.setText(f"Sweeps: {len(keep_sweeps)}")
+        
+        # Update sweep navigation panel with new list
+        self.sweep_nav_panel.set_sweep_list(keep_sweeps)
+        
+        # Get sweep timing data from updated dataset
+        dataset = self.controller.current_dataset
+        sweep_times = dataset.metadata.get("sweep_times", {})
+        self.sweep_nav_panel.set_sweep_times(sweep_times)
+        
+        # Select and display first available sweep
+        first_sweep = keep_sweeps[0]
+        self.sweep_nav_panel.set_current_sweep(first_sweep)
+        
+        # Update reject checkbox state for the new current sweep
+        try:
+            sweep_idx = int(first_sweep)
+            self.reject_sweep_cb.blockSignals(True)
+            self.reject_sweep_cb.setChecked(sweep_idx in self.rejected_sweeps)
+            self.reject_sweep_cb.blockSignals(False)
+        except (ValueError, TypeError):
+            pass
+        
+        # Refresh the plot
+        self._update_plot()
+        
+        logger.debug(f"UI updated after filtering: displaying sweep {first_sweep}")
 
     def _ramp_iv_analysis(self):
         """Open the ramp IV analysis dialog."""
@@ -414,6 +567,7 @@ class MainWindow(QMainWindow):
         self.reject_sweep_cb.setEnabled(False)  # Disabled until file loaded
         self.reject_sweep_cb.stateChanged.connect(self._on_reject_sweep_toggled)
         style_checkbox(self.reject_sweep_cb)
+        self.reject_sweep_cb.setVisible(False)  
         toolbar.addWidget(self.reject_sweep_cb)
 
         # Connect toolbar controls to auto-save
