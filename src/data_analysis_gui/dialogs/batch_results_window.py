@@ -128,9 +128,31 @@ class BatchResultsWindow(QMainWindow):
 
         # Right panel: Plot
         self.plot_widget = DynamicBatchPlotWidget()
-        plot_labels = self.plot_formatter.get_plot_titles_and_labels(
-            "batch", params=self.batch_result.parameters
-        )
+        
+        # Get plot labels - handle ramp IV batches with no parameters
+        if self._is_ramp_iv_batch():
+            # Extract current units from first successful result's export table
+            current_units = "pA"  # default
+            if self.batch_result.successful_results:
+                first_result = self.batch_result.successful_results[0]
+                if first_result.export_table and "headers" in first_result.export_table:
+                    # Headers look like: ["Voltage (mV)", "Current (pA)"]
+                    for header in first_result.export_table["headers"]:
+                        if "Current" in header and "(" in header:
+                            # Extract units from "Current (pA)" -> "pA"
+                            current_units = header.split("(")[1].split(")")[0]
+                            break
+            
+            plot_labels = {
+                "title": "Ramp IV Batch Analysis",
+                "x_label": "Voltage (mV)",
+                "y_label": f"Current ({current_units})"
+            }
+        else:
+            plot_labels = self.plot_formatter.get_plot_titles_and_labels(
+                "batch", params=self.batch_result.parameters
+            )
+        
         self.plot_widget.initialize_plot(
             x_label=plot_labels["x_label"],
             y_label=plot_labels["y_label"],
@@ -240,9 +262,12 @@ class BatchResultsWindow(QMainWindow):
         """
         sorted_results = self._sort_results(self.batch_result.successful_results)
 
-        self.plot_widget.set_data(
-            sorted_results, use_dual_range=self.batch_result.parameters.use_dual_range
-        )
+        # Ramp IV batches don't use dual range
+        use_dual_range = False
+        if self.batch_result.parameters is not None:
+            use_dual_range = self.batch_result.parameters.use_dual_range
+
+        self.plot_widget.set_data(sorted_results, use_dual_range=use_dual_range)
 
         self.plot_widget.update_visibility(self.selection_state.get_selected_files())
 
@@ -421,14 +446,35 @@ class BatchResultsWindow(QMainWindow):
             logger.error(f"Error copying IV summary: {e}", exc_info=True)
             QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
+    def _is_ramp_iv_batch(self):
+        """
+        Check if this is a ramp IV batch analysis.
+        
+        Returns:
+            bool: True if ramp IV batch, False otherwise.
+        """
+        return getattr(self.batch_result, 'is_ramp_iv', False)
+
     def _is_iv_analysis(self):
         """
         Check if the current analysis is an IV (current-voltage) analysis.
+        
+        Includes both standard IV analyses and ramp IV batches.
 
         Returns:
             bool: True if IV analysis, False otherwise.
         """
+        # Check if this is a ramp IV batch first
+        if self._is_ramp_iv_batch():
+            return True
+        
+        # For standard batches, check parameters
         params = self.batch_result.parameters
+        
+        # Ramp IV batches have None parameters, so need to check
+        if params is None:
+            return False
+        
         return (
             params.x_axis.channel == "Voltage"
             and params.y_axis.channel == "Current"

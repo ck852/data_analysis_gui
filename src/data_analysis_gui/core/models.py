@@ -480,6 +480,7 @@ class BatchAnalysisResult:
     start_time: float
     end_time: float
     selected_files: Optional[Set[str]] = None
+    is_ramp_iv: bool = False
 
     def __post_init__(self):
         """

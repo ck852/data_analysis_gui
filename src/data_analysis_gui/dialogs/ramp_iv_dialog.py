@@ -14,9 +14,9 @@ from typing import Optional, List
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-    QWidget, QMessageBox, QFormLayout, QGroupBox, QSplitter, QApplication,
+    QWidget, QMessageBox, QFormLayout, QGroupBox, QSplitter, QApplication, QProgressBar
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -31,6 +31,11 @@ from data_analysis_gui.services.ramp_iv_service import RampIVService, RampIVResu
 from data_analysis_gui.services.data_manager import DataManager
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
+
+from data_analysis_gui.services.ramp_iv_batch_processor import RampIVBatchProcessor
+from data_analysis_gui.dialogs.ramp_iv_batch_sweep_dialog import RampIVBatchSweepDialog
+from data_analysis_gui.dialogs.batch_results_window import BatchResultsWindow
+from data_analysis_gui.core.models import FileAnalysisResult
 
 from data_analysis_gui.config.logging import get_logger
 
@@ -143,6 +148,76 @@ class VoltageInputDialog(QDialog):
         """Get the validated voltage list."""
         return getattr(self, 'voltages', [])
 
+class RampIVBatchWorker(QThread):
+    """
+    Worker thread for performing batch ramp IV analysis.
+
+    Emits:
+        progress (int, int, str): Progress update (completed, total, filename).
+        file_complete (FileAnalysisResult): Signal when a file is processed.
+        finished (BatchAnalysisResult): Signal when batch is complete.
+        error (str): Signal on error.
+    """
+
+    progress = Signal(int, int, str)
+    file_complete = Signal(object)  # FileAnalysisResult
+    finished = Signal(object)  # BatchAnalysisResult
+    error = Signal(str)
+
+    def __init__(
+        self,
+        file_paths,
+        voltage_targets,
+        start_ms,
+        end_ms,
+        current_units,
+        sweep_mode,
+        selected_sweeps,
+    ):
+        super().__init__()
+        self.file_paths = file_paths
+        self.voltage_targets = voltage_targets
+        self.start_ms = start_ms
+        self.end_ms = end_ms
+        self.current_units = current_units
+        self.sweep_mode = sweep_mode
+        self.selected_sweeps = selected_sweeps
+
+    def run(self):
+        """Run batch ramp IV analysis in a separate thread."""
+        try:
+            processor = RampIVBatchProcessor()
+
+            # Set up progress callbacks
+            processor.on_progress = lambda c, t, n: self.progress.emit(c, t, n)
+            processor.on_file_complete = lambda r: self.file_complete.emit(r)
+
+            # Process files
+            result = processor.process_files(
+                file_paths=self.file_paths,
+                voltage_targets=self.voltage_targets,
+                start_ms=self.start_ms,
+                end_ms=self.end_ms,
+                current_units=self.current_units,
+                sweep_selection_mode=self.sweep_mode,
+                selected_sweeps=self.selected_sweeps,
+            )
+
+            # Ensure result has selection state initialized
+            if not hasattr(result, "selected_files") or result.selected_files is None:
+                from dataclasses import replace
+
+                result = replace(
+                    result,
+                    selected_files={r.base_name for r in result.successful_results},
+                )
+
+            self.finished.emit(result)
+
+        except Exception as e:
+            logger.error(f"Batch ramp IV analysis failed: {e}", exc_info=True)
+            self.error.emit(str(e))
+
 
 class RampIVDialog(QDialog):
     """
@@ -153,9 +228,9 @@ class RampIVDialog(QDialog):
     """
     
     def __init__(self, dataset: ElectrophysiologyDataset, 
-                 start_ms: float, end_ms: float,
-                 current_units: str = "pA",
-                 parent=None):
+                start_ms: float, end_ms: float,
+                current_units: str = "pA",
+                parent=None):
         super().__init__(parent)
         
         self.dataset = dataset
@@ -175,6 +250,8 @@ class RampIVDialog(QDialog):
         # State
         self.voltage_targets = []
         self.current_result: Optional[RampIVResult] = None
+        self.analysis_completed = False  # NEW: Track if analysis has been run
+        self.batch_worker = None  # NEW: Track batch worker thread
         
         self.setWindowTitle("Ramp IV Analysis")
         self.setModal(True)
@@ -325,7 +402,7 @@ class RampIVDialog(QDialog):
         return panel
         
     def _create_bottom_buttons(self, layout):
-        """Create bottom action buttons following existing dialog patterns."""
+        """Create bottom action buttons with batch analysis support."""
         button_layout = QHBoxLayout()
         
         # Export button (initially disabled until analysis is done)
@@ -337,6 +414,11 @@ class RampIVDialog(QDialog):
         self.copy_btn = create_styled_button("Copy Data", "secondary")
         self.copy_btn.setEnabled(False)
         button_layout.addWidget(self.copy_btn)
+        
+        # NEW: Batch analyze button (disabled until single analysis is done)
+        self.batch_analyze_btn = create_styled_button("Batch Analyze...", "primary")
+        self.batch_analyze_btn.setEnabled(False)
+        button_layout.addWidget(self.batch_analyze_btn)
         
         button_layout.addStretch()
         
@@ -352,6 +434,7 @@ class RampIVDialog(QDialog):
         self.generate_plot_btn.clicked.connect(self._generate_analysis_plot)
         self.export_btn.clicked.connect(self._export_summary_csv)
         self.copy_btn.clicked.connect(self._copy_data_to_clipboard)
+        self.batch_analyze_btn.clicked.connect(self._batch_analyze)
         
     def _setup_empty_plot(self):
         """Set up initial empty plot with consistent styling."""
@@ -418,9 +501,11 @@ class RampIVDialog(QDialog):
             # Update plot with results
             self._update_plot()
             
-            # Enable export
+            # Enable export and batch analyze buttons
             self.export_btn.setEnabled(True)
             self.copy_btn.setEnabled(True)
+            self.analysis_completed = True  # NEW: Mark analysis as completed
+            self.batch_analyze_btn.setEnabled(True)  # NEW: Enable batch button
             
             # Update status
             processed = len(self.current_result.processed_sweeps)
@@ -567,3 +652,173 @@ class RampIVDialog(QDialog):
                 self, "Copy Error", 
                 f"An error occurred while copying:\n{str(e)}"
             )
+
+    def _batch_analyze(self):
+        """Launch batch analysis with current ramp IV parameters."""
+        if not self.analysis_completed:
+            QMessageBox.warning(
+                self, "Analysis Required",
+                "Please run a single-file analysis first to verify your parameters."
+            )
+            return
+        
+        # Get current sweep selection
+        selected_sweeps, _ = self.sweep_selection.get_selected_sweeps()
+        
+        # Show sweep selection dialog
+        sweep_dialog = RampIVBatchSweepDialog(self, selected_sweeps)
+        if sweep_dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        
+        sweep_mode, sweep_list = sweep_dialog.get_selection()
+        
+        # Get files to process
+        file_types = (
+            "WCP files (*.wcp);;"
+            "ABF files (*.abf);;"
+            "Data files (*.wcp *.abf);;"
+            "All files (*.*)"
+        )
+        
+        file_paths = self.file_dialog_service.get_import_paths(
+            self,
+            "Select Files for Batch Ramp IV Analysis",
+            file_types=file_types,
+            dialog_type="batch_import"
+        )
+        
+        if not file_paths:
+            return
+        
+        # Create progress dialog
+        self.batch_progress_dialog = QDialog(self)
+        self.batch_progress_dialog.setWindowTitle("Batch Ramp IV Analysis")
+        self.batch_progress_dialog.setModal(True)
+        self.batch_progress_dialog.setFixedSize(500, 150)
+        
+        progress_layout = QVBoxLayout(self.batch_progress_dialog)
+        
+        self.batch_progress_label = QLabel("Starting batch analysis...")
+        progress_layout.addWidget(self.batch_progress_label)
+        
+        self.batch_progress_bar = QProgressBar()
+        self.batch_progress_bar.setMaximum(len(file_paths))
+        self.batch_progress_bar.setValue(0)
+        progress_layout.addWidget(self.batch_progress_bar)
+        
+        self.batch_status_label = QLabel("Preparing...")
+        progress_layout.addWidget(self.batch_status_label)
+        
+        button_layout = QHBoxLayout()
+        self.batch_cancel_btn = create_styled_button("Cancel", "secondary")
+        self.batch_cancel_btn.clicked.connect(self._cancel_batch_analysis)
+        button_layout.addStretch()
+        button_layout.addWidget(self.batch_cancel_btn)
+        progress_layout.addLayout(button_layout)
+        
+        # Create and start worker thread
+        self.batch_worker = RampIVBatchWorker(
+            file_paths=file_paths,
+            voltage_targets=self.voltage_targets,
+            start_ms=self.start_ms,
+            end_ms=self.end_ms,
+            current_units=self.current_units,
+            sweep_mode=sweep_mode,
+            selected_sweeps=sweep_list,
+        )
+        
+        # Connect worker signals
+        self.batch_worker.progress.connect(self._on_batch_progress)
+        self.batch_worker.file_complete.connect(self._on_batch_file_complete)
+        self.batch_worker.finished.connect(self._on_batch_complete)
+        self.batch_worker.error.connect(self._on_batch_error)
+        
+        # Start worker and show dialog
+        self.batch_worker.start()
+        self.batch_progress_dialog.show()
+        
+        logger.info(f"Started batch ramp IV analysis of {len(file_paths)} files")
+
+
+    def _cancel_batch_analysis(self):
+        """Cancel the running batch analysis."""
+        if self.batch_worker and self.batch_worker.isRunning():
+            self.batch_worker.quit()
+            self.batch_worker.wait()
+            self.batch_status_label.setText("Analysis cancelled")
+            logger.info("Batch ramp IV analysis cancelled by user")
+
+
+    def _on_batch_progress(self, completed: int, total: int, current_file: str):
+        """Handle progress updates from batch worker."""
+        self.batch_progress_bar.setValue(completed)
+        self.batch_progress_label.setText(f"Processing file {completed} of {total}")
+        self.batch_status_label.setText(f"Current: {current_file}")
+
+
+    def _on_batch_file_complete(self, result: FileAnalysisResult):
+        """Handle completion of individual file analysis."""
+        status = "✓" if result.success else "✗"
+        logger.debug(f"{status} Completed: {result.base_name}")
+
+
+    def _on_batch_complete(self, batch_result):
+        """Handle completion of batch analysis and open results window."""
+        self.batch_progress_dialog.close()
+        
+        success_count = len(batch_result.successful_results)
+        fail_count = len(batch_result.failed_results)
+        
+        logger.info(
+            f"Batch ramp IV analysis complete: {success_count} succeeded, "
+            f"{fail_count} failed"
+        )
+        
+        if success_count == 0:
+            QMessageBox.warning(
+                self, "No Results",
+                "Batch analysis completed but no files were successfully processed."
+            )
+            return
+        
+        # Open results window
+        try:
+            # Get data_service from parent if available
+            data_service = None
+            batch_service = None
+            
+            if hasattr(self.parent(), 'controller'):
+                data_service = self.parent().controller.data_service
+                # Create batch service for exports
+                from data_analysis_gui.services.batch_processor import BatchProcessor
+                batch_service = BatchProcessor()
+            else:
+                # Fallback to DataManager
+                data_service = self.data_manager
+                from data_analysis_gui.services.batch_processor import BatchProcessor
+                batch_service = BatchProcessor()
+            
+            results_window = BatchResultsWindow(
+                self,
+                batch_result,
+                batch_service,
+                data_service,
+            )
+            results_window.show()
+            
+        except Exception as e:
+            logger.error(f"Failed to show batch results: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Error",
+                f"Failed to display results:\n{str(e)}"
+            )
+
+
+    def _on_batch_error(self, error_msg: str):
+        """Handle errors from batch worker."""
+        self.batch_progress_dialog.close()
+        QMessageBox.critical(
+            self, "Batch Analysis Error",
+            f"Batch analysis failed:\n{error_msg}"
+        )
+        logger.error(f"Batch ramp IV analysis error: {error_msg}")

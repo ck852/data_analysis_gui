@@ -37,6 +37,7 @@ data_analysis_gui/
 |   |-- current_density_dialog.py
 |   |-- current_density_results_window.py
 |   |-- extract_sweeps_dialog.py
+|   |-- ramp_iv_batch_sweep_dialog.py
 |   `-- ramp_iv_dialog.py
 |-- gui_services/
 |   |-- __init__.py
@@ -54,6 +55,7 @@ data_analysis_gui/
 |   |-- current_density_service.py
 |   |-- data_manager.py
 |   |-- dataset_builder_service.py
+|   |-- ramp_iv_batch_processor.py
 |   |-- ramp_iv_service.py
 |   `-- summary_export.py
 |-- widgets/

@@ -6,6 +6,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ### Added
 - Conductance measurement option
 - Batch analysis summaries for non-IV analyses
+- Batch analysis and current density analysis for ramp IV protocols
 
 ### Changed
 - Fixed mu character in plots
