@@ -35,45 +35,48 @@ class GeneralizedSummaryExporter:
     """
     
     @staticmethod
-    def _get_axis_label(axis_config: AxisConfig, current_units: str) -> str:
+    def _get_axis_label(axis_config: AxisConfig, params: AnalysisParameters, current_units: str) -> str:
         """
         Generate axis label from AxisConfig.
         
         Args:
             axis_config: Configuration for the axis (measure, channel)
+            params: Full analysis parameters (needed for conductance units)
             current_units: Units for current measurements ('pA', 'nA', or 'μA')
             
         Returns:
-            Formatted axis label (e.g., "Time (ms)", "Peak Current (pA)")
+            Formatted axis label (e.g., "Time (s)", "Peak Current (pA)", "Conductance (nS)")
         """
         measure = axis_config.measure
         channel = axis_config.channel
         
-        # Determine units based on channel
-        if channel == "Time":
-            units = "s"
-        elif channel == "Voltage":
+        # Special case: Time measure
+        if measure == "Time":
+            return "Time (s)"
+        
+        # Special case: Conductance measure
+        if measure == "Conductance":
+            units = params.conductance_config.units if params.conductance_config else "None"
+            return f"Conductance ({units})"
+        
+        # Determine units based on channel for standard measures
+        if channel == "Voltage":
             units = "mV"
         elif channel == "Current":
             units = current_units
         else:
             units = ""
         
-        # Build label
-        if measure == "Time":
-            # Special case: "Time" measure means we're using time as the axis
-            label = "Time"
-            units = "s"  # Override units for time measure
-        else:
-            # Format: "Measure Channel" (e.g., "Peak Current", "Average Voltage")
-            label = f"{measure} {channel}"
+        # Build label: "Measure Channel (units)"
+        label = f"{measure} {channel}"
         
         # Add units
         if units:
             label = f"{label} ({units})"
         
         return label
-    
+
+
     @staticmethod
     def prepare_summary_table(
         batch_results: Dict[str, Dict[str, Any]],
@@ -90,7 +93,7 @@ class GeneralizedSummaryExporter:
         
         Args:
             batch_results: Dictionary mapping filenames to data dictionaries
-                          (containing 'x_values' and 'y_values' lists)
+                        (containing 'x_values' and 'y_values' lists)
             params: Analysis parameters defining X and Y axes
             included_files: Optional set of filenames to include (None = all files)
             current_units: Units for current measurements ('pA', 'nA', or 'μA')
@@ -123,9 +126,9 @@ class GeneralizedSummaryExporter:
         sorted_files = sorted(filtered_results.keys())
         logger.debug(f"Processing {len(sorted_files)} files in sorted order")
         
-        # Generate axis labels
-        x_label = GeneralizedSummaryExporter._get_axis_label(params.x_axis, current_units)
-        y_label = GeneralizedSummaryExporter._get_axis_label(params.y_axis, current_units)
+        # Generate axis labels - NOW PASSING params
+        x_label = GeneralizedSummaryExporter._get_axis_label(params.x_axis, params, current_units)
+        y_label = GeneralizedSummaryExporter._get_axis_label(params.y_axis, params, current_units)
         logger.debug(f"Axis labels: X='{x_label}', Y='{y_label}'")
         
         # Build headers: [File1 X_label] [File1 Y_label] [blank] [File2 X_label] ...
