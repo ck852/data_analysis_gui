@@ -172,11 +172,23 @@ class BatchProcessor:
             # Create analysis manager (no channel defs needed)
             analysis_manager = AnalysisManager()
 
-            # Perform analysis
-            analysis_result = analysis_manager.analyze(dataset, params)
+            # Extract current units from this file's metadata (like single-file analysis does)
+            channel_config = dataset.metadata.get("channel_config", {})
+            current_units = channel_config.get("current_units", "pA")
 
-            # Get export table
-            export_table = analysis_manager.get_export_table(dataset, params)
+            # Update params with file-specific current units
+            file_params = params.with_updates(
+                channel_config={
+                    **params.channel_config,
+                    "current_units": current_units,
+                }
+            )
+
+            # Perform analysis with file-specific params
+            analysis_result = analysis_manager.analyze(dataset, file_params)
+
+            # Get export table (also use file-specific params)
+            export_table = analysis_manager.get_export_table(dataset, file_params)
 
             processing_time = time.time() - start_time
 

@@ -50,10 +50,12 @@ data_analysis_gui/
 |   |-- bg_subtraction_service.py
 |   |-- conc_resp_exporter.py
 |   |-- conc_resp_service.py
+|   |-- conductance_calculator.py
 |   |-- current_density_service.py
 |   |-- data_manager.py
 |   |-- dataset_builder_service.py
-|   `-- ramp_iv_service.py
+|   |-- ramp_iv_service.py
+|   `-- summary_export.py
 |-- widgets/
 |   |-- __init__.py
 |   |-- axis_zoom_controller.py
