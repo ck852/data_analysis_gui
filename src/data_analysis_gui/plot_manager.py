@@ -298,6 +298,10 @@ class PlotManager(QObject):
             units=units
         )
 
+        # Re-snap all cursors to new data
+        for line_id, position in self.cursor_manager.get_cursor_positions().items():
+            self.cursor_manager.update_cursor_position(line_id, position)
+
         # 4. Re-add cursor Line2D objects from CursorManager
         for line in self.cursor_manager.get_all_lines():
             self.ax.add_line(line)

@@ -537,6 +537,7 @@ class MainWindow(QMainWindow):
         self.sweep_count_label = QLabel("")
         self.sweep_count_label.setMaximumWidth(80)
         style_label(self.sweep_count_label, "muted")
+        self.sweep_count_label.setVisible(False) 
         toolbar.addWidget(self.sweep_count_label)
 
         toolbar.addSeparator()
