@@ -69,6 +69,8 @@ from data_analysis_gui.dialogs import ConcentrationResponseDialog
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.gui_services.main_range_coordinator import MainRangeCoordinator 
+from data_analysis_gui.gui_services.clipboard_service import ClipboardService
+from data_analysis_gui.services.sweep_extraction_service import SweepExtractionService
 
 logger = get_logger(__name__)
 
@@ -111,6 +113,9 @@ class MainWindow(QMainWindow):
         self.data_manager = services["data_manager"]
         self.analysis_manager = services["analysis_manager"]
         self.batch_processor = services["batch_processor"]
+
+        # Sweep extraction service for quick copy feature
+        self.sweep_extraction_service = SweepExtractionService()
 
         # GUI services
         self.file_dialog_service = FileDialogService()
@@ -259,6 +264,11 @@ class MainWindow(QMainWindow):
         # Sweep Extractor
         sweep_extract_action = analysis_menu.addAction("Extract Sweeps...")
         sweep_extract_action.triggered.connect(self._sweep_extraction)
+
+        # Quick copy current sweep
+        copy_sweep_action = analysis_menu.addAction("Copy Displayed Sweep")
+        copy_sweep_action.setShortcut("Ctrl+Shift+C")
+        copy_sweep_action.triggered.connect(self._copy_current_sweep_data)
 
         # About button (no submenu)
         about_action = QAction("&About", self)
@@ -511,6 +521,61 @@ class MainWindow(QMainWindow):
                 # Auto-save settings to persist the directory choice
                 self._auto_save_settings()
             # Error handling is done by controller callbacks
+
+    def _copy_current_sweep_data(self):
+        """
+        Copy the current sweep's full trace data to clipboard.
+        
+        Extracts Time, Voltage, and Current for the currently displayed sweep
+        and copies to clipboard in tab-separated format for easy pasting into
+        Excel, Prism, or other applications.
+        """
+        # Check if data is loaded
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return
+        
+        # Get current sweep
+        sweep = self.sweep_nav_panel.get_current_sweep()
+        if not sweep:
+            QMessageBox.warning(self, "No Sweep", "No sweep is currently displayed.")
+            return
+        
+        try:
+            # Get current dataset
+            dataset = self.controller.current_dataset
+            
+            # Extract sweep data using service
+            # Always use 'both' channels and full trace (no time range restriction)
+            result = self.sweep_extraction_service.extract_sweeps(
+                dataset=dataset,
+                sweep_indices=[sweep],
+                channel_mode='both',
+                time_range=None  # Full trace
+            )
+            
+            # Copy to clipboard
+            success = ClipboardService.copy_data_to_clipboard(result)
+            
+            if success:
+                # Show brief success message in status bar
+                self.status_bar.showMessage(
+                    f"Sweep {sweep} data copied to clipboard", 
+                    3000  # 3 second timeout
+                )
+                logger.info(f"Copied sweep {sweep} full trace to clipboard")
+            else:
+                QMessageBox.warning(
+                    self, "Copy Failed",
+                    "Failed to copy sweep data to clipboard."
+                )
+                
+        except Exception as e:
+            logger.error(f"Error copying sweep data: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Copy Error",
+                f"Failed to copy sweep data:\n{str(e)}"
+            )
 
     def _batch_analyze_with_bg_subtraction(self):
         """

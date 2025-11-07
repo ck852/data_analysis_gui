@@ -57,7 +57,8 @@ data_analysis_gui/
 |   |-- dataset_builder_service.py
 |   |-- ramp_iv_batch_processor.py
 |   |-- ramp_iv_service.py
-|   `-- summary_export.py
+|   |-- summary_export.py
+|   `-- sweep_extraction_service.py
 |-- widgets/
 |   |-- __init__.py
 |   |-- axis_zoom_controller.py
