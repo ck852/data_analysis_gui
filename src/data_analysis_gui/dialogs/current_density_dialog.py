@@ -77,27 +77,30 @@ class CurrentDensityDialog(QDialog):
     Provides bulk entry, validation, and status feedback for each file.
     """
 
-    def __init__(self, parent, batch_result: BatchAnalysisResult):
+    def __init__(self, parent, batch_result: BatchAnalysisResult, analysis_type: str):
         """
         Initialize the dialog.
 
         Args:
             parent: Parent widget.
             batch_result (BatchAnalysisResult): Batch analysis result containing file info.
+            analysis_type (str): Either "IV" for current density or "GV" for conductance density.
         """
         super().__init__(parent)
         self.batch_result = batch_result
+        self.analysis_type = analysis_type
         self.cslow_inputs = {}  # filename -> QLineEdit
 
         self.setModal(True)
 
-        # Set window title before applying theme
-        self.setWindowTitle("Current Density Analysis - Enter Cslow Values")
+        # Set window title conditionally before applying theme
+        density_type = "Conductance Density" if analysis_type == "GV" else "Current Density"
+        self.setWindowTitle(f"{density_type} Analysis - Enter Capacitance Values")
 
         self.init_ui()
 
         # Apply centralized styling from refactored themes.py
-        apply_modern_theme(self)  # Only takes 1 argument now
+        apply_modern_theme(self)
         apply_compact_layout(self)
 
     def init_ui(self):
@@ -107,19 +110,24 @@ class CurrentDensityDialog(QDialog):
         layout = QVBoxLayout(self)
         self.resize(600, 600)
 
-        # Instructions
+        # Instructions - conditional based on analysis type
+        if self.analysis_type == "GV":
+            calc_description = "Conductance density will be calculated as Conductance / Capacitance."
+        else:  # IV
+            calc_description = "Current density will be calculated as Current / Capacitance."
+        
         instructions = QLabel(
-            "Enter slow capacitance (Cslow) values in picofarads (pF) for each file.\n"
-            "Current density will be calculated as Current (pA) / Cslow (pF)."
+            f"Enter slow capacitance values in picofarads (pF) for each file.\n"
+            f"{calc_description}"
         )
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
 
-        # Table for file names and Cslow inputs
+        # Table for file names and capacitance inputs
         self.table = CslowInputTable()
         self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["File", "Cslow (pF)", "Status"])
-        style_table_widget(self.table)  # Apply theme styling
+        self.table.setHorizontalHeaderLabels(["File", "Capacitance (pF)", "Status"])
+        style_table_widget(self.table)
 
         # Configure table geometry (layout, not style)
         header = self.table.horizontalHeader()
@@ -143,7 +151,7 @@ class CurrentDensityDialog(QDialog):
         self.default_input = QLineEdit("18.0")
         self.default_input.setMaximumWidth(80)
         self.default_input.setValidator(QDoubleValidator(0.01, 10000.0, 2))
-        style_input_field(self.default_input)  # Apply theme styling
+        style_input_field(self.default_input)
 
         button_layout.addWidget(set_all_btn)
         button_layout.addWidget(self.default_input)
@@ -279,7 +287,7 @@ class CurrentDensityDialog(QDialog):
 
     def _validate_and_accept(self):
         """
-        Validate all Cslow inputs before accepting the dialog.
+        Validate all capacitance inputs before accepting the dialog.
 
         Shows a warning if any selected file is missing a valid value.
         """
@@ -296,7 +304,7 @@ class CurrentDensityDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Missing Values",
-                f"Please enter valid Cslow values for selected files.\n"
+                f"Please enter valid capacitance values for selected files.\n"
                 f"Missing: {len(missing_files)} file(s)",
             )
             return

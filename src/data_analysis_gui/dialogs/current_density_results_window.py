@@ -65,6 +65,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         cslow_mapping: Dict[str, float],
         data_service,
         batch_service=None,
+        analysis_type: str = "IV",
     ):
         """
         Initialize the CurrentDensityResultsWindow.
@@ -72,14 +73,14 @@ class CurrentDensityResultsWindow(QMainWindow):
         Args:
             parent: Parent widget.
             batch_result (BatchAnalysisResult): Batch analysis results.
-            cslow_mapping (Dict[str, float]): Mapping of file names to Cslow values.
+            cslow_mapping (Dict[str, float]): Mapping of file names to capacitance values.
             data_service: Service for data export operations.
             batch_service: Optional batch export service.
+            analysis_type (str): Either "IV" for current density or "GV" for conductance density.
         """
         super().__init__(parent)
 
-        #self.setModal(True)
-
+        self.analysis_type = analysis_type
         self.original_batch_result = batch_result
         self.active_batch_result = deepcopy(batch_result)
 
@@ -99,15 +100,33 @@ class CurrentDensityResultsWindow(QMainWindow):
         if hasattr(parent, 'file_dialog_service'):
             self.file_dialog_service = parent.file_dialog_service
         else:
-            # Fallback to new instance if parent doesn't have one
             self.file_dialog_service = FileDialogService()
 
         self.cd_service = CurrentDensityService()
 
-        self.y_unit = "pA/pF"
+        # Set y_unit based on analysis type and extract appropriate units
+        if analysis_type == "GV":
+            # Extract conductance units from parameters
+            conductance_units = "nS"  # default
+            if (
+                hasattr(batch_result.parameters, "conductance_config")
+                and batch_result.parameters.conductance_config
+            ):
+                conductance_units = batch_result.parameters.conductance_config.units
+            self.y_unit = f"{conductance_units}/pF"
+        else:  # IV
+            # Extract current units from parameters
+            current_units = "pA"  # default
+            if (
+                hasattr(batch_result.parameters, "channel_config")
+                and batch_result.parameters.channel_config
+            ):
+                current_units = batch_result.parameters.channel_config.get("current_units", "pA")
+            self.y_unit = f"{current_units}/pF"
 
         num_files = len(self.active_batch_result.successful_results)
-        self.setWindowTitle(f"Current Density Results ({num_files} files)")
+        density_type = "Conductance Density" if analysis_type == "GV" else "Current Density"
+        self.setWindowTitle(f"{density_type} Results ({num_files} files)")
 
         # Set window size and position
         screen = self.screen() or QApplication.primaryScreen()
@@ -120,6 +139,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         # Apply centralized styling from themes.py
         style_main_window(self)
 
+
     def init_ui(self):
         """
         Set up the user interface, including file list, plot, and export controls.
@@ -128,7 +148,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
-        info_label = QLabel("(Click Cslow values to edit)")
+        info_label = QLabel("(Click Capacitance values to edit)")
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         style_label(info_label, "caption")
         main_layout.addWidget(info_label)
@@ -138,11 +158,21 @@ class CurrentDensityResultsWindow(QMainWindow):
         splitter.addWidget(self._create_left_panel())
 
         self.plot_widget = DynamicBatchPlotWidget()
-        plot_labels = self.plot_formatter.get_plot_titles_and_labels("current_density")
+        
+        # Set plot labels conditionally based on analysis type
+        if self.analysis_type == "GV":
+            plot_title = "Conductance Density"
+            y_label = f"Conductance Density ({self.y_unit})"
+        else:  # IV
+            plot_title = "Current Density"
+            y_label = f"Current Density ({self.y_unit})"
+        
+        x_label = "Voltage (mV)"
+        
         self.plot_widget.initialize_plot(
-            x_label=plot_labels["x_label"],
-            y_label=plot_labels["y_label"],
-            title=plot_labels["title"],
+            x_label=x_label,
+            y_label=y_label,
+            title=plot_title,
         )
         splitter.addWidget(self.plot_widget)
 
@@ -396,11 +426,11 @@ class CurrentDensityResultsWindow(QMainWindow):
 
     def _on_cslow_changed(self, file_name: str, new_cslow: float):
         """
-        Handle recalculation of current density when a Cslow value is changed.
+        Handle recalculation of density when a capacitance value is changed.
 
         Args:
-            file_name (str): Name of the file whose Cslow value changed.
-            new_cslow (float): New Cslow value.
+            file_name (str): Name of the file whose capacitance value changed.
+            new_cslow (float): New capacitance value.
         """
         try:
             # Find the index
@@ -440,7 +470,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             )
             self.plot_widget.auto_scale_to_data()
         except (ValueError, ZeroDivisionError) as e:
-            logger.warning(f"Invalid Cslow value for {file_name}: {e}")
+            logger.warning(f"Invalid capacitance value for {file_name}: {e}")
 
     def _update_plot(self):
         """
@@ -471,10 +501,10 @@ class CurrentDensityResultsWindow(QMainWindow):
 
     def _validate_all_cslow_values(self) -> bool:
         """
-        Validate Cslow values for all selected files before exporting.
+        Validate capacitance values for all selected files before exporting.
 
         Returns:
-            bool: True if all Cslow values are valid and positive, False otherwise.
+            bool: True if all capacitance values are valid and positive, False otherwise.
         """
         for row in range(self.file_list.rowCount()):
             cslow_widget = self.file_list.cellWidget(row, 3)
@@ -486,11 +516,12 @@ class CurrentDensityResultsWindow(QMainWindow):
                     return False
         return True
 
+
     def _export_individual_csvs(self):
         """
-        Export individual CSV files for selected files with current density values.
+        Export individual CSV files for selected files with density values.
 
-        Shows a warning if no files are selected or if Cslow values are invalid.
+        Shows a warning if no files are selected or if capacitance values are invalid.
         """
         selected_files = self.selection_state.get_selected_files()
         if not selected_files:
@@ -501,7 +532,7 @@ class CurrentDensityResultsWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Invalid Input",
-                "Please correct invalid Cslow values before exporting.",
+                "Please correct invalid capacitance values before exporting.",
             )
             return
 
@@ -523,10 +554,11 @@ class CurrentDensityResultsWindow(QMainWindow):
                 QMessageBox.warning(self, "No Data", "No valid results to export.")
                 return
 
-            # Add "_CD" suffix to filenames for current density exports
+            # Add "_CD" suffix for current density or "_GD" for conductance density
+            suffix = "_GD" if self.analysis_type == "GV" else "_CD"
             cd_results = []
             for result in filtered_results:
-                cd_result = replace(result, base_name=f"{result.base_name}_CD")
+                cd_result = replace(result, base_name=f"{result.base_name}{suffix}")
                 cd_results.append(cd_result)
 
             # Create batch for export
@@ -543,10 +575,11 @@ class CurrentDensityResultsWindow(QMainWindow):
             success_count = sum(1 for r in export_result.export_results if r.success)
 
             if success_count > 0:
+                density_type = "conductance density" if self.analysis_type == "GV" else "current density"
                 QMessageBox.information(
                     self,
                     "Export Complete",
-                    f"Exported {success_count} current density files",
+                    f"Exported {success_count} {density_type} files",
                 )
                 if hasattr(self.parent(), '_auto_save_settings'):
                     try:
@@ -561,22 +594,29 @@ class CurrentDensityResultsWindow(QMainWindow):
             logger.error(f"CSV export failed: {e}", exc_info=True)
             QMessageBox.critical(self, "Export Failed", f"Export failed: {str(e)}")
 
+
     def _export_summary(self):
         """
-        Export a summary CSV of current density results after validating inputs.
+        Export a summary CSV of density results after validating inputs.
 
-        Shows a warning if Cslow values are invalid or if export fails.
+        Shows a warning if capacitance values are invalid or if export fails.
         """
         if not self._validate_all_cslow_values():
             QMessageBox.warning(
                 self,
                 "Invalid Input",
-                "Please correct invalid Cslow values before exporting.",
+                "Please correct invalid capacitance values before exporting.",
             )
             return
 
+        # Set filename based on analysis type
+        if self.analysis_type == "GV":
+            default_filename = "Conductance_Density_Summary.csv"
+        else:
+            default_filename = "Current_Density_Summary.csv"
+
         file_path = self.file_dialog_service.get_export_path(
-            self, "Current_Density_Summary.csv", dialog_type="export"
+            self, default_filename, dialog_type="export"
         )
         if not file_path:
             return

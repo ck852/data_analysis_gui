@@ -38,7 +38,8 @@ data_analysis_gui/
 |   |-- current_density_results_window.py
 |   |-- extract_sweeps_dialog.py
 |   |-- ramp_iv_batch_sweep_dialog.py
-|   `-- ramp_iv_dialog.py
+|   |-- ramp_iv_dialog.py
+|   `-- reject_sweeps_dialog.py
 |-- gui_services/
 |   |-- __init__.py
 |   |-- clipboard_service.py

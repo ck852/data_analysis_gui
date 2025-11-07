@@ -8,6 +8,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Batch analysis summaries for non-IV analyses
 - Batch analysis and current density analysis for ramp IV protocols
 - Copy sweeps directly from MainWindow
+- Batch analysis for conductance
+- Reject sweeps dialog
 
 ### Changed
 - Fixed mu character in plots

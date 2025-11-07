@@ -1076,23 +1076,27 @@ class BatchResultsWindow(QMainWindow):
 
     def _open_current_density_analysis(self):
         """
-        Open the current density analysis dialog for selected files.
-
-        Launches dialog and, if completed, shows results window.
+        Open the density analysis dialog for selected files.
+        
+        Opens Current Density dialog for IV analyses or Conductance Density dialog
+        for GV analyses. Launches dialog and, if completed, shows results window.
         """
         from dataclasses import replace
 
         batch_with_selection = replace(
             self.batch_result, selected_files=self.selection_state.get_selected_files()
         )
+        
+        # Determine analysis type (treat ramp_iv the same as regular IV)
+        analysis_type = "GV" if self._is_gv_analysis() else "IV"
 
-        dialog = CurrentDensityDialog(self, batch_with_selection)
+        dialog = CurrentDensityDialog(self, batch_with_selection, analysis_type)
 
         if dialog.exec_():
             cslow_mapping = dialog.get_cslow_mapping()
 
             if not cslow_mapping:
-                QMessageBox.warning(self, "No Data", "No Cslow values were entered.")
+                QMessageBox.warning(self, "No Data", "No capacitance values were entered.")
                 return
 
             cd_window = CurrentDensityResultsWindow(
@@ -1101,5 +1105,6 @@ class BatchResultsWindow(QMainWindow):
                 cslow_mapping,
                 self.data_service,
                 self.batch_service,
+                analysis_type,
             )
             cd_window.show()
