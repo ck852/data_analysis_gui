@@ -54,7 +54,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
                 'signal_type': 'voltage'
             })
         # Identify current channels
-        elif any(u in units_lower for u in ['pa', 'na', '\u00b5a', 'ua', 'ma', 'a']):
+        elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
             current_channels.append({
                 'index': i,
                 'name': ch.name,
@@ -68,7 +68,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_channel': voltage_channels[0]['index'],
             'current_channel': current_channels[0]['index'],
             'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
+            'current_units': current_channels[0]['units'],
             'valid': True,
             'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
                       f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
@@ -136,6 +136,8 @@ def load_wcp(
     format used throughout the application. WCP files contain actual sweep times 
     which are extracted and stored. Channel configuration is automatically detected
     from file metadata.
+    
+    PHASE 1: Also extracts RecType, Group Number, and Status for leak subtraction.
 
     Args:
         file_path: Path to the WCP file
@@ -144,17 +146,12 @@ def load_wcp(
     Returns:
         ElectrophysiologyDataset containing all sweeps from the WCP file with
         auto-detected channel configuration stored in metadata['channel_config']
+        and sweep classification stored in metadata['sweep_info']
 
     Raises:
         FileNotFoundError: If the specified file doesn't exist
         IOError: If file cannot be read or is corrupted
         ValueError: If file structure is invalid or contains no data
-
-    Example:
-        >>> dataset = load_wcp('recording.wcp')
-        >>> print(f"Loaded {dataset.sweep_count()} sweeps")
-        >>> config = dataset.metadata['channel_config']
-        >>> time_ms, data = dataset.get_sweep('1')
     """
 
     file_path = Path(file_path)
@@ -192,8 +189,9 @@ def load_wcp(
             # Store auto-detected channel configuration
             dataset.metadata["channel_config"] = channel_config
             
-            # Initialize sweep_times dictionary
+            # Initialize sweep_times and sweep_info dictionaries
             dataset.metadata["sweep_times"] = {}
+            dataset.metadata["sweep_info"] = {}  # NEW: Per-sweep metadata
             
             # Load all sweeps
             logger.debug(f"Loading {wcp.file_header.num_records} sweeps with {wcp.file_header.num_channels} channel(s)")
@@ -209,6 +207,14 @@ def load_wcp(
                     # Store actual sweep time (in seconds)
                     sweep_index = str(record_num)
                     dataset.metadata["sweep_times"][sweep_index] = float(header.time)
+                    
+                    # NEW: Store sweep classification metadata
+                    dataset.metadata["sweep_info"][sweep_index] = {
+                        "time": float(header.time),
+                        "rec_type": header.rec_type,  # e.g., "LEAK", "TEST", ""
+                        "group": int(header.number),  # Group number (RH.Number)
+                        "status": header.status       # e.g., "ACCEPTED", "REJECTED"
+                    }
                     
                     # Validate data if requested
                     if validate_data:
@@ -234,7 +240,15 @@ def load_wcp(
             if dataset.is_empty():
                 raise ValueError("No valid sweeps could be loaded from WCP file")
             
-            # Apply auto-detected channel configuration            
+            # Log sweep classification summary
+            rec_types = {}
+            for sweep_idx, info in dataset.metadata["sweep_info"].items():
+                rec_type = info["rec_type"]
+                rec_types[rec_type] = rec_types.get(rec_type, 0) + 1
+            
+            if rec_types:
+                logger.info(f"Sweep classification: {rec_types}")
+            
             logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
             
             return dataset

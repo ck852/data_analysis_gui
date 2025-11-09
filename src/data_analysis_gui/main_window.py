@@ -74,6 +74,10 @@ from data_analysis_gui.gui_services.main_range_coordinator import MainRangeCoord
 from data_analysis_gui.gui_services.clipboard_service import ClipboardService
 from data_analysis_gui.services.sweep_extraction_service import SweepExtractionService
 
+# leak subtraction imports
+from data_analysis_gui.dialogs.leak_subtraction_dialog import LeakSubtractionDialog
+from data_analysis_gui.services.leak_subtraction_utils import is_leak_subtraction_available
+
 logger = get_logger(__name__)
 
 
@@ -277,6 +281,11 @@ class MainWindow(QMainWindow):
         self.reject_sweeps_action.triggered.connect(self._open_reject_sweeps_dialog)
         analysis_menu.addAction(self.reject_sweeps_action)
 
+        # Leak Subtraction
+        self.leak_sub_action = QAction("&Leak Subtraction...", self)
+        self.leak_sub_action.triggered.connect(self._open_leak_subtraction)
+        analysis_menu.addAction(self.leak_sub_action)
+
         # About button (no submenu)
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
@@ -330,6 +339,61 @@ class MainWindow(QMainWindow):
             
             # Apply the filter
             self._apply_sweep_rejection_filter(skip_first, skip_last, reset_time)
+
+    def _open_leak_subtraction(self):
+        """Open the leak subtraction dialog."""
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return
+        
+        # Check if leak subtraction is available for this file
+        available, msg = is_leak_subtraction_available(self.controller.current_dataset)
+        if not available:
+            QMessageBox.warning(
+                self, 
+                "Leak Subtraction Not Available", 
+                msg
+            )
+            return
+        
+        # BETA warning
+        QMessageBox.warning(
+            self,
+            "BETA Feature",
+            "This is a BETA feature. Results not yet validated!"
+        )
+        
+        try:
+            dialog = LeakSubtractionDialog(
+                dataset=self.controller.current_dataset,
+                parent=self
+            )
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                # Get the modified dataset
+                modified_dataset = dialog.get_modified_dataset()
+                
+                if modified_dataset:
+                    # Replace current dataset
+                    self.controller.current_dataset = modified_dataset
+                    
+                    # Update UI
+                    self._update_plot()
+                    
+                    self.status_bar.showMessage(
+                        f"Leak subtraction applied: {modified_dataset.sweep_count()} sweeps", 
+                        5000
+                    )
+                    
+                    logger.info("Leak subtraction applied successfully")
+        
+        except Exception as e:
+            logger.error(f"Failed to open leak subtraction dialog: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to open leak subtraction:\n{str(e)}"
+            )
 
 
     def _apply_sweep_rejection_filter(self, skip_first: int, skip_last: int, reset_time: bool):
