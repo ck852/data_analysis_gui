@@ -1008,14 +1008,17 @@ class MainWindow(QMainWindow):
         if not channel_config:
             logger.warning("No channel configuration found - using default units")
             current_units = "pA"
+            voltage_units = "mV"
         else:
             current_units = channel_config.get("current_units", "pA")
+            voltage_units = channel_config.get("voltage_units", "mV")
 
-        # Add current units from metadata to parameters
+        # Add current and voltage units from metadata to parameters
         params = params.with_updates(
             channel_config={
                 **params.channel_config,
                 "current_units": current_units,
+                "voltage_units": voltage_units,
             }
         )
 

@@ -174,6 +174,31 @@ class PlotFormatter:
         # Default
         return "pA"
 
+    def _get_voltage_units(
+        self,
+        params: Optional[AnalysisParameters] = None,
+        sweep_info: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Extract voltage units from AnalysisParameters or sweep_info dictionary.
+        Defaults to 'mV' if not specified.
+
+        Args:
+            params: Optional AnalysisParameters object.
+            sweep_info: Optional dictionary with sweep metadata.
+
+        Returns:
+            str: Voltage units (e.g., 'mV', 'V').
+        """
+        # Check parameters first
+        if params and hasattr(params, "channel_config") and params.channel_config:
+            return params.channel_config.get("voltage_units", "mV")
+        # Check sweep_info second
+        if sweep_info and "voltage_units" in sweep_info:
+            return sweep_info.get("voltage_units", "mV")
+        # Default
+        return "mV"
+
     def format_peak_analysis(
         self,
         metrics: List[SweepMetrics],
@@ -289,8 +314,11 @@ class PlotFormatter:
         # Import here to avoid potential circular imports
         from data_analysis_gui.services.conductance_calculator import calculate_conductance
         
+        # Extract voltage units
+        voltage_units = self._get_voltage_units(params)
+        
         conductance_data = [
-            calculate_conductance(m, params, current_units, range_num=1)
+            calculate_conductance(m, params, current_units, voltage_units, range_num=1)
             for m in metrics
         ]
         
