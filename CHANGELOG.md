@@ -2,7 +2,7 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.9.2-b.6]
+## [0.9.2-b.6] 2025-11-09
 ### Added
 - Conductance measurement option
 - Batch analysis summaries for non-IV analyses
