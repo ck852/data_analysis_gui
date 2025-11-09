@@ -377,8 +377,9 @@ class MainWindow(QMainWindow):
                     # Replace current dataset
                     self.controller.current_dataset = modified_dataset
                     
-                    # Update UI
-                    self._update_plot()
+                    # NEW: Update UI with the filtered sweep list
+                    subtracted_sweeps = list(modified_dataset.sweeps())
+                    self._update_ui_after_filtering(subtracted_sweeps)
                     
                     self.status_bar.showMessage(
                         f"Leak subtraction applied: {modified_dataset.sweep_count()} sweeps", 
