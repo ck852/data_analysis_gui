@@ -308,9 +308,14 @@ class ConcentrationRangeTable(QWidget):
         """Find and remove the row containing the clicked remove button."""
         button = self.sender()
         for row in range(self.table.rowCount()):
-            if self.table.cellWidget(row, 0) == button:
-                self.remove_range_row(row)
-                return
+            # Get the container widget from column 0
+            container = self.table.cellWidget(row, 0)
+            if container:
+                # Search for the button inside the container
+                remove_btn = container.findChild(QPushButton)
+                if remove_btn == button:
+                    self.remove_range_row(row)
+                    return
 
     def add_range_row(self, is_background: bool = False):
         """
