@@ -4,7 +4,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Main application window for the PatchBatch Electrophysiology Data Analysis Tool.
+Main application window.
 
 This module implements the primary user interface for analyzing patch-clamp
 electrophysiology data. It serves as the central coordinator between:
@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
         Create and configure application menus.
 
         Includes File menu (Open, Exit) and Analysis menu (Batch Analyze).
-        Menu styling is handled by the modern theme system.
+        Menu styling is handled by /config files (themes.py and plot_style.py).
         """
         menubar = self.menuBar()
 
@@ -320,8 +320,7 @@ class MainWindow(QMainWindow):
         """
         Open dialog to reject sweeps from beginning/end of recording.
         
-        Allows user to permanently remove equilibration or rundown sweeps
-        with optional time axis recalibration.
+        Allows user to remove sweeps with optional time axis recalibration.
         """
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -645,7 +644,8 @@ class MainWindow(QMainWindow):
         Connect UI signals to their respective logic handlers.
         
         NOTE: This is called from _init_ui(), so it cannot reference
-        self.range_coordinator (which doesn't exist yet).
+        self.range_coordinator (which doesn't exist yet because it requires
+        self.control_panel and self.plot_manager to be initialized first).
         Coordinator signals are connected separately in _connect_coordinator_signals().
         """
         # Connect sweep navigation panel
@@ -671,24 +671,6 @@ class MainWindow(QMainWindow):
         self.control_panel.peak_mode_combo.currentTextChanged.connect(
             self._auto_save_settings
         )
-
-        # DIAGNOSTIC: Add logging wrappers to see if signals fire
-        logger.info(f"DIAGNOSTIC: Range 2 spinboxes exist? start={hasattr(self.control_panel, 'start_spin2')}, end={hasattr(self.control_panel, 'end_spin2')}")
-        logger.info(f"DIAGNOSTIC: Range 2 spinbox types: start={type(self.control_panel.start_spin2).__name__}, end={type(self.control_panel.end_spin2).__name__}")
-        
-        def debug_range2_start_changed(value):
-            logger.info(f"DIAGNOSTIC: Range 2 START changed to {value}")
-            self._auto_save_settings()
-        
-        def debug_range2_end_changed(value):
-            logger.info(f"DIAGNOSTIC: Range 2 END changed to {value}")
-            self._auto_save_settings()
-        
-        # Connect Range 2 spinboxes directly with debug wrappers
-        self.control_panel.start_spin2.valueChanged.connect(debug_range2_start_changed)
-        self.control_panel.end_spin2.valueChanged.connect(debug_range2_end_changed)
-        
-        logger.info("DIAGNOSTIC: Connected Range 2 spinboxes to debug handlers")
 
         # Splitter - debounced auto-save when user adjusts position
         self.splitter.splitterMoved.connect(self._on_splitter_moved)

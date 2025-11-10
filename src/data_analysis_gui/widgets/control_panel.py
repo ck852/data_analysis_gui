@@ -548,9 +548,7 @@ class ControlPanel(QWidget):
                 logger.debug(f"Analysis buttons {'enabled' if is_all_valid else 'disabled'} (validation: {is_all_valid})")
 
             # --- Sync Cursors ---
-            logger.info(f"DIAGNOSTIC: About to emit range_values_changed signal")
             self.range_values_changed.emit()
-            logger.info(f"DIAGNOSTIC: Emitted range_values_changed signal")
 
     def _mark_field_invalid(self, spinbox_key: str):
         """

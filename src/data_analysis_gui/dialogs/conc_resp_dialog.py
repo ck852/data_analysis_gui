@@ -285,6 +285,12 @@ class ConcentrationResponseDialog(QDialog):
         style_button(self.run_analysis_btn, "primary")
         btn_layout.addWidget(self.run_analysis_btn)
         
+        self.copy_selected_btn = QPushButton("Copy Selected")
+        self.copy_selected_btn.setEnabled(False)
+        self.copy_selected_btn.setFixedHeight(24)
+        style_button(self.copy_selected_btn, "secondary")
+        btn_layout.addWidget(self.copy_selected_btn)
+        
         self.export_btn = QPushButton("Export CSV(s)")
         self.export_btn.setEnabled(False)
         self.export_btn.setFixedHeight(24)
@@ -298,7 +304,7 @@ class ConcentrationResponseDialog(QDialog):
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Conc (μM)", "Raw Value", "BG", "Corrected Value"
+            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
         ])
         self.results_table.setMaximumHeight(250)
         
@@ -366,7 +372,53 @@ class ConcentrationResponseDialog(QDialog):
         
         # Analysis and export
         self.run_analysis_btn.clicked.connect(self._run_analysis)
+        self.copy_selected_btn.clicked.connect(self._copy_selected_cells)
         self.export_btn.clicked.connect(self._export_results)
+
+    def _copy_selected_cells(self):
+        """Copy selected cells from results table to clipboard."""
+        selected_ranges = self.results_table.selectedRanges()
+        
+        if not selected_ranges:
+            self.status_label.setText("No cells selected to copy")
+            style_label(self.status_label, "warning")
+            return
+        
+        try:
+            # Get all selected items and organize by row/column
+            selected_items = {}
+            for item_range in selected_ranges:
+                for row in range(item_range.topRow(), item_range.bottomRow() + 1):
+                    if row not in selected_items:
+                        selected_items[row] = {}
+                    for col in range(item_range.leftColumn(), item_range.rightColumn() + 1):
+                        item = self.results_table.item(row, col)
+                        selected_items[row][col] = item.text() if item else ""
+            
+            # Build TSV string
+            rows = []
+            for row in sorted(selected_items.keys()):
+                cols = selected_items[row]
+                row_data = [cols[col] for col in sorted(cols.keys())]
+                rows.append("\t".join(row_data))
+            
+            tsv_text = "\n".join(rows)
+            
+            # Copy to clipboard
+            clipboard = QApplication.clipboard()
+            clipboard.setText(tsv_text)
+            
+            # Update status
+            cell_count = sum(len(cols) for cols in selected_items.values())
+            self.status_label.setText(f"Copied {cell_count} cell(s) to clipboard")
+            style_label(self.status_label, "success")
+            
+            logger.info(f"Copied {len(selected_items)} row(s), {cell_count} cell(s) to clipboard")
+            
+        except Exception as e:
+            logger.error(f"Error copying cells: {e}", exc_info=True)
+            self.status_label.setText("Error copying to clipboard")
+            style_label(self.status_label, "error")
 
     # ========================================================================
     # File Loading
@@ -530,7 +582,7 @@ class ConcentrationResponseDialog(QDialog):
         """
         Handle cursor dragged signal from cursors manager.
         
-        Updates the corresponding spinbox in the table without triggering
+        Updates the corresponding field in the table without triggering
         infinite signal loops.
         
         Args:
@@ -542,19 +594,19 @@ class ConcentrationResponseDialog(QDialog):
         for row in range(self.range_table.table.rowCount()):
             id_widget = self.range_table.table.cellWidget(row, 1)
             if id_widget and id_widget.text() == range_id:
-                # Found the row - update the appropriate spinbox
+                # Found the row - update the appropriate field
                 # Column 3 = start, Column 4 = end
-                spinbox_col = 3 if boundary == 'start' else 4
-                spinbox = self.range_table.table.cellWidget(row, spinbox_col)
+                field_col = 3 if boundary == 'start' else 4
+                field_widget = self.range_table.table.cellWidget(row, field_col)
                 
-                if spinbox:
+                if field_widget:
                     # Block signals to prevent triggering range_modified
-                    spinbox.blockSignals(True)
-                    spinbox.setValue(new_value)
-                    spinbox.blockSignals(False)
+                    field_widget.blockSignals(True)
+                    field_widget.setValue(new_value)
+                    field_widget.blockSignals(False)
                     
                     logger.debug(
-                        f"Updated {boundary} spinbox for {range_id}: {new_value:.2f}"
+                        f"Updated {boundary} field for {range_id}: {new_value:.2f}"
                     )
                 break
     
@@ -581,9 +633,6 @@ class ConcentrationResponseDialog(QDialog):
             )
             return
         
-        # Note: No concentration validation here - empty concentrations allowed
-        # (will default to 0.0 in get_all_ranges())
-        
         try:
             # Get ranges from table
             ranges = self.range_table.get_all_ranges()
@@ -595,7 +644,8 @@ class ConcentrationResponseDialog(QDialog):
             if was_auto_paired:
                 bg_ranges = [r for r in ranges if r.is_background]
                 if bg_ranges:
-                    single_bg_name = bg_ranges[0].name
+                    # Fix: Use range_id and format it properly
+                    single_bg_name = self.range_table._format_background_display(bg_ranges[0].range_id)
                     self.status_label.setText(
                         f"Auto-paired all ranges to '{single_bg_name}' background"
                     )
@@ -659,14 +709,27 @@ class ConcentrationResponseDialog(QDialog):
             self.status_label.setText("Analysis failed: unexpected error")
             style_label(self.status_label, "error")
     
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        # Check for Ctrl+C (Cmd+C on Mac)
+        if event.key() == Qt.Key.Key_C and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            # Check if results table has focus
+            if self.results_table.hasFocus():
+                self._copy_selected_cells()
+                return
+        
+        # Pass other events to parent
+        super().keyPressEvent(event)
+
+
     def _display_results(self):
         """Display analysis results in the results table with color coding."""
         self.results_table.setRowCount(0)
         
-        # Update table headers to match new column structure
+        # Update table headers to use Condition instead of Concentration
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Conc (µM)", "Raw Value", "BG", "Corrected Value"
+            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
         ])
         
         if not self.results_dfs:
@@ -678,11 +741,22 @@ class ConcentrationResponseDialog(QDialog):
                 row_pos = self.results_table.rowCount()
                 self.results_table.insertRow(row_pos)
                 
+                # Column name mapping - handle both old and new column names
+                column_mapping = {
+                    'File': 'File',
+                    'Data Trace': 'Data Trace',
+                    'Condition': 'Concentration (µM)' if 'Concentration (µM)' in df.columns else 'Condition',
+                    'Raw Value': 'Raw Value',
+                    'Background': 'Background',
+                    'Corrected Value': 'Corrected Value'
+                }
+                
                 # Add each column
-                for col_idx, col_name in enumerate([
-                    'File', 'Data Trace', 'Concentration (µM)', 'Raw Value', 'Background', 'Corrected Value'
+                for col_idx, display_name in enumerate([
+                    'File', 'Data Trace', 'Condition', 'Raw Value', 'Background', 'Corrected Value'
                 ]):
-                    value = row_data[col_name]
+                    df_col_name = column_mapping[display_name]
+                    value = row_data[df_col_name]
                     
                     # Format value
                     if isinstance(value, float) and not np.isnan(value):
@@ -697,13 +771,16 @@ class ConcentrationResponseDialog(QDialog):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     
                     # Color coding for Corrected Value column (legacy behavior)
-                    if col_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
+                    if display_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
                         if value >= 0:
                             item.setBackground(QColor(220, 255, 220))  # Light green
                         else:
                             item.setBackground(QColor(255, 220, 220))  # Light red
                     
                     self.results_table.setItem(row_pos, col_idx, item)
+        
+        # Enable copy button now that we have results
+        self.copy_selected_btn.setEnabled(True)
         
         logger.info(
             f"Displayed {self.results_table.rowCount()} result rows in table"

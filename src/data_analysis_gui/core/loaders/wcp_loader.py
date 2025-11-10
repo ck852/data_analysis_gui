@@ -4,7 +4,8 @@ WCP (WinWCP) File Loader for PatchBatch
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-PHASE 1 ENHANCEMENT: Auto-detection of channel configuration from WCP metadata
+This module provides functionality to load WCP (WinWCP) files into the
+standardized ElectrophysiologyDataset format used throughout the application.
 """
 
 import struct
@@ -137,7 +138,7 @@ def load_wcp(
     which are extracted and stored. Channel configuration is automatically detected
     from file metadata.
     
-    PHASE 1: Also extracts RecType, Group Number, and Status for leak subtraction.
+    Also extracts RecType, Group Number, and Status for leak subtraction.
 
     Args:
         file_path: Path to the WCP file
@@ -208,7 +209,7 @@ def load_wcp(
                     sweep_index = str(record_num)
                     dataset.metadata["sweep_times"][sweep_index] = float(header.time)
                     
-                    # NEW: Store sweep classification metadata
+                    # Store sweep classification metadata
                     dataset.metadata["sweep_info"][sweep_index] = {
                         "time": float(header.time),
                         "rec_type": header.rec_type,  # e.g., "LEAK", "TEST", ""
