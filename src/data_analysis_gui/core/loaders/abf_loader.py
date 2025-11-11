@@ -4,7 +4,6 @@ ABF (Axon Binary Format) Loader for PatchBatch
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-PHASE 1 ENHANCEMENT: Auto-detection of channel configuration from ABF metadata
 """
 
 import struct

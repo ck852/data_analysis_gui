@@ -11,8 +11,6 @@ Extracted from PlotManager to provide focused cursor/text management without
 Qt dependencies. Returns values rather than emitting signals - the coordinator
 (PlotManager) handles signal emission.
 
-This module is part of Phase 2 of the plot manager refactoring. It consolidates
-all cursor Line2D objects, text labels, and mouse interaction logic.
 """
 
 import logging
