@@ -70,7 +70,7 @@ If you install from PyPI, you will always start the program by opening a termina
 
 
 
-## Option 3: Install from Source (Developers)
+## Option 3: Install from Source (For Development)
 ```bash
 git clone https://github.com/ck852/patchbatch.git
 cd patchbatch
@@ -145,31 +145,29 @@ This enables the user to quickly plot both analysis ranges against the sweep tim
 
 <img src="images/dual_analysis_plot.PNG" alt="dual_analysis_plot" width="800"/>
 
-### Background Subtraction **BETA**
+### Background Subtraction
 
 You can define a region from any current trace as the background region. The average current in this region will be calculated and subtracted from all current measurements in the sweep. This process repeats for all sweeps in the file.
 
 <img src="images/bg_sub_dialog.PNG" alt="bg_sub" width="550"/>
 
-### Ramp IV **BETA**
+### Ramp IV
 
 If your data uses ramp voltage protocols to measure IV relationships, you can use the "Ramp IV" option in the "Analysis" menu. First, set the cursors around the ramp.
 
 <img src="images/ramp_iv_setup.PNG" alt="ramp_iv_setup"/>
 
-Then you can define the voltage range you are analyzing. The script will find the closest measured voltages within your analysis range and extract the current measurements at those time points. It will do this for all sweeps or a selection of sweeps. **This has not been quantitatively tested yet and I highly advise validating against a known data set first.**
+Then you can define the voltage range you are analyzing. The script will find the closest measured voltages within your analysis range and extract the current measurements at those time points. It will do this for all sweeps or a selection of sweeps. 
 
 <img src="images/ramp_analysis.PNG" alt="ramp_analysis"/>
 
-Better screenshot pending
+### Dose-Response
 
-### Dose-Response **BETA**
+Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug.
 
-Click the "Add Range" buttons then click the plot to add them. This is meant for time vs current output files by the main window. The multi-file analysis lets you make a Prism-ready summary dataset for several files that have the same concentration range. Has not been extensively validated but matches excel-calculated results in tests.
+### Sweep Extraction
 
-### Sweep Extraction **BETA**
-
-Access from the Analysis menu. Load a file in the main window first. Has not been extensively validated but matches Clampfit results in tests.
+Access from the Analysis menu. Load a file in the main window first. Users can also extract the currently displayed sweep from main window.
 
 ## Validation
 
