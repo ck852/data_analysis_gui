@@ -1,13 +1,13 @@
 """
-Leak Subtraction Service
+Leak Subtraction Service - ROUND-TRIP SIMULATION
 
-Core algorithm:
-1. Load calibrated data from dataset
-2. Apply baseline correction (subtract value at VHold cursor)
-3. Average multiple sweeps per group if present
-4. Calculate voltage-based or fixed scaling factor
-5. Perform subtraction: I_sub = I_test - scale * I_leak
-6. Return new dataset with subtracted currents
+This version simulates WinWCP's complete save/load cycle:
+1. Perform subtraction in physical units
+2. Convert to ADC (with truncation): ADC_save = Trunc(I_subtracted/IScale) + IZero
+3. Simulate loader's calibration (dynamic or fixed baseline)
+
+This matches WinWCP's actual behavior where subtracted data is saved as ADC
+and then re-loaded with the file's calibration settings.
 
 Author: Charles Kissell, Northeastern University
 License: MIT
@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 
 class LeakSubtractionService:
     """
-    Mathematically accurate leak subtraction service.
+    WinWCP-compliant leak subtraction service with round-trip simulation.
     
-    Performs leak current subtraction using proper baseline correction
-    and voltage-based scaling without file format dependencies.
+    Implements the exact algorithm from LEAKSUB.PAS including the
+    save-to-ADC and reload-with-calibration cycle.
     """
     
-    # Algorithm constants
-    VLIMIT = 0.001  # Minimum voltage step for valid scaling (V)
-    NAVG = 20       # Number of samples for cursor averaging
+    # Constants from LEAKSUB.PAS
+    VLIMIT = 0.001  # Line 538: Minimum voltage step for valid scaling
+    NAVG = 20       # Line 529: Number of samples for cursor averaging
     
     def __init__(self):
         """Initialize the service."""
@@ -45,7 +45,7 @@ class LeakSubtractionService:
             dataset: ElectrophysiologyDataset
             
         Raises:
-            ValueError: If dataset is invalid
+            ValidationError: If dataset is invalid
         """
         # Check format
         if dataset.metadata.get('format') != 'wcp':
@@ -71,7 +71,7 @@ class LeakSubtractionService:
         if classified == 0:
             raise ValueError(
                 "No LEAK or TEST sweeps found. "
-                "Please classify sweeps in WinWCP before leak subtraction."
+                "Please classify sweeps in WinWCP first."
             )
         
         logger.info(f"Validation passed: {classified} classified sweeps")
@@ -82,10 +82,10 @@ class LeakSubtractionService:
         rejected_sweeps: Optional[Set[int]] = None
     ) -> Dict[int, Dict[str, List[str]]]:
         """
-        Group sweeps by group number.
+        Group sweeps by RH.Number (group number).
         
+        This matches WinWCP's grouping logic from LEAKSUB.PAS lines 397-520.
         Each group can have multiple LEAK and/or TEST sweeps that will be averaged.
-        Only groups with at least 1 LEAK and 1 TEST are included.
         
         Args:
             dataset: ElectrophysiologyDataset
@@ -93,12 +93,13 @@ class LeakSubtractionService:
             
         Returns:
             Dict mapping group_number -> {'leak': [sweep_ids], 'test': [sweep_ids]}
+            Only groups with at least 1 LEAK and 1 TEST are included.
         """
         if rejected_sweeps is None:
             rejected_sweeps = set()
         
         sweep_info = dataset.metadata['sweep_info']
-        groups = {}
+        groups = {}  # group_num -> {'leak': [], 'test': []}
         
         # Group sweeps by group number
         for sweep_idx, info in sweep_info.items():
@@ -109,7 +110,7 @@ class LeakSubtractionService:
                 logger.debug(f"Skipping rejected sweep {sweep_idx}")
                 continue
             
-            # Skip non-accepted sweeps
+            # Skip non-accepted sweeps (from file)
             if info.get('status') != 'ACCEPTED':
                 logger.debug(
                     f"Skipping sweep {sweep_idx} with status: {info.get('status')}"
@@ -166,12 +167,21 @@ class LeakSubtractionService:
         n_avg: int = None
     ) -> float:
         """
-        Calculate average around cursor position.
+        Calculate average around cursor using WinWCP method.
         
-        Averages n_avg samples starting at cursor_idx.
+        Matches LEAKSUB.PAS lines 531-537, 539-545:
+        ```pascal
+        i0 := VHoldCursor;
+        i1 := Min(VHoldCursor + nAvg - 1, NumSamples-1);
+        VHoldLeak := 0.;
+        for i := i0 to i1 do begin
+            VHoldLeak := VHoldLeak + VLeak^[i];
+        end;
+        VHoldLeak := VHoldLeak / (i1 - i0 + 1);
+        ```
         
         Args:
-            data_array: 1D data array
+            data_array: 1D baseline-corrected data array
             cursor_idx: Sample index of cursor
             n_avg: Number of samples to average (default: NAVG)
             
@@ -183,19 +193,24 @@ class LeakSubtractionService:
         
         num_samples = len(data_array)
         
-        # Calculate index range
+        # Calculate indices (Pascal-style loop bounds)
         i0 = cursor_idx
         i1 = min(cursor_idx + n_avg - 1, num_samples - 1)
         
-        # Calculate average using numpy
-        avg_value = np.mean(data_array[i0:i1+1])
+        # Calculate sum manually (matching Pascal loop)
+        value_sum = 0.0
+        for i in range(i0, i1 + 1):
+            value_sum += data_array[i]
+        
+        # Calculate average with exact denominator
+        avg_value = value_sum / (i1 - i0 + 1)
         
         logger.debug(
             f"Cursor average: idx={cursor_idx}, range=[{i0}, {i1}], "
             f"n={(i1-i0+1)}, avg={avg_value:.6f}"
         )
         
-        return float(avg_value)
+        return avg_value
     
     def calculate_voltage_scaling(
         self,
@@ -205,10 +220,9 @@ class LeakSubtractionService:
         vtest_idx: int
     ) -> Tuple[float, Dict[str, float]]:
         """
-        Calculate voltage scaling factor.
+        Calculate voltage scaling factor using WinWCP algorithm.
         
-        Scaling factor = (V_test_step) / (V_leak_step)
-        where steps are measured between VHold and VTest cursors.
+        Exact implementation of LEAKSUB.PAS lines 529-566.
         
         Args:
             v_leak_bc: Baseline-corrected LEAK voltage (1D array)
@@ -222,15 +236,15 @@ class LeakSubtractionService:
         Raises:
             ValueError: If voltage step is too small
         """
-        # Calculate VHold averages
+        # Calculate VHold averages (lines 531-537)
         v_hold_leak = self.calculate_cursor_average(v_leak_bc, vhold_idx)
         v_hold_test = self.calculate_cursor_average(v_test_bc, vhold_idx)
         
-        # Calculate VTest averages
+        # Calculate VTest averages (lines 539-545)
         v_pulse_leak = self.calculate_cursor_average(v_leak_bc, vtest_idx)
         v_pulse_test = self.calculate_cursor_average(v_test_bc, vtest_idx)
         
-        # Calculate voltage steps
+        # Calculate voltage steps (lines 549-550)
         v_pulse_step = v_pulse_test - v_hold_test
         v_leak_step = v_pulse_leak - v_hold_leak
         
@@ -242,14 +256,14 @@ class LeakSubtractionService:
             f"Step={v_pulse_step:.4f} mV"
         )
         
-        # Validate voltage step
+        # Validate voltage step (line 553)
         if abs(v_leak_step) <= self.VLIMIT:
             raise ValueError(
-                f"LEAK voltage step too small: {abs(v_leak_step):.6f} mV "
-                f"(minimum: {self.VLIMIT} mV)"
+                f"LEAK voltage step too small: {abs(v_leak_step):.6f} V "
+                f"(minimum: {self.VLIMIT} V)"
             )
         
-        # Calculate scaling factor
+        # Calculate scaling factor (line 554)
         leak_scale = v_pulse_step / v_leak_step
         
         # Validate result
@@ -283,7 +297,7 @@ class LeakSubtractionService:
         """
         Average multiple sweeps after baseline correction.
         
-        Uses VHold cursor position as baseline reference (single point).
+        Uses VHold cursor position as baseline (LEAKSUB.PAS lines 412-413, 446-447).
         
         Args:
             dataset: ElectrophysiologyDataset
@@ -296,55 +310,152 @@ class LeakSubtractionService:
         Returns:
             Tuple of (i_avg, v_avg, baseline_dict)
         """
+        # Import here to avoid circular dependency
+        from data_analysis_gui.core.loaders.wcp_loader import WCPParser
+        
         i_sum = None
         v_sum = None
         n_sweeps = len(sweep_indices)
         
-        # Store individual baselines for metadata
-        i_baselines = []
-        v_baselines = []
+        # Store individual baselines for debugging
+        i_baselines_adc = []
+        v_baselines_adc = []
         
-        for sweep_idx in sweep_indices:
-            # Get calibrated data from dataset
-            time_ms, data = dataset.get_sweep(sweep_idx)
-            
-            # Extract channels
-            i_data = data[:, current_ch]
-            v_data = data[:, voltage_ch]
-            
-            # Get baseline value at VHold cursor (single point)
-            i_zero = float(i_data[vhold_idx])
-            v_zero = float(v_data[vhold_idx])
-            
-            i_baselines.append(i_zero)
-            v_baselines.append(v_zero)
-            
-            # Apply baseline correction
-            i_bc = i_data - i_zero
-            v_bc = v_data - v_zero
-            
-            # Accumulate
-            if i_sum is None:
-                i_sum = i_bc.copy()
-                v_sum = v_bc.copy()
-            else:
-                i_sum += i_bc
-                v_sum += v_bc
+        # Need to re-read RAW data from file
+        filepath = dataset.metadata['source_file']
         
-        # Calculate averages
+        with WCPParser(filepath) as wcp:
+            for sweep_idx in sweep_indices:
+                # Read RAW uncalibrated data
+                record_num = int(sweep_idx)
+                header, raw_data = wcp.read_record(record_num, calibrated=False)
+                
+                # Extract RAW ADC values for each channel
+                i_raw_adc = raw_data[:, current_ch].astype(np.float64)
+                v_raw_adc = raw_data[:, voltage_ch].astype(np.float64)
+                
+                # Get WinWCP-style baseline (single point at VHold cursor)
+                # LEAKSUB.PAS line 412-413, 446-447
+                i_zero_adc = float(i_raw_adc[vhold_idx])
+                v_zero_adc = float(v_raw_adc[vhold_idx])
+                
+                # Store raw ADC baselines
+                i_baselines_adc.append(i_zero_adc)
+                v_baselines_adc.append(v_zero_adc)
+                
+                # Apply baseline correction in ADC space
+                i_bc_adc = i_raw_adc - i_zero_adc
+                v_bc_adc = v_raw_adc - v_zero_adc
+                
+                # Get calibration factors for THIS sweep
+                # LEAKSUB.PAS lines 405-406, 443-444
+                ch_current = wcp.file_header.channels[current_ch]
+                ch_voltage = wcp.file_header.channels[voltage_ch]
+                
+                i_scale = (abs(header.adc_voltage_range[current_ch]) / 
+                          (ch_current.calibration_factor * (wcp.file_header.max_adc_value + 1)))
+                v_scale = (abs(header.adc_voltage_range[voltage_ch]) / 
+                          (ch_voltage.calibration_factor * (wcp.file_header.max_adc_value + 1)))
+                
+                # Convert to physical units (AFTER baseline correction)
+                # LEAKSUB.PAS line 418-419, 455-456
+                i_bc = i_bc_adc * i_scale
+                v_bc = v_bc_adc * v_scale
+                
+                # Accumulate
+                if i_sum is None:
+                    i_sum = i_bc.copy()
+                    v_sum = v_bc.copy()
+                else:
+                    i_sum += i_bc
+                    v_sum += v_bc
+        
+        # Average (LEAKSUB.PAS lines 470-475, 513-518)
         i_avg = i_sum / n_sweeps
         v_avg = v_sum / n_sweeps
         
-        # Return baseline info for metadata
+        # Return baseline info
         baseline_dict = {
-            'i_baselines': i_baselines,
-            'v_baselines': v_baselines,
+            'i_baselines_adc': i_baselines_adc,
+            'v_baselines_adc': v_baselines_adc,
             'n_sweeps': n_sweeps
         }
         
-        logger.debug(f"Averaged {n_sweeps} sweeps with baseline correction")
+        logger.debug(f"Averaged {n_sweeps} sweeps")
         
         return i_avg, v_avg, baseline_dict
+    
+    def simulate_wcp_roundtrip(
+        self,
+        i_subtracted_bc: np.ndarray,
+        i_zero_adc: float,
+        i_scale: float,
+        channel_adc_zero: int,
+        channel_adc_zero_at: int,
+        num_zero_avg: int
+    ) -> np.ndarray:
+        """
+        Simulate WinWCP's save-to-ADC and reload-with-calibration cycle.
+        
+        CRITICAL: This is what WinWCP actually does:
+        1. Save: ADC_save = Trunc(I_subtracted / IScale) + IZero
+        2. Reload with calibration based on file header:
+           - If adc_zero_at >= 0: Calculate zero from baseline region of saved data
+           - If adc_zero_at < 0: Use fixed channel.adc_zero
+           - Physical = (ADC_save - calculated_zero) * IScale
+        
+        Args:
+            i_subtracted_bc: Baseline-corrected subtracted current (physical units)
+            i_zero_adc: Raw ADC baseline from last TEST sweep's VHold cursor
+            i_scale: Calibration factor (physical units per ADC)
+            channel_adc_zero: Fixed zero level from file header
+            channel_adc_zero_at: Starting index for dynamic zero calculation (-1 = fixed)
+            num_zero_avg: Number of samples to average for dynamic zero
+            
+        Returns:
+            Final physical current values as WinWCP would display them
+        """
+        # Step 1: Convert to ADC (LEAKSUB.PAS line 577)
+        # ADC^[j] := Trunc( ITest^[i]/IScale ) + IZero
+        adc_saved = np.trunc(i_subtracted_bc / i_scale) + i_zero_adc
+        
+        logger.debug(
+            f"Round-trip: IZero_adc={i_zero_adc:.2f}, "
+            f"ADC range=[{adc_saved.min():.1f}, {adc_saved.max():.1f}]"
+        )
+        
+        # Step 2: Simulate loader's calibration (from wcp_loader.py read_record)
+        if channel_adc_zero_at >= 0:
+            # Dynamic zero: Calculate from baseline region of SAVED ADC data
+            # This matches wcp_loader.py _calculate_dynamic_zero()
+            num_samples = len(adc_saved)
+            i0 = max(0, min(channel_adc_zero_at, num_samples - 1))
+            i1 = i0 + num_zero_avg - 1
+            i1 = max(0, min(i1, num_samples - 1))
+            
+            # Calculate mean of baseline region (from saved ADC values)
+            zero_level = np.mean(adc_saved[i0:i1+1])
+            
+            logger.info(
+                f"Round-trip: Dynamic zero calculated from ADC_saved[{i0}:{i1+1}] = {zero_level:.2f}"
+            )
+        else:
+            # Fixed zero: Use channel.adc_zero from file header
+            zero_level = channel_adc_zero
+            
+            logger.info(
+                f"Round-trip: Using fixed zero = {zero_level:.2f}"
+            )
+        
+        # Step 3: Apply calibration (wcp_loader.py line in read_record)
+        # Physical = (Raw - Zero) * Scale
+        i_final = (adc_saved - zero_level) * i_scale
+        
+        logger.debug(
+            f"Round-trip: Final range=[{i_final.min():.2f}, {i_final.max():.2f}] pA"
+        )
+        
+        return i_final
     
     def perform_leak_subtraction(
         self,
@@ -361,15 +472,10 @@ class LeakSubtractionService:
         rejected_sweeps: Optional[Set[int]] = None
     ):
         """
-        Perform leak subtraction
+        Perform leak subtraction matching WinWCP exactly with round-trip simulation.
         
-        Algorithm:
-        1. Load calibrated data from dataset
-        2. Apply baseline correction at VHold cursor
-        3. Average LEAK and TEST sweeps per group
-        4. Calculate voltage-based or fixed scaling
-        5. Subtract: I_sub = I_test - scale * I_leak
-        6. Return new dataset
+        Complete implementation of LEAKSUB.PAS lines 340-605 including the
+        save-to-ADC and reload-with-calibration cycle.
         
         Args:
             dataset: ElectrophysiologyDataset
@@ -389,6 +495,14 @@ class LeakSubtractionService:
         """
         # Validate dataset
         self.validate_dataset(dataset)
+        
+        # Import WCPParser for reading raw data
+        from data_analysis_gui.core.loaders.wcp_loader import WCPParser
+        
+        # Get filepath for raw data access
+        filepath = dataset.metadata.get('source_file')
+        if not filepath:
+            raise ValueError("Dataset missing 'source_file' in metadata")
         
         # Auto-detect channels from metadata if not provided
         if current_channel is None or voltage_channel is None:
@@ -417,6 +531,17 @@ class LeakSubtractionService:
                     )
                 logger.info(f"Auto-detected voltage_channel: {voltage_channel}")
         
+        # Get file header info for round-trip simulation
+        with WCPParser(filepath) as wcp:
+            channel_adc_zero = wcp.file_header.channels[current_channel].adc_zero
+            channel_adc_zero_at = wcp.file_header.channels[current_channel].adc_zero_at
+            num_zero_avg = wcp.file_header.num_zero_avg
+            
+            logger.info(
+                f"File header: channel.adc_zero={channel_adc_zero}, "
+                f"adc_zero_at={channel_adc_zero_at}, num_zero_avg={num_zero_avg}"
+            )
+        
         # Group sweeps
         all_groups = self.group_sweeps(dataset, rejected_sweeps)
         
@@ -438,6 +563,7 @@ class LeakSubtractionService:
         )
         
         # Get sample rate to convert time to indices
+        # Load first sweep to get time array
         first_sweep_idx = list(dataset.metadata['sweep_info'].keys())[0]
         time_ms, _ = dataset.get_sweep(first_sweep_idx)
         
@@ -483,13 +609,13 @@ class LeakSubtractionService:
             )
             
             try:
-                # Average LEAK sweeps with baseline correction
+                # Average LEAK sweeps (LEAKSUB.PAS lines 397-475)
                 i_leak_bc, v_leak_bc, leak_baselines = self.average_sweeps(
                     dataset, leak_indices, vhold_idx,
                     current_channel, voltage_channel, baseline_mode
                 )
                 
-                # Average TEST sweeps with baseline correction
+                # Average TEST sweeps (LEAKSUB.PAS lines 483-518)
                 i_test_bc, v_test_bc, test_baselines = self.average_sweeps(
                     dataset, test_indices, vhold_idx,
                     current_channel, voltage_channel, baseline_mode
@@ -509,26 +635,51 @@ class LeakSubtractionService:
                     leak_scale = fixed_scale
                     scaling_details = {'leak_scale': leak_scale, 'mode': 'fixed'}
                 
-                # Perform subtraction (core mathematical operation)
+                # Perform subtraction (LEAKSUB.PAS line 559)
                 i_subtracted_bc = i_test_bc - leak_scale * i_leak_bc
                 
-                logger.info(
-                    f"Group {group_num}: Subtraction complete with scale={leak_scale:.6f}"
+                # Get parameters for round-trip simulation
+                last_test_idx = test_indices[-1]
+                i_zero_adc_last_test = test_baselines['i_baselines_adc'][-1]
+                
+                # Get calibration factor from last TEST sweep
+                with WCPParser(filepath) as wcp:
+                    header, _ = wcp.read_record(int(last_test_idx), calibrated=False)
+                    ch_current = wcp.file_header.channels[current_channel]
+                    i_scale = (abs(header.adc_voltage_range[current_channel]) / 
+                              (ch_current.calibration_factor * (wcp.file_header.max_adc_value + 1)))
+                
+                # CRITICAL: Simulate WinWCP's round-trip (save as ADC, reload with calibration)
+                i_subtracted_final = self.simulate_wcp_roundtrip(
+                    i_subtracted_bc,
+                    i_zero_adc_last_test,
+                    i_scale,
+                    channel_adc_zero,
+                    channel_adc_zero_at,
+                    num_zero_avg
                 )
                 
-                # Get time axis and template data from last TEST sweep
-                last_test_idx = test_indices[-1]
-                time_ms, template_data = dataset.get_sweep(last_test_idx)
+                logger.info(
+                    f"Group {group_num}: leak_scale={leak_scale:.6f}, "
+                    f"IZero_adc={i_zero_adc_last_test:.2f}"
+                )
                 
-                # Create new sweep data with subtracted current
-                # Keep original voltage, replace current with subtracted values
+                # Create new sweep with subtracted current
+                # Use the voltage from the last TEST sweep (re-read as calibrated)
+                with WCPParser(filepath) as wcp:
+                    _, template_data = wcp.read_record(int(last_test_idx), calibrated=True)
+                
+                # Create new data array with subtracted current and original voltage
                 new_sweep_data = template_data.copy()
-                new_sweep_data[:, current_channel] = i_subtracted_bc
+                new_sweep_data[:, current_channel] = i_subtracted_final
+                
+                # Get time axis
+                time_ms, _ = dataset.get_sweep(last_test_idx)
                 
                 # Add to new dataset
                 new_dataset.add_sweep(last_test_idx, time_ms, new_sweep_data)
                 
-                # Store comprehensive metadata
+                # Store metadata
                 original_info = dataset.metadata['sweep_info'][last_test_idx]
                 new_dataset.metadata['sweep_info'][last_test_idx] = {
                     'time': original_info['time'],

@@ -27,6 +27,8 @@ Go to https://github.com/ck852/patchbatch?tab=readme-ov-file#patchbatch---electr
 
 To update your version if you installed from PyPI, open a terminal and enter `pip install --upgrade patchbatch`
 
+Alternatively, you may need to enter `python3 -m pip install --upgrade patchbatch`
+
 ### Prerequisites: Installing Python
 
 If you don't have Python installed:
