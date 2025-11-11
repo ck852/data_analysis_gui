@@ -154,12 +154,17 @@ class ConcentrationResponseDialog(QDialog):
         
         # Left panel
         left_panel = self._create_left_panel()
-        left_panel.setMaximumWidth(550)
+        left_panel.setMinimumWidth(0)  # Allow full collapse
         main_splitter.addWidget(left_panel)
         
         # Right panel (plot)
         right_panel = self._create_plot_panel()
+        right_panel.setMinimumWidth(0)  # Allow full collapse
         main_splitter.addWidget(right_panel)
+        
+        # Allow both panels to be collapsed
+        main_splitter.setCollapsible(0, True)
+        main_splitter.setCollapsible(1, True)
         
         # Set splitter proportions (30% left, 70% right)
         total_width = self.width()
@@ -593,7 +598,8 @@ class ConcentrationResponseDialog(QDialog):
         Handle cursor dragged signal from cursors manager.
         
         Updates the corresponding spinbox in the table without triggering
-        infinite signal loops.
+        infinite signal loops. Since cursors emit for both boundaries when
+        dragged (to maintain start <= end), we update the specific boundary.
         
         Args:
             range_id: Internal identifier (e.g., "Range_1", "Background_1")

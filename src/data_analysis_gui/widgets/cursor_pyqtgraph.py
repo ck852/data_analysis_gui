@@ -85,18 +85,19 @@ class PyQtGraphRangeCursor(QObject):
         """
         Handle region change from user dragging.
         
-        Emits position_changed signals for both boundaries if they changed.
+        Always emits position_changed signals for both boundaries with sorted values,
+        ensuring Start is always <= End regardless of which cursor was dragged.
         """
-        new_start, new_end = self.region.getRegion()
+        new_start, new_end = self.region.getRegion()  # PyQtGraph returns sorted [min, max]
         
-        # Check if start changed
-        if abs(new_start - self._start_value) > 1e-6:
+        # Always emit both boundaries with sorted values
+        # This ensures Start is always the smaller value, End is always the larger value
+        if abs(new_start - self._start_value) > 1e-6 or abs(new_end - self._end_value) > 1e-6:
             self._start_value = new_start
-            self.position_changed.emit(self.range_id, 'start', new_start)
-        
-        # Check if end changed
-        if abs(new_end - self._end_value) > 1e-6:
             self._end_value = new_end
+            
+            # Emit both boundaries so spinboxes update to sorted values
+            self.position_changed.emit(self.range_id, 'start', new_start)
             self.position_changed.emit(self.range_id, 'end', new_end)
     
     def update_position(self, start_value: float, end_value: float):
