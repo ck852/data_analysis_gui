@@ -376,7 +376,7 @@ class MainWindow(QMainWindow):
                     # Replace current dataset
                     self.controller.current_dataset = modified_dataset
                     
-                    # NEW: Update UI with the filtered sweep list
+                    # Update UI with the filtered sweep list
                     subtracted_sweeps = list(modified_dataset.sweeps())
                     self._update_ui_after_filtering(subtracted_sweeps)
                     
@@ -859,7 +859,7 @@ class MainWindow(QMainWindow):
         self.range_coordinator.analysis_requested.connect(self._generate_analysis)
         self.range_coordinator.export_requested.connect(self._export_data)
         
-        # NEW: Auto-save when cursor operations complete
+        # Auto-save when cursor operations complete
         self.range_coordinator.settings_changed.connect(self._auto_save_settings)
 
         # Connect toolbar's plot_saved signal to auto-save settings

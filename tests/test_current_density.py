@@ -90,13 +90,13 @@ def compare_csv_files(
     gen_headers, gen_data = load_csv_data(generated)
     gold_headers, gold_data = load_csv_data(golden)
 
-    # FIX 1: Exact header comparison for individual files
+    # Exact header comparison for individual files
     try:
         assert (
             gen_headers == gold_headers
         ), f"Headers mismatch:\nGenerated: {gen_headers}\nGolden: {gold_headers}"
     except AssertionError as e:
-        # FIX 6: Better error messages
+        #  6: Better error messages
         raise AssertionError(
             f"Header validation failed for {generated.name}\n"
             f"Generated file: {generated}\n"
@@ -110,7 +110,7 @@ def compare_csv_files(
             gen_data.shape == gold_data.shape
         ), f"Data shape mismatch:\nGenerated: {gen_data.shape}\nGolden: {gold_data.shape}"
     except AssertionError as e:
-        # FIX 6: Better error messages
+        # Better error messages
         raise AssertionError(
             f"Shape validation failed for {generated.name}\n"
             f"Generated file: {generated}\n"
@@ -138,7 +138,7 @@ def compare_csv_files(
                 gen_nan_mask, gold_nan_mask
             ), f"NaN positions don't match in {generated.name}"
         except AssertionError as e:
-            # FIX 6: Better error messages
+            # Better error messages
             raise AssertionError(
                 f"NaN position validation failed for {generated.name}\n"
                 f"Generated file: {generated}\n"
@@ -158,7 +158,7 @@ def compare_csv_files(
                     err_msg=f"Data mismatch in {generated.name}",
                 )
             except AssertionError as e:
-                # FIX 6: Provide more detailed error info
+                # Provide more detailed error info
                 diff = np.abs(gen_data[valid_mask] - gold_data[valid_mask])
                 max_diff_idx = np.argmax(diff)
                 max_diff = diff[max_diff_idx]
@@ -200,7 +200,7 @@ def compare_summary_csv(generated: Path, golden: Path) -> None:
             gold_headers
         ), f"Header count mismatch: {len(gen_headers)} vs {len(gold_headers)}"
     except AssertionError as e:
-        # FIX 6: Better error messages
+        # Better error messages
         raise AssertionError(
             f"Summary header validation failed\n"
             f"Generated file: {generated}\n"
@@ -219,7 +219,7 @@ def compare_summary_csv(generated: Path, golden: Path) -> None:
             gen_data.shape == gold_data.shape
         ), f"Data shape mismatch:\nGenerated: {gen_data.shape}\nGolden: {gold_data.shape}"
     except AssertionError as e:
-        # FIX 6: Better error messages
+        # Better error messages
         raise AssertionError(
             f"Summary shape validation failed\n"
             f"Generated file: {generated}\n"
@@ -247,7 +247,7 @@ def compare_summary_csv(generated: Path, golden: Path) -> None:
                 err_msg="Voltage column mismatch",
             )
         except AssertionError as e:
-            # FIX 6: Better error messages
+            # Better error messages
             raise AssertionError(
                 f"Summary voltage column validation failed\n"
                 f"Generated file: {generated}\n"
@@ -269,7 +269,7 @@ def compare_summary_csv(generated: Path, golden: Path) -> None:
                     gen_nan_mask, gold_nan_mask
                 ), f"NaN positions don't match in column {col_idx}"
             except AssertionError as e:
-                # FIX 6: Better error messages
+                # Better error messages
                 raise AssertionError(
                     f"Summary column {col_idx} NaN validation failed\n"
                     f"Column header: {gen_headers[col_idx]}\n"
@@ -290,7 +290,7 @@ def compare_summary_csv(generated: Path, golden: Path) -> None:
                         err_msg=f"Current density mismatch in column {col_idx} ({gen_headers[col_idx]})",
                     )
                 except AssertionError as e:
-                    # FIX 6: Better error messages
+                    # Better error messages
                     diff = np.abs(col_gen[valid_mask] - col_gold[valid_mask])
                     max_diff = np.max(diff)
                     raise AssertionError(
@@ -442,7 +442,7 @@ class CurrentDensityTestBase:
             len(batch_result.failed_results) == 0
         ), f"Unexpected failures: {[r.file_path for r in batch_result.failed_results]}"
 
-        # FIX 4: Intermediate validation - verify units are still pA after batch analysis
+        # Intermediate validation - verify units are still pA after batch analysis
         print("Validating intermediate state (pre-CD)...")
         for result in batch_result.successful_results:
             if result.export_table and "headers" in result.export_table:
@@ -481,7 +481,7 @@ class CurrentDensityTestBase:
                 file_name, cslow, active_batch_result, original_batch_result
             )
 
-            # FIX 2: Verify export table header changed to pA/pF
+            # Verify export table header changed to pA/pF
             if updated_result.export_table and "headers" in updated_result.export_table:
                 headers_str = str(updated_result.export_table["headers"])
                 assert (
@@ -502,7 +502,7 @@ class CurrentDensityTestBase:
             # Update the result in place
             active_batch_result.successful_results[i] = updated_result
 
-        # FIX 4: Validate all results have been converted to current density
+        # Validate all results have been converted to current density
         print("Validating intermediate state (post-CD)...")
         for result in active_batch_result.successful_results:
             if result.export_table and "headers" in result.export_table:
@@ -585,7 +585,7 @@ class CurrentDensityTestBase:
 
             print(f"  Comparing {file_name}_CD.csv...", end=" ")
 
-            # FIX 6: Better error handling with context
+            # Better error handling with context
             try:
                 compare_csv_files(
                     generated_csv,
@@ -606,7 +606,7 @@ class CurrentDensityTestBase:
         print("  Comparing Current_Density_Summary.csv...", end=" ")
         golden_summary = self.golden_data_dir / "Current_Density_Summary.csv"
 
-        # FIX 6: Better error handling for summary
+        # Better error handling for summary
         try:
             compare_summary_csv(Path(summary_path), golden_summary)
             print("✔")

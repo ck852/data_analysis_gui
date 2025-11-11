@@ -205,7 +205,7 @@ class MainRangeCoordinator(QObject):
                 break
         
         if spinbox_key:
-            # NEW: Block signals to prevent feedback loop
+            # Block signals to prevent feedback loop
             self.control_panel.update_range_value_silent(spinbox_key, position)
             logger.debug(f"Synced cursor '{line_id}' → spinbox '{spinbox_key}' = {position:.2f}")
     

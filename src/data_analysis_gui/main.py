@@ -149,7 +149,7 @@ def main():
     logger.info(f"Logging mode: {mode}")
     logger.info("="*60)
 
-    # FIX: Set Windows AppUserModelID before creating QApplication
+    # Set Windows AppUserModelID before creating QApplication
     if sys.platform == 'win32':
         import ctypes
         myappid = 'com.northeastern.patchbatch'
@@ -157,7 +157,7 @@ def main():
 
     app = QApplication(sys.argv)
     
-    # FIX: Set icon on both app and window
+    # Set icon on both app and window
     icon_path = project_root / "images" / "logo.ico"
     if not icon_path.exists():
         icon_path = project_root / "images" / "logo.png"
@@ -181,7 +181,7 @@ def main():
 
     # Create main window
     window = MainWindow()
-    window.setWindowIcon(app_icon)  # FIX: Set explicitly on window
+    window.setWindowIcon(app_icon)  # Set explicitly on window
 
     # Ensure we are not starting maximized
     window.setWindowState(Qt.WindowState.WindowNoState)

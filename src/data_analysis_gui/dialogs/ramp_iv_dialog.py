@@ -250,8 +250,8 @@ class RampIVDialog(QDialog):
         # State
         self.voltage_targets = []
         self.current_result: Optional[RampIVResult] = None
-        self.analysis_completed = False  # NEW: Track if analysis has been run
-        self.batch_worker = None  # NEW: Track batch worker thread
+        self.analysis_completed = False  #  Track if analysis has been run
+        self.batch_worker = None  #  Track batch worker thread
         
         self.setWindowTitle("Ramp IV Analysis")
         self.setModal(True)
@@ -415,7 +415,7 @@ class RampIVDialog(QDialog):
         self.copy_btn.setEnabled(False)
         button_layout.addWidget(self.copy_btn)
         
-        # NEW: Batch analyze button (disabled until single analysis is done)
+        # Batch analyze button (disabled until single analysis is done)
         self.batch_analyze_btn = create_styled_button("Batch Analyze...", "primary")
         self.batch_analyze_btn.setEnabled(False)
         button_layout.addWidget(self.batch_analyze_btn)
@@ -504,8 +504,8 @@ class RampIVDialog(QDialog):
             # Enable export and batch analyze buttons
             self.export_btn.setEnabled(True)
             self.copy_btn.setEnabled(True)
-            self.analysis_completed = True  # NEW: Mark analysis as completed
-            self.batch_analyze_btn.setEnabled(True)  # NEW: Enable batch button
+            self.analysis_completed = True  # Mark analysis as completed
+            self.batch_analyze_btn.setEnabled(True)  # Enable batch button
             
             # Update status
             processed = len(self.current_result.processed_sweeps)

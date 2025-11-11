@@ -212,7 +212,7 @@ class AxisZoomController:
         axis: str,
         direction: str,
         current_limits: Tuple[float, float],
-        max_bounds: Optional[Tuple[float, float]] = None  # ADD THIS PARAMETER
+        max_bounds: Optional[Tuple[float, float]] = None
     ) -> Tuple[float, float]:
         """
         Calculate new axis limits for zoom operation with optional bounds clamping.
@@ -254,7 +254,7 @@ class AxisZoomController:
         new_min = center - new_range / 2
         new_max = center + new_range / 2
         
-        # NEW: Clamp to max bounds if provided
+        # Clamp to max bounds if provided
         if max_bounds is not None:
             bounds_min, bounds_max = max_bounds
             

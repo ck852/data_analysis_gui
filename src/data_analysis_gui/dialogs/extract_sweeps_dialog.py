@@ -252,7 +252,7 @@ class SweepExtractorDialog(QDialog):
         self.export_btn = create_styled_button("Export to CSV...", "primary")
         self.export_btn.setMinimumHeight(40)
         
-        # NEW: Batch Extract button
+        #  Batch Extract button
         self.batch_extract_btn = create_styled_button("Batch Extract...", "accent")
         self.batch_extract_btn.setMinimumHeight(40)
 

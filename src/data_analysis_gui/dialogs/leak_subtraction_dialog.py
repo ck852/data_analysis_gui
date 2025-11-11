@@ -2,8 +2,6 @@
 Leak Subtraction Dialog for PatchBatch
 
 Interactive dialog for performing leak current subtraction on WCP files.
-Mimics WinWCP's leak subtraction interface with dual voltage/current plots,
-draggable cursors, and group navigation.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)

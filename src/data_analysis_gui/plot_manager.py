@@ -460,7 +460,7 @@ class PlotManager(QObject):
             self.line_state_changed.emit("removed", "range2_start", range2_start_pos)
             self.line_state_changed.emit("removed", "range2_end", range2_end_pos)
 
-        # NEW: Recreate zoom buttons after line updates
+        #  Recreate zoom buttons after line updates
         # (only if they already existed - don't create if plot not initialized)
         if self.axis_zoom_controller.has_buttons():
             self.axis_zoom_controller.clear_buttons()
@@ -734,7 +734,7 @@ class PlotManager(QObject):
             x_pos = positions.get(line_id, 0)
             logger.debug(f"Released cursor {line_id} at x={x_pos:.2f}.")
             
-            # NEW: Emit signal that drag is complete
+            #  Emit signal that drag is complete
             self.line_state_changed.emit("released", line_id, x_pos)
 
     def _on_draw(self, event) -> None:
@@ -760,7 +760,7 @@ class PlotManager(QObject):
         """
         Clear the plot axes and reset range lines to defaults.
         """
-        # NEW: Clear zoom buttons before clearing axes
+        #  Clear zoom buttons before clearing axes
         self.axis_zoom_controller.clear_buttons()
 
         # Clear axes - this removes all artists including lines

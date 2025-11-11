@@ -1,16 +1,24 @@
 """
-Leak Subtraction Service - ROUND-TRIP SIMULATION
+Leak Subtraction Service - Baseline-Corrected Linear Scaling Algorithm
 
-This version simulates WinWCP's complete save/load cycle:
-1. Perform subtraction in physical units
-2. Convert to ADC (with truncation): ADC_save = Trunc(I_subtracted/IScale) + IZero
-3. Simulate loader's calibration (dynamic or fixed baseline)
+Performs leak current subtraction using voltage-clamp recordings:
+1. Groups sweeps into LEAK (baseline) and TEST (signal) pairs
+2. Baseline-corrects each sweep using the current value at VHold cursor position
+3. Calculates voltage scaling factor from cursor measurements:
+   - VHold cursor: holding potential baseline
+   - VTest cursor: test pulse potential
+   - leak_scale = (V_test_pulse - V_test_hold) / (V_leak_pulse - V_leak_hold)
+4. Subtracts scaled leak: I_subtracted = I_test - leak_scale * I_leak
+5. Simulates ADC quantization and dynamic baseline recalibration
 
-This matches WinWCP's actual behavior where subtracted data is saved as ADC
-and then re-loaded with the file's calibration settings.
+The VHold cursor defines the baseline for correction, while VTest cursor
+measures the voltage step amplitude used for leak scaling. All operations
+preserve physical units through the ADC conversion cycle.
+
+PatchBatch Electrophysiology Data Analysis Tool
 
 Author: Charles Kissell, Northeastern University
-License: MIT
+License: MIT (see LICENSE file for details)
 """
 
 import logging

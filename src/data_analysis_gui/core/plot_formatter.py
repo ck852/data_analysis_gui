@@ -104,7 +104,6 @@ class PlotFormatter:
                 result["x_data2"] = np.array(x_data2)
 
             # Y-data is always extracted separately for range 2
-            # Note: Conductance should never reach here due to validation in AnalysisParameters
             y_data2, _ = self._extract_axis_data(
                 metrics, params.y_axis, 2, current_units
             )
@@ -366,7 +365,7 @@ class PlotFormatter:
             logger.debug(f"Extracting average data from metric: {metric_name}")
 
         elif axis_config.measure == "Peak":
-            # FIXED: Make peak type matching case-insensitive and more flexible
+            # Make peak type matching case-insensitive and more flexible
             if axis_config.peak_type is None:
                 logger.warning(
                     f"Peak type not specified for {axis_config.channel}, defaulting to Absolute"

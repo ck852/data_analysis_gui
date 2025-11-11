@@ -192,7 +192,7 @@ def load_wcp(
             
             # Initialize sweep_times and sweep_info dictionaries
             dataset.metadata["sweep_times"] = {}
-            dataset.metadata["sweep_info"] = {}  # NEW: Per-sweep metadata
+            dataset.metadata["sweep_info"] = {}  # Per-sweep metadata
             
             # Load all sweeps
             logger.debug(f"Loading {wcp.file_header.num_records} sweeps with {wcp.file_header.num_channels} channel(s)")

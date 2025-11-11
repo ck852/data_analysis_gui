@@ -34,8 +34,8 @@ def setup_logging(
     log_file: Optional[str] = None,
     console: bool = True,
     log_dir: Optional[str] = None,
-    console_level: Optional[int] = None,  # NEW: separate console level
-    file_level: Optional[int] = None,     # NEW: separate file level
+    console_level: Optional[int] = None,  # Separate console level
+    file_level: Optional[int] = None,     # Separate file level
 ) -> logging.Logger:
     """
     Configure and initialize application-wide logging.
