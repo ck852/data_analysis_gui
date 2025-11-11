@@ -149,7 +149,7 @@ class ConcentrationRangeTable(QWidget):
         """
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setRowHeight(row, 34)
+        self.table.setRowHeight(row, 40)
 
         WIDGET_HEIGHT = 24
         
@@ -342,7 +342,7 @@ class ConcentrationRangeTable(QWidget):
         
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setRowHeight(row, 34)
+        self.table.setRowHeight(row, 40)
 
         WIDGET_HEIGHT = 24
         
