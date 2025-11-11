@@ -17,6 +17,12 @@ from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
 
 from data_analysis_gui.config.themes import style_button, style_label
+
+from data_analysis_gui.config.pyqtgraph_style import (
+    create_crosshair_cursor,
+    get_interactive_cursor_pen,
+)
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -360,32 +366,9 @@ class InteractiveRangeCreator:
     
     def _set_crosshair_cursor(self):
         """Set custom green crosshair cursor for range creation mode."""
-        # Create green crosshair cursor (sage green matching analysis cursors)
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setPen(QColor("#73AB84"))  # Sage green
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Draw crosshair with thicker lines
-        pen = painter.pen()
-        pen.setWidth(2)
-        painter.setPen(pen)
-        
-        # Vertical line
-        painter.drawLine(16, 4, 16, 28)
-        # Horizontal line
-        painter.drawLine(4, 16, 28, 16)
-        
-        # Draw center dot
-        painter.setBrush(QColor("#73AB84"))
-        painter.drawEllipse(14, 14, 4, 4)
-        
-        painter.end()
-        
-        # Store original cursor and set new one
+        # Use centralized crosshair cursor creation
         self._original_cursor = self.plot_widget.cursor()
-        self.plot_widget.setCursor(QCursor(pixmap, hotX=16, hotY=16))
+        self.plot_widget.setCursor(create_crosshair_cursor())
     
     def _restore_cursor(self):
         """Restore the original canvas cursor."""
@@ -402,8 +385,9 @@ class InteractiveRangeCreator:
         Args:
             x_position: X-axis position for the guide line
         """
-        # Create InfiniteLine with dotted style
-        pen = pg.mkPen(color="#73AB84", width=2, style=Qt.PenStyle.DotLine)
+        # Get styled pen from centralized styling
+        pen = get_interactive_cursor_pen()
+        
         self._temp_start_line = pg.InfiniteLine(
             pos=x_position,
             angle=90,  # Vertical line

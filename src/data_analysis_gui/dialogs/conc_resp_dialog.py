@@ -31,6 +31,15 @@ from data_analysis_gui.config.themes import (
     style_table_widget, MODERN_COLORS
 )
 from data_analysis_gui.config.plot_style import COLOR_CYCLE, COLORS as PLOT_COLORS
+from data_analysis_gui.config.pyqtgraph_style import (
+    style_plot_widget,
+    style_plot_item_text,
+    add_zero_axis_lines,
+    get_data_line_pen,
+    should_show_markers,
+    get_marker_settings,
+    DATA_COLOR_CYCLE,
+)
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.gui_services.file_dialog_service import FileDialogService
 from data_analysis_gui.widgets.concentration_range_table import ConcentrationRangeTable
@@ -328,11 +337,8 @@ class ConcentrationResponseDialog(QDialog):
         self.plot_widget = pg.PlotWidget()
         self.plot = self.plot_widget.getPlotItem()
         
-        # Set background color
-        self.plot_widget.setBackground('#FAFAFA')
-        
-        # Enable grid with 30% alpha
-        self.plot.showGrid(x=True, y=True, alpha=0.3)
+        # Apply standard PyQtGraph styling
+        style_plot_widget(self.plot_widget)
         
         # Create cursor manager
         self.cursors = PyQtGraphCursorManager(self.plot, self.plot_widget)
@@ -491,46 +497,37 @@ class ConcentrationResponseDialog(QDialog):
         self.plot.clear()
 
         # Add prominent zero-axis lines (before data so they appear behind)
-        zero_color = QColor('#2D3436')  # Dark gray
-        zero_color.setAlpha(int(255 * 0.4))  # 40% opacity
-        zero_pen = pg.mkPen(color=zero_color, width=0.8, style=pg.QtCore.Qt.PenStyle.DotLine)
-        
-        zero_hline = pg.InfiniteLine(pos=0, angle=0, pen=zero_pen)  # Horizontal at y=0
-        zero_vline = pg.InfiniteLine(pos=0, angle=90, pen=zero_pen)  # Vertical at x=0
-        self.plot.addItem(zero_hline)
-        self.plot.addItem(zero_vline)
+        add_zero_axis_lines(self.plot)
         
         # Use centralized color cycle
-        colors = [COLOR_CYCLE[i % len(COLOR_CYCLE)] for i in range(len(self.data_cols))]
+        colors = [DATA_COLOR_CYCLE[i % len(DATA_COLOR_CYCLE)] for i in range(len(self.data_cols))]
+        
+        # Determine if markers should be shown
+        show_markers = should_show_markers(len(self.data_df))
         
         # Plot each data column
         for i, data_col in enumerate(self.data_cols):
-            pen = pg.mkPen(color=colors[i], width=2.5)
+            pen = get_data_line_pen(colors[i])
             
-            # Add markers for small datasets
-            if len(self.data_df) < 100:
-                symbol = 'o'
-                symbol_size = 4
-                symbol_pen = None
-                symbol_brush = colors[i]
+            # Get marker settings if needed
+            if show_markers:
+                marker_settings = get_marker_settings(colors[i])
+                self.plot.plot(
+                    self.data_df[self.time_col],
+                    self.data_df[data_col],
+                    pen=pen,
+                    name=data_col,
+                    **marker_settings
+                )
             else:
-                symbol = None
-                symbol_size = None
-                symbol_pen = None
-                symbol_brush = None
-            
-            self.plot.plot(
-                self.data_df[self.time_col],
-                self.data_df[data_col],
-                pen=pen,
-                name=data_col,
-                symbol=symbol,
-                symbolSize=symbol_size,
-                symbolPen=symbol_pen,
-                symbolBrush=symbol_brush
-            )
+                self.plot.plot(
+                    self.data_df[self.time_col],
+                    self.data_df[data_col],
+                    pen=pen,
+                    name=data_col
+                )
         
-        # Set axis labels
+        # Determine appropriate y-axis label
         if len(self.original_data_cols) <= 3:
             # Use original full headers for y-axis when few traces
             ylabel = " and ".join(self.original_data_cols)
@@ -538,11 +535,13 @@ class ConcentrationResponseDialog(QDialog):
             # Use generic label for many traces
             ylabel = "Current (pA)"
         
-        self.plot.setLabel('bottom', self.time_col)
-        self.plot.setLabel('left', ylabel)
-        
-        # Set title
-        self.plot.setTitle(f"Data: {self.filename}")
+        # Apply text styling with centralized function
+        style_plot_item_text(
+            self.plot,
+            title=f"Data: {self.filename}",
+            xlabel=self.time_col,
+            ylabel=ylabel
+        )
         
         # Add legend if multiple traces
         if len(self.data_cols) > 1:

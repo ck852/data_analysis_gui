@@ -96,7 +96,7 @@ def get_plot_style() -> Dict[str, Any]:
         "axes.grid": True,
         "axes.titlesize": plot_font_sizes["title_size"],
         "axes.titleweight": "normal",
-        "axes.titlepad": 10,  # Increased from 8 for larger fonts
+        "axes.titlepad": 10,
         "axes.labelsize": plot_font_sizes["label_size"],
         "axes.labelweight": "normal",
         "axes.labelcolor": "#2D3436",
@@ -127,22 +127,22 @@ def get_plot_style() -> Dict[str, Any]:
         "patch.edgecolor": "none",
         "patch.antialiased": True,
         # Ticks - synchronized with increased font sizes
-        "xtick.major.size": 5,  # Increased from 4
-        "xtick.minor.size": 3,  # Increased from 2
+        "xtick.major.size": 5,
+        "xtick.minor.size": 3,
         "xtick.major.width": 0.8,
         "xtick.minor.width": 0.6,
-        "xtick.major.pad": 6,  # Increased from 5
-        "xtick.minor.pad": 6,  # Increased from 5
+        "xtick.major.pad": 6,
+        "xtick.minor.pad": 6,
         "xtick.color": "#606060",
         "xtick.labelsize": plot_font_sizes["tick_size"],
         "xtick.direction": "out",
         "xtick.top": False,
-        "ytick.major.size": 5,  # Increased from 4
-        "ytick.minor.size": 3,  # Increased from 2
+        "ytick.major.size": 5,
+        "ytick.minor.size": 3,
         "ytick.major.width": 0.8,
         "ytick.minor.width": 0.6,
-        "ytick.major.pad": 6,  # Increased from 5
-        "ytick.minor.pad": 6,  # Increased from 5
+        "ytick.major.pad": 6,
+        "ytick.minor.pad": 6,
         "ytick.color": "#606060",
         "ytick.labelsize": plot_font_sizes["tick_size"],
         "ytick.direction": "out",
@@ -256,7 +256,7 @@ def style_axis(
         which="major",
         labelsize=plot_font_sizes["tick_size"],
         colors="#606060",
-        length=5,  # Increased from 4
+        length=5,
         width=0.8,
         direction="out",
     )
@@ -276,7 +276,7 @@ def get_line_styles():
             "color": COLORS["primary"],
             "linewidth": 0.9,
             "marker": "o",
-            "markersize": 5,  # Increased from 4
+            "markersize": 5,
             "markeredgewidth": 0,
             "alpha": 1.0,
         },
@@ -284,7 +284,7 @@ def get_line_styles():
             "color": COLORS["secondary"],
             "linewidth": 1.5,
             "marker": "s",
-            "markersize": 5,  # Increased from 4
+            "markersize": 5,
             "markeredgewidth": 0,
             "alpha": 1.0,
             "linestyle": "--",
@@ -359,7 +359,7 @@ def format_batch_plot(ax, x_label: str, y_label: str):
 
     # Get the increased font sizes
     plot_font_sizes = {
-        "legend_size": 12,  # Increased from 10
+        "legend_size": 12,
     }
 
     # Ensure legend is well-positioned with increased font size

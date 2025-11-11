@@ -14,6 +14,12 @@ import pyqtgraph as pg
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
+from data_analysis_gui.config.pyqtgraph_style import (
+    get_cursor_pen,
+    get_cursor_brush,
+    get_cursor_color,
+)
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,10 +36,6 @@ class PyQtGraphRangeCursor(QObject):
         position_changed(str, str, float): Emitted when boundary moves
             (range_id, boundary ('start' or 'end'), new_value)
     """
-    
-    # Color scheme
-    ANALYSIS_COLOR = "#73AB84"  # Sage green
-    BACKGROUND_COLOR = "#1565C0"  # Deep blue
     
     position_changed = Signal(str, str, float)
     
@@ -54,17 +56,14 @@ class PyQtGraphRangeCursor(QObject):
         self.range_id = range_id
         self.is_background = is_background
         
-        # Determine color based on range type
-        color = self.BACKGROUND_COLOR if is_background else self.ANALYSIS_COLOR
-        
-        # Create LinearRegionItem with 20% alpha for shaded region
-        brush_color = QColor(color)
-        brush_color.setAlpha(int(255 * 0.2))  # 20% opacity
+        # Get styled pen and brush from centralized styling
+        pen = get_cursor_pen(is_background)
+        brush = get_cursor_brush(is_background, alpha=0.2)
         
         self.region = pg.LinearRegionItem(
             values=[start_value, end_value],
-            brush=brush_color,
-            pen=pg.mkPen(color, width=1.5, style=pg.QtCore.Qt.PenStyle.DashLine),
+            brush=brush,
+            pen=pen,
             movable=True
         )
         
@@ -136,7 +135,6 @@ class PyQtGraphRangeCursor(QObject):
             tuple: (start_value, end_value)
         """
         return self.region.getRegion()
-
 
 class PyQtGraphCursorManager(QObject):
     """
