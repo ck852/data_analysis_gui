@@ -256,6 +256,51 @@ class BatchResultsWindow(QMainWindow):
             color = color_mapping[result.base_name]
             self.file_list.add_file(result.base_name, color)
 
+    def _extract_voltage_annotations(self, results: list) -> dict:
+        """
+        Extract voltage annotations from file headers for dual range plots.
+        
+        Parses headers like "Current (pA) (-100mV)" to extract the voltage values.
+        
+        Args:
+            results: List of FileAnalysisResult objects with export_table data
+            
+        Returns:
+            Dict mapping filename to (voltage_r1, voltage_r2) tuples, or empty dict
+            if voltage annotations not found
+        """
+        import re
+        
+        voltage_map = {}
+        
+        for result in results:
+            if not result.export_table or "headers" not in result.export_table:
+                continue
+            
+            headers = result.export_table["headers"]
+            
+            # We need at least 3 headers for dual range (X, Y_R1, Y_R2)
+            if len(headers) < 3:
+                continue
+            
+            # Extract voltage values from headers using regex
+            # Pattern matches: (-100mV) or (+50mV)
+            voltage_pattern = r'\(([+-]?\d+)mV\)'
+            
+            voltages = []
+            for header in headers[1:]:  # Skip first header (X-axis)
+                match = re.search(voltage_pattern, header)
+                if match:
+                    voltages.append(int(match.group(1)))
+            
+            # We should find 2 voltage values for dual range
+            if len(voltages) >= 2:
+                voltage_map[result.base_name] = (voltages[0], voltages[1])
+                logger.debug(f"{result.base_name}: voltages = {voltages[0]}mV, {voltages[1]}mV")
+        
+        return voltage_map
+
+
     def _update_plot(self):
         """
         Update the plot to reflect selected files and current analysis parameters.
@@ -267,7 +312,20 @@ class BatchResultsWindow(QMainWindow):
         if self.batch_result.parameters is not None:
             use_dual_range = self.batch_result.parameters.use_dual_range
 
-        self.plot_widget.set_data(sorted_results, use_dual_range=use_dual_range)
+        # Extract voltage annotations for dual range plots
+        voltage_annotations = {}
+        if use_dual_range:
+            voltage_annotations = self._extract_voltage_annotations(sorted_results)
+            if voltage_annotations:
+                logger.info(f"Using voltage annotations for {len(voltage_annotations)} files")
+            else:
+                logger.debug("No voltage annotations found in headers")
+
+        self.plot_widget.set_data(
+            sorted_results, 
+            use_dual_range=use_dual_range,
+            voltage_annotations=voltage_annotations
+        )
 
         self.plot_widget.update_visibility(self.selection_state.get_selected_files())
 
@@ -759,11 +817,13 @@ class BatchResultsWindow(QMainWindow):
             QMessageBox.warning(self, "No Data", "No files selected for export.")
             return
 
-        # Build batch data dictionary
+        # Build batch data dictionary - now includes Range 2 data and headers
         batch_data = {
             r.base_name: {
                 "x_values": r.x_data.tolist(),
                 "y_values": r.y_data.tolist(),
+                "y_values2": r.y_data2.tolist() if r.y_data2 is not None else None,
+                "headers": r.export_table.get("headers", []) if r.export_table else []
             }
             for r in filtered_results
         }
@@ -842,11 +902,13 @@ class BatchResultsWindow(QMainWindow):
             return
 
         try:
-            # Build batch data dictionary
+            # Build batch data dictionary - now includes Range 2 data and headers
             batch_data = {
                 r.base_name: {
                     "x_values": r.x_data.tolist(),
                     "y_values": r.y_data.tolist(),
+                    "y_values2": r.y_data2.tolist() if r.y_data2 is not None else None,
+                    "headers": r.export_table.get("headers", []) if r.export_table else []
                 }
                 for r in filtered_results
             }

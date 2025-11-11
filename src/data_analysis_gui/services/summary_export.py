@@ -6,7 +6,8 @@ License: MIT (see LICENSE file for details)
 Generalized summary export service for batch analysis results.
 
 This module provides export functionality for any analysis parameter combination,
-using a two-column-per-file format (X, Y) with blank spacing between files.
+using a two-column-per-file format (X, Y) with blank spacing between files for
+single range analysis, or four-column format (X, Y_R1, Y_R2) for dual range analysis.
 Each file's data is independent, allowing for different numbers of data points
 across files without requiring NaN padding.
 
@@ -30,7 +31,10 @@ class GeneralizedSummaryExporter:
     """
     Handles exporting generalized summary data for any analysis parameter combination.
     
-    Creates a two-column-per-file format: [File1_X] [File1_Y] [blank] [File2_X] [File2_Y] ...
+    Creates a format with columns per file: 
+    - Single range: [File1_X] [File1_Y] [blank] [File2_X] [File2_Y] ...
+    - Dual range: [File1_X] [File1_Y_R1] [File1_Y_R2] [blank] [File2_X] [File2_Y_R1] [File2_Y_R2] ...
+    
     Each file's columns are independent, naturally handling different data lengths.
     """
     
@@ -76,6 +80,43 @@ class GeneralizedSummaryExporter:
         
         return label
 
+    @staticmethod
+    def _extract_y_labels_from_headers(headers: list, use_dual_range: bool) -> tuple:
+        """
+        Extract Y-axis label(s) from pre-calculated export headers.
+        
+        Args:
+            headers: List of header strings from export_table (e.g., ["Time (s)", "Average Current (pA) (-100mV)", ...])
+            use_dual_range: Whether dual range analysis is enabled
+            
+        Returns:
+            tuple: (y_label_r1, y_label_r2) where y_label_r2 is None for single range
+        """
+        if not headers or len(headers) < 2:
+            logger.warning("No headers available, using default labels")
+            return ("Y", None)
+        
+        # Headers format:
+        # Single range: [X_label, Y_label]
+        # Dual range: [X_label, Y_label_R1, Y_label_R2] (when X is Time)
+        #         or: [X_label_R1, Y_label_R1, X_label_R2, Y_label_R2] (when X varies)
+        
+        if use_dual_range:
+            if len(headers) >= 3:
+                # Check if this is Time-based (3 columns) or variable X (4 columns)
+                if len(headers) == 3:
+                    # Time-based: [Time, Y_R1, Y_R2]
+                    return (headers[1], headers[2])
+                else:
+                    # Variable X: [X_R1, Y_R1, X_R2, Y_R2]
+                    return (headers[1], headers[3])
+            else:
+                logger.warning(f"Expected 3+ headers for dual range, got {len(headers)}")
+                return (headers[1] if len(headers) > 1 else "Y Range 1", "Y Range 2")
+        else:
+            # Single range: just use second header
+            return (headers[1], None)
+
 
     @staticmethod
     def prepare_summary_table(
@@ -85,15 +126,18 @@ class GeneralizedSummaryExporter:
         current_units: str = "pA"
     ) -> Dict[str, Any]:
         """
-        Prepare generalized summary data with two columns per file (X, Y).
+        Prepare generalized summary data with columns per file.
         
-        Creates a table where each file contributes two columns (X and Y values),
-        separated by blank columns. Files can have different numbers of data points,
-        with empty cells where data is absent.
+        For single range: Two columns per file (X, Y)
+        For dual range: Three columns per file (X, Y_R1, Y_R2)
+        Files are separated by blank columns.
         
         Args:
-            batch_results: Dictionary mapping filenames to data dictionaries
-                        (containing 'x_values' and 'y_values' lists)
+            batch_results: Dictionary mapping filenames to data dictionaries containing:
+                        - 'x_values': X data (list)
+                        - 'y_values': Y data for Range 1 (list)
+                        - 'y_values2': Y data for Range 2 (list, optional)
+                        - 'headers': Pre-calculated headers from export_table (list)
             params: Analysis parameters defining X and Y axes
             included_files: Optional set of filenames to include (None = all files)
             current_units: Units for current measurements ('pA', 'nA', or 'μA')
@@ -105,7 +149,7 @@ class GeneralizedSummaryExporter:
                 - 'format_spec': Format specification for numeric values
         """
         logger.info(f"Preparing generalized summary from {len(batch_results)} batch results")
-        logger.debug(f"Current units: {current_units}")
+        logger.debug(f"Current units: {current_units}, Dual range: {params.use_dual_range}")
         
         # Filter results to included files
         if included_files:
@@ -126,19 +170,37 @@ class GeneralizedSummaryExporter:
         sorted_files = sorted(filtered_results.keys())
         logger.debug(f"Processing {len(sorted_files)} files in sorted order")
         
-        # Generate axis labels - NOW PASSING params
+        # Generate X-axis label
         x_label = GeneralizedSummaryExporter._get_axis_label(params.x_axis, params, current_units)
-        y_label = GeneralizedSummaryExporter._get_axis_label(params.y_axis, params, current_units)
-        logger.debug(f"Axis labels: X='{x_label}', Y='{y_label}'")
         
-        # Build headers: [File1 X_label] [File1 Y_label] [blank] [File2 X_label] ...
+        # Get Y-axis labels from the first file's pre-calculated headers
+        first_file = sorted_files[0]
+        first_headers = filtered_results[first_file].get("headers", [])
+        y_label_r1, y_label_r2 = GeneralizedSummaryExporter._extract_y_labels_from_headers(
+            first_headers, 
+            params.use_dual_range
+        )
+        
+        logger.debug(f"Axis labels: X='{x_label}', Y_R1='{y_label_r1}', Y_R2='{y_label_r2}'")
+        
+        # Build headers based on whether dual range is enabled
         headers = []
         for filename in sorted_files:
-            headers.extend([
-                f"{filename} {x_label}",
-                f"{filename} {y_label}",
-                ""  # Blank column separator
-            ])
+            if params.use_dual_range:
+                # Three columns per file: X, Y_R1, Y_R2
+                headers.extend([
+                    f"{filename} {x_label}",
+                    f"{filename} {y_label_r1}",
+                    f"{filename} {y_label_r2}",
+                    ""  # Blank column separator
+                ])
+            else:
+                # Two columns per file: X, Y
+                headers.extend([
+                    f"{filename} {x_label}",
+                    f"{filename} {y_label_r1}",
+                    ""  # Blank column separator
+                ])
         
         # Remove the trailing blank column
         if headers and headers[-1] == "":
@@ -152,13 +214,19 @@ class GeneralizedSummaryExporter:
             data = filtered_results[filename]
             x_len = len(data.get("x_values", []))
             y_len = len(data.get("y_values", []))
-            file_max = max(x_len, y_len)
+            
+            if params.use_dual_range:
+                y2_len = len(data.get("y_values2", []))
+                file_max = max(x_len, y_len, y2_len)
+            else:
+                file_max = max(x_len, y_len)
+            
             if file_max > max_length:
                 max_length = file_max
         
         logger.debug(f"Maximum data length across all files: {max_length}")
         
-        # Build data array as list of lists (easier to work with mixed empty strings and floats)
+        # Build data array as list of lists
         data_rows = []
         for row_idx in range(max_length):
             row = []
@@ -174,11 +242,19 @@ class GeneralizedSummaryExporter:
                 else:
                     row.append("")
                 
-                # Add Y value or empty string
+                # Add Y value (Range 1) or empty string
                 if row_idx < len(y_values):
                     row.append(y_values[row_idx])
                 else:
                     row.append("")
+                
+                # If dual range, add Y value (Range 2) or empty string
+                if params.use_dual_range:
+                    y_values2 = data.get("y_values2", [])
+                    if row_idx < len(y_values2):
+                        row.append(y_values2[row_idx])
+                    else:
+                        row.append("")
                 
                 # Add blank column separator (except after last file)
                 if file_idx < len(sorted_files) - 1:
@@ -189,7 +265,11 @@ class GeneralizedSummaryExporter:
         # Convert to numpy array with object dtype to handle mixed types
         data_array = np.array(data_rows, dtype=object)
         
-        logger.info(f"Summary table prepared: {len(sorted_files)} files × {max_length} rows × {len(headers)} columns")
+        cols_per_file = 3 if params.use_dual_range else 2
+        logger.info(
+            f"Summary table prepared: {len(sorted_files)} files × {max_length} rows × "
+            f"{len(headers)} columns ({cols_per_file} data columns per file)"
+        )
         
         return {
             "headers": headers,

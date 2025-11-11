@@ -171,6 +171,7 @@ class DynamicBatchPlotWidget(QWidget):
         # Data management
         self.line_objects: Dict[str, Dict[str, Line2D]] = {}
         self.file_colors: Dict[str, Tuple[float, ...]] = {}
+        self.voltage_annotations: Dict[str, Tuple[int, int]] = {}  # NEW: {filename: (v1, v2)}
         self.plot_initialized = False
 
         # Configuration
@@ -253,15 +254,17 @@ class DynamicBatchPlotWidget(QWidget):
         results: List[FileAnalysisResult],
         use_dual_range: bool = False,
         color_mapping: Optional[Dict[str, Tuple[float, ...]]] = None,
+        voltage_annotations: Optional[Dict[str, Tuple[int, int]]] = None,
         auto_scale: bool = True,
-    ) -> None:  # Add auto_scale parameter
+    ) -> None:
         """
-        Set the data to be plotted, with optional auto-scaling.
+        Set the data to be plotted, with optional auto-scaling and voltage annotations.
 
         Args:
             results (List[FileAnalysisResult]): List of analysis results.
             use_dual_range (bool): Whether to show dual range data.
             color_mapping (Optional[Dict[str, Tuple[float, ...]]]): Pre-defined color mapping.
+            voltage_annotations (Optional[Dict[str, Tuple[int, int]]]): Voltage values for each file's ranges.
             auto_scale (bool): Automatically scale axes to fit data (default: True).
         """
         if not self.plot_initialized:
@@ -269,6 +272,7 @@ class DynamicBatchPlotWidget(QWidget):
             return
 
         self.use_dual_range = use_dual_range
+        self.voltage_annotations = voltage_annotations or {}
 
         # Generate color mapping if not provided
         if color_mapping is None:
@@ -329,19 +333,31 @@ class DynamicBatchPlotWidget(QWidget):
     def _create_lines_for_result(self, result: FileAnalysisResult) -> None:
         """
         Create line objects for a given analysis result with modern styling.
+        Uses voltage annotations in labels if available for dual range plots.
 
         Args:
             result (FileAnalysisResult): The analysis result to plot.
         """
         color = self.file_colors.get(result.base_name, (0, 0, 0))
 
+        # Get voltage annotations if available
+        voltages = self.voltage_annotations.get(result.base_name)
+
         # Range 1 line with modern styling
         if len(result.x_data) > 0 and len(result.y_data) > 0:
+            # Use voltage annotation for Range 1 label if available and dual range is enabled
+            if self.use_dual_range and voltages:
+                v1 = voltages[0]
+                voltage_str = f"+{v1}" if v1 >= 0 else str(v1)
+                label = f"{result.base_name} ({voltage_str}mV)"
+            else:
+                label = f"{result.base_name}"
+
             (line_r1,) = self.ax.plot(
                 result.x_data,
                 result.y_data,
                 "o-",
-                label=f"{result.base_name}",
+                label=label,
                 markersize=4,
                 markeredgewidth=0,
                 linewidth=1.5,
@@ -357,11 +373,19 @@ class DynamicBatchPlotWidget(QWidget):
         # Range 2 line with dashed style
         if self.use_dual_range and result.y_data2 is not None:
             if len(result.x_data) > 0 and len(result.y_data2) > 0:
+                # Use voltage annotation for Range 2 label if available
+                if voltages and len(voltages) > 1:
+                    v2 = voltages[1]
+                    voltage_str = f"+{v2}" if v2 >= 0 else str(v2)
+                    label = f"{result.base_name} ({voltage_str}mV)"
+                else:
+                    label = f"{result.base_name} (Range 2)"
+
                 (line_r2,) = self.ax.plot(
                     result.x_data if result.x_data2 is None else result.x_data2,
                     result.y_data2,
                     "s--",
-                    label=f"{result.base_name} (Range 2)",
+                    label=label,
                     markersize=4,
                     markeredgewidth=0,
                     linewidth=1.5,
