@@ -16,6 +16,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict
 
+import pyqtgraph as pg
+
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QPushButton, QSplitter, QGroupBox, QTableWidget,
@@ -24,23 +26,18 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-
 from data_analysis_gui.config.themes import (
-    apply_modern_theme, style_button, style_label, style_group_box
+    apply_modern_theme, style_button, style_label, style_group_box,
+    style_table_widget, MODERN_COLORS
 )
-from data_analysis_gui.config.plot_style import (
-    apply_plot_style, style_axis, add_zero_axis_lines, COLOR_CYCLE
-)
+from data_analysis_gui.config.plot_style import COLOR_CYCLE, COLORS as PLOT_COLORS
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.gui_services.file_dialog_service import FileDialogService
 from data_analysis_gui.widgets.concentration_range_table import ConcentrationRangeTable
-from data_analysis_gui.widgets.cursor_spinbox import ConcRespCursors
-from data_analysis_gui.widgets.custom_toolbar import MinimalNavigationToolbar
+from data_analysis_gui.widgets.cursor_pyqtgraph import PyQtGraphCursorManager
+from data_analysis_gui.widgets.interactive_range_creator import InteractiveRangeCreator
 from data_analysis_gui.services.conc_resp_service import ConcentrationResponseService
 from data_analysis_gui.core.conc_resp_models import ConcentrationRange
-from data_analysis_gui.widgets.interactive_range_creator import InteractiveRangeCreator
 from data_analysis_gui.services.conc_resp_exporter import ConcentrationResponseExporter
 
 from data_analysis_gui.config.logging import get_logger
@@ -68,9 +65,6 @@ class ConcentrationResponseDialog(QDialog):
             parent: Parent widget
         """
         super().__init__(parent)
-        
-        # Apply global plot style first
-        apply_plot_style()
 
         # Enable maximize button in addition to close/minimize
         self.setWindowFlags(
@@ -111,8 +105,8 @@ class ConcentrationResponseDialog(QDialog):
         self._init_ui()
         
         self.range_creator = InteractiveRangeCreator(
-            canvas=self.canvas,
-            ax=self.ax,
+            canvas=self.plot_widget,
+            ax=self.plot,
             range_table=self.range_table,
             status_label=self.status_label
         )
@@ -123,8 +117,11 @@ class ConcentrationResponseDialog(QDialog):
         # Setup button handlers
         self.range_creator.setup_buttons()
 
-        # Apply theme
+        # Apply theme to dialog and all child widgets
         apply_modern_theme(self)
+        
+        # Apply enhanced styling to tables
+        self._apply_enhanced_table_styling()
     
     def _setup_window_geometry(self):
         """Set up window size and position dynamically based on screen size."""
@@ -142,13 +139,13 @@ class ConcentrationResponseDialog(QDialog):
     def _init_ui(self):
         """Initialize the user interface."""
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(2)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Status label at top
         self.status_label = QLabel("Load a CSV file to begin")
         style_label(self.status_label, "muted")
-        self.status_label.setMaximumHeight(20)
+        self.status_label.setMaximumHeight(24)
         main_layout.addWidget(self.status_label)
         
         # Main splitter: left panel | plot
@@ -179,7 +176,7 @@ class ConcentrationResponseDialog(QDialog):
         """
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setSpacing(5)
+        layout.setSpacing(8)
         layout.setContentsMargins(5, 5, 5, 5)
         
         # File section
@@ -205,8 +202,8 @@ class ConcentrationResponseDialog(QDialog):
         group = QGroupBox("File")
         style_group_box(group)
         layout = QVBoxLayout(group)
-        layout.setSpacing(4)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(6)
+        layout.setContentsMargins(8, 8, 8, 8)
         
         # Primary load button
         btn_layout = QHBoxLayout()
@@ -222,28 +219,17 @@ class ConcentrationResponseDialog(QDialog):
         
         layout.addLayout(btn_layout)
         
-        # Dataset builder button
-        dataset_layout = QHBoxLayout()
-        dataset_layout.setSpacing(2)
-        
-        self.create_dataset_btn = QPushButton("📊 Create Multi-File Dataset...")
-        self.create_dataset_btn.setFixedHeight(22)
-        style_button(self.create_dataset_btn, "secondary")
-        dataset_layout.addWidget(self.create_dataset_btn)
-        dataset_layout.addStretch()
-        
-        layout.addLayout(dataset_layout)
-        
         return group
     
-    def _open_dataset_builder(self):
-        """Open the dataset builder dialog."""
-        from data_analysis_gui.dialogs.conc_dataset_dialog import ConcentrationDatasetDialog
+    # Expand later - for building a dose response dataset from multiple files
+    # def _open_dataset_builder(self):
+    #     """Open the dataset builder dialog."""
+    #     from data_analysis_gui.dialogs.conc_dataset_dialog import ConcentrationDatasetDialog
         
-        dataset_dialog = ConcentrationDatasetDialog(self)
-        dataset_dialog.exec()
+    #     dataset_dialog = ConcentrationDatasetDialog(self)
+    #     dataset_dialog.exec()
         
-        logger.info("Opened dataset builder dialog")
+    #     logger.info("Opened dataset builder dialog")
 
     def _create_ranges_group(self) -> QGroupBox:
         """
@@ -255,8 +241,8 @@ class ConcentrationResponseDialog(QDialog):
         group = QGroupBox("Analysis Ranges (drag boundaries in plot)")
         style_group_box(group)
         layout = QVBoxLayout(group)
-        layout.setSpacing(2)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
         
         # Create range table widget
         self.range_table = ConcentrationRangeTable()
@@ -308,8 +294,8 @@ class ConcentrationResponseDialog(QDialog):
         ])
         self.results_table.setMaximumHeight(250)
         
+        # Configure column sizing - all stretch except BG column
         header = self.results_table.horizontalHeader()
-        # Set all columns to stretch except BG column
         for i in range(6):
             if i == 4:  # BG column
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
@@ -323,44 +309,101 @@ class ConcentrationResponseDialog(QDialog):
     
     def _create_plot_panel(self) -> QGroupBox:
         """
-        Create the plot panel with matplotlib canvas and cursors.
+        Create the plot panel with PyQtGraph widget.
         
         Returns:
-            QGroupBox containing plot and toolbar
+            QGroupBox containing plot
         """
         group = QGroupBox("Data Visualization")
         style_group_box(group)
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(8, 8, 8, 8)
         
-        # Create figure and canvas with centralized styling
-        self.figure = Figure(figsize=(14, 9), facecolor="#FAFAFA", tight_layout=True)
-        self.canvas = FigureCanvas(self.figure)
-        self.ax = self.figure.add_subplot(111)
+        # Create PyQtGraph plot widget
+        self.plot_widget = pg.PlotWidget()
+        self.plot = self.plot_widget.getPlotItem()
         
-        # Apply initial axis styling
-        style_axis(
-            self.ax,
-            xlabel="Time (s)",
-            ylabel="Current (pA)"
-        )
+        # Set background color
+        self.plot_widget.setBackground('#FAFAFA')
+        
+        # Enable grid with 30% alpha
+        self.plot.showGrid(x=True, y=True, alpha=0.3)
         
         # Create cursor manager
-        self.cursors = ConcRespCursors(self.ax, self.canvas)
+        self.cursors = PyQtGraphCursorManager(self.plot, self.plot_widget)
         
-        # Add minimal toolbar (consistent with other dialogs)
-        toolbar = MinimalNavigationToolbar(self.canvas, self)
-        
-        layout.addWidget(toolbar, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.plot_widget)
         
         return group
+    
+    def _apply_enhanced_table_styling(self):
+        """Apply enhanced styling to both tables for better scientific data display."""
+        
+        # Base styling from themes.py
+        style_table_widget(self.range_table.table)
+        style_table_widget(self.results_table)
+        
+        # Enhanced QSS for scientific tables with proper header styling
+        enhanced_style = f"""
+            QTableWidget {{
+                border: 1px solid {MODERN_COLORS['border']};
+                border-radius: 3px;
+                background-color: {MODERN_COLORS['background']};
+                alternate-background-color: {MODERN_COLORS['surface']};
+                gridline-color: {MODERN_COLORS['border']};
+                font-size: 10pt;
+            }}
+            
+            QTableWidget::item {{
+                padding: 6px 8px;
+                border: none;
+            }}
+            
+            QTableWidget::item:selected {{
+                background-color: {MODERN_COLORS['selected']};
+                color: {MODERN_COLORS['text']};
+            }}
+            
+            QTableWidget::item:hover {{
+                background-color: {MODERN_COLORS['hover']};
+            }}
+            
+            QHeaderView::section {{
+                background-color: {MODERN_COLORS['surface']};
+                color: {MODERN_COLORS['text']};
+                border: none;
+                border-right: 1px solid {MODERN_COLORS['border']};
+                border-bottom: 2px solid {MODERN_COLORS['border']};
+                padding: 8px 8px;
+                font-weight: 600;
+                font-size: 9pt;
+                text-align: center;
+            }}
+            
+            QHeaderView::section:last {{
+                border-right: none;
+            }}
+            
+            QHeaderView::section:hover {{
+                background-color: {MODERN_COLORS['hover']};
+            }}
+        """
+        
+        self.range_table.table.setStyleSheet(enhanced_style)
+        self.results_table.setStyleSheet(enhanced_style)
+        
+        # Enable alternating row colors
+        self.range_table.table.setAlternatingRowColors(True)
+        self.results_table.setAlternatingRowColors(True)
+        
+        # Set selection behavior
+        self.results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.results_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
     
     def _connect_signals(self):
         """Connect all signals to their handlers."""
         # File loading
         self.load_btn.clicked.connect(self._load_file)
-        self.create_dataset_btn.clicked.connect(self._open_dataset_builder)
         
         # Range table → cursors
         self.range_table.range_added.connect(self._on_range_added)
@@ -372,53 +415,10 @@ class ConcentrationResponseDialog(QDialog):
         
         # Analysis and export
         self.run_analysis_btn.clicked.connect(self._run_analysis)
-        self.copy_selected_btn.clicked.connect(self._copy_selected_cells)
         self.export_btn.clicked.connect(self._export_results)
 
-    def _copy_selected_cells(self):
-        """Copy selected cells from results table to clipboard."""
-        selected_ranges = self.results_table.selectedRanges()
-        
-        if not selected_ranges:
-            self.status_label.setText("No cells selected to copy")
-            style_label(self.status_label, "warning")
-            return
-        
-        try:
-            # Get all selected items and organize by row/column
-            selected_items = {}
-            for item_range in selected_ranges:
-                for row in range(item_range.topRow(), item_range.bottomRow() + 1):
-                    if row not in selected_items:
-                        selected_items[row] = {}
-                    for col in range(item_range.leftColumn(), item_range.rightColumn() + 1):
-                        item = self.results_table.item(row, col)
-                        selected_items[row][col] = item.text() if item else ""
-            
-            # Build TSV string
-            rows = []
-            for row in sorted(selected_items.keys()):
-                cols = selected_items[row]
-                row_data = [cols[col] for col in sorted(cols.keys())]
-                rows.append("\t".join(row_data))
-            
-            tsv_text = "\n".join(rows)
-            
-            # Copy to clipboard
-            clipboard = QApplication.clipboard()
-            clipboard.setText(tsv_text)
-            
-            # Update status
-            cell_count = sum(len(cols) for cols in selected_items.values())
-            self.status_label.setText(f"Copied {cell_count} cell(s) to clipboard")
-            style_label(self.status_label, "success")
-            
-            logger.info(f"Copied {len(selected_items)} row(s), {cell_count} cell(s) to clipboard")
-            
-        except Exception as e:
-            logger.error(f"Error copying cells: {e}", exc_info=True)
-            self.status_label.setText("Error copying to clipboard")
-            style_label(self.status_label, "error")
+        # Copy selected cells
+        self.copy_selected_btn.clicked.connect(self._copy_selected_cells)
 
     # ========================================================================
     # File Loading
@@ -479,62 +479,72 @@ class ConcentrationResponseDialog(QDialog):
             style_label(self.status_label, "error")
     
     def _plot_data(self):
-        """Plot all data traces on the canvas using centralized styling."""
+        """Plot all data traces on the canvas using PyQtGraph."""
         if self.data_df is None or not self.data_cols:
             return
         
-        self.ax.clear()
+        self.plot.clear()
+
+        # Add prominent zero-axis lines (before data so they appear behind)
+        zero_color = QColor('#2D3436')  # Dark gray
+        zero_color.setAlpha(int(255 * 0.4))  # 40% opacity
+        zero_pen = pg.mkPen(color=zero_color, width=0.8, style=pg.QtCore.Qt.PenStyle.DotLine)
+        
+        zero_hline = pg.InfiniteLine(pos=0, angle=0, pen=zero_pen)  # Horizontal at y=0
+        zero_vline = pg.InfiniteLine(pos=0, angle=90, pen=zero_pen)  # Vertical at x=0
+        self.plot.addItem(zero_hline)
+        self.plot.addItem(zero_vline)
         
         # Use centralized color cycle
         colors = [COLOR_CYCLE[i % len(COLOR_CYCLE)] for i in range(len(self.data_cols))]
         
         # Plot each data column
         for i, data_col in enumerate(self.data_cols):
-            self.ax.plot(
+            pen = pg.mkPen(color=colors[i], width=2.5)
+            
+            # Add markers for small datasets
+            if len(self.data_df) < 100:
+                symbol = 'o'
+                symbol_size = 4
+                symbol_pen = None
+                symbol_brush = colors[i]
+            else:
+                symbol = None
+                symbol_size = None
+                symbol_pen = None
+                symbol_brush = None
+            
+            self.plot.plot(
                 self.data_df[self.time_col],
                 self.data_df[data_col],
-                linewidth=1.5,
-                alpha=0.9,
-                label=data_col,
-                color=colors[i],
-                marker='o' if len(self.data_df) < 100 else None,
-                markersize=4,
-                markeredgewidth=0
+                pen=pen,
+                name=data_col,
+                symbol=symbol,
+                symbolSize=symbol_size,
+                symbolPen=symbol_pen,
+                symbolBrush=symbol_brush
             )
         
-        # Apply centralized styling
+        # Set axis labels
         if len(self.original_data_cols) <= 3:
             # Use original full headers for y-axis when few traces
             ylabel = " and ".join(self.original_data_cols)
         else:
             # Use generic label for many traces
             ylabel = "Current (pA)"
-
-        style_axis(
-            self.ax,
-            title=f"Data: {self.filename}",
-            xlabel=self.time_col,
-            ylabel=ylabel
-        )
         
-        # Put x axis at y=0 if zero is in range
-        ymin, ymax = self.ax.get_ylim()
-        if ymin < 0 < ymax:
-            self.ax.spines['bottom'].set_position(('data', 0))
-        else:
-            # Keep axis at bottom if zero isn't in range
-            self.ax.spines['bottom'].set_position(('axes', 0))
-            add_zero_axis_lines(self.ax)
+        self.plot.setLabel('bottom', self.time_col)
+        self.plot.setLabel('left', ylabel)
+        
+        # Set title
+        self.plot.setTitle(f"Data: {self.filename}")
         
         # Add legend if multiple traces
         if len(self.data_cols) > 1:
-            self.ax.legend(loc='best', frameon=True, fancybox=False, shadow=False,
-                          framealpha=0.95, edgecolor='#D0D0D0')
+            self.plot.addLegend()
         
-        # Recreate range cursors after clearing axes
-        self.cursors.recreate_patches_after_clear()
-        
-        self.canvas.draw()
+        # Recreate range cursors after clearing plot
+        self.cursors.recreate_all()
     
     # ========================================================================
     # Range-Cursor Synchronization
@@ -582,7 +592,7 @@ class ConcentrationResponseDialog(QDialog):
         """
         Handle cursor dragged signal from cursors manager.
         
-        Updates the corresponding field in the table without triggering
+        Updates the corresponding spinbox in the table without triggering
         infinite signal loops.
         
         Args:
@@ -594,24 +604,69 @@ class ConcentrationResponseDialog(QDialog):
         for row in range(self.range_table.table.rowCount()):
             id_widget = self.range_table.table.cellWidget(row, 1)
             if id_widget and id_widget.text() == range_id:
-                # Found the row - update the appropriate field
+                # Found the row - update the appropriate spinbox
                 # Column 3 = start, Column 4 = end
-                field_col = 3 if boundary == 'start' else 4
-                field_widget = self.range_table.table.cellWidget(row, field_col)
+                spinbox_col = 3 if boundary == 'start' else 4
+                spinbox = self.range_table.table.cellWidget(row, spinbox_col)
                 
-                if field_widget:
+                if spinbox:
                     # Block signals to prevent triggering range_modified
-                    field_widget.blockSignals(True)
-                    field_widget.setValue(new_value)
-                    field_widget.blockSignals(False)
+                    spinbox.blockSignals(True)
+                    spinbox.setValue(new_value)
+                    spinbox.blockSignals(False)
                     
                     logger.debug(
-                        f"Updated {boundary} field for {range_id}: {new_value:.2f}"
+                        f"Updated {boundary} spinbox for {range_id}: {new_value:.2f}"
                     )
                 break
     
+    def _copy_selected_cells(self):
+        """Copy selected cells from results table to clipboard."""
+        selected_ranges = self.results_table.selectedRanges()
+        
+        if not selected_ranges:
+            self.status_label.setText("No cells selected to copy")
+            style_label(self.status_label, "warning")
+            return
+        
+        try:
+            # Get all selected items and organize by row/column
+            selected_items = {}
+            for item_range in selected_ranges:
+                for row in range(item_range.topRow(), item_range.bottomRow() + 1):
+                    if row not in selected_items:
+                        selected_items[row] = {}
+                    for col in range(item_range.leftColumn(), item_range.rightColumn() + 1):
+                        item = self.results_table.item(row, col)
+                        selected_items[row][col] = item.text() if item else ""
+            
+            # Build TSV string
+            rows = []
+            for row in sorted(selected_items.keys()):
+                cols = selected_items[row]
+                row_data = [cols[col] for col in sorted(cols.keys())]
+                rows.append("\t".join(row_data))
+            
+            tsv_text = "\n".join(rows)
+            
+            # Copy to clipboard
+            clipboard = QApplication.clipboard()
+            clipboard.setText(tsv_text)
+            
+            # Update status
+            cell_count = sum(len(cols) for cols in selected_items.values())
+            self.status_label.setText(f"Copied {cell_count} cell(s) to clipboard")
+            style_label(self.status_label, "success")
+            
+            logger.info(f"Copied {len(selected_items)} row(s), {cell_count} cell(s) to clipboard")
+            
+        except Exception as e:
+            logger.error(f"Error copying cells: {e}", exc_info=True)
+            self.status_label.setText("Error copying to clipboard")
+            style_label(self.status_label, "error")
+
     # ========================================================================
-    # Phase 8: Analysis Execution
+    # Analysis Execution
     # ========================================================================
     
     def _run_analysis(self):
@@ -644,7 +699,6 @@ class ConcentrationResponseDialog(QDialog):
             if was_auto_paired:
                 bg_ranges = [r for r in ranges if r.is_background]
                 if bg_ranges:
-                    # Fix: Use range_id and format it properly
                     single_bg_name = self.range_table._format_background_display(bg_ranges[0].range_id)
                     self.status_label.setText(
                         f"Auto-paired all ranges to '{single_bg_name}' background"
@@ -669,6 +723,7 @@ class ConcentrationResponseDialog(QDialog):
             # Display results
             if self.results_dfs:
                 self._display_results()
+                #self._update_summary_statistics()
                 self.export_btn.setEnabled(True)
                 
                 # Update status if not showing auto-pairing message
@@ -708,7 +763,7 @@ class ConcentrationResponseDialog(QDialog):
             )
             self.status_label.setText("Analysis failed: unexpected error")
             style_label(self.status_label, "error")
-    
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         # Check for Ctrl+C (Cmd+C on Mac)
@@ -721,16 +776,9 @@ class ConcentrationResponseDialog(QDialog):
         # Pass other events to parent
         super().keyPressEvent(event)
 
-
     def _display_results(self):
-        """Display analysis results in the results table with color coding."""
+        """Display analysis results in the results table with enhanced styling."""
         self.results_table.setRowCount(0)
-        
-        # Update table headers to use Condition instead of Concentration
-        self.results_table.setColumnCount(6)
-        self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
-        ])
         
         if not self.results_dfs:
             return
@@ -745,16 +793,24 @@ class ConcentrationResponseDialog(QDialog):
                 column_mapping = {
                     'File': 'File',
                     'Data Trace': 'Data Trace',
-                    'Condition': 'Concentration (µM)' if 'Concentration (µM)' in df.columns else 'Condition',
+                    'Condition': 'Concentration (μM)' if 'Concentration (μM)' in df.columns else 'Condition',
                     'Raw Value': 'Raw Value',
                     'Background': 'Background',
                     'Corrected Value': 'Corrected Value'
                 }
                 
-                # Add each column
-                for col_idx, display_name in enumerate([
-                    'File', 'Data Trace', 'Condition', 'Raw Value', 'Background', 'Corrected Value'
-                ]):
+                # Column order: File, Data Trace, Condition, Raw Value, Background, Corrected Value
+                columns = [
+                    ('File', 0, 'left'),
+                    ('Data Trace', 1, 'left'),
+                    ('Condition', 2, 'right'),
+                    ('Raw Value', 3, 'right'),
+                    ('Background', 4, 'right'),
+                    ('Corrected Value', 5, 'right')
+                ]
+                
+                for display_name, col_idx, alignment in columns:
+                    # Get actual column name from DataFrame
                     df_col_name = column_mapping[display_name]
                     value = row_data[df_col_name]
                     
@@ -770,24 +826,62 @@ class ConcentrationResponseDialog(QDialog):
                     item = QTableWidgetItem(text)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     
-                    # Color coding for Corrected Value column (legacy behavior)
+                    # Set alignment
+                    if alignment == 'right':
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    else:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    
+                    # Enhanced color coding for Corrected Value column
                     if display_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
                         if value >= 0:
-                            item.setBackground(QColor(220, 255, 220))  # Light green
+                            # Positive values: sage green
+                            item.setForeground(QColor(PLOT_COLORS['success']))
                         else:
-                            item.setBackground(QColor(255, 220, 220))  # Light red
+                            # Negative values: rust red
+                            item.setForeground(QColor(PLOT_COLORS['warning']))
                     
                     self.results_table.setItem(row_pos, col_idx, item)
         
         # Enable copy button now that we have results
         self.copy_selected_btn.setEnabled(True)
-        
+
         logger.info(
             f"Displayed {self.results_table.rowCount()} result rows in table"
         )
     
+    def _update_summary_statistics(self):
+        """Update the summary statistics label with key metrics."""
+        if not self.results_dfs:
+            self.summary_label.setVisible(False)
+            return
+        
+        # Calculate summary statistics
+        total_results = sum(len(df) for df in self.results_dfs.values())
+        num_traces = len(self.results_dfs)
+        
+        # Get concentration range
+        all_concs = []
+        for df in self.results_dfs.values():
+            all_concs.extend(df['Condition'].tolist())
+        
+        if all_concs:
+            min_conc = min(all_concs)
+            max_conc = max(all_concs)
+            summary_text = (
+                f"Summary: {total_results} measurements • "
+                f"{num_traces} trace(s) • "
+                f"Concentration range: {min_conc:.2f} - {max_conc:.2f} μM"
+            )
+        else:
+            summary_text = f"Summary: {total_results} measurements • {num_traces} trace(s)"
+        
+        self.summary_label.setText(summary_text)
+        self.summary_label.setVisible(True)
+        style_label(self.summary_label, "muted")
+    
     # ========================================================================
-    # Phase 9: Export Functionality
+    # Export Functionality
     # ========================================================================
     
     def _export_results(self):
@@ -804,7 +898,7 @@ class ConcentrationResponseDialog(QDialog):
         output_dir = self.file_dialog_service.get_directory(
             self,
             "Select Export Directory",
-            dialog_type="conc_resp_export"  # Unique dialog type
+            dialog_type="conc_resp_export"
         )
         
         if not output_dir:

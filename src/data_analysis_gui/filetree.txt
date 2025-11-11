@@ -69,6 +69,7 @@ data_analysis_gui/
 |   |-- concentration_range_table.py
 |   |-- control_panel.py
 |   |-- cursor_manager.py
+|   |-- cursor_pyqtgraph.py
 |   |-- cursor_spinbox.py
 |   |-- custom_inputs.py
 |   |-- custom_toolbar.py

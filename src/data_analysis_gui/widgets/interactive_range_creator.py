@@ -6,11 +6,12 @@ License: MIT (see LICENSE file for details)
 
 Interactive range creation for concentration-response analysis.
 
-Manages click-to-define range mode on matplotlib plots, allowing users to
+Manages click-to-define range mode on PyQtGraph plots, allowing users to
 click start/end positions directly on the canvas to create analysis ranges.
 """
 
 from typing import Optional
+import pyqtgraph as pg
 from PySide6.QtWidgets import QPushButton, QLabel
 from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
@@ -23,7 +24,7 @@ logger = get_logger(__name__)
 
 class InteractiveRangeCreator:
     """
-    Manages interactive range creation mode for matplotlib-based analysis dialogs.
+    Manages interactive range creation mode for PyQtGraph-based analysis dialogs.
     
     Allows users to click on plot to define range start/end positions, with
     visual feedback including custom cursor, temporary guide lines, and status updates.
@@ -35,13 +36,13 @@ class InteractiveRangeCreator:
         Initialize the interactive range creator.
         
         Args:
-            canvas: Matplotlib FigureCanvas for event handling
-            ax: Matplotlib axis to draw on
+            canvas: PyQtGraph PlotWidget for event handling
+            ax: PyQtGraph PlotItem to draw on
             range_table: ConcentrationRangeTable widget for adding ranges
             status_label: QLabel for displaying status messages
         """
-        self.canvas = canvas
-        self.ax = ax
+        self.plot_widget = canvas  # PyQtGraph PlotWidget
+        self.plot = ax  # PyQtGraph PlotItem
         self.range_table = range_table
         self.status_label = status_label
         
@@ -61,8 +62,8 @@ class InteractiveRangeCreator:
         self.add_bg_range_btn: Optional[QPushButton] = None
         self.add_paired_bg_btn: Optional[QPushButton] = None
         
-        # Connect matplotlib click events
-        self.canvas.mpl_connect('button_press_event', self._handle_plot_click)
+        # Connect PyQtGraph click events
+        self.plot_widget.scene().sigMouseClicked.connect(self._handle_plot_click)
     
     def setup_buttons(self):
         """
@@ -151,7 +152,7 @@ class InteractiveRangeCreator:
         if target_row is None:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(
-                self.canvas.parentWidget(),
+                self.plot_widget.parentWidget(),
                 "No Range to Pair",
                 "Add an analysis range first before creating a paired background range."
             )
@@ -208,11 +209,10 @@ class InteractiveRangeCreator:
         # Remove temporary start line if it exists
         if self._temp_start_line:
             try:
-                self._temp_start_line.remove()
+                self.plot.removeItem(self._temp_start_line)
             except:
                 pass
             self._temp_start_line = None
-            self.canvas.draw_idle()
         
         # Restore cursor
         self._restore_cursor()
@@ -228,34 +228,38 @@ class InteractiveRangeCreator:
     
     def _handle_plot_click(self, event):
         """
-        Handle matplotlib button press events for range creation.
+        Handle PyQtGraph mouse click events for range creation.
         
         Args:
-            event: Matplotlib button press event
+            event: PyQtGraph mouse click event
         """
-        # Only handle left clicks in creation mode with valid x data
-        if not self._mode_active or event.xdata is None or event.button != 1:
+        # Only handle left clicks in creation mode
+        if not self._mode_active or event.button() != Qt.MouseButton.LeftButton:
             return
+        
+        # Get data coordinates
+        pos = self.plot.vb.mapSceneToView(event.scenePos())
+        x_data = pos.x()
         
         if self._start_position is None:
             # First click - set start position
-            self._start_position = event.xdata
+            self._start_position = x_data
             
             # Update status
             range_type = self._get_range_type_label()
             self.status_label.setText(
-                f"{range_type} START: {event.xdata:.2f}s - Click for END position"
+                f"{range_type} START: {x_data:.2f}s - Click for END position"
             )
             style_label(self.status_label, "info")
             
             # Draw temporary guide line
-            self._draw_temp_start_line(event.xdata)
+            self._draw_temp_start_line(x_data)
             
-            logger.debug(f"Range start set to {event.xdata:.2f}s")
+            logger.debug(f"Range start set to {x_data:.2f}s")
         
         else:
             # Second click - set end position and create range
-            self._complete_range_creation(event.xdata)
+            self._complete_range_creation(x_data)
     
     def _complete_range_creation(self, end_position: float):
         """
@@ -274,11 +278,10 @@ class InteractiveRangeCreator:
         # Remove temporary line
         if self._temp_start_line:
             try:
-                self._temp_start_line.remove()
+                self.plot.removeItem(self._temp_start_line)
             except:
                 pass
             self._temp_start_line = None
-            self.canvas.draw_idle()
         
         # Create the range with specified times
         self.range_table.add_range_row_with_times(
@@ -304,42 +307,42 @@ class InteractiveRangeCreator:
         self.cancel_mode()
     
     def _setup_background_pairing(self):
-            """
-            Setup automatic pairing for a newly created background range.
+        """
+        Setup automatic pairing for a newly created background range.
+        
+        Pairs the most recently created background range to the target analysis range.
+        """
+        # Get the newly created background range's internal ID (hidden column 1)
+        new_bg_row = self.range_table.table.rowCount() - 1
+        bg_id_widget = self.range_table.table.cellWidget(new_bg_row, 1)
+        
+        if bg_id_widget and self._target_row is not None:
+            internal_id = bg_id_widget.text()
+            display_name = self.range_table._format_background_display(internal_id)
             
-            Pairs the most recently created background range to the target analysis range.
-            """
-            # Get the newly created background range's internal ID (hidden column 1)
-            new_bg_row = self.range_table.table.rowCount() - 1
-            bg_id_widget = self.range_table.table.cellWidget(new_bg_row, 1)
-            
-            if bg_id_widget and self._target_row is not None:
-                internal_id = bg_id_widget.text()
-                display_name = self.range_table._format_background_display(internal_id)
-                
-                # Set the target range's paired dropdown to this background
-                paired_combo = self.range_table.table.cellWidget(self._target_row, 7)
-                if paired_combo:
-                    paired_combo.setCurrentText(display_name)
-                    logger.info(f"Auto-paired background '{internal_id}' to row {self._target_row}")
+            # Set the target range's paired dropdown to this background
+            paired_combo = self.range_table.table.cellWidget(self._target_row, 7)
+            if paired_combo:
+                paired_combo.setCurrentText(display_name)
+                logger.info(f"Auto-paired background '{internal_id}' to row {self._target_row}")
     
     def _find_last_analysis_range_row(self) -> Optional[int]:
-            """
-            Find the most recent non-background range row.
-            
-            Returns:
-                Row index of last analysis range, or None if not found
-            """
-            from PySide6.QtWidgets import QCheckBox
-            
-            for row in range(self.range_table.table.rowCount() - 1, -1, -1):
-                bg_widget = self.range_table.table.cellWidget(row, 6)
-                if bg_widget:
-                    checkbox = bg_widget.findChild(QCheckBox)
-                    if checkbox and not checkbox.isChecked():
-                        return row
-            
-            return None
+        """
+        Find the most recent non-background range row.
+        
+        Returns:
+            Row index of last analysis range, or None if not found
+        """
+        from PySide6.QtWidgets import QCheckBox
+        
+        for row in range(self.range_table.table.rowCount() - 1, -1, -1):
+            bg_widget = self.range_table.table.cellWidget(row, 6)
+            if bg_widget:
+                checkbox = bg_widget.findChild(QCheckBox)
+                if checkbox and not checkbox.isChecked():
+                    return row
+        
+        return None
     
     def _get_range_type_label(self) -> str:
         """
@@ -361,7 +364,7 @@ class InteractiveRangeCreator:
         pixmap = QPixmap(32, 32)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
-        painter.setPen(QColor("#73AB84"))  # Sage green from plot_style.py
+        painter.setPen(QColor("#73AB84"))  # Sage green
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw crosshair with thicker lines
@@ -381,16 +384,16 @@ class InteractiveRangeCreator:
         painter.end()
         
         # Store original cursor and set new one
-        self._original_cursor = self.canvas.cursor()
-        self.canvas.setCursor(QCursor(pixmap, hotX=16, hotY=16))
+        self._original_cursor = self.plot_widget.cursor()
+        self.plot_widget.setCursor(QCursor(pixmap, hotX=16, hotY=16))
     
     def _restore_cursor(self):
         """Restore the original canvas cursor."""
         if self._original_cursor:
-            self.canvas.setCursor(self._original_cursor)
+            self.plot_widget.setCursor(self._original_cursor)
             self._original_cursor = None
         else:
-            self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
+            self.plot_widget.setCursor(Qt.CursorShape.ArrowCursor)
     
     def _draw_temp_start_line(self, x_position: float):
         """
@@ -399,14 +402,15 @@ class InteractiveRangeCreator:
         Args:
             x_position: X-axis position for the guide line
         """
-        self._temp_start_line = self.ax.axvline(
-            x_position,
-            color="#73AB84",
-            linestyle=":",
-            linewidth=2,
-            alpha=0.5
+        # Create InfiniteLine with dotted style
+        pen = pg.mkPen(color="#73AB84", width=2, style=Qt.PenStyle.DotLine)
+        self._temp_start_line = pg.InfiniteLine(
+            pos=x_position,
+            angle=90,  # Vertical line
+            pen=pen,
+            movable=False
         )
-        self.canvas.draw_idle()
+        self.plot.addItem(self._temp_start_line)
     
     def _restore_button_appearance(self):
         """Restore all add range buttons to normal appearance."""

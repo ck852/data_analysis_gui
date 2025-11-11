@@ -241,7 +241,8 @@ class ConcentrationRangeTable(QWidget):
         # Background checkbox (column 6)
         bg_checkbox = QCheckBox(self.table)
         bg_checkbox.setFont(table_font)
-        bg_checkbox.stateChanged.connect(self._on_background_changed)
+        # Block signals to prevent premature update_background_options call
+        bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
         
@@ -261,6 +262,10 @@ class ConcentrationRangeTable(QWidget):
         self.table.setCellWidget(row, 5, analysis_widget)
         self.table.setCellWidget(row, 6, self._center_widget(bg_checkbox))
         self.table.setCellWidget(row, 7, paired_combo)
+        
+        # NOW unblock signals and connect after widget is in table
+        bg_checkbox.blockSignals(False)
+        bg_checkbox.stateChanged.connect(self._on_background_changed)
         
         # Update background options for all rows
         self.update_background_options()
@@ -428,7 +433,8 @@ class ConcentrationRangeTable(QWidget):
         # Background checkbox (column 6)
         bg_checkbox = QCheckBox(self.table)
         bg_checkbox.setFont(table_font)
-        bg_checkbox.stateChanged.connect(self._on_background_changed)
+        # Block signals to prevent premature update_background_options call
+        bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
         
@@ -448,6 +454,10 @@ class ConcentrationRangeTable(QWidget):
         self.table.setCellWidget(row, 5, analysis_widget)
         self.table.setCellWidget(row, 6, self._center_widget(bg_checkbox))
         self.table.setCellWidget(row, 7, paired_combo)
+        
+        # NOW unblock signals and connect after widget is in table
+        bg_checkbox.blockSignals(False)
+        bg_checkbox.stateChanged.connect(self._on_background_changed)
         
         # Update background options for all rows
         self.update_background_options()
@@ -485,8 +495,20 @@ class ConcentrationRangeTable(QWidget):
         
         # Set the target range's paired dropdown to this background
         paired_combo = self.table.cellWidget(target_row, 7)
-        # Store internal ID but dropdown will show display name
-        paired_combo.setCurrentText(self._format_background_display(bg_id))
+        if paired_combo:
+            # Block signals during pairing to avoid premature range_modified emission
+            paired_combo.blockSignals(True)
+            display_name = self._format_background_display(bg_id)
+            paired_combo.setCurrentText(display_name)
+            paired_combo.blockSignals(False)
+            
+            # Now manually emit the range_modified signal for this change
+            try:
+                ranges = self.get_all_ranges()
+                if target_row < len(ranges):
+                    self.range_modified.emit(target_row, ranges[target_row])
+            except Exception as e:
+                logger.warning(f"Error emitting range_modified after pairing: {e}")
 
     def get_all_ranges(self) -> List[ConcentrationRange]:
         """
@@ -611,6 +633,7 @@ class ConcentrationRangeTable(QWidget):
         
         Collects all background range IDs and populates the "Paired BG"
         dropdowns with display names. Also updates row styling based on background status.
+        Disables the paired combo for background ranges.
         """
         # Collect background range display names and IDs
         background_options = [("None", None)]
@@ -662,6 +685,15 @@ class ConcentrationRangeTable(QWidget):
                 analysis_combo.setEnabled(not is_background)
                 if is_background:
                     analysis_combo.setCurrentText("Average")
+                
+                # Disable paired combo for background ranges
+                if paired_combo:
+                    paired_combo.setEnabled(not is_background)
+                    if is_background:
+                        # Reset to "None" for background ranges
+                        paired_combo.blockSignals(True)
+                        paired_combo.setCurrentText("None")
+                        paired_combo.blockSignals(False)
     
     def insert_mu_char(self):
         """Insert μ character into the last focused line edit."""

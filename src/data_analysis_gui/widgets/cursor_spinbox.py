@@ -132,6 +132,11 @@ class CursorSpinbox(QObject):
     
     def _on_pick(self, event):
         """Handle cursor pick event."""
+
+        # Ignore scroll wheel events
+        if hasattr(event, 'mouseevent') and event.mouseevent.button in ['up', 'down']:
+            return
+
         if isinstance(event.artist, Line2D):
             for cursor_id, data in self.cursors.items():
                 if event.artist == data['line']:
@@ -404,6 +409,11 @@ class ConcRespCursors(QObject):
     
     def _on_pick(self, event):
         """Handle line pick event to start dragging."""
+
+        # Ignore scroll wheel events
+        if hasattr(event, 'mouseevent') and event.mouseevent.button in ['up', 'down']:
+            return    
+        
         if not isinstance(event.artist, Line2D):
             return
         

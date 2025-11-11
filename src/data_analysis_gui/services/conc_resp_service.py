@@ -295,7 +295,7 @@ class ConcentrationResponseService:
             
         Returns:
             Dictionary mapping data column names to results DataFrames.
-            Each DataFrame has columns: File, Data Trace, Concentration (µM), 
+            Each DataFrame has columns: File, Data Trace, Condition, 
             Raw Value, Background, Corrected Value
         
         Raises:
@@ -352,7 +352,7 @@ class ConcentrationResponseService:
                 results_rows.append({
                     "File": filename,
                     "Data Trace": data_col,
-                    "Concentration (µM)": analysis_range.concentration,
+                    "Condition": analysis_range.concentration,
                     "Raw Value": raw_value,
                     "Background": bg_value,
                     "Corrected Value": corrected_value,
@@ -367,28 +367,28 @@ class ConcentrationResponseService:
         )
         
         return results_dfs
-    
+
     @staticmethod
     def pivot_for_export(results_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Pivot results DataFrame to export format (concentrations as rows).
+        Pivot results DataFrame to export format (conditions as rows).
         
         Args:
             results_df: Results DataFrame with columns:
-                File, Data Trace, Concentration (µM), Raw Value, Background, Corrected Value
+                File, Data Trace, Condition, Raw Value, Background, Corrected Value
                 
         Returns:
             Pivoted DataFrame with:
-                - First column containing concentration values (numeric)
+                - First column containing condition values
                 - Second column containing corrected values
                 - Empty column headers
         
         Example:
             Input:
-                | Concentration (µM) | Corrected Value |
-                |--------------------|-----------------|
-                | 0.1                | -50.2           |
-                | 1.0                | -75.8           |
+                | Condition | Corrected Value |
+                |-----------|-----------------|
+                | 0.1       | -50.2           |
+                | 1.0       | -75.8           |
             
             Output CSV:
                 ,
@@ -399,9 +399,9 @@ class ConcentrationResponseService:
             logger.warning("Attempting to pivot empty results DataFrame")
             return pd.DataFrame()
         
-        # Extract concentrations and corrected values
+        # Extract conditions and corrected values
         export_df = pd.DataFrame({
-            "": results_df["Concentration (µM)"].tolist(),
+            "": results_df["Condition"].tolist(),
             " ": results_df["Corrected Value"].tolist()
         })
         
