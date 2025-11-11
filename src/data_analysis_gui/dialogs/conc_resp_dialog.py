@@ -397,7 +397,7 @@ class ConcentrationResponseDialog(QDialog):
         self.results_table.setAlternatingRowColors(True)
         
         # Set selection behavior
-        self.results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.results_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
     
     def _connect_signals(self):
