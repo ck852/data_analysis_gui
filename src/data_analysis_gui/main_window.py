@@ -101,10 +101,6 @@ class MainWindow(QMainWindow):
     file_loaded = Signal(str)
     analysis_completed = Signal()
 
-    # Feature flags for experimental/in-development features
-    ENABLE_BG_BATCH = False  # Batch Analysis with Background Subtraction
-    ENABLE_CONC_RESPONSE = True  # Concentration Response Analysis
-
     def __init__(self):
         super().__init__()
 
@@ -247,7 +243,6 @@ class MainWindow(QMainWindow):
         self.batch_bg_action = QAction("Batch Analyze with BG Subtraction...", self)
         self.batch_bg_action.triggered.connect(self._batch_analyze_with_bg_subtraction)
         self.batch_bg_action.setEnabled(True)
-        self.batch_bg_action.setVisible(self.ENABLE_BG_BATCH) # Experimental feature flag
         analysis_menu.addAction(self.batch_bg_action)
 
         analysis_menu.addSeparator()
@@ -265,7 +260,6 @@ class MainWindow(QMainWindow):
         # Concentration Response Analysis
         conc_resp_action = analysis_menu.addAction("Concentration Response...")
         conc_resp_action.triggered.connect(self._open_concentration_response)
-        conc_resp_action.setVisible(self.ENABLE_CONC_RESPONSE) # Experimental feature flag
 
         # Sweep Extractor
         sweep_extract_action = analysis_menu.addAction("Extract Sweeps...")
