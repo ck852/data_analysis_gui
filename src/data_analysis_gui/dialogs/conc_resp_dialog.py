@@ -75,6 +75,8 @@ class ConcentrationResponseDialog(QDialog):
         """
         super().__init__(parent)
 
+        pg.setConfigOptions(antialias=True, useOpenGL=True)
+
         # Enable maximize button in addition to close/minimize
         self.setWindowFlags(
             Qt.WindowType.Window |
@@ -337,8 +339,13 @@ class ConcentrationResponseDialog(QDialog):
         self.plot_widget = pg.PlotWidget()
         self.plot = self.plot_widget.getPlotItem()
         
-        # Apply standard PyQtGraph styling
-        style_plot_widget(self.plot_widget)
+        self.plot_widget.setAntialiasing(True)
+
+        # Set background color
+        self.plot_widget.setBackground('#FAFAFA')
+        
+        # Disable grid - we'll use only x=0 and y=0 lines instead
+        self.plot.showGrid(x=False, y=False)
         
         # Create cursor manager
         self.cursors = PyQtGraphCursorManager(self.plot, self.plot_widget)
