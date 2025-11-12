@@ -163,11 +163,33 @@ Then you can define the voltage range you are analyzing. The script will find th
 
 ### Dose-Response
 
-Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug.
+Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug. While this is geared for dose-response preparation, it can be used to easily extract steady-state currents for any time-course experiment
 
 ### Sweep Extraction
 
 Access from the Analysis menu. Load a file in the main window first. Users can also extract the currently displayed sweep from main window.
+
+### Leak Subtraction
+
+Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtraction protocol. The algorithm removes passive membrane currents using voltage-scaled subtraction:
+
+1. **Baseline Correction**: All voltage and current traces are zeroed by subtracting the value at the holding potential (VHold cursor position). This removes DC offsets.
+
+2. **Sweep Averaging**: If multiple LEAK or TEST sweeps exist per group, they are averaged after baseline correction to improve signal-to-noise ratio. A pair consisting of one TEST sweep and one LEAK sweep is the typical output from WinWCP leak-subtraction voltage protocols (one pair per leak-subtracted data point). 
+
+3. **Voltage-Based Scaling**: The LEAK current is scaled by the ratio of voltage steps:
+   - Measure voltage step in TEST sweep: ΔV_test = V(VTest) - V(VHold)
+   - Measure voltage step in LEAK sweep: ΔV_leak = V(VTest) - V(VHold)
+   - Calculate scaling factor: scale = ΔV_test / ΔV_leak
+
+4. **Subtraction**: The final leak-subtracted current is calculated as:
+   I_subtracted = I_test - (scale × I_leak)
+
+**Requirements:**
+- WCP file with sweeps classified as LEAK/TEST in WinWCP
+- At least one LEAK and one TEST sweep per group
+- LEAK voltage step must be > 0.001 mV
+
 
 ## Validation
 
