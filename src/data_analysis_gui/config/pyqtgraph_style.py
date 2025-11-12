@@ -50,7 +50,7 @@ DATA_COLOR_CYCLE = COLOR_CYCLE
 # ============================================================================
 
 PYQTGRAPH_FONTS = {
-    "axis_label": {"size": 11, "bold": False},
+    "axis_label": {"size": 12, "bold": True},
     "tick_label": {"size": 10, "bold": False},
     "title": {"size": 12, "bold": False},
 }
