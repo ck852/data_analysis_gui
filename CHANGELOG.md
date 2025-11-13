@@ -4,7 +4,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## [0.9.2-b.7]
 ### Added
-- Background batch subtraction
+- Batch background subtraction
+
+### Known Issues
+- Dual Analysis range recognized as invalid if load new file with smaller time range which constrains saved cursor positions. Fixed by unchecking and re-checking the box
 
 ## [0.9.2-b.6] 2025-11-09
 ### Added

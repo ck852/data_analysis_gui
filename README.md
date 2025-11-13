@@ -147,7 +147,7 @@ This enables the user to quickly plot both analysis ranges against the sweep tim
 
 ### Background Subtraction
 
-You can define a region from any current trace as the background region. The average current in this region will be calculated and subtracted from all current measurements in the sweep. This process repeats for all sweeps in the file.
+You can define a region from any current trace as the background region. The average current in this region will be calculated and subtracted from all current measurements in the sweep. This process repeats for all sweeps in the file. Batch execution is available for this as well. The same background region will be used for all files in a batch (new background value calculated for each sweep in each file).
 
 <img src="images/bg_sub_dialog.PNG" alt="bg_sub" width="550"/>
 
@@ -161,17 +161,17 @@ Then you can define the voltage range you are analyzing. The script will find th
 
 <img src="images/ramp_analysis.PNG" alt="ramp_analysis"/>
 
-### Dose-Response
+### Conductance
 
-Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug. While this is geared for dose-response preparation, it can be used to easily extract steady-state currents for any time-course experiment
+You can also plot conductance values in the Y Axis. Conductance calculations follow the formula G = I / (V-Vrev). Calculations are skipped if (V-Vrev) < 0.1 mV. Vrev is input by the user in mV.
 
 ### Sweep Extraction
 
-Access from the Analysis menu. Load a file in the main window first. Users can also extract the currently displayed sweep from main window.
+Access from the Analysis menu. Load a file in the main window first. Users can also extract the currently displayed sweep from main window. Batch extraction is available as well to extract one or multiple of the same sweeps from several files at the same time. This makes it much easier to quantify differences between sweep phenotypes in different conditions.
 
 ### Leak Subtraction
 
-Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtraction protocol. The algorithm removes passive membrane currents using voltage-scaled subtraction:
+Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtraction protocol. This operation follows the same processes performed by WinWCP's native leak subtraction analysis tool. The algorithm removes passive membrane currents using voltage-scaled subtraction:
 
 1. Baseline Correction: All voltage and current traces are zeroed by subtracting the value at the holding potential (VHold cursor position). This removes DC offsets.
 
@@ -184,12 +184,17 @@ Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtracti
 
 4. Subtraction: The final leak-subtracted current is calculated as:
    I_subtracted = I_test - (scale × I_leak)
+   Sweep groups for which TEST voltage is equal to LEAK voltage (LEAK voltage step < 0.001 mV) will be excluded from the leak-subtracted output.
 
 Requirements:
 - WCP file with sweeps classified as LEAK/TEST in WinWCP
 - At least one LEAK and one TEST sweep per group
-- LEAK voltage step must be > 0.001 mV
 
+It has been noted that some leak-subtracted outputs by WinWCP do not match the outputs of this program. This is likely due to WinWCP version differences in which a wcp file was recorded in an earlier version but analyzed in a later version. 
+
+### Dose-Response
+
+Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug. While this is geared for dose-response preparation, it can be used to easily extract steady-state currents for any time-course experiment.
 
 ## Validation
 
