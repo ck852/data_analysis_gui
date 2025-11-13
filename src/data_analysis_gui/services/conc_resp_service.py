@@ -35,7 +35,7 @@ class ConcentrationResponseService:
     Stateless service for concentration-response analysis operations.
     
     Handles CSV loading, validation, metric calculation, background subtraction,
-    and export formatting. All methods are static for easy testing without state.
+    and export formatting.
     """
     
     @staticmethod
@@ -188,13 +188,6 @@ class ConcentrationResponseService:
             
         Returns:
             Nested dictionary: {bg_range_id: {data_col_name: value}}
-            
-        Example:
-            >>> bg_values = service.calculate_background_values(
-            ...     df, "Time (s)", ["Current (pA)"], [bg_range]
-            ... )
-            >>> print(bg_values["Background_1"]["Current (pA)"])
-            -12.5
         """
         bg_values = {}
         
@@ -238,12 +231,6 @@ class ConcentrationResponseService:
             Tuple containing:
                 - List of ranges (with auto-pairing applied if applicable)
                 - Boolean indicating whether auto-pairing was applied
-        
-        Example:
-            >>> ranges = [bg_range, range1, range2]
-            >>> modified_ranges, was_paired = service.apply_auto_pairing(ranges)
-            >>> print(f"Auto-paired: {was_paired}")
-            Auto-paired: True
         """
         bg_ranges = [r for r in ranges if r.is_background]
         non_bg_ranges = [r for r in ranges if not r.is_background]
@@ -382,18 +369,6 @@ class ConcentrationResponseService:
                 - First column containing condition values
                 - Second column containing corrected values
                 - Empty column headers
-        
-        Example:
-            Input:
-                | Condition | Corrected Value |
-                |-----------|-----------------|
-                | 0.1       | -50.2           |
-                | 1.0       | -75.8           |
-            
-            Output CSV:
-                ,
-                0.1,-50.2
-                1.0,-75.8
         """
         if results_df.empty:
             logger.warning("Attempting to pivot empty results DataFrame")

@@ -41,8 +41,8 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                             style_label, style_checkbox
                                 )
 
-from data_analysis_gui.core.session_settings import (extract_settings_from_main_window, apply_settings_to_main_window,
-                                                    revalidate_ranges_for_file, load_session_settings, save_session_settings,
+from data_analysis_gui.core.session_settings import (extract_settings_from_main_window,
+                                                    revalidate_ranges_for_file, save_session_settings,
 )
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines

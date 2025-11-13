@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from PySide6.QtCore import QStandardPaths
 
-
+# Used minimally for versioning saved settings
 SETTINGS_VERSION = "1.0"
 
 

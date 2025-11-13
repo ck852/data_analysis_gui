@@ -3,12 +3,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Centralized data models for the electrophysiology analysis application.
-
 This module contains all shared data structures used across the application,
 with built-in validation to ensure data integrity at the point of creation.
-All models use frozen dataclasses with type hints for clarity, IDE support,
-and thread safety.
+All models use frozen dataclasses with type hints.
 
 """
 
@@ -156,9 +153,6 @@ class PlotData:
         channel_id (int): Index of the channel to plot.
         sweep_index (str): Identifier for the sweep.
         channel_type (str): Type of channel ('Voltage' or 'Current').
-
-    Raises:
-        ModelValidationError: If data dimensions or channel info are invalid.
     """
 
     time_ms: np.ndarray
@@ -226,9 +220,6 @@ class PeakAnalysisResult:
         x_data (np.ndarray): X-axis data for peak analysis.
         x_label (str): Label for the X-axis.
         sweep_indices (List[str]): List of sweep identifiers.
-
-    Raises:
-        ModelValidationError: If peak data is missing or inconsistent.
     """
 
     peak_data: Dict[str, Any]
@@ -279,9 +270,6 @@ class FileInfo:
         sweep_count (int): Number of sweeps in the file.
         sweep_names (List[str]): List of sweep names.
         max_sweep_time (Optional[float]): Maximum sweep time in seconds.
-
-    Raises:
-        ModelValidationError: If file info is missing or inconsistent.
     """
 
     name: str
@@ -344,9 +332,6 @@ class AnalysisPlotData:
         y_data2 (Optional[np.ndarray]): Y-axis data for the secondary range.
         y_label_r1 (Optional[str]): Label for Y-axis (range 1).
         y_label_r2 (Optional[str]): Label for Y-axis (range 2).
-
-    Raises:
-        ModelValidationError: If data arrays are inconsistent or required fields are missing.
     """
 
     x_data: np.ndarray
@@ -404,8 +389,6 @@ class AnalysisPlotData:
                 f"AnalysisPlotData created: {len(self.sweep_indices)} sweeps, "
                 f"{len(self.x_data)} points"
             )
-
-# models.py - Add these batch-specific models
 
 
 @dataclass(frozen=True)
