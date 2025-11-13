@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         # Splitter auto-save timer
         self.splitter_save_timer = QTimer()
         self.splitter_save_timer.setSingleShot(True)
-        self.splitter_save_timer.setInterval(500)  # 500ms delay after dragging stops
+        self.splitter_save_timer.setInterval(500)
         self.splitter_save_timer.timeout.connect(self._auto_save_settings)
 
         # Initialize default values for settings that may be loaded
@@ -147,8 +147,7 @@ class MainWindow(QMainWindow):
         # Build UI (this calls _connect_signals internally)
         self._init_ui()
         
-        # Initialize range coordinator AFTER UI is built
-        # (needs control_panel and plot_manager to exist)
+        # Initialize range coordinator AFTER UI is built (needs control_panel and plot_manager to exist)
         self.range_coordinator = MainRangeCoordinator(
             self.control_panel, 
             self.plot_manager
@@ -169,28 +168,29 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
 
-        # Main layout with NO spacing or margins for seamless appearance
+        # Main layout
         main_layout = QHBoxLayout(central)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Main splitter - store as instance variable for settings persistence
+        # Main splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setHandleWidth(1)
         main_layout.addWidget(self.splitter)
 
-        # Control panel (left)
+        # Control panel
         self.control_panel = ControlPanel()
         self.splitter.addWidget(self.control_panel)
 
-        # Plot manager (right)
+        # Plot manager
         self.plot_manager = PlotManager(file_dialog_service=self.file_dialog_service)
         self.splitter.addWidget(self.plot_manager.get_plot_widget())
 
-        # Set the plot manager to expand and leave the control panel at its minimum size
+        # Allow splitter to flexibly resize
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
         # splitter.setMinimumWidth(600)
+        # probably don't need to set min width, delete later if no issues
 
         # Menus and toolbar
         self._create_menus()
@@ -205,12 +205,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
 
     def _create_menus(self):
-        """
-        Create and configure application menus.
-
-        Includes File menu (Open, Exit) and Analysis menu (Batch Analyze).
-        Menu styling is handled by /config files (themes.py and plot_style.py).
-        """
+        """Create the application menu bar with all menus and actions."""
         menubar = self.menuBar()
 
         # File menu
@@ -285,7 +280,7 @@ class MainWindow(QMainWindow):
         menubar.addAction(about_action)
 
     def _open_concentration_response(self):
-        """Open the concentration-response analysis dialog."""
+
         dialog = ConcentrationResponseDialog(self)
         dialog.exec()
 
@@ -310,11 +305,7 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("Background subtraction applied", 3000)
 
     def _open_reject_sweeps_dialog(self):
-        """
-        Open dialog to reject sweeps from beginning/end of recording.
-        
-        Allows user to remove sweeps with optional time axis recalibration.
-        """
+
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -333,7 +324,7 @@ class MainWindow(QMainWindow):
             self._apply_sweep_rejection_filter(skip_first, skip_last, reset_time)
 
     def _open_leak_subtraction(self):
-        """Open the leak subtraction dialog."""
+
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -347,7 +338,8 @@ class MainWindow(QMainWindow):
                 msg
             )
             return
-        
+
+#   ================ BETA WARNING - DELETE LATER ==================        
         # BETA warning
         QMessageBox.warning(
             self,
@@ -390,17 +382,7 @@ class MainWindow(QMainWindow):
 
 
     def _apply_sweep_rejection_filter(self, skip_first: int, skip_last: int, reset_time: bool):
-        """
-        Apply permanent sweep rejection by creating filtered dataset.
-        
-        This replaces the current dataset with a filtered copy containing only
-        the specified range of sweeps, with optional time recalibration.
-        
-        Args:
-            skip_first: Number of sweeps to skip from beginning
-            skip_last: Number of sweeps to skip from end
-            reset_time: Whether to recalibrate time axis to start at 0
-        """
+
         if not self.controller.has_data():
             return
         
@@ -469,15 +451,7 @@ class MainWindow(QMainWindow):
 
 
     def _update_ui_after_filtering(self, keep_sweeps: list):
-        """
-        Update UI components after filtering sweeps.
-        
-        Updates sweep navigation panel with new sweep list and selects
-        the first available sweep for display.
-        
-        Args:
-            keep_sweeps: List of sweep indices that were kept
-        """
+
         if not keep_sweeps:
             logger.warning("No sweeps to update UI with")
             return
@@ -553,14 +527,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "No Data", "Please load a data file first.")
 
     def _create_toolbar(self):
-        """
-        Construct the main toolbar with themed controls.
 
-        Toolbar provides file operations, sweep navigation, channel selection,
-        current units, file information, cursor centering, sweep rejection,
-        and channel toggling. All controls are styled and sized for a compact,
-        modern appearance.
-        """
         toolbar = QToolBar("Main")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
@@ -678,12 +645,7 @@ class MainWindow(QMainWindow):
         self.splitter_save_timer.start()
 
     def _open_file(self):
-        """
-        Prompt the user to select a data file and load it via the controller.
 
-        Opens a file dialog for supported formats, loads the selected file,
-        and updates the UI. Emits file_loaded signal on success.
-        """
         file_types = (
             "WCP files (*.wcp);;"
             "ABF files (*.abf);;"
@@ -719,13 +681,7 @@ class MainWindow(QMainWindow):
             # Error handling is done by controller callbacks
 
     def _copy_current_sweep_data(self):
-        """
-        Copy the current sweep's full trace data to clipboard.
-        
-        Extracts Time, Voltage, and Current for the currently displayed sweep
-        and copies to clipboard in tab-separated format for easy pasting into
-        Excel, Prism, or other applications.
-        """
+
         # Check if data is loaded
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -908,15 +864,10 @@ class MainWindow(QMainWindow):
         if file_info.sweep_names:
             self.sweep_nav_panel.set_current_sweep(file_info.sweep_names[0])
 
+
+    # Consider deleting - overshadwed by reject sweep dialog though
     def _on_reject_sweep_toggled(self, state):
-        """
-        Handle the reject sweep checkbox toggle.
-        
-        Updates the rejected_sweeps set based on the current sweep selection.
-        
-        Args:
-            state: Qt check state (Qt.CheckState.Checked or Qt.CheckState.Unchecked)
-        """
+
         sweep = self.sweep_nav_panel.get_current_sweep()
         if not sweep:
             return
@@ -962,9 +913,7 @@ class MainWindow(QMainWindow):
         self._update_plot()
 
     def _update_plot(self):
-        """
-        Refresh the sweep plot using controller data and centralized formatting.
-        """
+
         if not self.controller.has_data():
             return
 
@@ -1025,10 +974,6 @@ class MainWindow(QMainWindow):
     def _generate_analysis(self):
         """
         Generate and display an analysis plot using the controller.
-
-        Validates data availability, retrieves analysis parameters, performs analysis
-        excluding rejected sweeps, and displays results in a dedicated dialog.
-        Handles errors and empty results gracefully.
         """
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -1134,12 +1079,7 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _export_data(self):
-        """
-        Export analysis data using the controller, excluding rejected sweeps.
 
-        Presents a file dialog for export location, performs export, and displays
-        success or error messages.
-        """
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -1182,8 +1122,6 @@ class MainWindow(QMainWindow):
 
     def _batch_analyze(self):
         """
-        Open the batch analysis dialog.
-
         Passes current analysis parameters and batch processor to the dialog for batch processing.
         """
         # Check if file is loaded
@@ -1211,12 +1149,12 @@ class MainWindow(QMainWindow):
         try:
             settings = extract_settings_from_main_window(self)
             
-            # DIAGNOSTIC: Log what we're about to save
-            if 'analysis' in settings:
-                logger.info(f"AUTO-SAVE triggered - Range 2 values: "
-                        f"start={settings['analysis'].get('range2_start')}, "
-                        f"end={settings['analysis'].get('range2_end')}, "
-                        f"dual={settings['analysis'].get('use_dual_range')}")
+            # # DIAGNOSTIC: what is being saved?
+            # if 'analysis' in settings:
+            #     logger.info(f"AUTO-SAVE triggered - Range 2 values: "
+            #             f"start={settings['analysis'].get('range2_start')}, "
+            #             f"end={settings['analysis'].get('range2_end')}, "
+            #             f"dual={settings['analysis'].get('use_dual_range')}")
             
             save_session_settings(settings)
             logger.debug("Auto-saved settings")

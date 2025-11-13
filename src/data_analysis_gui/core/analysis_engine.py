@@ -1,20 +1,7 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool - Analysis Engine Module
-
-This module provides the core orchestration engine for electrophysiology data analysis workflows.
-It coordinates injected components for data extraction, metrics calculation, and plot/export formatting,
-enabling flexible, testable, and thread-safe analysis operations.
-
-Features:
-- Stateless orchestration of analysis, metrics computation, and result formatting.
-- Dependency injection for all major components (DataExtractor, MetricsCalculator, PlotFormatter).
-- Robust error handling and logging for all analysis steps.
-- No internal caching; each analysis is independent and suitable for concurrent execution.
-- Factory function for convenient engine instantiation with default components.
-
-Usage:
-Instantiate AnalysisEngine with required dependencies, or use create_analysis_engine for default configuration.
-Call analysis methods to process datasets and retrieve metrics, plot data, or export tables.
+Takes the AnalysisManager output and raw data arrays from input file via DataExtractor
+and orchestrates actual analysis calculations via MetricsCalculator. PlotFormatter dictates what data is desired 
+for plotting (Average Voltage, Peak Current, etc.) and formats the output accordingly.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -42,33 +29,6 @@ logger = get_logger(__name__)
 
 
 class AnalysisEngine:
-    """
-    Orchestrator for electrophysiology data analysis workflow.
-
-    Coordinates between injected components to perform analysis, compute metrics, and format results for plotting and export.
-    All dependencies are injected, making the engine highly testable and flexible. No caching is performed; each analysis is independent and thread-safe.
-
-    Responsibilities:
-        - Orchestrate analysis workflow
-        - Coordinate between components
-
-    Limitations:
-        - Does NOT create its own dependencies
-        - Does NOT cache results
-        - Does NOT format data, compute metrics, or extract data directly
-
-    Args:
-        data_extractor (DataExtractor): Component for extracting data from datasets.
-        metrics_calculator (MetricsCalculator): Component for computing metrics.
-        plot_formatter (PlotFormatter): Component for formatting data for plots/exports.
-
-    Example:
-        >>> engine = AnalysisEngine(
-        ...     data_extractor=DataExtractor(channel_defs),
-        ...     metrics_calculator=MetricsCalculator(),
-        ...     plot_formatter=PlotFormatter()
-        ... )
-    """
 
     def __init__(
         self,
@@ -76,17 +36,7 @@ class AnalysisEngine:
         metrics_calculator: MetricsCalculator,
         plot_formatter: PlotFormatter,
     ):
-        """
-        Initialize the AnalysisEngine with injected dependencies.
 
-        Args:
-            data_extractor (DataExtractor): Component for extracting data from datasets.
-            metrics_calculator (MetricsCalculator): Component for computing metrics.
-            plot_formatter (PlotFormatter): Component for formatting data for plots/exports.
-
-        Raises:
-            ValidationError: If any required dependency is None.
-        """
         logger.info("Initializing AnalysisEngine with injected dependencies")
 
         # Validate required dependencies
@@ -111,23 +61,8 @@ class AnalysisEngine:
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> List[SweepMetrics]:
         """
-        Perform complete analysis of an electrophysiology dataset.
-
         Orchestrates extraction of sweep data and computation of metrics for all valid sweeps,
         excluding any sweeps in the rejected_sweeps set.
-
-        Args:
-            dataset (ElectrophysiologyDataset): The dataset to analyze.
-            params (AnalysisParameters): Analysis parameters defining ranges, measures, etc.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
-
-        Returns:
-            List[SweepMetrics]: List of computed metrics for all valid, non-rejected sweeps.
-
-        Raises:
-            ValidationError: If inputs are invalid.
-            DataError: If dataset is empty or corrupted.
-            ProcessingError: If no valid metrics could be computed.
         """
         # Validate inputs
         if dataset is None:

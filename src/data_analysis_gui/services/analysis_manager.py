@@ -1,23 +1,6 @@
 """
-AnalysisManager: High-Level Interface for Electrophysiology Data Analysis
-
-This module provides the AnalysisManager class, a streamlined and scientist-friendly
-interface for performing, visualizing, and exporting electrophysiology data analyses.
-It abstracts away complex dependency injection and configuration, allowing users to
-invoke core analysis operations directly with minimal setup.
-
-Key Features:
-- Direct method calls for common analysis workflows (plotting, peak analysis, export).
-- Integration with core analysis engine and data management utilities.
-- Robust error handling and logging for reproducible research.
-- Designed for extensibility and clarity, making it easy to add new analysis routines.
-
-Typical Usage:
-    manager = AnalysisManager
-    result = manager.analyze(dataset, params)
-    plot_data = manager.get_sweep_plot_data(dataset, sweep_index, channel_type)
-    export_status = manager.export_analysis(dataset, params, filepath)
-    peak_result = manager.get_peak_analysis(dataset, params, peak_types)
+Receives datasets and analysis parameters from the application controller, prepares them 
+for processing by AnalysisEngine, and returns AnalysisEngine results back to the controller.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -45,17 +28,8 @@ logger = get_logger(__name__)
 
 
 class AnalysisManager:
-    """
-    Manages analysis operations with simple, direct methods.
-
-    Provides a clean, scientist-friendly interface for performing and exporting
-    electrophysiology data analysis. Designed for easy extension and clarity.
-    """
 
     def __init__(self):
-        """
-        Initialize the AnalysisManager.
-        """
         self.engine = create_analysis_engine()
         self.data_manager = DataManager()  # Direct instantiation
 
@@ -67,20 +41,7 @@ class AnalysisManager:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> AnalysisResult:
-        """
-        Perform analysis on an electrophysiology dataset.
 
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to analyze.
-            params (AnalysisParameters): Parameters for analysis.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
-
-        Returns:
-            AnalysisResult: Object containing analysis and plot data.
-
-        Raises:
-            DataError: If analysis fails or dataset is empty.
-        """
         if not dataset or dataset.is_empty():
             raise DataError("Cannot analyze empty dataset")
 
@@ -134,21 +95,7 @@ class AnalysisManager:
     def get_sweep_plot_data(
         self, dataset: ElectrophysiologyDataset, sweep_index: str, channel_type: str
     ) -> PlotData:
-        """
-        Retrieve data for plotting a single sweep.
 
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset containing the sweep.
-            sweep_index (str): Identifier for the sweep.
-            channel_type (str): "Voltage" or "Current".
-
-        Returns:
-            PlotData: Data for plotting the sweep.
-
-        Raises:
-            ValidationError: If channel type is invalid.
-            DataError: If no data is found for the sweep.
-        """
         if channel_type not in ["Voltage", "Current"]:
             raise ValidationError(f"Invalid channel type: {channel_type}")
 
@@ -173,18 +120,7 @@ class AnalysisManager:
         filepath: str,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> ExportResult:
-        """
-        Analyze a dataset and export results to a CSV file.
 
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            filepath (str): Output file path.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
-
-        Returns:
-            ExportResult: Status and details of the export operation.
-        """
         if dataset.is_empty():
             return ExportResult(success=False, error_message="Dataset is empty")
 
@@ -211,20 +147,7 @@ class AnalysisManager:
         params: AnalysisParameters,
         peak_types: List[str] = None,
     ) -> PeakAnalysisResult:
-        """
-        Perform peak analysis using specified peak types.
 
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            peak_types (List[str], optional): List of peak types (default: all types).
-
-        Returns:
-            PeakAnalysisResult: Object containing peak analysis data.
-
-        Raises:
-            DataError: If dataset is empty or analysis fails.
-        """
         if dataset.is_empty():
             raise DataError("Cannot analyze empty dataset")
 
@@ -250,17 +173,7 @@ class AnalysisManager:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
-        """
-        Retrieve the raw export table for a dataset and parameters.
 
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
-
-        Returns:
-            Dict[str, Any]: Dictionary with 'headers', 'data', and 'format_spec'.
-        """
         if dataset.is_empty():
             return {"headers": [], "data": np.array([[]]), "format_spec": "%.6f"}
 

@@ -1,10 +1,8 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool.
 
-Analysis parameters data model.
-
-This module defines immutable data classes for configuring analysis operations
-and plot axes in PatchBatch electrophysiology data analysis.
+Container for analysis parameters from ControlPanel to app_controller.py through 
+downstream analysis modules.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -22,13 +20,6 @@ logger = get_logger(__name__)
 class AxisConfig:
     """
     Immutable configuration for a plot axis (X or Y).
-
-    Specifies how data should be extracted and displayed for a particular axis.
-
-    Args:
-        measure: Type of measurement ("Time", "Average", "Peak", or "Conductance").
-        channel: Channel type ("Voltage" or "Current"), or None for Time/Conductance.
-        peak_type: Peak type for "Peak" measure ("Absolute", "Positive", "Negative", "Peak-Peak").
     """
 
     measure: str  # "Time", "Average", "Peak", or "Conductance"
@@ -47,18 +38,9 @@ class AxisConfig:
 
 @dataclass(frozen=True)
 class ConductanceConfig:
-    """
-    Immutable configuration for conductance calculations.
-    
+    """  
     Conductance is calculated as G = I / (V - Vrev) with configurable
     measurement types, reversal potential, and output units.
-    
-    Args:
-        i_measure: Measurement type for current ("Average" or "Peak").
-        v_measure: Measurement type for voltage ("Average" or "Peak").
-        vrev: Reversal potential in mV.
-        units: Output units ("nS", "μS", or "pS").
-        tolerance: Minimum |V - Vrev| threshold in mV (default 0.1).
     """
     
     i_measure: str  # "Average" or "Peak"
@@ -98,29 +80,6 @@ class AnalysisParameters:
 
     Encapsulates all parameters needed for an analysis operation, with validation
     at construction time to ensure data integrity.
-
-    Args:
-        range1_start: Start time in ms for Range 1.
-        range1_end: End time in ms for Range 1.
-        use_dual_range: Whether to use dual range analysis.
-        range2_start: Start time in ms for Range 2 (if dual range).
-        range2_end: End time in ms for Range 2 (if dual range).
-        x_axis: AxisConfig for X-axis.
-        y_axis: AxisConfig for Y-axis.
-        channel_config: Dictionary mapping channel configuration.
-        conductance_config: Optional ConductanceConfig for conductance calculations.
-
-    Example:
-        >>> params = AnalysisParameters(
-        ...     range1_start=150.0,
-        ...     range1_end=500.0,
-        ...     use_dual_range=False,
-        ...     range2_start=None,
-        ...     range2_end=None,
-        ...     x_axis=AxisConfig(measure="Average", channel="Voltage"),
-        ...     y_axis=AxisConfig(measure="Peak", channel="Current", peak_type="Absolute"),
-        ...     channel_config={'voltage': 0, 'current': 1}
-        ... )
     """
 
     # Range configuration
@@ -148,7 +107,7 @@ class AnalysisParameters:
             - Range end times are after start times.
             - Dual range parameters are provided when dual range is enabled.
             - Conductance configuration is valid when Y-axis is Conductance.
-            - Conductance is not used with dual range.
+            - Conductance is not used with dual range (may not be necessary). 
 
         Raises:
             ValueError: If validation fails.
@@ -195,6 +154,7 @@ class AnalysisParameters:
         
         logger.debug("AnalysisParameters validation passed")
 
+# =============== Consider deleting - from earlier abandoned implementation ===============
     def cache_key(self) -> Tuple:
         """
         Generate an immutable, hashable cache key for this parameter set.
@@ -233,6 +193,8 @@ class AnalysisParameters:
         
         logger.debug(f"Generated cache key with hash: {hash(key)}")
         return key
+
+# ========================================================================================
 
     def with_updates(self, **kwargs) -> "AnalysisParameters":
         """

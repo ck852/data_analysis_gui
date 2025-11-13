@@ -1,22 +1,17 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool - Application Controller
+PatchBatch Electrophysiology Data Analysis Tool
 
-This module provides the main controller class for the PatchBatch Electrophysiology Data Analysis Tool.
-It orchestrates core services such as data management, analysis, batch processing, and export, using dependency injection
-to allow flexible service configuration and testing.
+Main interface between the GUI and backend services. This coordinates services and 
+maintains state while remaining agnostic to Qt widgets. Creates and manages:
+- DataManager (for data loading/saving)
+- AnalysisManager (for data analysis operations)
+- BatchProcessor (for batch operations)
 
-Features:
-- Centralized management of data loading, analysis, batch operations, and export.
-- Dependency injection for all major services (DataManager, AnalysisManager, BatchProcessor, ChannelDefinitions).
-- Robust error handling and result wrappers for all operations, ensuring fail-closed behavior.
-- Compatibility aliases for legacy code integration.
-- GUI callback hooks for status updates, error reporting, and file load notifications.
-- Channel configuration management and dynamic swapping of voltage/current channels.
-- High-level API for batch analysis, export, and peak detection.
+Maintains current_dataset and loaded_file_path state. This ensures that one file at 
+a time is loaded, and analysis operations are performed on the intended dataset.
 
-Architecture:
-The ApplicationController acts as the main interface between the GUI and backend services, maintaining application state,
-managing service lifecycles, and providing a consistent API for all analysis workflows.
+Analysis parameters (ranges, average/peak, channel, anything else specified in ControlPanel) 
+are passed to AnalysisManager for structuring in preparation for AnalysisEngine.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -51,7 +46,7 @@ logger = get_logger(__name__)
 
 
 # =========================
-# Result wrapper dataclasses (kept as is)
+# Result wrapper dataclasses
 # =========================
 
 
@@ -133,17 +128,6 @@ class FileLoadResult:
 
 
 class ApplicationController:
-    """
-    Main application controller for PatchBatch Electrophysiology Data Analysis Tool.
-    Manages core services, dependency injection, and provides high-level operations for data analysis, batch processing, and export.
-
-    Services can be injected or created internally. Provides compatibility aliases for legacy code.
-
-    Args:
-        data_manager (Optional[DataManager]): Data management service. Created if not provided.
-        analysis_manager (Optional[AnalysisManager]): Analysis service. Created if not provided.
-        batch_processor (Optional[BatchProcessor]): Batch processing service. Created if not provided.
-    """
 
     def __init__(
         self,
@@ -151,14 +135,7 @@ class ApplicationController:
         analysis_manager: Optional[AnalysisManager] = None,
         batch_processor: Optional[BatchProcessor] = None,
     ):
-        """
-        Initialize controller with optional service injection.
 
-        Args:
-            data_manager: Data management service (created if not provided)
-            analysis_manager: Analysis service (created if not provided)
-            batch_processor: Batch processing service (created if not provided)
-        """
         # Application state
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
@@ -186,12 +163,7 @@ class ApplicationController:
         logger.info("ApplicationController initialized with service injection support")
 
     def get_services(self) -> Dict[str, Any]:
-        """
-        Retrieve all core services managed by the controller for external use.
 
-        Returns:
-            Dict[str, Any]: Dictionary containing references to data_manager, analysis_manager, batch_processor.
-        """
         return {
             "data_manager": self.data_manager,
             "analysis_manager": self.analysis_manager,
@@ -205,16 +177,7 @@ class ApplicationController:
     def run_batch_analysis(
         self, file_paths: List[str], params: AnalysisParameters
     ) -> BatchAnalysisResult:
-        """
-        Run batch analysis over multiple files using the batch processor.
 
-        Args:
-            file_paths (List[str]): List of file paths to analyze.
-            params (AnalysisParameters): Analysis parameters to use for each file.
-
-        Returns:
-            BatchAnalysisResult: Object containing results for all processed files, including successful and failed analyses.
-        """
         try:
             return self.batch_processor.process_files(
                 file_paths=file_paths, params=params
@@ -235,16 +198,7 @@ class ApplicationController:
         batch_result: BatchAnalysisResult,
         output_directory: str,
     ) -> BatchExportResult:
-        """
-        Export all successful results of a batch analysis run to CSV files in the specified output directory.
 
-        Args:
-            batch_result (BatchAnalysisResult): The batch analysis results to export.
-            output_directory (str): Directory path to save exported CSV files.
-
-        Returns:
-            BatchExportResult: Object containing export results and summary information.
-        """
         try:
             return self.batch_processor.export_results(batch_result, output_directory)
         except Exception as e:
@@ -260,15 +214,7 @@ class ApplicationController:
     # =========================================================================
 
     def load_file(self, file_path: str) -> FileLoadResult:
-        """
-        Load a data file using the DataManager service.
 
-        Args:
-            file_path (str): Path to the data file to load.
-
-        Returns:
-            FileLoadResult: Object containing file information if successful, or error details if failed.
-        """
         try:
             logger.info(f"Loading file: {file_path}")
 
@@ -339,17 +285,7 @@ class ApplicationController:
     def perform_analysis(
         self, params: AnalysisParameters, rejected_sweeps: Optional[Set[int]] = None
     ) -> AnalysisOperationResult:
-        """
-        Perform analysis on the currently loaded dataset using the provided parameters.
 
-        Args:
-            params (AnalysisParameters): Analysis parameters for the operation.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
-
-        Returns:
-            AnalysisOperationResult: Object containing the analysis result or error details.
-                Always returns a result object (never None).
-        """
         if not self.has_data():
             logger.warning("No data loaded for analysis")
             return AnalysisOperationResult(
@@ -384,18 +320,7 @@ class ApplicationController:
     def export_analysis_data(
         self, params: AnalysisParameters, file_path: str, rejected_sweeps: Optional[Set[int]] = None
     ) -> ExportResult:
-        """
-        Export analyzed data for the currently loaded dataset to a CSV file.
 
-        Args:
-            params (AnalysisParameters): Analysis parameters for export.
-            file_path (str): Path to the output CSV file.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
-
-        Returns:
-            ExportResult: Object containing export status, number of records exported,
-                and error details if any.
-        """
         if not self.has_data():
             logger.warning("No data loaded for export")
             return ExportResult(success=False, error_message="No data loaded")
@@ -466,16 +391,7 @@ class ApplicationController:
     def get_peak_analysis(
         self, params: AnalysisParameters, peak_types: List[str] = None
     ) -> PeakAnalysisOperationResult:
-        """
-        Perform comprehensive peak analysis on the currently loaded dataset.
 
-        Args:
-            params (AnalysisParameters): Analysis parameters for peak detection.
-            peak_types (List[str], optional): List of peak types to analyze. Defaults to None.
-
-        Returns:
-            PeakAnalysisOperationResult: Object containing peak analysis results or error details. Always returns a result object (never None).
-        """
         if not self.has_data():
             logger.warning("No data loaded for peak analysis")
             return PeakAnalysisOperationResult(
@@ -504,15 +420,7 @@ class ApplicationController:
             )
 
     def get_suggested_export_filename(self, params: AnalysisParameters) -> str:
-        """
-        Generate a suggested filename for exporting analysis results for the currently loaded file.
 
-        Args:
-            params (AnalysisParameters): Analysis parameters to inform filename generation.
-
-        Returns:
-            str: Suggested filename for export.
-        """
         source_path = self.loaded_file_path or "analysis"
         try:
             return self.data_manager.suggest_filename(source_path, "", params)

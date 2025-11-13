@@ -6,9 +6,6 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides plot management for PatchBatch.
-
-Features:
 - Uses Qt signals for decoupling from the main window.
 - PlotManager handles matplotlib visualization and emits signals for plot interactions.
 - Coordinates ViewStateManager and CursorManager for focused responsibility separation.
@@ -64,13 +61,7 @@ class PlotManager(QObject):
 
 
     def __init__(self, figure_size: Tuple[int, int] = (8, 6), file_dialog_service=None):
-        """
-        Initialize the PlotManager with modern styling and interactive components.
 
-        Args:
-            figure_size: Tuple specifying the initial figure size (width, height).
-            file_dialog_service: Optional FileDialogService for persistent directory memory.
-        """
         super().__init__()
 
         # Apply modern plot style globally
@@ -134,9 +125,7 @@ class PlotManager(QObject):
         self.show_welcome_message()
 
     def _style_axes(self):
-        """
-        Apply modern styling to the plot axes, including font sizes and colors.
-        """
+
         self.ax.set_facecolor("#FAFBFC")
         self.ax.spines["top"].set_visible(False)
         self.ax.spines["right"].set_visible(False)
@@ -159,18 +148,11 @@ class PlotManager(QObject):
         self.ax.set_axisbelow(True)
 
     def get_plot_widget(self) -> QWidget:
-        """
-        Returns the QWidget containing the plot canvas and toolbar.
 
-        Returns:
-            QWidget: The plot widget for embedding in Qt layouts.
-        """
         return self.plot_widget
 
     def _connect_events(self) -> None:
-        """
-        Connect mouse events to handlers for interactive line dragging.
-        """
+
         self.canvas.mpl_connect("pick_event", self._on_pick)
         self.canvas.mpl_connect("motion_notify_event", self._on_drag)
         self.canvas.mpl_connect("button_release_event", self._on_release)
@@ -179,9 +161,7 @@ class PlotManager(QObject):
         self.canvas.mpl_connect("draw_event", self._on_draw)
 
     def _initialize_range_lines(self) -> None:
-        """
-        Initialize default range lines with modern styling and emit signals.
-        """
+
         # Use styled colors for range lines
         range1_style = self.line_styles["range1"]
 
@@ -226,20 +206,7 @@ class PlotManager(QObject):
         x_label: Optional[str] = None,
         y_label: Optional[str] = None,
     ) -> None:
-        """
-        Update the plot with new sweep data and styling.
 
-        Args:
-            t: Time array.
-            y: Data array (2D).
-            channel: Channel index to plot.
-            sweep_index: Index of the sweep.
-            channel_type: Type of channel ('Voltage' or 'Current').
-            channel_config: Optional channel configuration.
-            title: Optional plot title.
-            x_label: Optional x-axis label.
-            y_label: Optional y-axis label.
-        """
         # Store current channel type for per-channel view state management
         self._current_channel_type = channel_type
         
@@ -345,9 +312,7 @@ class PlotManager(QObject):
 
 
     def reset_for_new_file(self) -> None:
-        """
-        Reset plot state for a new file load.
-        
+        """  
         Clears view state for all channels so first sweep will autoscale
         and establish fresh views. Called from MainWindow when loading a new file.
         """
@@ -365,16 +330,7 @@ class PlotManager(QObject):
         start2: Optional[float] = None,
         end2: Optional[float] = None,
     ) -> None:
-        """
-        Update the positions and visibility of range lines.
 
-        Args:
-            start1: Start position for range 1.
-            end1: End position for range 1.
-            use_dual_range: Whether to show a second range.
-            start2: Start position for range 2 (if dual range).
-            end2: End position for range 2 (if dual range).
-        """
         # Get style configurations
         range1_style = self.line_styles["range1"]
         range2_style = self.line_styles["range2"]
@@ -470,12 +426,7 @@ class PlotManager(QObject):
         logger.debug("Updated range lines with modern styling.")
 
     def center_nearest_cursor(self) -> Tuple[Optional[str], Optional[float]]:
-        """
-        Center the nearest range line to the horizontal center of the plot view.
 
-        Returns:
-            Tuple[str, float]: The line ID and new x-position, or (None, None).
-        """
         cursor_positions = self.cursor_manager.get_cursor_positions()
         
         if not cursor_positions or not self.ax.has_data():
@@ -544,13 +495,7 @@ class PlotManager(QObject):
 
     def _on_welcome_click(self, event) -> None:
         """
-        Handle mouse clicks during welcome state.
-        
-        When the welcome message is displayed, any click on the plot area
-        will emit the welcome_clicked signal to open the file dialog.
-        
-        Args:
-            event: Matplotlib button press event.
+        Let user click anywhere on the welcome plot to open file dialog.
         """
         # Only respond if we're in welcome state
         if self._welcome_text is not None:
@@ -558,12 +503,7 @@ class PlotManager(QObject):
             self.welcome_clicked.emit()
 
     def clear_welcome_state(self) -> None:
-        """
-        Clear the welcome message and restore normal plot appearance.
-        
-        Called when the first data file is loaded. Removes the welcome text,
-        disconnects the click handler, and restores axis decorations for normal plotting.
-        """
+
         if self._welcome_text is not None:
             self._welcome_text.remove()
             self._welcome_text = None
@@ -586,12 +526,7 @@ class PlotManager(QObject):
         self.ax.spines['bottom'].set_visible(True)
 
     def autofit_to_data(self) -> None:
-        """
-        Autoscale axes to fit all data points in the currently displayed sweep.
-        
-        Performs a fresh autoscale on current sweep data and stores the result
-        for the current channel type. Called when Reset button is clicked.
-        """
+
         # Get data directly from cursor manager
         time_data = self.cursor_manager._current_time_data
         y_data = self.cursor_manager._current_y_data
@@ -659,6 +594,7 @@ class PlotManager(QObject):
     def set_max_time_bound(self, max_time: float) -> None:
         """
         Set the maximum time bound for X-axis zoom limiting.
+        Not anticipating need for Y axis time plotting
         
         Args:
             max_time: Maximum sweep time in milliseconds.
@@ -704,12 +640,7 @@ class PlotManager(QObject):
         self.redraw()
 
     def _on_drag(self, event) -> None:
-        """
-        Handle mouse motion events to drag a selected range line.
 
-        Args:
-            event: Matplotlib motion event.
-        """
         if not self.cursor_manager.is_dragging():
             return
         
@@ -722,12 +653,7 @@ class PlotManager(QObject):
             self.redraw()
 
     def _on_release(self, event) -> None:
-        """
-        Handle mouse release events to conclude a drag operation.
 
-        Args:
-            event: Matplotlib button release event.
-        """
         line_id = self.cursor_manager.release_drag()
         if line_id:
             positions = self.cursor_manager.get_cursor_positions()
@@ -738,12 +664,7 @@ class PlotManager(QObject):
             self.line_state_changed.emit("released", line_id, x_pos)
 
     def _on_draw(self, event) -> None:
-        """
-        Handle draw events to update cursor text positions after zoom/pan.
-        
-        Args:
-            event: Matplotlib draw event.
-        """
+
         # Get current axis limits
         current_xlim = self.ax.get_xlim()
         current_ylim = self.ax.get_ylim()
@@ -757,9 +678,7 @@ class PlotManager(QObject):
             self.view_manager.update_current_view(current_xlim, current_ylim, self._current_channel_type)
 
     def clear(self) -> None:
-        """
-        Clear the plot axes and reset range lines to defaults.
-        """
+
         #  Clear zoom buttons before clearing axes
         self.axis_zoom_controller.clear_buttons()
 
@@ -781,20 +700,12 @@ class PlotManager(QObject):
         logger.info("Plot cleared.")
 
     def redraw(self) -> None:
-        """
-        Force a redraw of the plot canvas.
-        """
+
+        # Don't use draw_idle
         self.canvas.draw()
 
     def toggle_dual_range(self, enabled: bool, start2: float, end2: float) -> None:
-        """
-        Toggle dual range visualization.
 
-        Args:
-            enabled: Whether to enable dual range.
-            start2: Start position for range 2.
-            end2: End position for range 2.
-        """
         positions = self.cursor_manager.get_cursor_positions()
         
         if enabled:
@@ -813,10 +724,5 @@ class PlotManager(QObject):
             self.update_range_lines(start1, end1, False, None, None)
 
     def get_line_positions(self) -> Dict[str, float]:
-        """
-        Get current positions of all range lines.
 
-        Returns:
-            Dict[str, float]: Mapping of line IDs to their x positions.
-        """
         return self.cursor_manager.get_cursor_positions()

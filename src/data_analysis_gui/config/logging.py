@@ -3,7 +3,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Centralized logging configuration for the electrophysiology analysis application.
+Centralized logging configuration.
 
 This module provides consistent logging setup across all components, enabling
 comprehensive observability and debugging capabilities. The configuration uses
@@ -37,34 +37,7 @@ def setup_logging(
     console_level: Optional[int] = None,  # Separate console level
     file_level: Optional[int] = None,     # Separate file level
 ) -> logging.Logger:
-    """
-    Configure and initialize application-wide logging.
 
-    This function sets up both file and console logging handlers with consistent 
-    formatting and log levels. Should be called once at application startup to 
-    ensure all modules use the same logging configuration.
-
-    Args:
-        level (int): Base logging level for all handlers if not overridden.
-        log_file (Optional[str]): Name of the log file to write logs to.
-        console (bool): If True, logs are also output to the console (stdout).
-        log_dir (Optional[str]): Directory where log files are stored.
-        console_level (Optional[int]): Override level for console output. 
-                                       If None, uses 'level'.
-        file_level (Optional[int]): Override level for file output. 
-                                    If None, uses DEBUG (captures everything).
-
-    Returns:
-        logging.Logger: The configured root logger instance.
-
-    Example:
-        >>> # Quiet console, verbose file
-        >>> logger = setup_logging(
-        ...     console_level=logging.WARNING,  # Only warnings+ in console
-        ...     file_level=logging.DEBUG,       # Everything in file
-        ...     log_file="analysis.log"
-        ... )
-    """
     # Get root logger
     root_logger = logging.getLogger()
 
@@ -177,13 +150,7 @@ class LogContext:
     """
 
     def __init__(self, logger: logging.Logger, **context):
-        """
-        Initialize log context.
 
-        Args:
-            logger: Logger to add context to
-            **context: Key-value pairs to add to log messages
-        """
         self.logger = logger
         self.context = context
         self.old_factory = None
@@ -252,22 +219,6 @@ def log_function_call(logger: logging.Logger):
 
 
 def log_performance(logger: logging.Logger, operation: str):
-    """
-    Context manager for logging the start, completion, and duration of an operation.
-
-    Logs the beginning and end of the operation, including elapsed time and any exceptions encountered.
-
-    Args:
-        logger (logging.Logger): Logger instance to use for logging.
-        operation (str): Description of the operation being performed.
-
-    Returns:
-        PerformanceLogger: Context manager for timing and logging the operation.
-
-    Example:
-        >>> with log_performance(logger, "data_analysis"):
-        ...     result = analyze_data(dataset)
-    """
 
     class PerformanceLogger:
         def __enter__(self):
@@ -286,23 +237,13 @@ def log_performance(logger: logging.Logger, operation: str):
     return PerformanceLogger()
 
 
-# Structured logging helpers
+# ============ Structured logging helpers =================
 
 
 def log_analysis_request(
     logger: logging.Logger, params: dict, dataset_info: dict
 ) -> None:
-    """
-    Log an analysis request event with full contextual information.
 
-    Args:
-        logger (logging.Logger): Logger instance to use for logging.
-        params (dict): Dictionary of analysis parameters.
-        dataset_info (dict): Dictionary containing dataset metadata and details.
-
-    Returns:
-        None
-    """
     logger.info(
         "Analysis requested",
         extra={
@@ -315,18 +256,7 @@ def log_analysis_request(
 def log_error_with_context(
     logger: logging.Logger, error: Exception, operation: str, **context
 ) -> None:
-    """
-    Log an error event with detailed contextual information for debugging purposes.
 
-    Args:
-        logger (logging.Logger): Logger instance to use for logging.
-        error (Exception): The exception that occurred.
-        operation (str): Description of the operation during which the error occurred.
-        **context: Additional key-value pairs providing extra context about the error.
-
-    Returns:
-        None
-    """
     logger.error(
         f"Error during {operation}: {error}",
         extra={
