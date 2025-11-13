@@ -1,13 +1,27 @@
 """
 Leak Subtraction Service
 
-Core algorithm:
-1. Load calibrated data from dataset
-2. Apply baseline correction (subtract value at VHold cursor)
-3. Average multiple sweeps per group if present
-4. Calculate voltage-based or fixed scaling factor
-5. Perform subtraction: I_sub = I_test - scale * I_leak
-6. Return new dataset with subtracted currents
+Performs P/N leak subtraction on WCP files using voltage-scaled subtraction.
+
+Core Algorithm:
+1. Baseline Correction: All voltage and current traces are zeroed by subtracting 
+   the value at the VHold cursor position (averaged over NAVG=20 samples). VHold 
+   marks the holding potential before the voltage step.
+
+2. Sweep Averaging: If multiple LEAK or TEST sweeps exist per group, they are 
+   averaged after baseline correction to improve signal-to-noise ratio (uncommon 
+   for most WinWCP outputs).
+
+3. Voltage-Based Scaling: The LEAK current is scaled by the ratio of voltage steps:
+   - VTest cursor marks the test pulse plateau
+   - Measure voltage step in TEST sweep: ΔV_test = V(VTest) - V(VHold)
+   - Measure voltage step in LEAK sweep: ΔV_leak = V(VTest) - V(VHold)
+   - Calculate scaling factor: scale = ΔV_test / ΔV_leak
+
+4. Subtraction: The final leak-subtracted current is calculated as:
+   I_subtracted = I_test - (scale * I_leak)
+   
+   Both currents are baseline-corrected, so this isolates active (non-leak) currents.
 
 Author: Charles Kissell, Northeastern University
 License: MIT
@@ -23,8 +37,6 @@ logger = logging.getLogger(__name__)
 
 class LeakSubtractionService:
     """
-    Mathematically accurate leak subtraction service.
-    
     Performs leak current subtraction using proper baseline correction
     and voltage-based scaling without file format dependencies.
     """

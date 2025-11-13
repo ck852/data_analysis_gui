@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLay
 
 from data_analysis_gui.config.logging import get_logger
 
-# Updated imports for refactored themes.py
 from data_analysis_gui.config.themes import (MODERN_COLORS, apply_compact_layout, style_button, apply_modern_theme, style_input_field,
                                              style_table_widget)
 from data_analysis_gui.core.models import BatchAnalysisResult
@@ -99,7 +98,7 @@ class CurrentDensityDialog(QDialog):
 
         self.init_ui()
 
-        # Apply centralized styling from refactored themes.py
+        # Apply centralized styling from themes.py
         apply_modern_theme(self)
         apply_compact_layout(self)
 

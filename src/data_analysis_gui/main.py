@@ -27,7 +27,6 @@ from data_analysis_gui.core.session_settings import (
     apply_settings_to_main_window
 )
 
-# Import from refactored themes module
 from data_analysis_gui.config.themes import apply_theme_to_application
 from data_analysis_gui.config.logging import setup_logging, get_logger
 

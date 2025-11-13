@@ -1,6 +1,5 @@
 """
-Background Subtraction Dialog for PatchBatch Electrophysiology Data Analysis Tool
-Refactored to use BackgroundSubtractionService for business logic separation.
+Background Subtraction Dialog
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)

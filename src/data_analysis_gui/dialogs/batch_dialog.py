@@ -34,7 +34,6 @@ from data_analysis_gui.core.models import FileAnalysisResult, BatchAnalysisResul
 from data_analysis_gui.dialogs.batch_results_window import BatchResultsWindow
 from data_analysis_gui.config.logging import get_logger
 
-# Updated imports for refactored themes.py
 from data_analysis_gui.config.themes import (apply_modern_theme, apply_compact_layout, style_list_widget, style_progress_bar, style_group_box,
                                             style_label, get_file_count_color, create_styled_button)
 
@@ -144,7 +143,7 @@ class BatchAnalysisDialog(QDialog):
 
         self.setModal(True)
 
-        # Apply theme and layout helpers from refactored themes.py
+        # Apply theme and layout helpers from themes.py
         apply_modern_theme(self)
         apply_compact_layout(self)
 

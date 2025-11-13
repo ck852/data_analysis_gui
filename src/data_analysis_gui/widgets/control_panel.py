@@ -571,7 +571,6 @@ class ControlPanel(QWidget):
             if spinbox_key not in self._original_styles:
                 self._original_styles[spinbox_key] = spinbox.styleSheet()
 
-            # Apply invalid background color (hardcoded since it's not in refactored theme)
             current_style = spinbox.styleSheet()
             invalid_bg = "#ffcccc"  # Light red background for invalid state
             invalid_style = f"{current_style}\nQDoubleSpinBox {{ background-color: {invalid_bg}; border-color: {MODERN_COLORS['danger']}; }}"

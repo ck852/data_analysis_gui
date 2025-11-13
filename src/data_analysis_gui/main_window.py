@@ -37,7 +37,6 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QAction
 
-# Import refactored theme functions
 from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_button, style_combo_box,
                                             style_label, style_checkbox
                                 )
