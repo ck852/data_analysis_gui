@@ -3,17 +3,8 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides core functionality for calculating quantitative metrics from electrophysiology time series data.
-It defines the SweepMetrics dataclass for storing computed metrics for individual sweeps, including mean, peak, and peak-to-peak values for voltage and current over specified time ranges.
-
-The MetricsCalculator class offers static methods for extracting and computing these metrics from numpy arrays of time, voltage, and current data.
-Typical usage involves calling MetricsCalculator.compute_sweep_metrics() with the relevant data and time ranges to obtain a SweepMetrics object.
-
-Classes:
-    - SweepMetrics: Stores computed metrics for a single sweep, supporting up to two analysis ranges.
-    - MetricsCalculator: Stateless class with static methods for calculating metrics from time series data.
-
-Intended for use in automated analysis pipelines and GUI applications for patch clamp electrophysiology data.
+Calculates ALL metrics after being called by AnalysisEngine. Stateless class with only static methods. Passes to PlotFormatter which selects 
+the desired results and formats them for plotting/exporting in GUI.
 """
 
 from dataclasses import dataclass
@@ -58,14 +49,6 @@ class SweepMetrics:
         current_positive_r2 (Optional[float]): Maximum positive current for range 2.
         current_negative_r2 (Optional[float]): Minimum negative current for range 2.
         current_peakpeak_r2 (Optional[float]): Peak-to-peak current for range 2.
-
-    Deprecated Properties:
-        voltage_peak_r1: Use voltage_absolute_r1 instead.
-        current_peak_r1: Use current_absolute_r1 instead.
-        voltage_min_r1: Use voltage_negative_r1 instead.
-        voltage_max_r1: Use voltage_positive_r1 instead.
-        current_min_r1: Use current_negative_r1 instead.
-        current_max_r1: Use current_positive_r1 instead.
     """
 
     sweep_index: str
@@ -125,10 +108,7 @@ class SweepMetrics:
 
 class MetricsCalculator:
     """
-    Pure calculation of metrics from time series data.
-
     Stateless class for computing voltage and current metrics from time series data arrays.
-    All methods are static and do not maintain state.
     """
 
     @staticmethod
@@ -162,9 +142,6 @@ class MetricsCalculator:
 
         Returns:
             SweepMetrics: Computed metrics for the sweep.
-
-        Raises:
-            DataError: If the requested ranges contain no samples.
         """
         # Validate inputs
         if len(time_ms) == 0:
@@ -224,69 +201,29 @@ class MetricsCalculator:
 
     @staticmethod
     def _safe_mean(data: np.ndarray) -> float:
-        """
-        Calculate the mean of the data array.
 
-        Args:
-            data (np.ndarray): Input data array.
-
-        Returns:
-            float: Mean value, or NaN if array is empty.
-        """
         return np.mean(data) if len(data) > 0 else np.nan
 
     @staticmethod
     def _safe_max(data: np.ndarray) -> float:
-        """
-        Calculate the maximum value of the data array.
 
-        Args:
-            data (np.ndarray): Input data array.
-
-        Returns:
-            float: Maximum value, or NaN if array is empty.
-        """
         return np.max(data) if len(data) > 0 else np.nan
 
     @staticmethod
     def _safe_min(data: np.ndarray) -> float:
-        """
-        Calculate the minimum value of the data array.
 
-        Args:
-            data (np.ndarray): Input data array.
-
-        Returns:
-            float: Minimum value, or NaN if array is empty.
-        """
         return np.min(data) if len(data) > 0 else np.nan
 
     @staticmethod
     def _absolute_peak(data: np.ndarray) -> float:
-        """
-        Find the value with maximum absolute magnitude in the data array.
 
-        Args:
-            data (np.ndarray): Input data array.
-
-        Returns:
-            float: Value with maximum absolute magnitude, or NaN if array is empty.
-        """
         if len(data) == 0:
             return np.nan
         return data[np.abs(data).argmax()]
 
     @staticmethod
     def _peak_to_peak(data: np.ndarray) -> float:
-        """
-        Calculate peak-to-peak amplitude of the data array.
 
-        Args:
-            data (np.ndarray): Input data array.
-
-        Returns:
-            float: Peak-to-peak amplitude, or NaN if array is empty.
-        """
         if len(data) == 0:
             return np.nan
         return np.max(data) - np.min(data)

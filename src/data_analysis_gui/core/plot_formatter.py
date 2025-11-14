@@ -6,6 +6,8 @@ License: MIT (see LICENSE file for details)
 
 Formatting utilities for analysis data, providing stateless transformation
 for plotting and exporting electrophysiology metrics.
+
+Handles PRESENTATION logic, separate from analysis calculations.
 """
 
 from typing import Dict, List, Any, Tuple, Optional

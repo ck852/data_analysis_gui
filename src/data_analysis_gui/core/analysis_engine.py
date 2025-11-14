@@ -1,7 +1,8 @@
 """
-Takes the AnalysisManager output and raw data arrays from input file via DataExtractor
-and orchestrates actual analysis calculations via MetricsCalculator. PlotFormatter dictates what data is desired 
-for plotting (Average Voltage, Peak Current, etc.) and formats the output accordingly.
+Takes the AnalysisManager output (analysis parameters formatted for NumPy) and raw data arrays from input file via DataExtractor
+and orchestrates actual analysis calculations via MetricsCalculator. PlotFormatter dictates 
+what data is desired for plotting (Average Voltage, Peak Current, etc.) and formats the 
+output accordingly.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -37,7 +38,7 @@ class AnalysisEngine:
         plot_formatter: PlotFormatter,
     ):
 
-        logger.info("Initializing AnalysisEngine with injected dependencies")
+        logger.info("Initializing AnalysisEngine")
 
         # Validate required dependencies
         if data_extractor is None:
@@ -89,7 +90,7 @@ class AnalysisEngine:
         if rejected_sweeps:
             logger.info(f"Excluding {len(rejected_sweeps)} rejected sweeps: {sorted(rejected_sweeps)}")
 
-        # Perform analysis directly (no caching)
+        # Perform analysis 
         with log_performance(logger, f"analyze {dataset.sweep_count()} sweeps"):
             metrics = self._compute_all_metrics(dataset, params, rejected_sweeps)
 
@@ -101,17 +102,7 @@ class AnalysisEngine:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
-        """
-        Get analysis results formatted for plotting.
 
-        Args:
-            dataset (ElectrophysiologyDataset): The dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from analysis.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing plot-ready data.
-        """
         try:
             # Default to empty set if None
             if rejected_sweeps is None:
@@ -136,14 +127,6 @@ class AnalysisEngine:
     ) -> Dict[str, Any]:
         """
         Get analysis results formatted for export.
-
-        Args:
-            dataset (ElectrophysiologyDataset): The dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from export.
-
-        Returns:
-            Dict[str, Any]: Dictionary with 'headers', 'data', and 'format_spec' for export.
         """
         # Default to empty set if None
         if rejected_sweeps is None:
@@ -160,18 +143,6 @@ class AnalysisEngine:
     ) -> Dict[str, Any]:
         """
         Get single sweep data formatted for plotting.
-
-        Args:
-            dataset (ElectrophysiologyDataset): The dataset containing the sweep.
-            sweep_index (str): Identifier of the sweep to plot.
-            channel_type (str): Channel type to plot ("Voltage" or "Current").
-
-        Returns:
-            Dict[str, Any]: Dictionary with sweep plot data.
-
-        Raises:
-            ValidationError: If inputs are invalid.
-            DataError: If sweep not found or data extraction fails.
         """
         # Extract channel data
         time_ms, data_matrix, channel_id = self.data_extractor.extract_channel_for_plot(
@@ -193,17 +164,7 @@ class AnalysisEngine:
         params: AnalysisParameters,
         peak_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Get comprehensive peak analysis across multiple peak types.
 
-        Args:
-            dataset (ElectrophysiologyDataset): The dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            peak_types (Optional[List[str]]): List of peak types to analyze. Defaults to all types.
-
-        Returns:
-            Dict[str, Any]: Dictionary with peak analysis data for each type.
-        """
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
 
@@ -228,23 +189,7 @@ class AnalysisEngine:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> List[SweepMetrics]:
-        """
-        Compute metrics for all sweeps in the dataset, excluding rejected sweeps.
 
-        Orchestrates extraction and computation for each sweep, delegating work to injected components.
-
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to analyze.
-            params (AnalysisParameters): Analysis parameters.
-            rejected_sweeps (Optional[Set[int]]): Set of sweep indices to exclude from computation.
-
-        Returns:
-            List[SweepMetrics]: List of computed metrics for all valid, non-rejected sweeps.
-
-        Raises:
-            ProcessingError: If no valid metrics could be computed.
-            DataError: If sweep time metadata is missing from file.
-        """
         metrics = []
         failed_sweeps = []
         skipped_sweeps = []
@@ -350,18 +295,7 @@ class AnalysisEngine:
 
 
 def create_analysis_engine() -> AnalysisEngine:
-    """
-    Factory function to create an AnalysisEngine with default components.
 
-    Provides a convenient way to create a fully configured engine for production use, while still allowing for dependency injection in tests.
-
-    Returns:
-        AnalysisEngine: Configured AnalysisEngine instance.
-
-    Example:
-        >>> channel_defs = ChannelDefinitions()
-        >>> engine = create_analysis_engine(channel_defs)
-    """
     from data_analysis_gui.core.data_extractor import DataExtractor
     from data_analysis_gui.core.metrics_calculator import MetricsCalculator
     from data_analysis_gui.core.plot_formatter import PlotFormatter

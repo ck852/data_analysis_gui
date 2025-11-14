@@ -1,5 +1,5 @@
 """
-Receives datasets and analysis parameters from the application controller, prepares them 
+Receives datasets and analysis parameters from ApplicationController, prepares them 
 for processing by AnalysisEngine, and returns AnalysisEngine results back to the controller.
 
 Author: Charles Kissell, Northeastern University
