@@ -1,16 +1,10 @@
 """
-Background Subtraction Service for PatchBatch Electrophysiology Data Analysis Tool
+Background Subtraction Service
 
 This module provides background subtraction functionality as a stateless service.
-It handles the calculation of background averages and application of background 
-subtraction to entire electrophysiology datasets.
-
-Features:
-    - Calculate background average from specified time range
-    - Apply background subtraction to all sweeps in a dataset
-    - Robust error handling for missing data or invalid ranges
-    - Comprehensive logging for debugging and traceability
-    - Stateless operations for thread safety and simplicity
+User specifies background time range in dialog, and this service subtracts the average
+background current from all current values in each sweep of the dataset, calculating 
+a new background current for each sweep individually.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -30,17 +24,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class BackgroundSubtractionResult:
-    """
-    Result of background subtraction operation.
-    
-    Attributes:
-        success (bool): Whether the operation was successful
-        processed_sweeps (int): Number of sweeps successfully processed
-        total_sweeps (int): Total number of sweeps in the dataset
-        failed_sweeps (List[str]): List of sweep indices that failed processing
-        background_range_ms (Tuple[float, float]): The background range used (start, end)
-        error_message (str): Error message if operation failed
-    """
+
     success: bool
     processed_sweeps: int = 0
     total_sweeps: int = 0
@@ -54,13 +38,7 @@ class BackgroundSubtractionResult:
 
 
 class BackgroundSubtractionService:
-    """
-    Stateless service for background subtraction operations on electrophysiology data.
-    
-    This service provides static methods for calculating background averages and applying
-    background subtraction to entire datasets. All operations are stateless and can be
-    called without instantiating the class.
-    """
+        # Stateless
 
     @staticmethod
     def calculate_background_average(
@@ -69,22 +47,7 @@ class BackgroundSubtractionService:
         start_ms: float, 
         end_ms: float
     ) -> float:
-        """
-        Calculate the average current value within a specified time range.
-        
-        Args:
-            time_ms (np.ndarray): Time values in milliseconds
-            current_data (np.ndarray): Current data values (pA)
-            start_ms (float): Start time of background range (ms)
-            end_ms (float): End time of background range (ms)
-            
-        Returns:
-            float: Average current value in the specified range
-            
-        Raises:
-            ValidationError: If input parameters are invalid
-            DataError: If no data points exist in the specified range
-        """
+
         # Validate inputs
         if time_ms is None or current_data is None:
             raise ValidationError("Time and current data cannot be None")
@@ -145,24 +108,7 @@ class BackgroundSubtractionService:
         start_ms: float,
         end_ms: float
     ) -> BackgroundSubtractionResult:
-        """
-        Apply background subtraction to all sweeps in the dataset.
-        
-        This method processes each sweep in the dataset by:
-        1. Extracting time and current data for the sweep
-        2. Calculating the background average in the specified range
-        3. Subtracting the background average from all current values
-        4. Updating the dataset with the corrected current data
-        
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to process 
-            start_ms (float): Start time of background range (ms)
-            end_ms (float): End time of background range (ms)
-            
-        Returns:
-            BackgroundSubtractionResult: Result object containing success status,
-                number of processed sweeps, and any error information
-        """
+
         # Validate inputs
         if dataset is None:
             return BackgroundSubtractionResult(
@@ -285,17 +231,7 @@ class BackgroundSubtractionService:
         start_ms: float,
         end_ms: float
     ) -> Tuple[bool, str]:
-        """
-        Validate that a background range is suitable for the given dataset.
-        
-        Args:
-            dataset (ElectrophysiologyDataset): Dataset to validate against
-            start_ms (float): Start time of background range (ms)
-            end_ms (float): End time of background range (ms)
-            
-        Returns:
-            Tuple[bool, str]: (is_valid, error_message)
-        """
+
         if dataset is None or dataset.is_empty():
             return False, "Dataset is empty or None"
             

@@ -80,32 +80,6 @@ class SweepMetrics:
     current_negative_r2: Optional[float] = None
     current_peakpeak_r2: Optional[float] = None
 
-    # Deprecated fields for compatibility
-    @property
-    def voltage_peak_r1(self):
-        return self.voltage_absolute_r1
-
-    @property
-    def current_peak_r1(self):
-        return self.current_absolute_r1
-
-    @property
-    def voltage_min_r1(self):
-        return self.voltage_negative_r1
-
-    @property
-    def voltage_max_r1(self):
-        return self.voltage_positive_r1
-
-    @property
-    def current_min_r1(self):
-        return self.current_negative_r1
-
-    @property
-    def current_max_r1(self):
-        return self.current_positive_r1
-
-
 class MetricsCalculator:
     """
     Stateless class for computing voltage and current metrics from time series data arrays.
@@ -117,7 +91,7 @@ class MetricsCalculator:
         voltage: np.ndarray,
         current: np.ndarray,
         sweep_index: str,
-        sweep_number: int,
+        sweep_number: int,  # deprecated, keep in case useful later
         range1_start: float,
         range1_end: float,
         actual_sweep_time: float,
@@ -126,22 +100,6 @@ class MetricsCalculator:
     ) -> SweepMetrics:
         """
         Compute metrics for a single sweep.
-
-        Args:
-            time_ms (np.ndarray): Time values in milliseconds.
-            voltage (np.ndarray): Voltage data array.
-            current (np.ndarray): Current data array.
-            sweep_index (str): Identifier for the sweep.
-            sweep_number (int): Sweep number (0-based index in sweep list).
-            range1_start (float): Start time for range 1 (ms).
-            range1_end (float): End time for range 1 (ms).
-            actual_sweep_time (float): Actual sweep time from file metadata (seconds).
-                Must be provided from ABF/WCP file metadata.
-            range2_start (Optional[float]): Start time for range 2 (ms).
-            range2_end (Optional[float]): End time for range 2 (ms).
-
-        Returns:
-            SweepMetrics: Computed metrics for the sweep.
         """
         # Validate inputs
         if len(time_ms) == 0:
@@ -204,16 +162,9 @@ class MetricsCalculator:
 
         return np.mean(data) if len(data) > 0 else np.nan
 
-    @staticmethod
-    def _safe_max(data: np.ndarray) -> float:
+# ================= Peak Modes =================
 
-        return np.max(data) if len(data) > 0 else np.nan
-
-    @staticmethod
-    def _safe_min(data: np.ndarray) -> float:
-
-        return np.min(data) if len(data) > 0 else np.nan
-
+    # Absolute Peak
     @staticmethod
     def _absolute_peak(data: np.ndarray) -> float:
 
@@ -221,6 +172,19 @@ class MetricsCalculator:
             return np.nan
         return data[np.abs(data).argmax()]
 
+    # Positive Peak
+    @staticmethod
+    def _safe_max(data: np.ndarray) -> float:
+
+        return np.max(data) if len(data) > 0 else np.nan
+
+    # Negative Peak
+    @staticmethod
+    def _safe_min(data: np.ndarray) -> float:
+
+        return np.min(data) if len(data) > 0 else np.nan
+
+    # Peak-Peak
     @staticmethod
     def _peak_to_peak(data: np.ndarray) -> float:
 

@@ -4,11 +4,8 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Unified data management for loading, validating, and exporting electrophysiology data.
-
-This module provides a single, extensible class for all data-related operations,
-including loading datasets, validating files, and exporting results.
-Scientist-programmers can easily extend this class to support new formats or workflows.
+Coordinates the loading of data files via DatasetLoader, validation of data,
+and exporting of analysis results to CSV files.
 """
 
 import os
@@ -27,19 +24,12 @@ logger = get_logger(__name__)
 
 class DataManager:
     """
-    Manages all data operations: loading, validation, and export.
-
-    Provides direct, scientist-friendly methods for working with electrophysiology data.
     Extend this class to add support for new export types; add new file
     formats in core/dataset.py's DatasetLoader.
     """
 
     def __init__(self):
-        """
-        Initialize the DataManager.
 
-        Logs initialization for debugging and tracking purposes.
-        """
         logger.info("DataManager initialized")
 
     # =========================================================================
@@ -55,17 +45,6 @@ class DataManager:
         To add support for a new file format:
             1. Update DatasetLoader.FORMAT_EXTENSIONS/detect_format() in core/dataset.py.
             2. Add a corresponding loader in DatasetLoader (e.g., load_abf, load_wcp).
-
-        Args:
-            filepath (str): Path to the data file.
-
-        Returns:
-            ElectrophysiologyDataset: Loaded and validated dataset with auto-detected
-            channel configuration stored in metadata['channel_config'].
-
-        Raises:
-            FileError: If the file cannot be loaded.
-            DataError: If the data is invalid or empty.
         """
         # Check file exists
         if not os.path.exists(filepath):
@@ -100,20 +79,7 @@ class DataManager:
     # =========================================================================
 
     def export_to_csv(self, data: Dict[str, Any], filepath: str) -> ExportResult:
-        """
-        Export a data table to a CSV file.
 
-        Args:
-            data (Dict[str, Any]): Dictionary containing 'headers' and 'data' keys.
-                Optional key 'format_spec' controls numeric formatting for CSV
-                (passed to numpy.savetxt fmt, default "%.6f").
-            filepath (str): Output file path.
-
-        Returns:
-            ExportResult: Result detailing whether the export succeeded.
-                Validation and file-system issues are captured in the
-                ``error_message`` field when ``success`` is ``False``.
-        """
         try:
             # Validate data
             if not data or "headers" not in data or "data" not in data:
@@ -164,22 +130,7 @@ class DataManager:
         output_dir: str,
         base_name: str = "export",
     ) -> List[ExportResult]:
-        """
-        Export multiple data tables to separate CSV files.
 
-        Args:
-            data_list (List[Dict[str, Any]]): List of data dictionaries to export.
-                Each item may include optional key 'suffix' to customize the
-                filename suffix for that export (e.g., "_cell1").
-            output_dir (str): Directory to save exported files.
-            base_name (str, optional): Base filename for exports.
-
-        Returns:
-            List[ExportResult]: List of results for each export operation.
-
-        Raises:
-            OSError: If the output directory cannot be created.
-        """
         results = []
 
         # Ensure output directory exists
@@ -213,14 +164,6 @@ class DataManager:
     ) -> str:
         """
         Generate a suggested filename for exporting analysis results.
-
-        Args:
-            source_path (str): Original file path.
-            suffix (str, optional): Suffix to append to the filename.
-            params (Optional[Any]): Optional analysis parameters for context.
-
-        Returns:
-            str: Suggested filename for export.
         """
         if not source_path:
             return f"analysis{suffix}.csv"
@@ -246,15 +189,6 @@ class DataManager:
     def make_unique_path(self, filepath: str) -> str:
         """
         Ensure a filepath is unique by appending a numeric suffix if needed.
-
-        Args:
-            filepath (str): Desired filepath.
-
-        Returns:
-            str: Unique filepath that does not already exist.
-
-        Raises:
-            FileError: If a unique filename cannot be created.
         """
         if not os.path.exists(filepath):
             return filepath
@@ -274,18 +208,7 @@ class DataManager:
         raise FileError(f"Could not create unique filename for {filepath}")
 
     def validate_export_path(self, filepath: str) -> bool:
-        """
-        Validate that a filepath is suitable for export.
 
-        Args:
-            filepath (str): Path to validate.
-
-        Returns:
-            bool: True if the path is valid.
-
-        Raises:
-            ValidationError: If the path is invalid or not writable.
-        """
         if not filepath or not filepath.strip():
             raise ValidationError("Export path cannot be empty")
 

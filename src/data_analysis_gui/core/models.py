@@ -3,9 +3,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module contains all shared data structures used across the application,
-with built-in validation to ensure data integrity at the point of creation.
-All models use frozen dataclasses with type hints.
+Validation layer for all data that moves through the analysis pipeline. Also serves
+as a template for data structures. Not explicitly necessary, but helps keep everything
+on the same page and serves as a reference for how data must be structured.
 
 """
 

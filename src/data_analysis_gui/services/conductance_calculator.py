@@ -3,8 +3,6 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Conductance calculation service for electrophysiology data analysis.
-
 This module provides stateless functions for calculating conductance (G = I / (V - Vrev))
 from existing voltage and current metrics using SI units internally.
 
@@ -69,22 +67,6 @@ def calculate_conductance(
     
     All calculations performed in SI units (Amperes, Volts, Siemens) before
     converting to user-specified output units.
-    
-    Args:
-        metrics: SweepMetrics object containing voltage and current data.
-        params: AnalysisParameters with conductance_config.
-        current_units: Current measurement units from file metadata (e.g., "pA", "nA", "μA").
-        voltage_units: Voltage measurement units from file metadata (e.g., "mV", "V", "μV").
-        range_num: Range number to use (1 or 2, default 1).
-    
-    Returns:
-        Conductance value in specified units, or np.nan if calculation fails.
-    
-    Notes:
-        - Returns np.nan if |V - Vrev| < tolerance (avoids division by zero)
-        - Returns np.nan if required metrics are missing
-        - All values converted to SI units (A, V) before calculation
-        - Result (Siemens) converted to user-specified units
     """
     try:
         # Validate conductance config
@@ -201,19 +183,7 @@ def _get_measure_value(
     peak_type: Optional[str],
     range_num: int
 ) -> Optional[float]:
-    """
-    Extract a measurement value from SweepMetrics based on channel, measure type, and range.
-    
-    Args:
-        metrics: SweepMetrics object.
-        channel: Channel name ("voltage" or "current").
-        measure: Measurement type ("Average" or "Peak").
-        peak_type: Peak type if measure is "Peak" ("Absolute", "Positive", "Negative", "Peak-Peak").
-        range_num: Range number (1 or 2).
-    
-    Returns:
-        Extracted measurement value, or None if metric not found.
-    """
+
     try:
         # Build metric attribute name
         if measure == "Average":

@@ -154,63 +154,12 @@ class AnalysisParameters:
         
         logger.debug("AnalysisParameters validation passed")
 
-# =============== Consider deleting - from earlier abandoned implementation ===============
-    def cache_key(self) -> Tuple:
-        """
-        Generate an immutable, hashable cache key for this parameter set.
-
-        Used for caching analysis results. Includes all parameters that affect
-        the analysis output, rounded to avoid floating point precision issues.
-
-        Returns:
-            Tuple suitable for use as a dictionary key.
-        """
-
-        def round_value(x):
-            """Round numeric values to avoid floating point issues."""
-            return round(x, 9) if isinstance(x, (float, int)) else x
-
-        def freeze_value(v):
-            """Convert mutable structures to immutable tuples."""
-            if isinstance(v, dict):
-                return tuple(sorted((k, freeze_value(vv)) for k, vv in v.items()))
-            if isinstance(v, (list, tuple)):
-                return tuple(freeze_value(x) for x in v)
-            return v
-
-        # Create cache key with all relevant parameters
-        key = (
-            round_value(self.range1_start),
-            round_value(self.range1_end),
-            self.use_dual_range,
-            round_value(self.range2_start) if self.range2_start is not None else None,
-            round_value(self.range2_end) if self.range2_end is not None else None,
-            freeze_value(asdict(self.x_axis)),
-            freeze_value(asdict(self.y_axis)),
-            freeze_value(self.channel_config),
-            freeze_value(asdict(self.conductance_config)) if self.conductance_config else None,
-        )
-        
-        logger.debug(f"Generated cache key with hash: {hash(key)}")
-        return key
-
-# ========================================================================================
-
     def with_updates(self, **kwargs) -> "AnalysisParameters":
         """
         Create a new AnalysisParameters instance with updated values.
 
         Since this class is immutable (frozen), this method provides a way to
         create modified copies.
-
-        Args:
-            **kwargs: Keyword arguments for fields to update.
-
-        Returns:
-            New AnalysisParameters instance with updated values.
-
-        Example:
-            >>> new_params = params.with_updates(range1_start=200.0)
         """
         logger.debug(f"Creating updated parameters with changes: {list(kwargs.keys())}")
         

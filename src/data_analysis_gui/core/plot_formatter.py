@@ -7,7 +7,8 @@ License: MIT (see LICENSE file for details)
 Formatting utilities for analysis data, providing stateless transformation
 for plotting and exporting electrophysiology metrics.
 
-Handles PRESENTATION logic, separate from analysis calculations.
+Handles PRESENTATION logic, separate from core analysis calculations. Also calls services for extended analysis modes
+such as conductance calculation and leak subtraction when needed. 
 """
 
 from typing import Dict, List, Any, Tuple, Optional
@@ -24,8 +25,6 @@ class PlotFormatter:
     """
     Provides stateless data transformation methods for formatting analysis results
     for plotting and exporting.
-
-    All methods operate only on provided arguments and do not maintain state.
     """
 
     def format_for_plot(
@@ -34,13 +33,6 @@ class PlotFormatter:
         """
         Format analysis metrics for plotting, supporting dynamic current units,
         dual range data, and conductance calculations.
-
-        Args:
-            metrics: List of SweepMetrics objects containing analysis results.
-            params: AnalysisParameters object specifying axis configuration and options.
-
-        Returns:
-            dict: Contains formatted plot data arrays, axis labels, and sweep indices.
         """
         if not metrics:
             return self.empty_plot_data()
@@ -132,16 +124,7 @@ class PlotFormatter:
     def format_for_export(
         self, plot_data: Dict[str, Any], params: AnalysisParameters
     ) -> Dict[str, Any]:
-        """
-        Format plot data for CSV export, handling both single and dual range cases.
 
-        Args:
-            plot_data: Dictionary containing plot data arrays and labels.
-            params: AnalysisParameters object specifying axis configuration and options.
-
-        Returns:
-            dict: Contains 'headers', 'data' (as numpy array), and 'format_spec' for export.
-        """
         if len(plot_data.get("x_data", [])) == 0:
             return {"headers": [], "data": np.array([[]]), "format_spec": "%.6f"}
 
@@ -157,14 +140,7 @@ class PlotFormatter:
     ) -> str:
         """
         Extract current units from AnalysisParameters or sweep_info dictionary.
-        Defaults to 'pA' if not specified.
-
-        Args:
-            params: Optional AnalysisParameters object.
-            sweep_info: Optional dictionary with sweep metadata.
-
-        Returns:
-            str: Current units (e.g., 'pA', 'nA').
+        !! Defaults to 'pA' if not specified !!
         """
         # Check parameters first
         if params and hasattr(params, "channel_config") and params.channel_config:
@@ -182,14 +158,7 @@ class PlotFormatter:
     ) -> str:
         """
         Extract voltage units from AnalysisParameters or sweep_info dictionary.
-        Defaults to 'mV' if not specified.
-
-        Args:
-            params: Optional AnalysisParameters object.
-            sweep_info: Optional dictionary with sweep metadata.
-
-        Returns:
-            str: Voltage units (e.g., 'mV', 'V').
+        !! Defaults to 'mV' if not specified !!
         """
         # Check parameters first
         if params and hasattr(params, "channel_config") and params.channel_config:
@@ -206,18 +175,7 @@ class PlotFormatter:
         params: AnalysisParameters,
         peak_types: List[str],
     ) -> Dict[str, Any]:
-        """
-        Format peak analysis data for plotting, supporting robust peak type handling
-        and dual range extraction.
 
-        Args:
-            metrics: List of SweepMetrics objects.
-            params: AnalysisParameters object specifying axis configuration.
-            peak_types: List of peak type strings to extract (e.g., 'Absolute', 'Positive').
-
-        Returns:
-            dict: Contains peak data arrays, labels, x-axis data, and sweep indices.
-        """
         if not metrics:
             return {}
 
@@ -279,12 +237,7 @@ class PlotFormatter:
         }
 
     def empty_plot_data(self) -> Dict[str, Any]:
-        """
-        Create and return an empty plot data structure for cases with no metrics.
 
-        Returns:
-            dict: Contains empty arrays and labels for plot data.
-        """
         return {
             "x_data": np.array([]),
             "y_data": np.array([]),
@@ -303,14 +256,6 @@ class PlotFormatter:
     ) -> List[float]:
         """
         Calculate conductance values for all sweeps in the metrics list.
-        
-        Args:
-            metrics: List of SweepMetrics objects.
-            params: AnalysisParameters with conductance_config.
-            current_units: Current measurement units.
-        
-        Returns:
-            List of conductance values (may contain np.nan for skipped points).
         """
         # Import here to avoid potential circular imports
         from data_analysis_gui.services.conductance_calculator import calculate_conductance
@@ -341,19 +286,7 @@ class PlotFormatter:
         range_num: int,
         current_units: str = "pA",
     ) -> Tuple[List[float], str]:
-        """
-        Extract data for a specific axis and range, with flexible peak type matching
-        and error handling.
 
-        Args:
-            metrics: List of SweepMetrics objects.
-            axis_config: AxisConfig specifying measure, channel, and peak type.
-            range_num: Range number (1 or 2).
-            current_units: Units for current measurements.
-
-        Returns:
-            tuple: (List of extracted data values, axis label string).
-        """
         if axis_config.measure == "Time":
             return [m.time_s for m in metrics], "Time (s)"
 
@@ -485,16 +418,7 @@ class PlotFormatter:
         return data, label
 
     def _format_range_label(self, base_label: str, voltage: float) -> str:
-        """
-        Format an axis label by appending the voltage value.
 
-        Args:
-            base_label: The base axis label string.
-            voltage: Voltage value to append.
-
-        Returns:
-            str: Formatted label string with voltage annotation.
-        """
         if np.isnan(voltage):
             return base_label
 
@@ -503,15 +427,7 @@ class PlotFormatter:
         return f"{base_label} ({voltage_str}mV)"
 
     def _format_single_range_export(self, plot_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format plot data for single range export.
 
-        Args:
-            plot_data: Dictionary containing plot data arrays and labels.
-
-        Returns:
-            dict: Contains headers, data array, and format specification.
-        """
         # Use voltage-annotated label if available, otherwise use plain label
         x_label = plot_data.get("x_label", "X")
         
@@ -530,16 +446,7 @@ class PlotFormatter:
     def _format_dual_range_export(
         self, plot_data: Dict[str, Any], params: AnalysisParameters
     ) -> Dict[str, Any]:
-        """
-        Format plot data for dual range export, handling time and non-time axes.
 
-        Args:
-            plot_data: Dictionary containing plot data arrays and labels.
-            params: AnalysisParameters object specifying axis configuration.
-
-        Returns:
-            dict: Contains headers, data array, and format specification.
-        """
         # Get labels
         x_label = plot_data.get("x_label", "X")
 
@@ -642,16 +549,7 @@ class PlotFormatter:
         return {"headers": headers, "data": data, "format_spec": "%.6f"}
 
     def get_axis_label(self, axis_config: AxisConfig, current_units: str = "pA") -> str:
-        """
-        Generate a formatted axis label string based on axis configuration and units.
 
-        Args:
-            axis_config: AxisConfig specifying measure, channel, and peak type.
-            current_units: Units for current measurements.
-
-        Returns:
-            str: Formatted axis label string.
-        """
         if axis_config.measure == "Time":
             return "Time (s)"
         
@@ -715,18 +613,7 @@ class PlotFormatter:
         file_name: Optional[str] = None,
         sweep_info: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, str]:
-        """
-        Generate plot titles and axis labels for all supported plot types.
 
-        Args:
-            plot_type: Type of plot ('analysis', 'batch', 'current_density', 'sweep').
-            params: Optional AnalysisParameters object for axis configuration.
-            file_name: Optional file name for title annotation.
-            sweep_info: Optional dictionary with sweep metadata.
-
-        Returns:
-            dict: Contains 'title', 'x_label', and 'y_label' strings.
-        """
         # Get current units from params or sweep_info
         current_units = "pA"  # default
         if params:
