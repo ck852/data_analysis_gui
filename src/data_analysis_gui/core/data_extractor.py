@@ -1,20 +1,9 @@
 """
-Electrophysiology Data Extraction Utilities for PatchBatch
+Electrophysiology Data Extraction Utilities
 
-This module provides functions and classes for extracting, validating, and formatting time-series data
-from electrophysiology datasets. It ensures correct channel mapping, data integrity, and compatibility
-with downstream analysis and visualization tools.
-
-Features:
-    - Extraction of sweep and channel data (voltage/current) from unified dataset objects.
-    - Validation of input arguments and data arrays, with informative error handling.
-    - Logging of data quality issues (e.g., NaN values) for traceability.
-    - Formatting of extracted data for plotting and analysis workflows.
-
-Typical Usage:
-    >>> extractor = DataExtractor()
-    >>> sweep_data = extractor.extract_sweep_data(dataset, "1")
-    >>> time_ms, data_matrix, channel_id = extractor.extract_channel_for_plot(dataset, "1", "Voltage")
+This module provides the DataExtractor class, which is responsible for extracting and validating the numbered channels from ElectrophysiologyDataset
+and adding semantic meaning (voltage, current) based on channel configuration metadata. It also formats data outputs for analysis (MetricsCalculator)
+and plotting (PlotManager).
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -38,35 +27,14 @@ class DataExtractor:
     """
     Extracts and validates time series data from electrophysiology datasets.
 
-    This class provides methods to extract sweep and channel data, ensuring proper channel mapping,
+    Stateless class that provides methods to extract sweep and channel data, ensuring proper channel mapping,
     data integrity, and compatibility with downstream analysis and plotting tools.
     """
-
-    def __init__(self):
-        """
-        Initialize the DataExtractor.
-        
-        Channel configuration is read from dataset metadata during extraction.
-        """
-        pass
 
     def extract_sweep_data(
             self, dataset: ElectrophysiologyDataset, sweep_index: str
         ) -> Dict[str, np.ndarray]:
-            """
-            Extract time series data for a specific sweep, including voltage and current channels.
-
-            Args:
-                dataset (ElectrophysiologyDataset): Dataset object containing sweeps and channel data.
-                sweep_index (str): Identifier for the sweep to extract.
-
-            Returns:
-                Dict[str, np.ndarray]: Dictionary with keys 'time_ms', 'voltage', and 'current', each containing a numpy array.
-
-            Raises:
-                ValidationError: If required arguments are None or invalid.
-                DataError: If the sweep is not found, data is missing, channel config is missing, or time array contains NaN values.
-            """
+            
             validate_not_none(dataset, "dataset")
             validate_not_none(sweep_index, "sweep_index")
 
@@ -118,21 +86,6 @@ class DataExtractor:
         ) -> Tuple[np.ndarray, np.ndarray, int]:
             """
             Extract data for a single channel (voltage or current) and format for plotting.
-
-            Args:
-                dataset (ElectrophysiologyDataset): Dataset object containing sweeps and channel data.
-                sweep_index (str): Identifier for the sweep to extract.
-                channel_type (str): Type of channel to extract; must be "Voltage" or "Current".
-
-            Returns:
-                Tuple[np.ndarray, np.ndarray, int]:
-                    - time_ms: 1D numpy array of time values in milliseconds
-                    - data_matrix: 2D numpy array (shape: [time, channels]) with extracted channel data populated in the correct column
-                    - channel_id: Integer channel index used for extraction
-
-            Raises:
-                ValidationError: If channel_type is not "Voltage" or "Current".
-                DataError: If extraction fails, channel config is missing, or channel_id is out of bounds.
             """
             if channel_type not in ["Voltage", "Current"]:
                 raise ValidationError(

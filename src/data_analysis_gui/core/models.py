@@ -45,21 +45,6 @@ class AnalysisResult:
 
     Contains both primary and optional dual-range data arrays, labels, and metadata
     required for plotting and exporting analysis results.
-
-    Args:
-        x_data (np.ndarray): X-axis data for the primary range.
-        y_data (np.ndarray): Y-axis data for the primary range.
-        x_label (str): Label for the X-axis.
-        y_label (str): Label for the Y-axis.
-        x_data2 (Optional[np.ndarray]): X-axis data for the secondary range (if dual-range enabled).
-        y_data2 (Optional[np.ndarray]): Y-axis data for the secondary range (if dual-range enabled).
-        y_label_r1 (Optional[str]): Label for Y-axis (range 1).
-        y_label_r2 (Optional[str]): Label for Y-axis (range 2).
-        sweep_indices (List[str]): List of sweep identifiers.
-        use_dual_range (bool): Whether dual-range data is used.
-
-    Raises:
-        ModelValidationError: If data arrays are inconsistent or required fields are missing.
     """
 
     x_data: np.ndarray
@@ -146,13 +131,6 @@ class PlotData:
     Data structure for plotting a single sweep.
 
     Contains time series data and metadata for displaying a single sweep in the plot manager.
-
-    Args:
-        time_ms (np.ndarray): Time values in milliseconds.
-        data_matrix (np.ndarray): 2D array of sweep data (rows: time, columns: channels).
-        channel_id (int): Index of the channel to plot.
-        sweep_index (str): Identifier for the sweep.
-        channel_type (str): Type of channel ('Voltage' or 'Current').
     """
 
     time_ms: np.ndarray
@@ -212,14 +190,7 @@ class PeakAnalysisResult:
     """
     Result of peak analysis across multiple peak types.
 
-    Contains comprehensive peak analysis data for different peak modes
-    (Absolute, Positive, Negative, Peak-Peak).
-
-    Args:
-        peak_data (Dict[str, Any]): Dictionary of peak type to peak data arrays.
-        x_data (np.ndarray): X-axis data for peak analysis.
-        x_label (str): Label for the X-axis.
-        sweep_indices (List[str]): List of sweep identifiers.
+    Contains comprehensive peak analysis data for different peak modes.
     """
 
     peak_data: Dict[str, Any]
@@ -263,13 +234,6 @@ class FileInfo:
     Information about a loaded data file.
 
     Provides metadata about the loaded file for GUI display and parameter configuration.
-
-    Args:
-        name (str): Filename of the loaded data file.
-        path (str): Full path to the data file.
-        sweep_count (int): Number of sweeps in the file.
-        sweep_names (List[str]): List of sweep names.
-        max_sweep_time (Optional[float]): Maximum sweep time in seconds.
     """
 
     name: str
@@ -279,11 +243,7 @@ class FileInfo:
     max_sweep_time: Optional[float] = None
 
     def __post_init__(self):
-        """
-        Validate file information after initialization.
 
-        Ensures all required fields are present and consistent.
-        """
         if not self.name:
             error_msg = "File name cannot be empty"
             logger.error(f"FileInfo validation failed: {error_msg}")
@@ -323,15 +283,6 @@ class AnalysisPlotData:
     Data structure for analysis plots.
 
     Consolidates data needed for creating analysis plots with support for single and dual-range analysis.
-
-    Args:
-        x_data (np.ndarray): X-axis data for the plot.
-        y_data (np.ndarray): Y-axis data for the plot.
-        sweep_indices (List[str]): List of sweep identifiers.
-        use_dual_range (bool): Whether dual-range data is used.
-        y_data2 (Optional[np.ndarray]): Y-axis data for the secondary range.
-        y_label_r1 (Optional[str]): Label for Y-axis (range 1).
-        y_label_r2 (Optional[str]): Label for Y-axis (range 2).
     """
 
     x_data: np.ndarray
@@ -398,18 +349,6 @@ class FileAnalysisResult:
 
     Stores the outcome of analysis for a single file, including data arrays, export info,
     error messages, and processing time.
-
-    Args:
-        file_path (str): Full path to the analyzed file.
-        base_name (str): Base filename (without extension).
-        success (bool): Whether analysis was successful.
-        x_data (np.ndarray): Primary X-axis data.
-        y_data (np.ndarray): Primary Y-axis data.
-        x_data2 (Optional[np.ndarray]): Secondary X-axis data (if dual-range).
-        y_data2 (Optional[np.ndarray]): Secondary Y-axis data (if dual-range).
-        export_table (Optional[Dict[str, Any]]): Exported table data.
-        error_message (Optional[str]): Error message if analysis failed.
-        processing_time (float): Time taken to process the file (seconds).
     """
 
     file_path: str
@@ -442,19 +381,6 @@ class BatchAnalysisResult:
     Complete result of batch analysis operation.
 
     Stores all successful and failed file analysis results, parameters used, timing, and selected files.
-
-    Args:
-        successful_results (List[FileAnalysisResult]): List of successful file results.
-        failed_results (List[FileAnalysisResult]): List of failed file results.
-        parameters (AnalysisParameters): Parameters used for analysis.
-        start_time (float): Batch analysis start time (seconds since epoch).
-        end_time (float): Batch analysis end time (seconds since epoch).
-        selected_files (Optional[Set[str]]): Set of selected file base names.
-
-    Properties:
-        total_files (int): Total number of files processed.
-        success_rate (float): Percentage of successful files.
-        processing_time (float): Total processing time in seconds.
     """
 
     successful_results: List[FileAnalysisResult]
@@ -499,20 +425,6 @@ class BatchAnalysisResult:
 
 @dataclass(frozen=True)
 class BatchExportResult:
-    """
-    Result of batch export operation.
-
-    Stores the outcome of exporting batch analysis results, including export results,
-    output directory, and total records exported.
-
-    Args:
-        export_results (List[ExportResult]): List of export results for each file.
-        output_directory (str): Directory where exports were saved.
-        total_records (int): Total number of records exported.
-
-    Properties:
-        success_count (int): Number of successful exports.
-    """
 
     export_results: List["ExportResult"]
     output_directory: str
@@ -537,20 +449,7 @@ class BatchExportResult:
 
 @dataclass(frozen=True)
 class ExportResult:
-    """
-    Result of an export operation.
 
-    Provides detailed information about the outcome of data export, including error messages for debugging failed exports.
-
-    Args:
-        success (bool): Whether the export was successful.
-        file_path (Optional[str]): Path to the exported file (if successful).
-        records_exported (int): Number of records exported.
-        error_message (Optional[str]): Error message if export failed.
-
-    Raises:
-        ModelValidationError: If export result fields are inconsistent.
-    """
 
     success: bool
     file_path: Optional[str] = None

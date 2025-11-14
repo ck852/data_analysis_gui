@@ -3,7 +3,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Standardized exception hierarchy for the electrophysiology analysis application.
+DEPRECATED: Standardized exception hierarchy for some core scripts. Defer to Python's built-in exceptions where possible in the future.
 
 This module defines a comprehensive error hierarchy that enables consistent
 error handling across the application. All exceptions inherit from AnalysisError,

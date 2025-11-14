@@ -3,14 +3,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides services for I-V (Current-Voltage) analysis and data transformation for patch clamp electrophysiology experiments.
-It includes utilities for preparing I-V curve data from batch results, supporting both single and dual-range analysis, and for exporting summary tables with unit-aware formatting.
-
-Classes:
-    - IVAnalysisService: Transforms batch results into I-V curve data structures suitable for analysis and plotting.
-    - IVSummaryExporter: Prepares summary tables for export, including headers and formatted data for CSV or spreadsheet output.
-
-Intended for use in automated analysis pipelines and GUI applications for electrophysiology data.
+For batch analysis of IV data. Enables the summary IV output in which a dataset containing currents measured using the same voltage
+series is formatted to group all current measurements at each voltage point together for IV curve plotting. Enables voltages to be 
+considered equal if they are within 0.1 mV of each other (rounded to nearest tenth). Consider adjusting this tolerance as needed.
 """
 
 from typing import Dict, Any, Tuple, Optional
@@ -19,14 +14,11 @@ from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Adjust rounding tolerance as needed
+# 1 rounds to nearest tenth of mV (Change 1 to 0 for 1 mV tolerance, change 1 to 2 for 0.01 mV tolerance)
+VOLTAGE_ROUNDING_TOL = 1  # mV
 
 class IVAnalysisService:
-    """
-    Provides services for preparing and analyzing I-V (Current-Voltage) data.
-
-    This service transforms raw batch results into formats suitable for I-V curve analysis,
-    supporting both single and dual-range data.
-    """
 
     @staticmethod
     def prepare_iv_data(
@@ -37,16 +29,7 @@ class IVAnalysisService:
 
         Processes batch results and organizes them by rounded voltage values for each recording.
         Supports dual-range analysis by returning a third element for range 2 data if enabled.
-
-        Args:
-            batch_results (Dict[str, Dict[str, Any]]): Raw batch results keyed by base filename.
-            params (AnalysisParameters): Analysis parameters, including axis configuration and dual-range flag.
-
-        Returns:
-            Tuple[Dict[float, list], Dict[str, str], Optional[Dict[float, list]]]:
-                - Dictionary mapping rounded voltages to lists of current values (range 1).
-                - Dictionary mapping recording IDs to base filenames.
-                - Dictionary mapping rounded voltages to lists of current values (range 2), or None if not used.
+        Dual range analysis seems unlikely in practice but simple enough to include here.
         """
         logger.info(f"Preparing IV data from {len(batch_results)} batch results")
         logger.debug(f"Dual-range analysis: {params.use_dual_range}")
@@ -84,7 +67,9 @@ class IVAnalysisService:
                 logger.debug(f"  Range 1: {num_points} data points")
                 
                 for x_val, y_val in zip(data["x_values"], data["y_values"]):
-                    rounded_voltage = round(x_val, 1)
+                    
+                    # IMPORTANT: This is where voltages are rounded to group similar voltages
+                    rounded_voltage = round(x_val, VOLTAGE_ROUNDING_TOL)   
                     if rounded_voltage not in iv_data_range1:
                         iv_data_range1[rounded_voltage] = []
                     iv_data_range1[rounded_voltage].append(y_val)
@@ -101,7 +86,7 @@ class IVAnalysisService:
                     logger.debug(f"  Range 2: {num_points} data points with separate x_values")
                     
                     for x_val2, y_val2 in zip(data["x_values2"], data["y_values2"]):
-                        rounded_voltage = round(x_val2, 1)
+                        rounded_voltage = round(x_val2, VOLTAGE_ROUNDING_TOL)
                         if rounded_voltage not in iv_data_range2:
                             iv_data_range2[rounded_voltage] = []
                         iv_data_range2[rounded_voltage].append(y_val2)
@@ -112,7 +97,7 @@ class IVAnalysisService:
                         f"  Range 2 missing separate x_values for {base_name}, using Range 1 x_values"
                     )
                     for x_val, y_val2 in zip(data["x_values"], data["y_values2"]):
-                        rounded_voltage = round(x_val, 1)
+                        rounded_voltage = round(x_val, VOLTAGE_ROUNDING_TOL)
                         if rounded_voltage not in iv_data_range2:
                             iv_data_range2[rounded_voltage] = []
                         iv_data_range2[rounded_voltage].append(y_val2)
@@ -136,9 +121,8 @@ class IVAnalysisService:
 
 class IVSummaryExporter:
     """
-    Handles exporting IV summary data without current density calculations.
-
-    Prepares summary tables for export, including unit-aware headers and data formatting.
+    Handles exporting IV summary data. Prepares summary tables for export, including unit-aware headers and data formatting.
+    Formats output CSV to obtain desired single voltage column followed by individual current columns for each recording.
     """
 
     @staticmethod
@@ -153,18 +137,6 @@ class IVSummaryExporter:
 
         Organizes IV data for CSV export, including voltage and current columns for each recording.
         Handles missing data by inserting NaN values.
-
-        Args:
-            iv_data (Dict[float, list]): Dictionary mapping voltages (float) to lists of current values.
-            iv_file_mapping (Dict[str, str]): Dictionary mapping recording IDs to file names.
-            included_files (set, optional): Set of file names to include (None = all files).
-            current_units (str, optional): Units for current measurements ('pA', 'nA', or 'μA'). Defaults to 'pA'.
-
-        Returns:
-            Dict[str, Any]: Dictionary with keys:
-                - 'headers': List of column headers for export.
-                - 'data': 2D numpy array of export data.
-                - 'format_spec': String format specification for numeric values.
         """
         import numpy as np
 
@@ -234,6 +206,9 @@ class IVSummaryExporter:
 
         return {"headers": headers, "data": data_array, "format_spec": "%.6f"}
     
+# ============================== GV Analysis Service ==============================    
+# For possible later implementation. Available GV data has larger voltage differences at same point, complicating 
+# the grouping. May need to adjust voltage tolerance or implement binning, but these come with further complications.
 
 # Specialized G-V Analysis (Conductance-Voltage) - similar to IV but for G-V curves
 # To be used in conjunction with _export_gv_summary and _copy_gv_summary_to_clipboard in batch_results_window.py

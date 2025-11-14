@@ -5,7 +5,8 @@ This module is foundational for all data operations within the entire program! I
 container for electrophysiology data. Whether the input file is ABF, WCP, or another supported format, the 
 ElectrophysiologyDataset object contains arrays of a single Voltage channel and a single Current channel, as well as the 
 time array, for each sweep. This enables all downstream operations to proceed without concern for file format and 
-facilitates expansion to additional formats in the future.
+facilitates expansion to additional formats in the future. Works in conjunction with DataExtractor to retrieve meaningful
+electrophysiology data from raw input files.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -25,8 +26,7 @@ class ElectrophysiologyDataset:
     Container for electrophysiology data with multiple sweeps and channels.
 
     Provides a format-agnostic, unified interface for managing and accessing electrophysiology recordings.
-    All time values are stored in milliseconds. Supports sweep and channel operations, metadata management,
-    and compatibility with various file formats.
+    Stores channel mapping from file metadata read by loader scripts.
     """
 
     def __init__(self):
