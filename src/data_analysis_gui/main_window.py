@@ -6,23 +6,21 @@ License: MIT (see LICENSE file for details)
 
 Main application window.
 
-This module implements the primary user interface for analyzing patch-clamp
-electrophysiology data. It serves as the central coordinator between:
-- User interactions (file loading, parameter adjustment, analysis requests)
-- Data processing backend (controller, analysis engine)
-- Visualization components (plot manager, analysis dialogs)
+This module implements the primary user interface. It serves as the central coordinator between:
+- User interactions (file loading, ControlPanel adjustment, dialog launching)
+- Data processing backend (AppController, AnalysisEngine)
+- Visualization components (PlotManager, analysis dialogs)
 
-The MainWindow class handles:
-1. File I/O operations for ABF and WCP format data files
-2. Real-time sweep visualization with adjustable analysis ranges
-3. Parameter configuration for various analysis modes (IV curves, peaks, time series)
-4. Batch processing coordination for multiple file analysis
-5. Session state persistence to remember user preferences
+PlotManager is responsible for the main plot that displays in center-right of window.
+ControlPanel is the left-side panel with all parameter controls.
+StreamlinedNavigationPanel (from config/custom_inputs.py) is the toolbar above the plot for plot navigation.
 
-Key design principles:
-- Controls remain active at all times (no complex enable/disable logic)
-- Settings auto-save on change to preserve user workflow
-- Separation of concerns: UI logic here, analysis logic in controllers
+Key design principles (during initial development; these are negotiable as the project evolves):
+- Core controls remain active at all times, regardless of file load state (analysis functions/dialogs
+ are disabled until file loaded anyway)
+- Settings auto-save on change, not analysis action. Change if performance suffers.
+- Separation of concerns: UI logic here, analysis logic in /core and /services modules (important!)
+- No plotting logic here, all in PlotManager and tuned by PlotFormatter
 - Signal/slot pattern for loose coupling between components
 """
 
@@ -42,7 +40,7 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                 )
 
 from data_analysis_gui.core.session_settings import (extract_settings_from_main_window,
-                                                    revalidate_ranges_for_file, save_session_settings,
+                                                    save_session_settings,
 )
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
@@ -82,18 +80,7 @@ logger = get_logger(__name__)
 
 class MainWindow(QMainWindow):
     """
-    Main application window for PatchBatch Electrophysiology Data Analysis Tool.
-
-    This class manages the core GUI, including file operations, sweep navigation,
-    analysis parameter configuration, plotting, and batch processing. Controls remain
-    active at all times, streamlining user interaction and minimizing state complexity.
-
-    Key Features:
-        - Modern, compact themed UI
-        - Always-active controls for efficient workflow
-        - Persistent session settings
-        - Real-time plot updates and analysis visualization
-        - Batch analysis and export support
+    Center point of the GUI and singular class of this module.
     """
 
     # Application events
@@ -159,7 +146,7 @@ class MainWindow(QMainWindow):
         # Apply modern theme to the main window (handles everything including toolbars and menus)
         apply_modern_theme(self)
 
-        # Configure window
+        # Set window title
         self.setWindowTitle("PatchBatch BETA")
 
     def _init_ui(self):
@@ -339,14 +326,6 @@ class MainWindow(QMainWindow):
             )
             return
 
-#   ================ BETA WARNING - DELETE LATER ==================        
-        # BETA warning
-        QMessageBox.warning(
-            self,
-            "BETA Feature",
-            "This is a BETA feature. Results not yet validated!"
-        )
-        
         try:
             dialog = LeakSubtractionDialog(
                 dataset=self.controller.current_dataset,
@@ -668,8 +647,6 @@ class MainWindow(QMainWindow):
             if result.success:
                 self.current_file_path = file_path
                 
-                # Update batch_import to match current import_data location
-                # (so batch dialogs start near your current work)
                 dirs = self.file_dialog_service.get_last_directories()
                 dirs['batch_import'] = dirs.get('import_data')
                 self.file_dialog_service.set_last_directories(dirs)
@@ -825,14 +802,10 @@ class MainWindow(QMainWindow):
         
         # Update file labels with proper theme styling
         self.file_label.setText(f"File: {file_info.name}")
-        style_label(self.file_label, "normal")  # Switch from muted to normal
+        style_label(self.file_label, "normal")
 
         self.sweep_count_label.setText(f"Sweeps: {file_info.sweep_count}")
-        style_label(self.sweep_count_label, "normal")  # Switch from muted to normal
-
-        # Revalidate ranges with file's max sweep time if available
-        if file_info.max_sweep_time:
-            revalidate_ranges_for_file(self, file_info.max_sweep_time)
+        style_label(self.sweep_count_label, "normal")
 
         # Apply saved channel view preference
         if hasattr(self, "last_channel_view"):
@@ -840,7 +813,7 @@ class MainWindow(QMainWindow):
 
         # Enable channel selection
         self.channel_combo.setEnabled(True)
-        self.reject_sweep_cb.setEnabled(True)  # Enable reject checkbox
+        self.reject_sweep_cb.setEnabled(True)
 
         # Set max time bound for X-axis zoom limiting
         if file_info.max_sweep_time:
@@ -865,7 +838,7 @@ class MainWindow(QMainWindow):
             self.sweep_nav_panel.set_current_sweep(file_info.sweep_names[0])
 
 
-    # Consider deleting - overshadwed by reject sweep dialog though
+    # Consider deleting - overshadwed by reject sweep dialog
     def _on_reject_sweep_toggled(self, state):
 
         sweep = self.sweep_nav_panel.get_current_sweep()
@@ -889,10 +862,11 @@ class MainWindow(QMainWindow):
         """
         Update the plot when the sweep selection changes.
         Also updates the reject sweep checkbox state.
-        
-        Args:
-            sweep_index: The new sweep index as a string (e.g., "0", "1", "2")
         """
+
+        # NOTE: reject checkbox has been removed in favor of Reject Sweeps dialog, but its 
+        # architecture is left in place in case we want to re-add it later.
+        
         # Update reject checkbox to match current sweep's rejection state
         if sweep_index:
             try:
@@ -1148,13 +1122,6 @@ class MainWindow(QMainWindow):
         """
         try:
             settings = extract_settings_from_main_window(self)
-            
-            # # DIAGNOSTIC: what is being saved?
-            # if 'analysis' in settings:
-            #     logger.info(f"AUTO-SAVE triggered - Range 2 values: "
-            #             f"start={settings['analysis'].get('range2_start')}, "
-            #             f"end={settings['analysis'].get('range2_end')}, "
-            #             f"dual={settings['analysis'].get('use_dual_range')}")
             
             save_session_settings(settings)
             logger.debug("Auto-saved settings")

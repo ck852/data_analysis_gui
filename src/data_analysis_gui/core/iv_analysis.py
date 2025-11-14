@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 # Adjust rounding tolerance as needed
 # 1 rounds to nearest tenth of mV (Change 1 to 0 for 1 mV tolerance, change 1 to 2 for 0.01 mV tolerance)
-VOLTAGE_ROUNDING_TOL = 1  # mV
+VOLTAGE_ROUNDING_TOL = 1
 
 class IVAnalysisService:
 
@@ -123,6 +123,8 @@ class IVSummaryExporter:
     """
     Handles exporting IV summary data. Prepares summary tables for export, including unit-aware headers and data formatting.
     Formats output CSV to obtain desired single voltage column followed by individual current columns for each recording.
+
+    This is potentially expandble to GV exports 
     """
 
     @staticmethod

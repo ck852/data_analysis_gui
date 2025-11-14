@@ -3,19 +3,10 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Generalized summary export service for batch analysis results.
-
-This module provides export functionality for any analysis parameter combination,
-using a two-column-per-file format (X, Y) with blank spacing between files for
-single range analysis, or four-column format (X, Y_R1, Y_R2) for dual range analysis.
-Each file's data is independent, allowing for different numbers of data points
-across files without requiring NaN padding.
-
-Classes:
-    - GeneralizedSummaryExporter: Prepares summary tables for any X vs Y analysis
-
-The format supports time-course analyses, custom parameter combinations, and any
-analysis where aggregating results across multiple files is meaningful.
+Manages generalized summary export for batch analyses. Similar in concept to Summary IV, but generalized
+for any analysis parameter combination. Best suited for time-course analyses. Each file's data is independent,
+allowing for different data lengths (ie from files with different recording durations). Output CSV has two columns
+per file (three if dual range is enabled) plus blank columns between files for readability.
 """
 
 from typing import Dict, Any, Optional
@@ -125,29 +116,7 @@ class GeneralizedSummaryExporter:
         included_files: Optional[set] = None,
         current_units: str = "pA"
     ) -> Dict[str, Any]:
-        """
-        Prepare generalized summary data with columns per file.
-        
-        For single range: Two columns per file (X, Y)
-        For dual range: Three columns per file (X, Y_R1, Y_R2)
-        Files are separated by blank columns.
-        
-        Args:
-            batch_results: Dictionary mapping filenames to data dictionaries containing:
-                        - 'x_values': X data (list)
-                        - 'y_values': Y data for Range 1 (list)
-                        - 'y_values2': Y data for Range 2 (list, optional)
-                        - 'headers': Pre-calculated headers from export_table (list)
-            params: Analysis parameters defining X and Y axes
-            included_files: Optional set of filenames to include (None = all files)
-            current_units: Units for current measurements ('pA', 'nA', or 'μA')
-            
-        Returns:
-            Dictionary with keys:
-                - 'headers': List of column headers
-                - 'data': 2D numpy array (object dtype to handle mixed types)
-                - 'format_spec': Format specification for numeric values
-        """
+
         logger.info(f"Preparing generalized summary from {len(batch_results)} batch results")
         logger.debug(f"Current units: {current_units}, Dual range: {params.use_dual_range}")
         

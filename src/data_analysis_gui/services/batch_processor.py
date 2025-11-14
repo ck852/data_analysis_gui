@@ -1,11 +1,19 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-This module provides the batch processing functionality for PatchBatch,
-an electrophysiology data analysis tool. It enables sequential analysis
-of multiple data files using consistent parameters, manages progress
-reporting, and supports exporting results to CSV files. Designed for
-clarity, maintainability, and accessibility in electrophysiology workflows.
+Coordinates the batch analysis process. This is to be used for straight batch analysis with 
+simple parameters (ie avg current vs avg voltage), but is expandable for more complex scenarios 
+such as background subtraction. Processes one file at a time sequentially to assure accuracy.
+Sweep rejection is disallowed for simplicity (all sweeps in all files will be analyzed regardless 
+of any sweeps rejected from MainWindow).
+
+Each file is loaded, analyzed, and results collected in complete isolation before the next file is loaded. This
+follows the same backend processes as single file analysis (DataManager and DataExtractor load raw data,
+params are passed through AnalysisManager to AnalysisEngine to MetricsCalculator and PlotFormatter, then AnalysisManager 
+formats results for export). 
+
+Optionally, background subtraction can be applied to each file before analysis via
+BackgroundSubtractionService (must be initiated from "Batch Analysis with BG Subtraction" dialog in MainWindow).
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -34,10 +42,7 @@ logger = get_logger(__name__)
 
 class BatchProcessor:
     """
-    Processes multiple files with the same analysis parameters.
-
-    Implements simple, sequential batch processing for electrophysiology data.
-    Designed for clarity and accessibility.
+    Processes multiple files with the same analysis parameters as defined by user in ControlPanel.
     """
 
     def __init__(self):
@@ -55,25 +60,9 @@ class BatchProcessor:
     def process_files(
         self, file_paths: List[str], params: AnalysisParameters, bg_subtraction_range=None
     ) -> BatchAnalysisResult:
-        """
-        Process multiple files sequentially using the provided analysis parameters.
 
-        Args:
-            file_paths (List[str]): List of file paths to process.
-            params (AnalysisParameters): Analysis parameters to apply.
-            bg_subtraction_range (Tuple[float, float], optional): Background subtraction range (start_ms, end_ms).
-
-        Returns:
-            BatchAnalysisResult: Object containing results for all processed files.
-
-        Raises:
-            ValueError: If no files are provided.
-        """
         if not file_paths:
             raise ValueError("No files provided")
-
-        # Validate file formats before processing
-        self._validate_file_formats(file_paths)
 
         bg_info = f" with BG subtraction [{bg_subtraction_range[0]:.1f}-{bg_subtraction_range[1]:.1f} ms]" if bg_subtraction_range else ""
         logger.info(f"Processing {len(file_paths)} files{bg_info}")
@@ -120,20 +109,7 @@ class BatchProcessor:
     def _process_single_file(
         self, file_path: str, params: AnalysisParameters, bg_subtraction_range=None
     ) -> FileAnalysisResult:
-        """
-        Process a single file and perform analysis.
-        
-        Channel configuration is automatically detected from each file's metadata.
-        Optionally applies background subtraction before analysis.
 
-        Args:
-            file_path (str): Path to the file to process.
-            params (AnalysisParameters): Analysis parameters to apply.
-            bg_subtraction_range (Tuple[float, float], optional): Background range (start_ms, end_ms).
-
-        Returns:
-            FileAnalysisResult: Result object containing analysis outcome and data.
-        """
         base_name = self._clean_filename(file_path)
         start_time = time.time()
 
@@ -217,16 +193,7 @@ class BatchProcessor:
     def export_results(
         self, batch_result: BatchAnalysisResult, output_dir: str
     ) -> BatchExportResult:
-        """
-        Export all successful analysis results to individual CSV files.
 
-        Args:
-            batch_result (BatchAnalysisResult): Batch analysis results to export.
-            output_dir (str): Directory to save exported files.
-
-        Returns:
-            BatchExportResult: Object containing export status and summary.
-        """
         export_results = []
         total_records = 0
 
@@ -253,40 +220,11 @@ class BatchProcessor:
             total_records=total_records,
         )
 
-    def _validate_file_formats(self, file_paths: List[str]) -> None:
-        """
-        Validate that all files in batch have the same format.
-        
-        Args:
-            file_paths: List of file paths to validate
-            
-        Raises:
-            ValidationError: If mixed file formats are detected
-        """
-        if not file_paths:
-            return
-        
-        # Get extensions
-        extensions = set(Path(fp).suffix.lower() for fp in file_paths)
-        
-        if len(extensions) > 1:
-            raise ValidationError(
-                f"Mixed file formats detected in batch: {extensions}. "
-                "All files in a batch must have the same format."
-            )
-        
-        logger.debug(f"Batch format validated: {extensions.pop()}")
-
     @staticmethod
     def _clean_filename(file_path: str) -> str:
         """
         Clean a filename for display or export by removing extension and bracketed content.
-
-        Args:
-            file_path (str): Full file path.
-
-        Returns:
-            str: Cleaned filename without extension or brackets.
+        Initially removed bracketed content for abf exports that had bracketed metadata in names. 
         """
         stem = Path(file_path).stem
         # Remove bracketed content

@@ -1,9 +1,11 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-Service module for current density calculations and export preparation. 
-Provides utility functions for recalculating current density, preparing summary exports, 
-validating Cslow values, and transforming analysis results.
+Post-processing service for data that has already been through analysis pipeline. Only used for current vs voltage
+analyses and only available in the Batch Analysis window. Could put in MainWindow for single files, but the operation is a simple
+division by one number and is only worth doing in batches. Can be expanded to GV if desired later.
+
+Enables user to easily convert raw currents to current density using input slow capacitance (Cslow) values.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -21,7 +23,6 @@ logger = get_logger(__name__)
 
 
 class CurrentDensityService:
-
 
     @staticmethod
     def recalculate_cd_for_file(

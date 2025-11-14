@@ -149,15 +149,7 @@ def get_group_summary(
 def validate_group_pairing(
     groups: Dict[int, Dict[str, List[str]]]
 ) -> Tuple[List[int], List[int]]:
-    """
-    Validate that groups have proper LEAK/TEST pairing.
-    
-    Args:
-        groups: Group summary from get_group_summary()
-        
-    Returns:
-        Tuple of (valid_group_numbers, invalid_group_numbers)
-    """
+
     valid_groups = []
     invalid_groups = []
     

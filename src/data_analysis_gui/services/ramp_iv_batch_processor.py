@@ -1,10 +1,10 @@
 """
-Ramp IV Batch Processor for PatchBatch Electrophysiology Data Analysis Tool
+Ramp IV Batch Processor
 
-This module provides batch processing functionality for ramp IV analysis,
-enabling sequential analysis of multiple data files using consistent ramp
-parameters. Results are transformed to match the standard batch analysis
-structure for compatibility with existing export and current density workflows.
+This is the ramp IV analog of BatchProcessor, replicating its functionality but 
+specifically for ramp IV analysis. It processes multiple files sequentially using
+ramp IV parameters, transforming the results into a standard batch analysis format.
+This allows compatibility with existing export and current density infrastructure.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -56,24 +56,7 @@ class RampIVBatchProcessor:
         sweep_selection_mode: str = "all",
         selected_sweeps: Optional[List[str]] = None,
     ) -> BatchAnalysisResult:
-        """
-        Process multiple files sequentially using ramp IV analysis.
 
-        Args:
-            file_paths: List of file paths to process.
-            voltage_targets: Target voltages to extract current at.
-            start_ms: Start of analysis range in milliseconds.
-            end_ms: End of analysis range in milliseconds.
-            current_units: Units for current measurements (pA, nA, etc.).
-            sweep_selection_mode: "all" or "same" - how to select sweeps per file.
-            selected_sweeps: List of sweep indices to use if mode is "same".
-
-        Returns:
-            BatchAnalysisResult with is_ramp_iv=True for CD compatibility.
-
-        Raises:
-            ValueError: If no files are provided or invalid sweep mode.
-        """
         if not file_paths:
             raise ValueError("No files provided")
 
@@ -145,21 +128,7 @@ class RampIVBatchProcessor:
         sweep_selection_mode: str,
         selected_sweeps: Optional[List[str]],
     ) -> FileAnalysisResult:
-        """
-        Process a single file with ramp IV analysis.
 
-        Args:
-            file_path: Path to the file to process.
-            voltage_targets: Target voltages to extract current at.
-            start_ms: Start of analysis range.
-            end_ms: End of analysis range.
-            current_units: Current measurement units.
-            sweep_selection_mode: "all" or "same".
-            selected_sweeps: Sweep indices if mode is "same".
-
-        Returns:
-            FileAnalysisResult with averaged ramp IV data.
-        """
         base_name = self._clean_filename(file_path)
         start_time = time.time()
 
@@ -240,15 +209,6 @@ class RampIVBatchProcessor:
 
         Averages current values across all processed sweeps for each voltage
         to create x_data (voltages) and y_data (averaged currents).
-
-        Args:
-            ramp_result: Result from RampIVService.
-            file_path: Full path to the file.
-            base_name: Cleaned filename.
-            processing_time: Time taken to process.
-
-        Returns:
-            FileAnalysisResult compatible with batch infrastructure.
         """
         # Get sorted voltages
         voltages = sorted(ramp_result.voltage_targets)
@@ -306,13 +266,6 @@ class RampIVBatchProcessor:
     ) -> BatchExportResult:
         """
         Export all successful ramp IV results to individual CSV files.
-
-        Args:
-            batch_result: Batch analysis results to export.
-            output_dir: Directory to save exported files.
-
-        Returns:
-            BatchExportResult with export status and summary.
         """
         export_results = []
         total_records = 0
@@ -344,12 +297,6 @@ class RampIVBatchProcessor:
     def _clean_filename(file_path: str) -> str:
         """
         Clean a filename for display by removing extension and bracketed content.
-
-        Args:
-            file_path: Full file path.
-
-        Returns:
-            Cleaned filename without extension or brackets.
         """
         stem = Path(file_path).stem
         # Remove bracketed content

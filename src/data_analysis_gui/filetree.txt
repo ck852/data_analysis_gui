@@ -3,6 +3,7 @@ data_analysis_gui/
 |   |-- __init__.py
 |   |-- logging.py
 |   |-- plot_style.py
+|   |-- pyqtgraph_style.py
 |   |-- settings.py
 |   `-- themes.py
 |-- core/

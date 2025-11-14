@@ -1,8 +1,9 @@
 """
-Sweep Extraction Service for PatchBatch Electrophysiology Data Analysis Tool
+Sweep Extraction Service
 
 This service provides centralized logic for extracting sweep data from datasets
 and formatting it for export or clipboard operations.
+This is for extracting raw sweep data from input files, not analysis results.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -19,12 +20,6 @@ logger = get_logger(__name__)
 
 
 class SweepExtractionService:
-    """
-    Service for extracting sweep data from datasets.
-    
-    Provides methods to extract single or multiple sweeps with configurable
-    channel selection and time ranges, formatted for export or clipboard.
-    """
     
     def __init__(self):
         """Initialize the sweep extraction service."""
@@ -38,25 +33,7 @@ class SweepExtractionService:
         time_range: Optional[Tuple[float, float]] = None,
         file_label: str = ""
     ) -> Dict:
-        """
-        Extract sweep data from a dataset.
-        
-        Args:
-            dataset: Dataset to extract from
-            sweep_indices: List of sweep indices to extract (e.g., ['0', '1', '2'])
-            channel_mode: 'voltage', 'current', or 'both'
-            time_range: Optional (start_ms, end_ms) tuple. If None, uses full trace.
-            file_label: Optional label for column headers (useful in batch mode)
-        
-        Returns:
-            Dict with keys:
-                - 'headers': List of column headers
-                - 'data': 2D numpy array with time + channel data
-                - 'units': Dict with voltage_units and current_units
-        
-        Raises:
-            ValueError: If no valid data can be extracted
-        """
+
         # Get channel configuration for units
         channel_config = dataset.metadata.get('channel_config', {})
         voltage_units = channel_config.get('voltage_units', 'mV')
@@ -138,18 +115,6 @@ class SweepExtractionService:
     ) -> Tuple[List[str], np.ndarray]:
         """
         Build headers and data array for output.
-        
-        Args:
-            all_data: Dictionary of extracted sweep data
-            sweep_indices: List of sweep indices
-            channel_mode: 'voltage', 'current', or 'both'
-            reference_time: Time array to use
-            voltage_units: Units for voltage channel
-            current_units: Units for current channel
-            file_label: Optional prefix for column names
-        
-        Returns:
-            Tuple of (headers list, data array)
         """
         # Add file label prefix if provided
         prefix = f"{file_label} " if file_label else ""
