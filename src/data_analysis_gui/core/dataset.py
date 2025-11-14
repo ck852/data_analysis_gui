@@ -321,9 +321,7 @@ class ElectrophysiologyDataset:
 
 class DatasetLoader:
     """
-    Static methods for loading electrophysiology data from various file formats.
-
-    Provides format detection, loading, and channel mapping for supported file types used in electrophysiology recordings.
+    Works in conjunction with core/loaders/ to load electrophysiology datasets from various file formats. 
     """
 
     # Supported file extensions and their formats
@@ -377,19 +375,3 @@ class DatasetLoader:
         except Exception as e:
             logger.error(f"Failed to load {filepath}: {e}", exc_info=True)
             raise
-
-            # need to reconcile load vs load_wcp - delete one?
-    @staticmethod
-    def load_wcp(file_path: Union[str, Path], channel_map: Optional[Any] = None) -> ElectrophysiologyDataset:
-
-        logger.info(f"Loading WCP file: {Path(file_path).name}")
-        
-        try:
-            from data_analysis_gui.core.loaders.wcp_loader import load_wcp
-        except ImportError as e:
-            logger.error("WCP loader module not found", exc_info=True)
-            raise ImportError(
-                "WCP loader not found. Ensure wcp_loader.py is in core/loaders/"
-            ) from e
-        
-        return load_wcp(file_path, channel_map)
