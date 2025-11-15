@@ -5,9 +5,6 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 Clipboard service for copying analysis data to system clipboard.
-
-Provides utilities to format data tables and copy them to clipboard
-for easy pasting into other applications (Excel, Prism, etc.).
 """
 
 from typing import Dict, Any, List
@@ -23,29 +20,14 @@ class ClipboardService:
     """
     Service for copying data tables to system clipboard.
     
-    Formats data as tab-separated values (TSV) which Excel, Prism,
-    and most spreadsheet applications handle well when pasting.
+    Formats data as tab-separated values (TSV) for simplicity, slight divergence 
+    from CSV file outputs to facilitate copy/paste.
     """
     
     @staticmethod
     def format_data_as_text(data: Dict[str, Any], separator: str = "\t") -> str:
         """
         Format a data dictionary as delimited text.
-        
-        Args:
-            data: Dictionary containing 'headers' (list of strings) and 
-                  'data' (2D array or list of lists)
-            separator: Delimiter to use between columns (default: tab)
-            
-        Returns:
-            Formatted string ready for clipboard, or empty string on error
-            
-        Example:
-            >>> data = {
-            ...     "headers": ["Time (ms)", "Current (pA)"],
-            ...     "data": [[100.0, -45.2], [200.0, -52.1]]
-            ... }
-            >>> text = ClipboardService.format_data_as_text(data)
         """
         try:
             # Validate data structure
@@ -87,12 +69,6 @@ class ClipboardService:
     def copy_to_clipboard(text: str) -> bool:
         """
         Copy text to system clipboard.
-        
-        Args:
-            text: Text to copy to clipboard
-            
-        Returns:
-            True if successful, False otherwise
         """
         try:
             if not text:
@@ -113,13 +89,6 @@ class ClipboardService:
     def copy_data_to_clipboard(data: Dict[str, Any], separator: str = "\t") -> bool:
         """
         Format and copy data to clipboard in one step.
-        
-        Args:
-            data: Dictionary containing 'headers' and 'data'
-            separator: Delimiter to use (default: tab for TSV)
-            
-        Returns:
-            True if successful, False otherwise
         """
         text = ClipboardService.format_data_as_text(data, separator)
         

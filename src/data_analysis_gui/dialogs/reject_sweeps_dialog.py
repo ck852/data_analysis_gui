@@ -189,9 +189,6 @@ class RejectSweepsDialog(QDialog):
     def get_rejection_params(self):
         """
         Get the rejection parameters from the dialog.
-        
-        Returns:
-            tuple: (skip_first, skip_last, reset_time)
         """
         return (
             self.skip_first_spin.value(),

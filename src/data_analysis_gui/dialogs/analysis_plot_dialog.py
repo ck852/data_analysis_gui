@@ -54,17 +54,7 @@ class AnalysisPlotDialog(QDialog):
         analysis_manager: AnalysisManager,
         dataset: ElectrophysiologyDataset,
     ):
-        """
-        Initialize the AnalysisPlotDialog.
 
-        Args:
-            parent: Parent widget.
-            plot_data: Data for plotting (dict or AnalysisPlotData).
-            params: Analysis parameters.
-            file_path: Path to the analyzed file.
-            analysis_manager: AnalysisManager instance for export operations.
-            dataset: The dataset being analyzed.
-        """
         super().__init__(parent)
 
         self.setModal(True)
@@ -111,9 +101,7 @@ class AnalysisPlotDialog(QDialog):
         apply_modern_theme(self)
 
     def init_ui(self):
-        """
-        Initialize the user interface, including plot canvas, toolbar, and export controls.
-        """
+        
         layout = QVBoxLayout(self)
 
         self.figure, self.ax = AnalysisPlotter.create_figure(
@@ -136,12 +124,7 @@ class AnalysisPlotDialog(QDialog):
         self._add_export_controls(layout)
 
     def _add_export_controls(self, parent_layout):
-        """
-        Add export control buttons (Export Data, Copy Data, Export Image, Close) to the dialog.
 
-        Args:
-            parent_layout: The layout to which buttons are added.
-        """
         button_layout = QHBoxLayout()
         button_layout.setSpacing(8)
 
@@ -170,11 +153,7 @@ class AnalysisPlotDialog(QDialog):
         parent_layout.addLayout(button_layout)
 
     def export_plot_image(self):
-        """
-        Export the current plot as an image file.
 
-        Prompts user for file path and saves the plot using AnalysisPlotter.
-        """
         file_path = self.file_dialog_service.get_export_path(
             parent=self,
             suggested_name="analysis_plot.png",
@@ -206,12 +185,7 @@ class AnalysisPlotDialog(QDialog):
                 )
 
     def export_data(self):
-        """
-        Export the plot data as a CSV file.
 
-        Uses AnalysisManager to perform export.
-        Prompts user for file path and shows result status.
-        """
         # Get suggested filename
         suggested_filename = self.analysis_manager.data_manager.suggest_filename(
             getattr(self.parent(), 'current_file_path', 'analysis'),
