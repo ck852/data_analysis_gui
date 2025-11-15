@@ -171,9 +171,9 @@ Access from the Analysis menu. Load a file in the main window first. Users can a
 
 ### Leak Subtraction
 
-Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtraction protocol. This operation follows the same processes performed by WinWCP's native leak subtraction analysis tool. The algorithm removes passive membrane currents using voltage-scaled subtraction:
+Performs P/N leak subtraction on WCP files recorded with WinWCP's leak subtraction protocol. This operation follows the same processes performed by WinWCP's native leak subtraction analysis tool. The user specifies the VHold and VTest positions, in which VHold is the set to the holding potential and VTest is positioned in the test range of the sweep. The algorithm removes passive membrane currents using voltage-scaled subtraction:
 
-1. Baseline Correction: All voltage and current traces are zeroed by subtracting the value at the holding potential (VHold cursor position). This removes DC offsets.
+1. Baseline Correction: All voltage and current traces are zeroed by subtracting the value at the holding potential (VHold cursor position averaged over the following 20 time indices).
 
 2. Sweep Averaging: If multiple LEAK or TEST sweeps exist per group, they are averaged after baseline correction to improve signal-to-noise ratio. A pair consisting of one TEST sweep and one LEAK sweep is the typical output from WinWCP leak-subtraction voltage protocols (one pair per leak-subtracted data point). 
 
@@ -190,7 +190,7 @@ Requirements:
 - WCP file with sweeps classified as LEAK/TEST in WinWCP
 - At least one LEAK and one TEST sweep per group
 
-It has been noted that some leak-subtracted outputs by WinWCP do not match the outputs of this program. This is likely due to WinWCP version differences in which a wcp file was recorded in an earlier version but analyzed in a later version. 
+It has been noted that some leak-subtracted outputs by WinWCP do not match the outputs of this program. This is likely due to WinWCP version differences in which a wcp file was recorded in an earlier version but analyzed in a later version. Outputs from this program match manually-performed leak subtractions in Excel using complete raw TEST and LEAK traces following the algorithm described above.
 
 ### Dose-Response
 

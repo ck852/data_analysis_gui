@@ -273,7 +273,23 @@ patchbatch/
 |   |-- 20251113_142356_patchbatch.log
 |   |-- 20251113_142530_patchbatch.log
 |   |-- 20251113_143828_patchbatch.log
-|   `-- 20251113_144803_patchbatch.log
+|   |-- 20251113_144803_patchbatch.log
+|   |-- 20251113_174554_patchbatch.log
+|   |-- 20251114_102938_patchbatch.log
+|   |-- 20251114_103016_patchbatch.log
+|   |-- 20251114_103823_patchbatch.log
+|   |-- 20251114_111744_patchbatch.log
+|   |-- 20251114_114528_patchbatch.log
+|   |-- 20251114_115618_patchbatch.log
+|   |-- 20251114_121553_patchbatch.log
+|   |-- 20251114_121606_patchbatch.log
+|   |-- 20251114_123948_patchbatch.log
+|   |-- 20251114_160216_patchbatch.log
+|   |-- 20251114_170536_patchbatch.log
+|   |-- 20251114_170612_patchbatch.log
+|   |-- 20251114_170912_patchbatch.log
+|   |-- 20251114_172344_patchbatch.log
+|   `-- 20251114_180725_patchbatch.log
 |-- src/
 |   `-- data_analysis_gui/
 |       |-- config/
