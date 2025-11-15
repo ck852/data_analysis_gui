@@ -1,6 +1,8 @@
 """
 ABF (Axon Binary Format) Loader for PatchBatch
 
+Uses pyABF (https://github.com/swharden/pyABF) to load ABF data into ElectrophysiologyDataset. 
+
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
@@ -51,17 +53,10 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
     """
     Analyze channel info and determine voltage/current channel assignments.
     
-    Args:
-        channel_info: List of channel dicts with 'index', 'name', 'units', 'signal_type'
-    
-    Returns:
-        Dict with keys:
-            - voltage_channel: int (channel index for voltage)
-            - current_channel: int (channel index for current)
-            - voltage_units: str (detected units for voltage)
-            - current_units: str (detected units for current)
-            - valid: bool (True if detection was successful)
-            - message: str (description of detection result)
+    I and V channels are identified based on units in channel metadata. The codebase has 
+    been written for input files with one voltage and one current channel. This script includes
+    fallbacks for input files with multiple or missing channels. User will be informed via 
+    _check_channel_warnings() in MainWindow if their input file does not match expected format.
     """
     voltage_channels = [ch for ch in channel_info if ch['signal_type'] == 'voltage']
     current_channels = [ch for ch in channel_info if ch['signal_type'] == 'current']
@@ -74,6 +69,7 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
             'voltage_units': voltage_channels[0]['units'],
             'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
+            'warning_level': 'none',
             'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
                       f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
         }
@@ -88,10 +84,16 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
             'voltage_channel': voltage_channels[0]['index'],
             'current_channel': current_channels[0]['index'],
             'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'],
+            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
-            'message': f"Auto-detected (multiple channels): Ch.{voltage_channels[0]['index']} (voltage), "
-                      f"Ch.{current_channels[0]['index']} (current)"
+            'warning_level': 'info',
+            'message': f"Multiple channels detected:\n"
+                      f"• {len(voltage_channels)} voltage channel(s)\n"
+                      f"• {len(current_channels)} current channel(s)\n\n"
+                      f"Using Ch.{voltage_channels[0]['index']} (voltage) and "
+                      f"Ch.{current_channels[0]['index']} (current).",
+            'user_message': f"Multiple channels detected. Using Ch.{voltage_channels[0]['index']} (voltage) "
+                           f"and Ch.{current_channels[0]['index']} (current)."
         }
     
     # Case 3: Missing voltage or current channel
@@ -103,7 +105,11 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect voltage channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No voltage channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No voltage channel detected. Using default configuration."
         }
     
     if len(current_channels) == 0:
@@ -114,7 +120,11 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect current channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No current channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No current channel detected. Using default configuration."
         }
     
     # Fallback - should not reach here
@@ -125,7 +135,11 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
         'voltage_units': 'mV',
         'current_units': 'pA',
         'valid': False,
-        'message': "Channel detection failed - using default configuration"
+        'warning_level': 'error',
+        'message': "Unexpected channel configuration encountered.\n\n"
+                  "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                  "Analysis results may be incorrect.",
+        'user_message': "Channel detection failed. Using default configuration."
     }
 
 

@@ -4,8 +4,12 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 This module defines default configuration settings, analysis constants, file patterns,
-and table headers for the PatchBatch application. All constants are grouped for clarity
-and maintainability. No functions are defined in this module.
+and table headers. The configuration settings/analysis constants may be something we want to 
+expand in the future as part of a new feature that would allow users to save multiple presets 
+of analysis settings for different experimental protocols.
+
+In the meantime, this module should remain mostly unchanged.
+
 """
 
 from PySide6.QtCore import Qt

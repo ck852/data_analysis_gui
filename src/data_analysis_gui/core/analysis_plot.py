@@ -1,20 +1,9 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool - Analysis Plot Module
+PatchBatch Electrophysiology Data Analysis Tool
 
-This module provides core functionality for generating, configuring, and saving analysis plots
-using matplotlib for electrophysiology data. It defines data structures and stateless plotting utilities
-to support both GUI and CLI workflows.
-
-Features:
-- AnalysisPlotData dataclass for structured plot data representation.
-- Stateless AnalysisPlotter class for thread-safe figure creation, configuration, and export.
-- Modern plot styling and dual-range support for comparative analysis.
-- CLI-friendly functions for quick plot generation and saving.
-- Designed for integration with both GUI and batch processing pipelines.
-
-Usage:
-Import and use AnalysisPlotter or create_analysis_plot to generate publication-ready figures
-from analysis results, with support for custom styling and export.
+Matplotlib-based plotting module. Main use is to display the plot called
+by "Generate Analysis Plot" in MainWindow. Also used for exporting batch-analyzed plots (not a core
+focus of the program at this time).
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -26,6 +15,7 @@ from dataclasses import dataclass
 import matplotlib
 
 # Set thread-safe backend as default for non-GUI operations
+# We don't actually use parallel processing, but this keeps things clean
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -44,16 +34,10 @@ logger = get_logger(__name__)
 @dataclass
 class AnalysisPlotData:
     """
-    Data structure for analysis plots.
-
-    Attributes:
-        x_data (np.ndarray): X-axis data points.
-        y_data (np.ndarray): Y-axis data points for primary range.
-        sweep_indices (List[int]): Indices of sweeps included in the plot.
-        use_dual_range (bool): Whether dual range plotting is enabled.
-        y_data2 (Optional[np.ndarray]): Y-axis data for secondary range, if applicable.
-        y_label_r1 (Optional[str]): Label for primary range Y-axis.
-        y_label_r2 (Optional[str]): Label for secondary range Y-axis.
+    Container for analysis plot data with optional dual-range support.
+    
+    y_label_r1/r2 store voltage-annotated legend labels (e.g., "Range 1 (-70 mV)")
+    when X-axis is Time and Y-axis is Current.
     """
 
     x_data: np.ndarray
@@ -66,15 +50,7 @@ class AnalysisPlotData:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AnalysisPlotData":
-        """
-        Create an AnalysisPlotData instance from a dictionary for backward compatibility.
-
-        Args:
-            data (Dict[str, Any]): Dictionary containing plot data fields.
-
-        Returns:
-            AnalysisPlotData: Instance populated from the dictionary.
-        """
+        """Create from dictionary. Used for backward compatibility."""
         logger.debug("Creating AnalysisPlotData from dictionary")
         return cls(
             x_data=np.array(data.get("x_data", [])),
@@ -89,8 +65,9 @@ class AnalysisPlotData:
 
 class AnalysisPlotter:
     """
-    Provides static methods for creating, configuring, and saving analysis plots using matplotlib.
-    All methods are stateless and thread-safe for non-GUI operations.
+    Stateless plotting utilities using matplotlib's Agg backend.
+    
+    All methods are static. Use returned Figure objects for GUI canvas or export.
     """
 
     @staticmethod
@@ -102,17 +79,13 @@ class AnalysisPlotter:
         figsize: Tuple[int, int] = (8, 6),
     ) -> Tuple[Figure, Axes]:
         """
-        Create and configure a matplotlib figure for analysis plots with modern styling.
-
-        Args:
-            plot_data (AnalysisPlotData): Data to plot.
-            x_label (str): Label for the X-axis.
-            y_label (str): Label for the Y-axis.
-            title (str): Title of the plot.
-            figsize (Tuple[int, int], optional): Size of the figure in inches. Defaults to (8, 6).
+        Create a styled matplotlib figure ready for display or export.
+        
+        Applies styling from plot_style config and handles dual-range plots
+        with distinct visual styles for each range.
 
         Returns:
-            Tuple[Figure, Axes]: The created matplotlib Figure and Axes objects.
+            Tuple[Figure, Axes]: Use figure.savefig() to export or embed in GUI canvas.
         """
         logger.debug(f"Creating analysis figure: {title}, size={figsize}")
         
@@ -166,16 +139,9 @@ class AnalysisPlotter:
         y_label_r2: Optional[str] = None
     ) -> None:
         """
-        Configure the matplotlib Axes object with analysis plot data and modern styling.
-
-        Args:
-            ax (Axes): Matplotlib Axes to configure.
-            plot_data (AnalysisPlotData): Data to plot.
-            x_label (str): Label for the X-axis.
-            y_label (str): Label for the Y-axis.
-            title (str): Title of the plot.
-            y_label_r1 (Optional[str]): Label for Range 1 legend (with voltage annotation).
-            y_label_r2 (Optional[str]): Label for Range 2 legend (with voltage annotation).
+        Plot data with styling from plot_style config.
+        
+        Voltage-annotated labels in legend for time-course plots.
         """
         x_data = plot_data.x_data
         y_data = plot_data.y_data
@@ -204,7 +170,7 @@ class AnalysisPlotter:
                 label=range1_label,
             )[0]
 
-        # Plot Range 2 if available with contrasting style
+        # Plot Range 2 if applicable with contrasting style
         if plot_data.use_dual_range and plot_data.y_data2 is not None:
             y_data2 = plot_data.y_data2
             if len(x_data) > 0 and len(y_data2) > 0:
@@ -248,15 +214,7 @@ class AnalysisPlotter:
     def _apply_axis_padding(
         ax: Axes, x_data: np.ndarray, y_data: np.ndarray, padding_factor: float = 0.05
     ) -> None:
-        """
-        Apply padding to both axes for improved visualization and layout.
 
-        Args:
-            ax (Axes): Matplotlib Axes to adjust.
-            x_data (np.ndarray): X-axis data points.
-            y_data (np.ndarray): Y-axis data points.
-            padding_factor (float, optional): Fractional padding to apply. Defaults to 0.05.
-        """
         ax.relim()
         ax.autoscale_view()
 
@@ -282,17 +240,7 @@ class AnalysisPlotter:
 
     @staticmethod
     def save_figure(figure: Figure, filepath: str, dpi: int = 300) -> None:
-        """
-        Save a matplotlib figure to a file.
-
-        Args:
-            figure (Figure): Matplotlib figure to save.
-            filepath (str): Output file path.
-            dpi (int, optional): Resolution in dots per inch. Defaults to 300.
-
-        Note:
-            File I/O may require external synchronization if multiple threads write to the same directory.
-        """
+        """Save figure to file with tight layout."""
         logger.debug(f"Saving figure to {filepath} at {dpi} DPI")
         
         try:
@@ -313,21 +261,7 @@ class AnalysisPlotter:
         figsize: Tuple[int, int] = (8, 6),
         dpi: int = 300,
     ) -> Figure:
-        """
-        Create and save an analysis plot in a single operation.
-
-        Args:
-            plot_data (AnalysisPlotData): Data to plot.
-            x_label (str): X-axis label.
-            y_label (str): Y-axis label.
-            title (str): Plot title.
-            filepath (str): Output file path for saving the plot.
-            figsize (Tuple[int, int], optional): Figure size in inches. Defaults to (8, 6).
-            dpi (int, optional): Resolution in dots per inch. Defaults to 300.
-
-        Returns:
-            Figure: The created matplotlib Figure object.
-        """
+        """Create and save a plot in one operation."""
         logger.info(f"Creating and saving plot: '{title}' to {filepath}")
         
         figure, _ = AnalysisPlotter.create_figure(
@@ -338,65 +272,39 @@ class AnalysisPlotter:
         return figure
 
 
-# CLI-friendly functions updated for stateless operation
-def create_analysis_plot(
-    plot_data_dict: Dict[str, Any],
-    x_label: str,
-    y_label: str,
-    title: str,
-    output_path: Optional[str] = None,
-    show: bool = False,
-) -> Optional[Figure]:
-    """
-    Create an analysis plot from a data dictionary and optionally save or display it.
+#     CLI helper for creating analysis plots from dictionary data.
+#     CLI was not implemented. This is kept in case of future implementation.
 
-    Args:
-        plot_data_dict (Dict[str, Any]): Dictionary containing plot data fields.
-        x_label (str): Label for the X-axis.
-        y_label (str): Label for the Y-axis.
-        title (str): Title of the plot.
-        output_path (Optional[str], optional): Path to save the plot. If None, plot is not saved.
-        show (bool, optional): Whether to display the plot (requires GUI backend). Defaults to False.
+# def create_analysis_plot(
+#     plot_data_dict: Dict[str, Any],
+#     x_label: str,
+#     y_label: str,
+#     title: str,
+#     output_path: Optional[str] = None,
+#     show: bool = False,
+# ) -> Optional[Figure]:
 
-    Returns:
-        Optional[Figure]: The created matplotlib Figure object if successful, None otherwise.
-
-    Note:
-        Displaying plots with show=True is not thread-safe and should only be called from the main thread.
-    """
-    logger.info(f"CLI plot creation requested: '{title}', save={output_path is not None}, show={show}")
+#     logger.info(f"CLI plot creation requested: '{title}', save={output_path is not None}, show={show}")
     
-    try:
-        plot_data = AnalysisPlotData.from_dict(plot_data_dict)
+#     try:
+#         plot_data = AnalysisPlotData.from_dict(plot_data_dict)
 
-        # Use stateless methods
-        if output_path:
-            # Use the combined method for efficiency
-            logger.debug(f"Creating plot with save to {output_path}")
-            fig = AnalysisPlotter.create_and_save_plot(
-                plot_data, x_label, y_label, title, output_path
-            )
-        else:
-            # Just create without saving
-            logger.debug("Creating plot without saving")
-            fig, ax = AnalysisPlotter.create_figure(plot_data, x_label, y_label, title)
+#         if output_path:
+#             logger.debug(f"Creating plot with save to {output_path}")
+#             fig = AnalysisPlotter.create_and_save_plot(
+#                 plot_data, x_label, y_label, title, output_path
+#             )
+#         else:
+#             logger.debug("Creating plot without saving")
+#             fig, ax = AnalysisPlotter.create_figure(plot_data, x_label, y_label, title)
 
-        if show:
-            # Note: This requires GUI backend and is NOT thread-safe
-            # Should only be called from main thread
-            import warnings
+#         if show:
+#             logger.warning("Displaying plot with show=True")
+#             plt.show()
 
-            logger.warning("Displaying plot with show=True (not thread-safe)")
-            warnings.warn(
-                "Displaying plots with show=True is not thread-safe. "
-                "Use only from main thread.",
-                RuntimeWarning,
-            )
-            plt.show()
-
-        logger.info(f"Successfully created analysis plot: '{title}'")
-        return fig
+#         logger.info(f"Successfully created analysis plot: '{title}'")
+#         return fig
         
-    except Exception as e:
-        logger.error(f"Failed to create analysis plot '{title}': {e}", exc_info=True)
-        return None
+#     except Exception as e:
+#         logger.error(f"Failed to create analysis plot '{title}': {e}", exc_info=True)
+#         return None

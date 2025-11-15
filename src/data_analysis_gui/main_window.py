@@ -800,6 +800,9 @@ class MainWindow(QMainWindow):
         # Clear rejected sweeps for new file
         self.rejected_sweeps.clear()
         
+        # Check for channel configuration warnings
+        self._check_channel_warnings()
+        
         # Update file labels with proper theme styling
         self.file_label.setText(f"File: {file_info.name}")
         style_label(self.file_label, "normal")
@@ -837,6 +840,41 @@ class MainWindow(QMainWindow):
         if file_info.sweep_names:
             self.sweep_nav_panel.set_current_sweep(file_info.sweep_names[0])
 
+    def _check_channel_warnings(self):
+        """
+        Check for channel configuration warnings and display to user if needed.
+        
+        Called immediately after file load to alert user of channel detection issues
+        such as multiple channels detected or missing voltage/current channels.
+        """
+        if not self.controller.has_data():
+            return
+        
+        dataset = self.controller.current_dataset
+        channel_config = dataset.metadata.get("channel_config")
+        
+        if not channel_config:
+            return
+        
+        warning_level = channel_config.get("warning_level", "none")
+        
+        if warning_level == "none":
+            return
+        
+        message = channel_config.get("message", "Unknown channel configuration issue")
+        
+        if warning_level == "info":
+            QMessageBox.information(
+                self,
+                "Channel Configuration",
+                message
+            )
+        elif warning_level == "error":
+            QMessageBox.warning(
+                self,
+                "Channel Detection Issue",
+                message
+            )
 
     # Consider deleting - overshadwed by reject sweep dialog
     def _on_reject_sweep_toggled(self, state):
@@ -866,7 +904,7 @@ class MainWindow(QMainWindow):
 
         # NOTE: reject checkbox has been removed in favor of Reject Sweeps dialog, but its 
         # architecture is left in place in case we want to re-add it later.
-        
+
         # Update reject checkbox to match current sweep's rejection state
         if sweep_index:
             try:

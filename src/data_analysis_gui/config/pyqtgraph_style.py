@@ -1,11 +1,10 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-PyQtGraph styling configuration for scientific plots in PatchBatch.
+This is the PyQtGraph analog of plot_style.py. PyQtGraph is (for now) only used in the concentration response
+scripts, but may be replace matplotlib in MainWindow in the future.
 
-This module provides centralized styling for all PyQtGraph plots, including
-colors, fonts, line styles, cursors, and interactive elements. Ensures
-consistency across the application and complements the Qt widget theme.
+Each function has extensive docstrings to facilitate adjustments/optimizations.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)

@@ -4,6 +4,8 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
+Use this for CSV exports.
+
 Coordinates the loading of data files via DatasetLoader, validation of datasets,
 and exporting of analysis results to CSV files.
 Handles file paths, file validation, and export formatting. Used heavily by batch analysis for 

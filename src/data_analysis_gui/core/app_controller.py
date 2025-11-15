@@ -2,10 +2,8 @@
 PatchBatch Electrophysiology Data Analysis Tool
 
 Main interface between the GUI and backend services. This coordinates services and 
-maintains state while remaining agnostic to Qt widgets. Creates and manages:
-- DataManager (for data loading/saving)
-- AnalysisManager (for data analysis operations)
-- BatchProcessor (for batch operations)
+maintains state while remaining agnostic to Qt widgets. Creates and manages DataManager, 
+AnalysisManager, and BatchProcessor.
 
 Maintains current_dataset and loaded_file_path state. This ensures that one file at 
 a time is loaded, and analysis operations are performed on the intended dataset.

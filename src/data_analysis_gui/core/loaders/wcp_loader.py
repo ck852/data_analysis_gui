@@ -6,6 +6,9 @@ License: MIT (see LICENSE file for details)
 
 This module provides functionality to load WCP (WinWCP) files into the
 standardized ElectrophysiologyDataset format used throughout the application.
+
+Parsing logic based on analysis of WCPFileUnit.pas from WinWCP V5.7.9 source code
+(https://github.com/johndempster/WinWCPXE/blob/master/WCPFIleUnit.pas)
 """
 
 import struct
@@ -28,17 +31,10 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
     """
     Analyze WCP channel info and determine voltage/current channel assignments.
     
-    Args:
-        channels: List of WCPChannel objects with 'name' and 'units' attributes
-    
-    Returns:
-        Dict with keys:
-            - voltage_channel: int (channel index for voltage)
-            - current_channel: int (channel index for current)
-            - voltage_units: str (detected units for voltage)
-            - current_units: str (detected units for current)
-            - valid: bool (True if detection was successful)
-            - message: str (description of detection result)
+    I and V channels are identified based on units in channel metadata. The codebase has 
+    been written for input files with one voltage and one current channel. This script includes
+    fallbacks for input files with multiple or missing channels. User will be informed via 
+    _check_channel_warnings() in MainWindow if their input file does not match expected format.
     """
     voltage_channels = []
     current_channels = []
@@ -63,7 +59,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
                 'signal_type': 'current'
             })
     
-    # Case 1: Perfect detection - exactly 1 voltage and 1 current
+    # Case 1: Expected 1 V channel and 1 I channel
     if len(voltage_channels) == 1 and len(current_channels) == 1:
         return {
             'voltage_channel': voltage_channels[0]['index'],
@@ -71,6 +67,7 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_units': voltage_channels[0]['units'],
             'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
+            'warning_level': 'none',
             'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
                       f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
         }
@@ -87,8 +84,14 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_units': voltage_channels[0]['units'],
             'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
-            'message': f"Auto-detected (multiple channels): Ch.{voltage_channels[0]['index']} (voltage), "
-                      f"Ch.{current_channels[0]['index']} (current)"
+            'warning_level': 'info',
+            'message': f"Multiple channels detected:\n"
+                      f"• {len(voltage_channels)} voltage channel(s)\n"
+                      f"• {len(current_channels)} current channel(s)\n\n"
+                      f"Using Ch.{voltage_channels[0]['index']} (voltage) and "
+                      f"Ch.{current_channels[0]['index']} (current).",
+            'user_message': f"Multiple channels detected. Using Ch.{voltage_channels[0]['index']} (voltage) "
+                           f"and Ch.{current_channels[0]['index']} (current)."
         }
     
     # Case 3: Missing voltage or current channel
@@ -100,7 +103,11 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect voltage channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No voltage channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No voltage channel detected. Using default configuration."
         }
     
     if len(current_channels) == 0:
@@ -111,7 +118,11 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect current channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No current channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No current channel detected. Using default configuration."
         }
     
     # Fallback - should not reach here
@@ -122,7 +133,11 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
         'voltage_units': 'mV',
         'current_units': 'pA',
         'valid': False,
-        'message': "Channel detection failed - using default configuration"
+        'warning_level': 'error',
+        'message': "Unexpected channel configuration encountered.\n\n"
+                  "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                  "Analysis results may be incorrect.",
+        'user_message': "Channel detection failed. Using default configuration."
     }
 
 
@@ -284,7 +299,7 @@ class WCPRecordHeader:
     status: str
     rec_type: str
     number: float
-    time: float  # Time in seconds - THIS IS THE KEY FIELD
+    time: float  # Time in seconds
     dt: float
     adc_voltage_range: List[float]
     ident: str
