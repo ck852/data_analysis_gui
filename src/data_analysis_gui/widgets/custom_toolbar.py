@@ -4,9 +4,8 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides streamlined navigation toolbars for matplotlib plots
-within a Qt-based GUI. It includes modern, minimal toolbars with essential
-zoom/pan functionality and custom styling.
+Defines plot toolbars for MainWindow, batch analysis results window, and current density results window.
+Enables custom, trimmed matplotlib navigation toolbars with necessary functionality only.
 """
 
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -14,7 +13,6 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor, QFont
 
-# Import centralized configuration from plot_style
 from data_analysis_gui.config.plot_style import TOOLBAR_CONFIG, get_toolbar_style
 
 import logging
@@ -47,7 +45,7 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
     # Signal for reset/autofit request
     reset_requested = Signal()
 
-    # Remove unnecessary default tool items
+# This is where toolbar button names are set!
     toolitems = (
         ('Fit to Data', 'Reset original view', 'home', 'home'),
         #('Undo', 'Back to previous view', 'back', 'back'),
@@ -500,25 +498,12 @@ class MinimalNavigationToolbar(QWidget):
     """
     MinimalNavigationToolbar provides a highly simplified toolbar for dialogs or
     secondary windows, with only zoom, pan, and reset controls.
-
-    Signals:
-        mode_changed (str): Emitted when the zoom/pan mode changes.
-
-    Args:
-        canvas: The matplotlib canvas to control.
-        parent: Optional parent widget.
     """
 
     mode_changed = Signal(str)
 
     def __init__(self, canvas, parent=None):
-        """
-        Initialize the minimal navigation toolbar with zoom, pan, and reset buttons.
 
-        Args:
-            canvas: The matplotlib canvas to attach the toolbar to.
-            parent: Optional parent widget.
-        """
         super().__init__(parent)
         self.canvas = canvas
         self.toolbar = NavigationToolbar(canvas, self)
@@ -552,16 +537,7 @@ class MinimalNavigationToolbar(QWidget):
         self.current_mode = "none"
 
     def _create_tool_button(self, text: str, mode: str):
-        """
-        Create a styled QPushButton for toolbar actions.
 
-        Args:
-            text (str): Button label.
-            mode (str): Action mode ('zoom', 'pan', or 'reset').
-
-        Returns:
-            QPushButton: The configured button.
-        """
         from PySide6.QtWidgets import QPushButton
 
         btn = QPushButton(text)

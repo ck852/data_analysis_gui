@@ -4,7 +4,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Range table widget for concentration-response analysis.
+Range table widget for concentration-response analysis (conc_resp_dialog.py).
 
 Provides an interactive table for defining analysis ranges with start/end times,
 analysis types, background pairing, and visual styling. Emits signals when ranges
@@ -19,9 +19,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QColor
 
-from data_analysis_gui.config.themes import apply_modern_theme, style_button, style_label
+from data_analysis_gui.config.themes import apply_modern_theme, style_button
 from data_analysis_gui.widgets.custom_inputs import (
-    SelectAllLineEdit, SelectAllSpinBox, NoScrollComboBox, PositiveFloatLineEdit
+    SelectAllLineEdit, NoScrollComboBox, PositiveFloatLineEdit
 )
 from data_analysis_gui.core.conc_resp_models import (
     ConcentrationRange, AnalysisType, PeakType
@@ -38,13 +38,6 @@ class ConcentrationRangeTable(QWidget):
     Provides a table for configuring analysis ranges with automatic
     background pairing options, visual styling, and signal emissions for
     synchronization with plot cursors.
-    
-    Signals:
-        range_added(str, float, float, bool): Emitted when a new range is added
-            (range_id, start_val, end_val, is_background)
-        range_removed(str): Emitted when a range is removed (range_id)
-        range_modified(int, ConcentrationRange): Emitted when a range is modified
-            (row, range_object)
     """
     
     # Signals
@@ -204,7 +197,7 @@ class ConcentrationRangeTable(QWidget):
             condition_widget.setFixedHeight(WIDGET_HEIGHT)
             condition_widget.textChanged.connect(self._on_range_value_changed)
         
-        # Start time field (column 3) - using PositiveFloatLineEdit instead of spinbox
+        # Start time field (column 3)
         start_edit = PositiveFloatLineEdit(self.table)
         start_edit.setFont(table_font)
         start_edit.setFixedWidth(60)
@@ -214,7 +207,7 @@ class ConcentrationRangeTable(QWidget):
         start_edit.blockSignals(False)
         start_edit.textChanged.connect(self._on_range_value_changed)
         
-        # End time field (column 4) - using PositiveFloatLineEdit instead of spinbox
+        # End time field (column 4)
         end_edit = PositiveFloatLineEdit(self.table)
         end_edit.setFont(table_font)
         end_edit.setFixedWidth(60)
@@ -280,6 +273,9 @@ class ConcentrationRangeTable(QWidget):
         Event filter to capture focus-in events and store the
         last focused QLineEdit widget for μ insertion.
         """
+        # Old - used when 'Condition' field was for concentration input in uM. 
+        # Keeping for possible future use in a dedicated dose response utility
+
         if event.type() == QEvent.Type.FocusIn:
             if isinstance(obj, (SelectAllLineEdit, PositiveFloatLineEdit)):
                 self.last_focused_editor = obj
@@ -288,7 +284,8 @@ class ConcentrationRangeTable(QWidget):
     def remove_range_row(self, row: int):
         """
         Remove a range row from the table.
-        
+        For when user wants to remove a specific row.
+
         Args:
             row: Row index to remove
         """
@@ -325,9 +322,6 @@ class ConcentrationRangeTable(QWidget):
     def add_range_row(self, is_background: bool = False):
         """
         Add a new row to the analysis ranges table.
-        
-        Args:
-            is_background: Whether this is a background range
         """
         # Calculate timing for new range: 5s after the latest existing range
         all_end_times = [0.0]
@@ -594,39 +588,6 @@ class ConcentrationRangeTable(QWidget):
         
         return ranges
 
-    # def validate_concentrations(self) -> tuple[bool, str]:
-    #     """
-    #     Validate that all non-background ranges have concentration values entered.
-        
-    #     Returns:
-    #         Tuple of (is_valid: bool, error_message: str)
-    #     """
-    #     empty_rows = []
-        
-    #     for row in range(self.table.rowCount()):
-    #         bg_widget = self.table.cellWidget(row, 6)
-    #         conc_widget = self.table.cellWidget(row, 2)
-            
-    #         if bg_widget and conc_widget:
-    #             is_background = bg_widget.findChild(QCheckBox).isChecked()
-                
-    #             # Only check non-background ranges
-    #             if not is_background and isinstance(conc_widget, PositiveFloatLineEdit):
-    #                 conc_text = conc_widget.text().strip()
-    #                 if not conc_text:
-    #                     empty_rows.append(row + 1)  # 1-indexed for user display
-        
-    #     if empty_rows:
-    #         if len(empty_rows) == 1:
-    #             error_msg = f"Row {empty_rows[0]} has an empty concentration field. Please enter a concentration value."
-    #         else:
-    #             rows_str = ", ".join(str(r) for r in empty_rows)
-    #             error_msg = f"Rows {rows_str} have empty concentration fields. Please enter concentration values for all analysis ranges."
-            
-    #         return False, error_msg
-        
-    #     return True, ""
-
     def update_background_options(self):
         """
         Update the paired background dropdown options for all rows.
@@ -695,15 +656,16 @@ class ConcentrationRangeTable(QWidget):
                         paired_combo.setCurrentText("None")
                         paired_combo.blockSignals(False)
     
-    def insert_mu_char(self):
-        """Insert μ character into the last focused line edit."""
-        editor = self.last_focused_editor
-        if editor:
-            editor.insert("μ")
-            if isinstance(editor, (SelectAllLineEdit, PositiveFloatLineEdit)):
-                editor.setFocusAndDoNotSelect()
-            else:
-                editor.setFocus()
+    # def insert_mu_char(self):
+    #     """Insert μ character into the last focused line edit."""
+    #     # Old - may want to repurpose in case future additions need μ input
+    #     editor = self.last_focused_editor
+    #     if editor:
+    #         editor.insert("μ")
+    #         if isinstance(editor, (SelectAllLineEdit, PositiveFloatLineEdit)):
+    #             editor.setFocusAndDoNotSelect()
+    #         else:
+    #             editor.setFocus()
     
     def _get_next_range_id(self) -> str:
         """
@@ -786,12 +748,6 @@ class ConcentrationRangeTable(QWidget):
     def _center_widget(self, widget: QWidget) -> QWidget:
         """
         Center a widget in a container for table cell placement.
-        
-        Args:
-            widget: Widget to center
-            
-        Returns:
-            Container widget with centered content
         """
         container = QWidget()
         layout = QHBoxLayout(container)
@@ -803,10 +759,6 @@ class ConcentrationRangeTable(QWidget):
     def _style_row(self, row: int, is_background: bool):
         """
         Apply visual styling to a table row based on background status.
-        
-        Args:
-            row: Row index to style
-            is_background: Whether this is a background range
         """
         bg_color = QColor("#E3F2FD") if is_background else QColor(Qt.GlobalColor.white)
         

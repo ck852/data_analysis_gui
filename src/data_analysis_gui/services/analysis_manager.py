@@ -1,4 +1,6 @@
 """
+PatchBatch Analysis Manager
+
 Receives datasets and analysis parameters from ApplicationController, prepares them 
 for processing by AnalysisEngine, and returns AnalysisEngine results back to the controller.
 

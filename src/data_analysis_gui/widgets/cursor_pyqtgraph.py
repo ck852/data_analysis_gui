@@ -8,6 +8,9 @@ PyQtGraph-based cursor system for interactive range definition.
 
 Provides draggable range cursors using PyQtGraph's LinearRegionItem for
 concentration-response analysis and other interactive plotting needs.
+
+This is the PyQtGraph implementation of the cursor system, analogous to cursor_spinbox.py
+module which uses Matplotlib. 
 """
 
 import pyqtgraph as pg
@@ -151,9 +154,7 @@ class PyQtGraphCursorManager(QObject):
     range_position_changed = Signal(str, str, float)
     
     def __init__(self, plot_item, plot_widget):
-        """
-        Initialize the cursor manager.
-        
+        """    
         Args:
             plot_item: PyQtGraph PlotItem for adding cursors
             plot_widget: PyQtGraph PlotWidget (parent widget)

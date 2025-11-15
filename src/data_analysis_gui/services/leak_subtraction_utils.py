@@ -173,15 +173,6 @@ def get_sweep_by_group_and_type(
 ) -> Optional[str]:
     """
     Find sweep index for a specific group and record type.
-    
-    Args:
-        dataset: The dataset to search
-        group_num: Group number to find
-        rec_type: 'LEAK' or 'TEST'
-        rejected_sweeps: Set of sweep indices to exclude
-        
-    Returns:
-        Sweep index (as string) or None if not found
     """
     if rejected_sweeps is None:
         rejected_sweeps = set()
@@ -214,9 +205,6 @@ def format_scale_factor_display(
     Args:
         leak_scale: The calculated scaling factor
         details: Optional dictionary with intermediate values
-        
-    Returns:
-        Formatted string for display
     """
     if details is None:
         return f"Scale Factor: {leak_scale:.4f}"
@@ -239,14 +227,6 @@ def check_cursor_positions(
 ) -> Tuple[bool, str]:
     """
     Validate cursor positions are within bounds and properly ordered.
-    
-    Args:
-        vhold_ms: VHold cursor position
-        vtest_ms: VTest cursor position
-        max_time_ms: Maximum time in sweep
-        
-    Returns:
-        Tuple of (is_valid, error_message)
     """
     # Check bounds
     if vhold_ms < 0 or vhold_ms > max_time_ms:
@@ -266,16 +246,7 @@ def get_available_groups(
     dataset: ElectrophysiologyDataset,
     rejected_sweeps: Optional[Set[int]] = None
 ) -> List[int]:
-    """
-    Get list of valid group numbers that can be processed.
     
-    Args:
-        dataset: The dataset to analyze
-        rejected_sweeps: Set of sweep indices to exclude
-        
-    Returns:
-        Sorted list of valid group numbers
-    """
     groups = get_group_summary(dataset, rejected_sweeps)
     valid_groups, _ = validate_group_pairing(groups)
     return valid_groups

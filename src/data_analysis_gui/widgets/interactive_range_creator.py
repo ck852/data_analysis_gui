@@ -4,16 +4,14 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Interactive range creation for concentration-response analysis.
-
-Manages click-to-define range mode on PyQtGraph plots, allowing users to
+Enhances UX by enabling click-to-define range creation on PyQtGraph plots, allowing users to
 click start/end positions directly on the canvas to create analysis ranges.
 """
 
 from typing import Optional
 import pyqtgraph as pg
-from PySide6.QtWidgets import QPushButton, QLabel
-from PySide6.QtGui import QCursor, QPixmap, QPainter, QColor
+from PySide6.QtWidgets import QPushButton
+from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 
 from data_analysis_gui.config.themes import style_button, style_label
@@ -39,8 +37,6 @@ class InteractiveRangeCreator:
     
     def __init__(self, canvas, ax, range_table, status_label):
         """
-        Initialize the interactive range creator.
-        
         Args:
             canvas: PyQtGraph PlotWidget for event handling
             ax: PyQtGraph PlotItem to draw on
@@ -271,8 +267,20 @@ class InteractiveRangeCreator:
         """
         Complete range creation with the end position.
         
+        Finalizes the interactive range creation by:
+        1. Ensuring start < end (swapping if needed)
+        2. Removing temporary visual guide line
+        3. Adding the range to the table
+        4. Setting up background pairing if applicable
+        5. Updating status message and exiting creation mode
+        
         Args:
-            end_position: X-axis position for range end
+            end_position (float): X-axis position in seconds for range end.
+        
+        Note:
+            If end_position < start_position, the values are swapped to maintain
+            proper range ordering. For paired background ranges, automatically
+            links the new background to the target analysis range.
         """
         start = self._start_position
         end = end_position
@@ -314,9 +322,15 @@ class InteractiveRangeCreator:
     
     def _setup_background_pairing(self):
         """
-        Setup automatic pairing for a newly created background range.
+        Link the newly created background range to its target analysis range.
         
-        Pairs the most recently created background range to the target analysis range.
+        Retrieves the internal ID of the most recently added background range and
+        sets the paired background dropdown in the target analysis range row to
+        reference it.
+        
+        Note:
+            Assumes the background range was just added as the last row in the table
+            and that self._target_row is set to a valid analysis range row index.
         """
         # Get the newly created background range's internal ID (hidden column 1)
         new_bg_row = self.range_table.table.rowCount() - 1
@@ -380,10 +394,8 @@ class InteractiveRangeCreator:
     
     def _draw_temp_start_line(self, x_position: float):
         """
-        Draw temporary vertical line at start position for visual feedback.
-        
-        Args:
-            x_position: X-axis position for the guide line
+        Draw temporary vertical line at start position for visual feedback 
+        to show where the range will begin.
         """
         # Get styled pen from centralized styling
         pen = get_interactive_cursor_pen()

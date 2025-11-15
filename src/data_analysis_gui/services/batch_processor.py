@@ -1,5 +1,5 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool
+PatchBatch Batch Processor
 
 Coordinates the batch analysis process. This is to be used for straight batch analysis with 
 simple parameters (ie avg current vs avg voltage), but is expandable for more complex scenarios 

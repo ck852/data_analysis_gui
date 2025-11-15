@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 """
-PatchBatch Electrophysiology Data Analysis Tool
+PatchBatch Electrophysiology Data Analysis Tool - Plot Manager
+
+This module defines the MainWindow plot. It manages interactive matplotlib plotting for electrophysiology sweep visualization.
+Coordinates the matplotlib canvas with specialized managers for cursors (CursorManager),
+per-channel view state (ViewStateManager), and axis zoom controls (AxisZoomController).
+Emits Qt signals when user interactions occur - MainRangeCoordinator handles synchronization
+between cursor positions and ControlPanel spinboxes.
+
+This module creates and styles the plot, handles mouse events (dragging cursors, zooming, panning),
+manages cursor lifecycle (creation, positioning, removal), and maintains per-channel axis limits.
+CursorManager handles the matplotlib Line2D and Text objects independently, while PlotManager
+coordinates the higher-level interactions and signal emission.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-- Uses Qt signals for decoupling from the main window.
-- PlotManager handles matplotlib visualization and emits signals for plot interactions.
-- Coordinates ViewStateManager and CursorManager for focused responsibility separation.
 """
 
 import logging
@@ -32,55 +40,40 @@ from data_analysis_gui.core.view_state_manager import ViewStateManager
 from data_analysis_gui.widgets.cursor_manager import CursorManager
 from data_analysis_gui.widgets.axis_zoom_controller import AxisZoomController
 
-# Set up a logger for better debugging
 logger = logging.getLogger(__name__)
 
 
 class PlotManager(QObject):
     """
-    Manages all interactive plotting operations for the application.
-
-    Responsibilities:
-    - Encapsulates a Matplotlib Figure, canvas, and toolbar.
-    - Coordinates ViewStateManager for axis limit state.
-    - Coordinates CursorManager for cursor/text management.
-    - Handles sweep plots and user interactions.
-    - Emits Qt signals for plot updates and line state changes.
+    Handles all interactive plotting for sweep visualization.
+    
+    Coordinates the matplotlib canvas with CursorManager for interactive cursors,
+    ViewStateManager for per-channel axis state, and AxisZoomController for zoom buttons.
+    Emits Qt signals when cursors move or plots update.
     """
 
-    # Define signals for plot interactions
-    # Signal: (action, line_id, value)
-    # Actions: 'dragged', 'added', 'removed', 'centered'
-    line_state_changed = Signal(str, str, float)
-
-    # Signal for plot updates
+    # Actions: 'dragged', 'added', 'removed', 'centered', 'released'
+    line_state_changed = Signal(str, str, float)  # action, line_id, value
     plot_updated = Signal()
-
-    # Clickable welcome message
-    welcome_clicked = Signal() 
+    welcome_clicked = Signal()
 
 
     def __init__(self, figure_size: Tuple[int, int] = (8, 6), file_dialog_service=None):
 
         super().__init__()
 
-        # Apply modern plot style globally
         apply_plot_style()
-
-        # Get line styles for consistent appearance
         self.line_styles = get_line_styles()
 
-        # 1. Matplotlib components setup with styled figure
+        # Matplotlib setup
         self.figure: Figure = Figure(figsize=figure_size, facecolor="#FAFAFA")
         self.canvas: FigureCanvas = FigureCanvas(self.figure)
         self.ax: Axes = self.figure.add_subplot(111)
 
-        # Use the streamlined toolbar with file_dialog_service
         self.toolbar: StreamlinedNavigationToolbar = StreamlinedNavigationToolbar(
             self.canvas, None, file_dialog_service=file_dialog_service
         )
 
-        # Create the plot widget
         self.plot_widget: QWidget = QWidget()
         plot_layout: QVBoxLayout = QVBoxLayout(self.plot_widget)
         plot_layout.setContentsMargins(0, 0, 0, 0)
@@ -88,33 +81,23 @@ class PlotManager(QObject):
         plot_layout.addWidget(self.toolbar)
         plot_layout.addWidget(self.canvas)
 
-        # 2. Helper components for state and cursor management
+        # State managers
         self.view_manager = ViewStateManager()
         self.cursor_manager = CursorManager(self.ax)
-
-        # Axis zoom controller
         self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
         # 3. Initialize range lines (but don't add to axes yet)
         self._initialize_range_lines()
-
-        # 4. Connect interactive events
         self._connect_events()
-
-        # 5. Apply initial styling to axes
         self._style_axes()
 
-        # Data bounds with margins for zoom limiting (calculated from actual data)
+        # Data bounds for zoom limiting (calculated with margins from actual data)
         self._data_bounds_x: Optional[Tuple[float, float]] = None
         self._data_bounds_y: Optional[Tuple[float, float]] = None
 
-        # Track current channel type for per-channel view state management
         self._current_channel_type: str = 'Voltage'
-
-        # Track which channels have been auto-fitted for the current file
         self._autofitted_channels: set = set()
 
-        # Connect toolbar reset signal to autofit method
         self.toolbar.reset_requested.connect(self.autofit_to_data)
 
         # Welcome message state
@@ -134,7 +117,6 @@ class PlotManager(QObject):
         self.ax.spines["left"].set_color("#B0B0B0")
         self.ax.spines["bottom"].set_color("#B0B0B0")
 
-        # Use the increased font sizes from plot_style
         self.ax.tick_params(
             axis="both",
             which="major",
@@ -156,13 +138,11 @@ class PlotManager(QObject):
         self.canvas.mpl_connect("pick_event", self._on_pick)
         self.canvas.mpl_connect("motion_notify_event", self._on_drag)
         self.canvas.mpl_connect("button_release_event", self._on_release)
-
-        # Connect to draw event to update cursor text after zoom/pan
+        # Update cursor text after zoom/pan
         self.canvas.mpl_connect("draw_event", self._on_draw)
 
     def _initialize_range_lines(self) -> None:
-
-        # Use styled colors for range lines
+        """Creates initial Range 1 cursors and adds them to the plot."""
         range1_style = self.line_styles["range1"]
 
         # Create Range 1 cursors via CursorManager
@@ -206,12 +186,14 @@ class PlotManager(QObject):
         x_label: Optional[str] = None,
         y_label: Optional[str] = None,
     ) -> None:
-
-        # Store current channel type for per-channel view state management
+        """
+        Plots sweep data and restores per-channel view state.
+        
+        Auto-fits on first view of each channel type. Custom labels override defaults.
+        """
         self._current_channel_type = channel_type
         
-        # Calculate data bounds with margins for zoom limiting
-        # Same margins as autofit_to_data: 2% for X, 5% for Y
+        # Calculate bounds with 2% X margin, 5% Y margin for zoom limiting
         x_min, x_max = float(np.min(t)), float(np.max(t))
         y_min, y_max = float(np.min(y[:, channel])), float(np.max(y[:, channel]))
         
@@ -232,7 +214,7 @@ class PlotManager(QObject):
         # 1. Clear axes
         self.ax.clear()
 
-        # 2. Plot data with modern styling
+        # Plot with styling
         line_style = self.line_styles["primary"]
         self.ax.plot(
             t,
@@ -242,18 +224,14 @@ class PlotManager(QObject):
             alpha=line_style["alpha"],
         )
 
-        # Apply sweep-specific formatting with custom labels if provided
         if title or x_label or y_label:
-            # Use custom labels/title
             from data_analysis_gui.config.plot_style import style_axis
-
             style_axis(self.ax, title=title, xlabel=x_label, ylabel=y_label)
-            self.ax.set_facecolor("#FAFBFC")  # Keep sweep plot background
+            self.ax.set_facecolor("#FAFBFC")
         else:
-            # Use default formatting
             format_sweep_plot(self.ax, sweep_index, channel_type)
 
-        # 3. Give CursorManager the plot data for text labels
+        # Give CursorManager plot data for text labels
         units = "pA"
         if channel_config:
             units = channel_config.get("current_units", "pA")
@@ -265,43 +243,38 @@ class PlotManager(QObject):
             units=units
         )
 
-        # Re-snap all cursors to new data
+        # Re-snap cursors to new data
         for line_id, position in self.cursor_manager.get_cursor_positions().items():
             self.cursor_manager.update_cursor_position(line_id, position)
 
-        # 4. Re-add cursor Line2D objects from CursorManager
+        # Re-add cursor lines
         for line in self.cursor_manager.get_all_lines():
             self.ax.add_line(line)
 
-        # 5. Handle view limits with per-channel view state
+        # Restore or initialize view for this channel
         current_view = self.view_manager.get_current_view(channel_type)
 
         if current_view is not None:
-            # Restore the preserved zoom/pan state for this channel
             xlim, ylim = current_view
             self.ax.set_xlim(xlim)
             self.ax.set_ylim(ylim)
             logger.debug(f"Restored {channel_type} view: X={xlim}, Y={ylim}")
         else:
-            # First time viewing this channel - autoscale
+            # First time - autoscale and store
             self.ax.relim()
             self.ax.autoscale_view(tight=True)
             self.ax.margins(x=0.02, y=0.05)
             
-            # Store the autoscaled limits as current view for this channel
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
             self.view_manager.update_current_view(xlim, ylim, channel_type)
             logger.debug(f"Set initial {channel_type} view: X={xlim}, Y={ylim}")
 
-        # 6. CursorManager recreates text labels with new data
         self.cursor_manager.recreate_all_text_labels(self.ax)
-
-        # Create zoom buttons AFTER tight_layout
         self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
         self.redraw()
         
-        # 7. Auto-fit if this is the first time viewing this channel
+        # Auto-fit first time viewing this channel
         if channel_type not in self._autofitted_channels:
             logger.info(f"Auto-fitting {channel_type} channel on first view")
             self.autofit_to_data()
@@ -312,13 +285,10 @@ class PlotManager(QObject):
 
 
     def reset_for_new_file(self) -> None:
-        """  
-        Clears view state for all channels so first sweep will autoscale
-        and establish fresh views. Called from MainWindow when loading a new file.
-        """
+        """Clears all channel view states for fresh autoscaling on new file load."""
         self.view_manager.reset()
         self._current_channel_type = 'Voltage'
-        self._autofitted_channels.clear()  # Reset auto-fit tracking for new file
+        self._autofitted_channels.clear()
         logger.info("Reset plot manager for new file (all channel views cleared, auto-fit tracking reset)")
 
 
@@ -330,19 +300,16 @@ class PlotManager(QObject):
         start2: Optional[float] = None,
         end2: Optional[float] = None,
     ) -> None:
-
-        # Get style configurations
+        """Updates cursor positions and adds/removes Range 2 based on dual range setting."""
         range1_style = self.line_styles["range1"]
         range2_style = self.line_styles["range2"]
 
-        # Get current cursor positions to check what exists
         current_positions = self.cursor_manager.get_cursor_positions()
         
-        # Update Range 1 positions
+        # Update Range 1
         if "range1_start" in current_positions:
             self.cursor_manager.update_cursor_position("range1_start", start1)
         else:
-            # Create if missing (shouldn't happen in normal operation)
             line = self.cursor_manager.create_cursor(
                 "range1_start",
                 start1,
@@ -357,7 +324,6 @@ class PlotManager(QObject):
         if "range1_end" in current_positions:
             self.cursor_manager.update_cursor_position("range1_end", end1)
         else:
-            # Create if missing
             line = self.cursor_manager.create_cursor(
                 "range1_end",
                 end1,
@@ -369,12 +335,11 @@ class PlotManager(QObject):
             self.ax.add_line(line)
             self.cursor_manager.recreate_all_text_labels(self.ax)
 
-        # Handle Range 2
         has_range2 = "range2_start" in current_positions
         
         if use_dual_range and start2 is not None and end2 is not None:
             if not has_range2:
-                # Add Range 2 lines
+                # Add Range 2
                 line3 = self.cursor_manager.create_cursor(
                     "range2_start",
                     start2,
@@ -395,18 +360,16 @@ class PlotManager(QObject):
                 self.ax.add_line(line3)
                 self.ax.add_line(line4)
                 
-                # Recreate text labels for new cursors
                 self.cursor_manager.recreate_all_text_labels(self.ax)
 
                 self.line_state_changed.emit("added", "range2_start", start2)
                 self.line_state_changed.emit("added", "range2_end", end2)
             else:
-                # Update existing Range 2 positions
                 self.cursor_manager.update_cursor_position("range2_start", start2)
                 self.cursor_manager.update_cursor_position("range2_end", end2)
                 
         elif not use_dual_range and has_range2:
-            # Remove Range 2 lines
+            # Remove Range 2
             range2_start_pos = current_positions.get("range2_start", 0)
             range2_end_pos = current_positions.get("range2_end", 0)
             
@@ -416,8 +379,7 @@ class PlotManager(QObject):
             self.line_state_changed.emit("removed", "range2_start", range2_start_pos)
             self.line_state_changed.emit("removed", "range2_end", range2_end_pos)
 
-        #  Recreate zoom buttons after line updates
-        # (only if they already existed - don't create if plot not initialized)
+        # Recreate zoom buttons if they exist
         if self.axis_zoom_controller.has_buttons():
             self.axis_zoom_controller.clear_buttons()
             self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
@@ -426,7 +388,7 @@ class PlotManager(QObject):
         logger.debug("Updated range lines with modern styling.")
 
     def center_nearest_cursor(self) -> Tuple[Optional[str], Optional[float]]:
-
+        """Moves the cursor closest to the current view center to the exact center."""
         cursor_positions = self.cursor_manager.get_cursor_positions()
         
         if not cursor_positions or not self.ax.has_data():
@@ -436,7 +398,7 @@ class PlotManager(QObject):
         x_min, x_max = self.ax.get_xlim()
         center_x = (x_min + x_max) / 2
 
-        # Find the cursor closest to the center of the view
+        # Find closest cursor
         nearest_line_id = None
         min_distance = float('inf')
         
@@ -449,12 +411,10 @@ class PlotManager(QObject):
         if nearest_line_id is None:
             return None, None
 
-        # Move the cursor
         self.cursor_manager.update_cursor_position(nearest_line_id, center_x)
 
         logger.info(f"Centered nearest cursor to x={center_x:.2f}.")
 
-        # Emit signal about the centering
         self.line_state_changed.emit("centered", nearest_line_id, center_x)
 
         self.redraw()
@@ -462,7 +422,7 @@ class PlotManager(QObject):
         return nearest_line_id, center_x
 
     def show_welcome_message(self) -> None:
-        """Display a clickable welcome message on the empty plot at startup."""
+        """Shows clickable startup message before any data is loaded."""
         self.ax.clear()
         self.ax.set_xticks([])
         self.ax.set_yticks([])
@@ -481,10 +441,10 @@ class PlotManager(QObject):
             fontsize=16,
             color='#4A90E2',
             transform=self.ax.transAxes,
-            picker=True  # Make it pickable
+            picker=True
         )
         
-        # Make entire plot clickable during welcome state
+        # Make entire plot clickable
         self._welcome_click_cid = self.canvas.mpl_connect(
             'button_press_event', 
             self._on_welcome_click
@@ -494,40 +454,33 @@ class PlotManager(QObject):
         logger.info("Displayed welcome message on empty plot (entire plot is clickable)")
 
     def _on_welcome_click(self, event) -> None:
-        """
-        Let user click anywhere on the welcome plot to open file dialog.
-        """
-        # Only respond if we're in welcome state
+        """Triggers file dialog when user clicks welcome message."""
         if self._welcome_text is not None:
             logger.debug("Welcome plot clicked - opening file dialog")
             self.welcome_clicked.emit()
 
     def clear_welcome_state(self) -> None:
-
+        """Removes welcome message and restores normal plot state."""
         if self._welcome_text is not None:
             self._welcome_text.remove()
             self._welcome_text = None
             logger.debug("Removed welcome message")
         
-        # Disconnect the welcome click handler
         if self._welcome_click_cid is not None:
             self.canvas.mpl_disconnect(self._welcome_click_cid)
             self._welcome_click_cid = None
             logger.debug("Disconnected welcome click handler")
         
-        # Restore normal axis appearance (will be properly styled when data loads)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         
-        # Restore spines (they'll be styled by _style_axes via update_sweep_plot)
         self.ax.spines['top'].set_visible(False)
         self.ax.spines['right'].set_visible(False)
         self.ax.spines['left'].set_visible(True)
         self.ax.spines['bottom'].set_visible(True)
 
     def autofit_to_data(self) -> None:
-
-        # Get data directly from cursor manager
+        """Fits axes to current data with 2% X and 5% Y margins."""
         time_data = self.cursor_manager._current_time_data
         y_data = self.cursor_manager._current_y_data
         
@@ -535,11 +488,9 @@ class PlotManager(QObject):
             logger.warning("Cannot autofit: No data currently available")
             return
         
-        # Calculate limits directly from data
         x_min, x_max = float(np.min(time_data)), float(np.max(time_data))
         y_min, y_max = float(np.min(y_data)), float(np.max(y_data))
         
-        # Add margins (2% for x, 5% for y)
         x_range = x_max - x_min
         y_range = y_max - y_min
         
@@ -549,68 +500,36 @@ class PlotManager(QObject):
         xlim = (x_min - x_margin, x_max + x_margin)
         ylim = (y_min - y_margin, y_max + y_margin)
         
-        # Set limits directly
         self.ax.set_xlim(xlim)
         self.ax.set_ylim(ylim)
         
-        # Update cursor text positions for new view
         self.cursor_manager.update_all_text_positions(ylim)
-        
-        # Store as current view for the current channel type
         self.view_manager.update_current_view(xlim, ylim, self._current_channel_type)
-        
-        # Push onto toolbar's navigation stack
         self.toolbar.push_current()
         
         logger.info(f"Autofitted {self._current_channel_type} to data: X={xlim}, Y={ylim}")
         self.redraw()
 
-    def reset_for_new_file(self) -> None:
-        """
-        Reset plot state for a new file load.
-        
-        Clears view state for all channels so first sweep will autoscale
-        and establish fresh views. Called from MainWindow when loading a new file.
-        """
-        self.view_manager.reset()
-        self._current_channel_type = 'Voltage'
-        logger.info("Reset plot manager for new file (all channel views cleared)")
-
-    # --- Mouse Interaction Handlers ---
+    # --- Mouse event handlers ---
 
     def _on_pick(self, event) -> None:
-        """Handle pick events for dragging range lines or clicking welcome text."""
-        # Check if welcome text was clicked
+        """Handles clicks on welcome text or cursor dragging initiation."""
         if self._welcome_text is not None and event.artist == self._welcome_text:
             logger.debug("Welcome text clicked - opening file dialog")
             self.welcome_clicked.emit()
             return
         
-        # Otherwise, handle cursor dragging
         line_id = self.cursor_manager.handle_pick(event.artist)
         if line_id:
             logger.debug(f"Picked cursor: {line_id}")
 
     def set_max_time_bound(self, max_time: float) -> None:
-        """
-        Set the maximum time bound for X-axis zoom limiting.
-        Not anticipating need for Y axis time plotting
-        
-        Args:
-            max_time: Maximum sweep time in milliseconds.
-        """
+        """Sets maximum X-axis bound for zoom limiting (in milliseconds)."""
         self._max_time_bound = max_time
         logger.debug(f"Set max time bound: {max_time:.2f} ms")
 
     def _on_axis_zoom(self, axis: str, direction: str) -> None:
-        """
-        Handle axis zoom button clicks with bounds limiting.
-        
-        Args:
-            axis: 'x' or 'y' - which axis to zoom.
-            direction: 'in' or 'out' - zoom direction.
-        """
-        # Get current limits for the specified axis
+        """Handles zoom button clicks with bounds checking."""
         if axis == 'x':
             current_limits = self.ax.get_xlim()
             max_bounds = self._data_bounds_x
@@ -618,22 +537,18 @@ class PlotManager(QObject):
             current_limits = self.ax.get_ylim()
             max_bounds = self._data_bounds_y
         
-        # Calculate new limits using controller with bounds
         new_limits = self.axis_zoom_controller.calculate_zoom(
             axis, direction, current_limits, max_bounds=max_bounds
         )
         
-        # Apply new limits to axes
         if axis == 'x':
             self.ax.set_xlim(new_limits)
         else:
             self.ax.set_ylim(new_limits)
         
-        # Update cursor text positions
         current_ylim = self.ax.get_ylim()
         self.cursor_manager.update_all_text_positions(current_ylim)
         
-        # Store new view state for current channel
         current_xlim = self.ax.get_xlim()
         self.view_manager.update_current_view(current_xlim, current_ylim, self._current_channel_type)
         
@@ -648,7 +563,6 @@ class PlotManager(QObject):
         
         if result:
             line_id, new_position = result
-            # Emit signal about the drag
             self.line_state_changed.emit("dragged", line_id, new_position)
             self.redraw()
 
@@ -660,39 +574,27 @@ class PlotManager(QObject):
             x_pos = positions.get(line_id, 0)
             logger.debug(f"Released cursor {line_id} at x={x_pos:.2f}.")
             
-            #  Emit signal that drag is complete
             self.line_state_changed.emit("released", line_id, x_pos)
 
     def _on_draw(self, event) -> None:
-
-        # Get current axis limits
+        """Updates cursor text positions when view changes from zoom/pan."""
         current_xlim = self.ax.get_xlim()
         current_ylim = self.ax.get_ylim()
         
-        # Check if view has changed for the current channel
         if self.view_manager.has_view_changed(current_xlim, current_ylim, self._current_channel_type):
-            # Update cursor text positions to match new limits
             self.cursor_manager.update_all_text_positions(current_ylim)
-            
-            # Store new limits for the current channel
             self.view_manager.update_current_view(current_xlim, current_ylim, self._current_channel_type)
 
     def clear(self) -> None:
-
-        #  Clear zoom buttons before clearing axes
+        """Clears plot and resets to initial range lines."""
         self.axis_zoom_controller.clear_buttons()
-
-        # Clear axes - this removes all artists including lines
         self.ax.clear()
-
-        # Clear cursor manager's plot data
         self.cursor_manager.clear_plot_data()
 
-        # Remove all cursors from tracking
+        # Remove all cursors
         for line_id in list(self.cursor_manager.get_cursor_positions().keys()):
             self.cursor_manager.remove_cursor(line_id)
 
-        # Re-initialize default range lines
         self._initialize_range_lines()
 
         self.redraw()
@@ -701,26 +603,19 @@ class PlotManager(QObject):
 
     def redraw(self) -> None:
 
-        # Don't use draw_idle
         self.canvas.draw()
 
     def toggle_dual_range(self, enabled: bool, start2: float, end2: float) -> None:
-
+        """Enables or disables second range cursors while preserving Range 1."""
         positions = self.cursor_manager.get_cursor_positions()
         
         if enabled:
-            # Get current range 1 values
             start1 = positions.get("range1_start", 150)
             end1 = positions.get("range1_end", 500)
-
-            # Update with dual range
             self.update_range_lines(start1, end1, True, start2, end2)
         else:
-            # Get current range 1 values
             start1 = positions.get("range1_start", 150)
             end1 = positions.get("range1_end", 500)
-
-            # Update without dual range
             self.update_range_lines(start1, end1, False, None, None)
 
     def get_line_positions(self) -> Dict[str, float]:

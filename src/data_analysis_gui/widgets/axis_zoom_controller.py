@@ -58,11 +58,6 @@ class AxisZoomController:
         >>> # Calculate new limits (doesn't apply them)
         >>> new_xlim = zoom_controller.calculate_zoom('x', 'in', current_xlim)
         >>> ax.set_xlim(new_xlim)
-    
-    Future Feature Hooks:
-        - Configurable zoom factors: Add zoom_in_factor/zoom_out_factor parameters
-        - Custom button positioning: Add position parameters to create_buttons()
-        - Zoom to data bounds: Add method to calculate limits based on data range
     """
     
     # Zoom factors (reciprocals to ensure symmetric behavior)
@@ -71,8 +66,6 @@ class AxisZoomController:
     
     def __init__(self, figure: Figure, ax: Axes):
         """
-        Initialize axis zoom controller with figure and axes references.
-        
         Args:
             figure: Matplotlib figure to create button axes on.
             ax: Main plot axes for zoom operations.
@@ -228,9 +221,6 @@ class AxisZoomController:
         
         Returns:
             New axis limits as (min, max) tuple, clamped to max_bounds if provided.
-        
-        Raises:
-            ValueError: If axis is not 'x' or 'y', or direction is not 'in' or 'out'.
         """
         if axis not in ('x', 'y'):
             raise ValueError(f"Invalid axis: {axis}. Must be 'x' or 'y'.")

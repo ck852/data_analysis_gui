@@ -1,8 +1,8 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-Sweep Navigation Panel - A comprehensive sweep browsing widget combining
-dropdown selection, arrow buttons, and a slider for quick navigation.
+Widget for controlling displayed sweep in MainWindow plot. Can be expanded/optimized
+for user convenience. Slider adds quick navigation through sweeps.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -355,18 +355,12 @@ class SweepNavigationPanel(QWidget):
     def get_current_sweep(self) -> str:
         """
         Get the currently selected sweep index as a string.
-        
-        Returns:
-            str: Current sweep index (e.g., "0", "1", "2"), or empty string if none.
         """
         return self.sweep_combo.currentText()
     
     def set_current_sweep(self, sweep_index: str):
         """
         Programmatically set the current sweep selection.
-        
-        Args:
-            sweep_index: Sweep index as a string (e.g., "0", "1", "2")
         """
         index = self.sweep_combo.findText(sweep_index)
         if index >= 0:
@@ -384,9 +378,6 @@ class SweepNavigationPanel(QWidget):
     def set_sweep_list(self, sweep_names: List[str]):
         """
         Populate the sweep selection controls with a list of sweep names.
-        
-        Args:
-            sweep_names: List of sweep index strings (e.g., ["0", "1", "2", ...])
         """
         # Block signals during bulk update
         self.sweep_combo.blockSignals(True)
@@ -413,10 +404,6 @@ class SweepNavigationPanel(QWidget):
     def set_sweep_times(self, sweep_times: Dict[str, float]):
         """
         Set the sweep timing data for display.
-        
-        Args:
-            sweep_times: Dictionary mapping sweep index strings to time values in seconds
-                        (e.g., {"0": 0.0, "1": 5.5, "2": 11.0})
         """
         self.sweep_times = sweep_times
         self._update_labels()
@@ -425,9 +412,6 @@ class SweepNavigationPanel(QWidget):
     def set_enabled(self, enabled: bool):
         """
         Enable or disable all navigation controls.
-        
-        Args:
-            enabled: True to enable controls, False to disable
         """
         self.prev_btn.setEnabled(enabled)
         self.next_btn.setEnabled(enabled)

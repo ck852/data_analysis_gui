@@ -12,10 +12,13 @@ responsibility for range value coordination without Qt widget dependencies.
 
 This service follows the established pattern of extracting coordination logic
 into focused components (similar to ViewStateManager, CursorManager pattern).
+This simplifies MainWindow and encapsulates complex synchronization logic in separate modules.
+This will facilitate later migration to PyQtGraph if desired.
+
+Extensive documentation included to clarify signal flow and avoid feedback loops.
 """
 
 import logging
-from typing import Optional, Dict
 
 from PySide6.QtCore import QObject, Signal
 
@@ -25,12 +28,6 @@ logger = logging.getLogger(__name__)
 class MainRangeCoordinator(QObject):
     """
     Coordinates range values between ControlPanel spinboxes and PlotManager cursors.
-    
-    Responsibilities:
-    - Bidirectional synchronization (spinboxes ↔ cursors)
-    - Dual range cursor visibility coordination
-    - Signal routing between ControlPanel and PlotManager
-    - Change detection and propagation
     
     This class acts as a mediator between ControlPanel (which owns the spinboxes)
     and PlotManager (which owns the cursor lines). Neither component needs to
@@ -55,8 +52,6 @@ class MainRangeCoordinator(QObject):
     
     def __init__(self, control_panel, plot_manager):
         """
-        Initialize the range coordinator.
-        
         Args:
             control_panel: ControlPanel widget with range spinboxes.
             plot_manager: PlotManager with cursor lines.
@@ -101,7 +96,7 @@ class MainRangeCoordinator(QObject):
         Connect editingFinished signals from all range spinboxes.
         
         This enables snap-back behavior: when user finishes editing a spinbox,
-        it updates to show the actual cursor position (which has snapped to data).
+        it updates to show the actual cursor position (which has snapped to time index data).
         """
         spinboxes = self.control_panel.get_range_spinboxes()
         

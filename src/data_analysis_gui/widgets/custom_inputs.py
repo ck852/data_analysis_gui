@@ -6,16 +6,19 @@ License: MIT (see LICENSE file for details)
 
 Enhanced GUI input widgets for improved user experience.
 
-This module provides custom Qt widget subclasses that enhance the default behavior
-of standard input controls. These widgets improve usability by providing automatic
-text selection, preventing accidental value changes from mouse wheel events, and
-other user-friendly behaviors.
+This module defines the fields for user inputs (i.e. analysis ranges, numeric capacitance inputs, etc).
+Useful for good UX (disallow scrolling changing values, auto-selecting text for easy overwrite, disallowing 
+negative values for time inputs). 
 
 Classes:
     - SelectAllLineEdit: QLineEdit with automatic text selection on focus
     - SelectAllSpinBox: QDoubleSpinBox with text selection and wheel event blocking
-    - SelectAllIntSpinBox: QSpinBox with text selection and wheel event blocking
     - NoScrollComboBox: QComboBox that ignores mouse wheel events
+    - PositiveFloatLineEdit: QLineEdit restricted to positive decimal numbers
+    - NumericLineEdit: QLineEdit for numeric input mimicking QDoubleSpinBox interface
+    - RangeInputValidator: Custom validator for sweep range input format
+    - RangeInputLineEdit: QLineEdit for sweep range input (e.g., "1,2,3-15,20")
+    - ToggleComboBox: QComboBox that toggles between items instead of showing dropdown
 
 Features:
     - Automatic text selection for faster data entry
@@ -24,7 +27,7 @@ Features:
     - Drop-in replacements for standard Qt input widgets
 """
 
-from PySide6.QtWidgets import QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox
+from PySide6.QtWidgets import QLineEdit, QDoubleSpinBox, QComboBox
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QValidator, QDoubleValidator
 
@@ -89,13 +92,7 @@ class SelectAllSpinBox(QDoubleSpinBox):
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the SelectAllSpinBox.
 
-        Args:
-            *args: Positional arguments for QDoubleSpinBox.
-            **kwargs: Keyword arguments for QDoubleSpinBox.
-        """
         super().__init__(*args, **kwargs)
         logger.debug("Initialized SelectAllSpinBox")
 
@@ -127,13 +124,7 @@ class NoScrollComboBox(QComboBox):
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the NoScrollComboBox.
 
-        Args:
-            *args: Positional arguments for QComboBox.
-            **kwargs: Keyword arguments for QComboBox.
-        """
         super().__init__(*args, **kwargs)
         logger.debug("Initialized NoScrollComboBox")
 
@@ -159,13 +150,7 @@ class PositiveFloatLineEdit(QLineEdit):
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the PositiveFloatLineEdit.
 
-        Args:
-            *args: Positional arguments for QLineEdit.
-            **kwargs: Keyword arguments for QLineEdit.
-        """
         super().__init__(*args, **kwargs)
         self._select_all_on_focus = True
         
@@ -253,13 +238,7 @@ class NumericLineEdit(QLineEdit):
     valueChanged = Signal(float)
     
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the NumericLineEdit.
 
-        Args:
-            *args: Positional arguments for QLineEdit.
-            **kwargs: Keyword arguments for QLineEdit.
-        """
         super().__init__(*args, **kwargs)
         self._select_all_on_focus = True
         self._decimals = 2
@@ -350,7 +329,7 @@ class NumericLineEdit(QLineEdit):
         """
         Set the valid range for the input (for interface compatibility).
         
-        Note: Range validation is handled elsewhere in the application.
+        Note: Range validation is handled in ControlPanel.
         This method updates the validator's range for basic input validation.
         
         Args:
@@ -435,13 +414,7 @@ class RangeInputLineEdit(QLineEdit):
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the RangeInputLineEdit.
 
-        Args:
-            *args: Positional arguments for QLineEdit.
-            **kwargs: Keyword arguments for QLineEdit.
-        """
         super().__init__(*args, **kwargs)
         self._select_all_on_focus = True
         
@@ -498,13 +471,7 @@ class ToggleComboBox(QComboBox):
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initialize the ToggleComboBox.
 
-        Args:
-            *args: Positional arguments for QComboBox.
-            **kwargs: Keyword arguments for QComboBox.
-        """
         super().__init__(*args, **kwargs)
         logger.debug("Initialized ToggleComboBox")
 

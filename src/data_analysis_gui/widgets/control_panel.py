@@ -6,24 +6,25 @@ License: MIT (see LICENSE file for details)
 
 Control Panel Widget
 
-A self-contained widget for managing all analysis and plot settings in the PatchBatch Electrophysiology Data Analysis Tool.
+A large widget for managing all analysis and plot settings in the PatchBatch Electrophysiology Data Analysis Tool.
 Controls are always active, regardless of file loading state, and communicate user actions via Qt signals.
 Provides themed UI elements for analysis ranges, dual range selection, stimulus period, axis configuration, and peak mode.
 Validation is performed on input fields, with visual feedback for invalid states.
+
+Docstrings throughout describe methods in detail to assist learning/understanding for
+electrophysiology researchers interested in customizing or extending the tool.
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QGroupBox, QLabel, QPushButton, QCheckBox, QGridLayout
 from PySide6.QtCore import Signal, Qt
 
-# Import custom widgets that handle scrolling properly
-from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox, NoScrollComboBox, NumericLineEdit
+from data_analysis_gui.widgets.custom_inputs import NoScrollComboBox, NumericLineEdit
 from data_analysis_gui.config import DEFAULT_SETTINGS
 from data_analysis_gui.core.params import AnalysisParameters
 
 from data_analysis_gui.config.themes import (style_button, style_scroll_area, style_group_box, style_label, style_checkbox, apply_compact_layout, 
                                              style_spinbox_with_arrows, style_combo_simple, MODERN_COLORS, WIDGET_SIZES)
 
-# Import logging
 from data_analysis_gui.config.logging import get_logger
 
 from typing import Tuple, Optional
@@ -33,23 +34,27 @@ logger = get_logger(__name__)
 
 class ControlPanel(QWidget):
     """
-    ControlPanel Widget
+    Simple panel for configuring analysis ranges and plot settings.
 
-    Provides a themed panel for configuring analysis and plot settings.
-    - Manages analysis ranges, dual range selection, and stimulus period.
-    - Allows configuration of plot axes and peak calculation mode.
-    - Emits signals for analysis requests, export actions, and range changes.
-    - Performs validation and visual feedback for input fields.
-    - Supports saving and restoring settings via dictionaries.
+    Manages two analysis ranges (primary and optional dual range), peak calculation modes,
+    and X/Y axis configurations, including option for conductance calculations. Performs real-time
+    validation with visual feedback, enabling/disabling action buttons based on validity.
+    All controls remain active regardless of file loading state for simplicity (analysis ops are blocked until file load).
 
-    Signals:
-        analysis_requested: Emitted when the user requests to generate an analysis plot.
-        export_requested: Emitted when the user requests to export analysis data.
-        dual_range_toggled: Emitted when the dual range checkbox is toggled.
-        range_values_changed: Emitted when any range spinbox value changes.
-
-    Args:
-        parent: Optional parent widget.
+    Attributes:
+        start_spin: Range 1 start time spinbox (ms).
+        end_spin: Range 1 end time spinbox (ms).
+        start_spin2: Range 2 start time spinbox (ms).
+        end_spin2: Range 2 end time spinbox (ms).
+        dual_range_cb: Checkbox to enable Range 2.
+        x_measure_combo: X-axis measure selection (Time/Peak/Average).
+        x_channel_combo: X-axis channel selection (Voltage/Current).
+        y_measure_combo: Y-axis measure selection (Peak/Average/Time/Conductance).
+        y_channel_combo: Y-axis channel selection (Voltage/Current).
+        peak_mode_combo: Peak calculation mode (Absolute/Positive/Negative/Peak-Peak).
+        conductance_group: Group box for conductance-specific settings.
+        update_plot_btn: Button to trigger analysis plot generation.
+        export_plot_btn: Button to trigger data export.
     """
 
     # Define signals for communication with main window

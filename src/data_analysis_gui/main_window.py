@@ -6,14 +6,19 @@ License: MIT (see LICENSE file for details)
 
 Main application window.
 
-This module implements the primary user interface. It serves as the central coordinator between:
-- User interactions (file loading, ControlPanel adjustment, dialog launching)
-- Data processing backend (AppController, AnalysisEngine)
-- Visualization components (PlotManager, analysis dialogs)
+This module implements the central interface of the program. MainWindow coordinates 
+user interactions with the data processing pipeline through a structured service architecture. 
+The window layout is composed primarily of ControlPanel (left side), which provides all 
+parameter input controls for users to configure their analysis settings, and PlotManager 
+(center-right) which displays the interactive plot of users' raw data sweeps.
 
-PlotManager is responsible for the main plot that displays in center-right of window.
-ControlPanel is the left-side panel with all parameter controls.
-StreamlinedNavigationPanel (from config/custom_inputs.py) is the toolbar above the plot for plot navigation.
+The analysis pathway for a single file is as follows: User configures parameters in ControlPanel → MainWindow collects 
+parameters → ApplicationController coordinates data loading → AnalysisManager formats data for analysis → AnalysisEngine 
+→ back through the same chain. AnalysisEngine dictates core analysis calculations via MetricsCalculator, then PlotFormatter 
+transforms these results according to the user's selected parameters (peak type, measure, channel, dual 
+range settings) before returning plot-ready data to MainWindow for display through PlotManager. This
+pathway can also be used by BatchProcessor for multi-file operations, displaying results in a new batch analysis
+results dialog.
 
 Key design principles (during initial development; these are negotiable as the project evolves):
 - Core controls remain active at all times, regardless of file load state (analysis functions/dialogs
@@ -30,7 +35,7 @@ import re
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
     QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel, QCheckBox,
-    QComboBox, QDialog, QApplication
+    QDialog, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QKeySequence, QAction

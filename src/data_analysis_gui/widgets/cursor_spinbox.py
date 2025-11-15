@@ -5,6 +5,8 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 Cursor-Spinbox synchronization manager for interactive matplotlib plots.
+Not used in MainWindow plot! This is a simplified version for dialogs that just need
+draggable cursors synced with spinboxes.
 """
 
 # ===============================================================

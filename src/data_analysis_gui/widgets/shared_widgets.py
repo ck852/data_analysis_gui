@@ -8,6 +8,8 @@ This module provides shared widget components for batch analysis and current den
 It includes reusable components for displaying batch analysis results with
 consistent behavior and appearance, such as a dynamic plot widget and a
 file list widget that maintains selection state across windows.
+
+DynamicBatchPlotWidget and BatchFileListWidget should only be used by batch results and current density windows!
 """
 
 from typing import Dict, List, Set, Optional, Tuple, Callable
@@ -36,6 +38,8 @@ class FileSelectionState:
     """
     FileSelectionState manages the selection state of files across multiple windows.
 
+    Can be used by any dialog.
+
     It maintains a set of selected files and notifies registered observers
     whenever the selection changes, enabling synchronized selection between
     different UI components.
@@ -45,12 +49,7 @@ class FileSelectionState:
     """
 
     def __init__(self, initial_files: Optional[Set[str]] = None):
-        """
-        Initialize the selection state.
 
-        Args:
-            initial_files (Optional[Set[str]]): Set of filenames to select initially.
-        """
         self._selected_files: Set[str] = (
             initial_files.copy() if initial_files else set()
         )
@@ -73,49 +72,29 @@ class FileSelectionState:
     def set_files(self, filenames: Set[str]) -> None:
         """
         Set the complete selection state.
-
-        Args:
-            filenames (Set[str]): The set of files to select.
         """
         self._selected_files = filenames.copy()
         self._notify_observers()
 
     def is_selected(self, filename: str) -> bool:
-        """
-        Check if a file is selected.
 
-        Args:
-            filename (str): The file to check.
-
-        Returns:
-            bool: True if selected, False otherwise.
-        """
         return filename in self._selected_files
 
     def get_selected_files(self) -> Set[str]:
         """
         Get a copy of the currently selected files.
-
-        Returns:
-            Set[str]: The set of selected files.
         """
         return self._selected_files.copy()
 
     def add_observer(self, callback: Callable[[Set[str]], None]) -> None:
         """
         Add an observer to be notified of selection changes.
-
-        Args:
-            callback (Callable[[Set[str]], None]): Function to call on selection change.
         """
         self._observers.append(callback)
 
     def remove_observer(self, callback: Callable[[Set[str]], None]) -> None:
         """
         Remove an observer.
-
-        Args:
-            callback (Callable[[Set[str]], None]): Observer to remove.
         """
         if callback in self._observers:
             self._observers.remove(callback)
@@ -138,7 +117,7 @@ class DynamicBatchPlotWidget(QWidget):
 
     It maintains a persistent matplotlib figure and updates only the data or
     visibility of plot lines, avoiding flicker from complete redraws. Designed
-    for batch results and current density displays.
+    for batch results and current density windows ONLY!
 
     Signals:
         plot_updated: Emitted when the plot is updated.
@@ -151,12 +130,7 @@ class DynamicBatchPlotWidget(QWidget):
     plot_updated = Signal()
 
     def __init__(self, parent=None):
-        """
-        Initialize the plot widget with modern styling.
 
-        Args:
-            parent: Optional parent widget.
-        """
         super().__init__(parent)
 
         # Apply global plot style
@@ -205,14 +179,7 @@ class DynamicBatchPlotWidget(QWidget):
         self.layout.addWidget(self.empty_label)
 
     def initialize_plot(self, x_label: str, y_label: str, title: str = "") -> None:
-        """
-        Initialize the plot with axis labels and title.
 
-        Args:
-            x_label (str): Label for x-axis.
-            y_label (str): Label for y-axis.
-            title (str): Plot title (optional).
-        """
         self.x_label = x_label
         self.y_label = y_label
         self.title = title
@@ -259,13 +226,6 @@ class DynamicBatchPlotWidget(QWidget):
     ) -> None:
         """
         Set the data to be plotted, with optional auto-scaling and voltage annotations.
-
-        Args:
-            results (List[FileAnalysisResult]): List of analysis results.
-            use_dual_range (bool): Whether to show dual range data.
-            color_mapping (Optional[Dict[str, Tuple[float, ...]]]): Pre-defined color mapping.
-            voltage_annotations (Optional[Dict[str, Tuple[int, int]]]): Voltage values for each file's ranges.
-            auto_scale (bool): Automatically scale axes to fit data (default: True).
         """
         if not self.plot_initialized:
             logger.warning("Plot not initialized. Call initialize_plot first.")
@@ -305,12 +265,6 @@ class DynamicBatchPlotWidget(QWidget):
     ) -> Dict[str, Tuple[float, ...]]:
         """
         Generate a color mapping for each file using the modern color palette.
-
-        Args:
-            results (List[FileAnalysisResult]): List of analysis results.
-
-        Returns:
-            Dict[str, Tuple[float, ...]]: Mapping from file name to RGB color tuple.
         """
         color_mapping = {}
 
@@ -334,9 +288,6 @@ class DynamicBatchPlotWidget(QWidget):
         """
         Create line objects for a given analysis result with modern styling.
         Uses voltage annotations in labels if available for dual range plots.
-
-        Args:
-            result (FileAnalysisResult): The analysis result to plot.
         """
         color = self.file_colors.get(result.base_name, (0, 0, 0))
 
@@ -398,9 +349,6 @@ class DynamicBatchPlotWidget(QWidget):
     def update_visibility(self, selected_files: Set[str]) -> None:
         """
         Update line visibility based on selected files.
-
-        Args:
-            selected_files (Set[str]): Set of filenames to show.
         """
         if not self.plot_initialized:
             return
@@ -426,11 +374,6 @@ class DynamicBatchPlotWidget(QWidget):
     ) -> None:
         """
         Update Y data for a specific file's lines.
-
-        Args:
-            filename (str): Name of file to update.
-            y_data (np.ndarray): New Y data for range 1.
-            y_data2 (Optional[np.ndarray]): New Y data for range 2 (if applicable).
         """
         if filename not in self.line_objects:
             logger.warning(f"No line objects for file: {filename}")
@@ -511,10 +454,6 @@ class DynamicBatchPlotWidget(QWidget):
     def export_figure(self, filepath: str, dpi: int = 300) -> None:
         """
         Export the current figure to a file with high quality.
-
-        Args:
-            filepath (str): Path to save the figure.
-            dpi (int): Dots per inch for export (default: 300).
         """
         if self.figure:
             # Ensure the figure looks good when exported
@@ -626,6 +565,8 @@ class BatchFileListWidget(QTableWidget):
     BatchFileListWidget displays a list of files with checkboxes and color indicators,
     maintaining selection state across windows.
 
+    ONLY for batch analysis and current density windows!
+
     It supports optional additional columns (such as Cslow values) and uses a
     FileSelectionState object for consistent selection management.
 
@@ -649,14 +590,7 @@ class BatchFileListWidget(QTableWidget):
         show_cslow: bool = False,
         parent=None,
     ):
-        """
-        Initialize the file list widget.
 
-        Args:
-            selection_state (Optional[FileSelectionState]): Shared selection state object.
-            show_cslow (bool): Whether to show Cslow column.
-            parent: Optional parent widget.
-        """
         super().__init__(parent)
 
         self.selection_state = selection_state or FileSelectionState()
@@ -721,14 +655,7 @@ class BatchFileListWidget(QTableWidget):
         color: Tuple[float, ...],
         cslow_val: Optional[float] = None,
     ) -> None:
-        """
-        Add a file to the list.
 
-        Args:
-            file_name (str): Name of the file.
-            color (Tuple[float, ...]): RGB color tuple.
-            cslow_val (Optional[float]): Cslow value (if show_cslow is True).
-        """
         row = self.rowCount()
         self.insertRow(row)
 
@@ -771,12 +698,6 @@ class BatchFileListWidget(QTableWidget):
     def _create_color_indicator(self, color: Tuple[float, ...]) -> QWidget:
         """
         Create a colored square widget for the file color indicator.
-
-        Args:
-            color (Tuple[float, ...]): RGB color tuple.
-
-        Returns:
-            QWidget: The color indicator widget.
         """
         widget = QWidget()
         layout = QHBoxLayout(widget)
@@ -806,10 +727,6 @@ class BatchFileListWidget(QTableWidget):
     def _on_checkbox_changed(self, file_name: str, checked: bool) -> None:
         """
         Handle individual checkbox changes.
-
-        Args:
-            file_name (str): Name of the file.
-            checked (bool): Checkbox state.
         """
         if not self._updating_checkboxes:
             self.selection_state.toggle_file(file_name, checked)
@@ -818,9 +735,6 @@ class BatchFileListWidget(QTableWidget):
     def _on_external_selection_change(self, selected_files: Set[str]) -> None:
         """
         Handle selection changes from other sources (e.g., other windows).
-
-        Args:
-            selected_files (Set[str]): Set of selected filenames.
         """
         self._updating_checkboxes = True
 
@@ -877,8 +791,5 @@ class BatchFileListWidget(QTableWidget):
     def get_selected_files(self) -> Set[str]:
         """
         Get currently selected files from the shared state.
-
-        Returns:
-            Set[str]: The set of selected files.
         """
         return self.selection_state.get_selected_files()

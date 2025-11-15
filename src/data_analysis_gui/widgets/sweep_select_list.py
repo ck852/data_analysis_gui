@@ -5,7 +5,8 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 Widget for selecting sweeps to analyze.
-To be used in dialogs that involve operations with individual sweeps.
+
+To be used in dialogs that involve selection of specific sweeps for analysis.
 """
 
 from typing import List, Tuple
@@ -106,13 +107,6 @@ class SweepSelectionWidget(QWidget):
     def eventFilter(self, obj, event):
         """
         Event filter to auto-select range mode when clicking in range input.
-        
-        Args:
-            obj: The object being filtered
-            event: The event
-            
-        Returns:
-            bool: True if event was handled, False otherwise
         """
         from PySide6.QtCore import QEvent
         
@@ -145,11 +139,6 @@ class SweepSelectionWidget(QWidget):
     def get_selected_sweeps(self) -> Tuple[List[str], List[str]]:
         """
         Get list of selected sweep names based on current mode.
-        
-        Returns:
-            Tuple[List[str], List[str]]: (valid_sweep_names, invalid_sweep_numbers)
-                - valid_sweep_names: List of sweep names that were found
-                - invalid_sweep_numbers: List of sweep numbers that were requested but not found
         """
         if self.table_mode_radio.isChecked():
             # Table mode - return checked sweeps, no invalid numbers
@@ -172,9 +161,6 @@ class SweepSelectionWidget(QWidget):
         - Single numbers: 1,2,3
         - Ranges: 3-15
         - Combined: 1,2,3-15,20-25
-        
-        Returns:
-            Tuple[List[str], List[str]]: (valid_sweep_names, invalid_sweep_numbers)
         """
         range_text = self.range_input.text().strip()
         if not range_text:

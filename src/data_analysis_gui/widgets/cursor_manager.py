@@ -1,16 +1,21 @@
 """
-PatchBatch Electrophysiology Data Analysis Tool
-
-Author: Charles Kissell, Northeastern University
-License: MIT (see LICENSE file for details)
-
-Cursor Manager
+PatchBatch Electrophysiology Data Analysis Tool - Cursor Manager
 
 Manages interactive cursor lines and their text labels for plot analysis ranges.
 Extracted from PlotManager to provide focused cursor/text management without
 Qt dependencies. Returns values rather than emitting signals - the coordinator
 (PlotManager) handles signal emission.
 
+Functions are well documented for clarity (bidirectional signaling between spinboxes and cursors is complex! Effective 
+state management and avoiding feedback loops is critical). Stable now, consider migrating to PyQtGraph in the future if
+further optimizations/improvements are desired.
+
+CursorManager handles cursor positioning and snap-to-data behavior independently. PlotManager coordinates cursor movements with
+control panel spinboxes via MainRangeCoordinator - CursorManager returns values rather
+than directly interacting with the coordination layer.
+
+Author: Charles Kissell, Northeastern University
+License: MIT (see LICENSE file for details)
 """
 
 import logging
@@ -26,38 +31,12 @@ logger = logging.getLogger(__name__)
 
 class CursorManager:
     """
-    Manages cursor lines (Line2D) and their text labels (Text) for plot analysis.
+    Manages interactive vertical cursor lines and text labels for matplotlib plots.
     
-    This class handles:
-    - Creating and removing vertical cursor lines
-    - Tracking cursor positions
-    - Sampling plot data to show values at cursor positions
-    - Creating and updating text labels
-    - Mouse interaction (pick/drag/release) without emitting Qt signals
-    
-    Not a QObject - returns values for the coordinator (PlotManager) to handle.
-    Requires an Axes reference for creating matplotlib artists.
-    
-    Example Usage:
-        >>> cursor_mgr = CursorManager(ax)
-        >>> # Create cursors with style
-        >>> line = cursor_mgr.create_cursor('range1_start', 150, color='green')
-        >>> ax.add_line(line)
-        >>> 
-        >>> # After plotting data, store it for text labels
-        >>> cursor_mgr.set_plot_data(time_ms, data_array, 'Voltage', 'pA')
-        >>> cursor_mgr.recreate_all_text_labels(ax)
-        >>> 
-        >>> # Handle mouse interaction
-        >>> line_id = cursor_mgr.handle_pick(event.artist)
-        >>> if line_id:
-        ...     result = cursor_mgr.update_drag(event.xdata)
-        ...     if result:
-        ...         line_id, new_pos = result
-    
-    Future Feature Hooks:
-        - Snap-to-data: Add snap logic in update_drag() before returning position
-        - Multiple cursor sets: Add group parameter to create_cursor()
+    Handles cursor creation, positioning with snap-to-data, text label updates,
+    and mouse interaction tracking. Does not emit Qt signals - returns values
+    for PlotManager to handle. Cursors automatically snap to nearest time point
+    in loaded data when dragged or positioned programmatically.
     """
     
     def __init__(self, ax: Axes):
@@ -133,13 +112,10 @@ class CursorManager:
     
     def remove_cursor(self, line_id: str) -> None:
         """
-        Remove a cursor line and its text label.
-        
-        Removes the Line2D from axes (if attached) and Text object,
-        then removes from internal tracking.
+        Remove cursor line and associated text label from plot and tracking.
         
         Args:
-            line_id: Identifier of cursor to remove.
+            line_id: Cursor identifier
         """
         # Remove line
         if line_id in self._cursors:
@@ -169,14 +145,14 @@ class CursorManager:
     
     def update_cursor_position(self, line_id: str, position: float) -> None:
         """
-        Update a cursor's x-position with snap-to-data.
+        Update cursor position with automatic snap-to-data.
         
-        Position is automatically snapped to nearest time point in loaded data.
-        Updates both the Line2D position and the text label (if exists).
+        Position is snapped to nearest time point in loaded data. Updates both
+        the cursor line and text label if present.
         
         Args:
-            line_id: Identifier of cursor to move.
-            position: New x-coordinate (will be snapped).
+            line_id: Cursor identifier
+            position: New x-coordinate (will be snapped)
         """
         if line_id not in self._cursors:
             logger.warning(f"Cannot update position: cursor '{line_id}' not found")
@@ -199,13 +175,13 @@ class CursorManager:
         Get all cursor Line2D objects for re-adding after axes.clear().
         
         Returns:
-            List of Line2D objects in consistent order (sorted by line_id).
+            List of Line2D objects sorted by line_id
         """
         return [self._cursors[line_id] for line_id in sorted(self._cursors.keys())]
     
     def get_cursor_positions(self) -> Dict[str, float]:
         """
-        Get current positions of all cursors.
+        Get current x-positions of all cursors.
         
         Returns:
             Dictionary mapping line_id to x-position.
@@ -217,7 +193,7 @@ class CursorManager:
     
     def get_cursor_line(self, line_id: str) -> Optional[Line2D]:
         """
-        Get the Line2D object for a specific cursor.
+        Gete2D object for a specific cursor.
         
         Args:
             line_id: Identifier of cursor.
@@ -239,16 +215,16 @@ class CursorManager:
         units: str = "pA"
     ) -> None:
         """
-        Store plot data for sampling y-values at cursor positions.
+        Store plot data for cursor text labels and snap-to-data functionality.
         
-        Must be called before creating text labels. This data is used to
-        sample the actual data values at each cursor position.
+        Must be called before creating text labels. Enables sampling actual
+        data values at cursor positions and snapping cursors to time points.
         
         Args:
-            time_data: Time array (x-values).
-            y_data: Data array (y-values).
-            channel_type: 'Voltage' or 'Current'.
-            units: Units for current channel (e.g., 'pA', 'nA').
+            time_data: Time array (x-values)
+            y_data: Data array (y-values)
+            channel_type: 'Voltage' or 'Current'
+            units: Current channel units (e.g., 'pA', 'nA')
         """
         self._current_time_data = time_data
         self._current_y_data = y_data
@@ -264,16 +240,13 @@ class CursorManager:
     
     def _sample_y_value_nearest(self, x_position: float) -> Optional[float]:
         """
-        Find the nearest y-value from plot data at given x-position.
-        
-        Uses nearest-neighbor sampling to find the data point closest to
-        the cursor position.
+        Sample y-value at nearest data point to x-position.
         
         Args:
-            x_position: X-coordinate to sample at.
+            x_position: X-coordinate to sample at
         
         Returns:
-            Y-value at nearest data point, or None if no data available.
+            Y-value at nearest data point or None if no data available
         """
         if self._current_time_data is None or self._current_y_data is None:
             return None
@@ -295,9 +268,8 @@ class CursorManager:
         """
         Recreate text labels for all cursors using current plot data.
         
-        Called after axes.clear() and new plot data is available, OR when
-        adding/removing cursor sets (e.g., toggling dual range).
-        Samples y-values at each cursor position and creates Text objects.
+        Called after axes.clear() or when toggling cursor visibility.
+        Samples y-values at each cursor position and creates new Text objects.
         
         Args:
             ax: Axes to create text on (may differ from stored _ax after clear).
@@ -323,12 +295,12 @@ class CursorManager:
     
     def _create_cursor_text(self, line_id: str, x_position: float, ax: Axes) -> None:
         """
-        Create a text label for a cursor showing y-value at its position.
+        Create text label showing data value at cursor position.
         
         Args:
-            line_id: Identifier for the cursor.
-            x_position: X-coordinate of the cursor.
-            ax: Axes to create text on.
+            line_id: Cursor identifier
+            x_position: X-coordinate of cursor
+            ax: Axes to create text on
         """
         # Sample y-value at cursor position
         y_value = self._sample_y_value_nearest(x_position)
@@ -365,11 +337,11 @@ class CursorManager:
     
     def _update_cursor_text(self, line_id: str, x_position: float) -> None:
         """
-        Update position and value of a cursor text label.
+        Update text label position and value for a cursor.
         
         Args:
-            line_id: Identifier for the cursor.
-            x_position: New x-coordinate.
+            line_id: Cursor identifier
+            x_position: New x-coordinate
         """
         if line_id not in self._cursor_texts:
             return
@@ -400,13 +372,13 @@ class CursorManager:
     
     def update_all_text_positions(self, ylim: Tuple[float, float]) -> None:
         """
-        Update y-position of all text labels based on new axis limits.
+        Reposition all text labels after axis limit changes.
         
-        Called after zoom/pan to keep text labels visible near top of view.
-        Does not resample y-values, only repositions vertically.
+        Called after zoom/pan to keep labels near top of view. Does not
+        resample data values, only adjusts vertical positioning.
         
         Args:
-            ylim: New y-axis limits as (min, max) tuple.
+            ylim: New y-axis limits (min, max)
         """
         if not self._cursor_texts:
             return
@@ -436,10 +408,10 @@ class CursorManager:
         the picked artist is a cursor, allowing PlotManager to initiate drag.
         
         Args:
-            artist: The matplotlib artist from the pick event.
+            artist: Matplotlib artist from pick event
         
         Returns:
-            line_id if artist is a cursor, None otherwise.
+            line_id if artist is a cursor, None otherwise
         """
         if not isinstance(artist, Line2D):
             return None
@@ -463,10 +435,10 @@ class CursorManager:
         needed for signal emission.
         
         Args:
-            xdata: New x-coordinate from mouse event (None if outside axes).
+            xdata: X-coordinate from mouse event (None if outside axes)
         
         Returns:
-            (line_id, snapped_position) tuple if dragging, None otherwise.
+            Tuple of (line_id, snapped_position) if dragging, None otherwise
         """
         if not self._dragging_line_id or xdata is None:
             return None
@@ -488,7 +460,7 @@ class CursorManager:
         End drag operation and clear drag state.
         
         Returns:
-            line_id of released cursor, or None if not dragging.
+            line_id of released cursor or None if not dragging
         """
         if self._dragging_line_id:
             line_id = self._dragging_line_id
@@ -502,7 +474,7 @@ class CursorManager:
         Check if currently dragging a cursor.
         
         Returns:
-            True if dragging, False otherwise.
+            True if dragging, False otherwise
         """
         return self._dragging_line_id is not None
     
@@ -510,14 +482,13 @@ class CursorManager:
         """
         Snap position to nearest time point in loaded data.
         
-        If no data is loaded, returns the original position unchanged.
-        Uses numpy's argmin for fast nearest-neighbor search.
+        Returns original position unchanged if no data is loaded.
         
         Args:
-            position: Target x-coordinate to snap.
+            position: Target x-coordinate
         
         Returns:
-            Snapped position (nearest time point in data), or original if no data.
+            Snapped position (nearest time point) or original if no data
         """
         if self._current_time_data is None or len(self._current_time_data) == 0:
             return position  # No data loaded - bypass snapping
