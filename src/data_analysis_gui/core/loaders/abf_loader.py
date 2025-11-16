@@ -95,33 +95,47 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
             'voltage_channel': voltage_channels[0]['index'],
             'current_channel': current_channels[0]['index'],
             'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'],
+            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
             'valid': True,
-            'message': f"Auto-detected (multiple channels): Ch.{voltage_channels[0]['index']} (voltage), "
-                      f"Ch.{current_channels[0]['index']} (current)"
+            'warning_level': 'info',
+            'message': f"Multiple channels detected:\n"
+                      f"• {len(voltage_channels)} voltage channel(s)\n"
+                      f"• {len(current_channels)} current channel(s)\n\n"
+                      f"Using Ch.{voltage_channels[0]['index']} (voltage) and "
+                      f"Ch.{current_channels[0]['index']} (current).",
+            'user_message': f"Multiple channels detected. Using Ch.{voltage_channels[0]['index']} (voltage) "
+                           f"and Ch.{current_channels[0]['index']} (current)."
         }
     
     # Case 3: Missing voltage or current channel
     if len(voltage_channels) == 0:
-        logger.error("No voltage channel detected in ABF file")
+        logger.error("No voltage channel detected in WCP file")
         return {
             'voltage_channel': 0,
             'current_channel': 1,
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect voltage channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No voltage channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No voltage channel detected. Using default configuration."
         }
     
     if len(current_channels) == 0:
-        logger.error("No current channel detected in ABF file")
+        logger.error("No current channel detected in WCP file")
         return {
             'voltage_channel': 0,
             'current_channel': 1,
             'voltage_units': 'mV',
             'current_units': 'pA',
             'valid': False,
-            'message': "Could not detect current channel - using default configuration"
+            'warning_level': 'error',
+            'message': "No current channel detected in file.\n\n"
+                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                      "Analysis results may be incorrect.",
+            'user_message': "No current channel detected. Using default configuration."
         }
     
     # Fallback - should not reach here
@@ -132,7 +146,11 @@ def _detect_channel_configuration(channel_info: List[Dict[str, Any]]) -> Dict[st
         'voltage_units': 'mV',
         'current_units': 'pA',
         'valid': False,
-        'message': "Channel detection failed - using default configuration"
+        'warning_level': 'error',
+        'message': "Unexpected channel configuration encountered.\n\n"
+                  "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
+                  "Analysis results may be incorrect.",
+        'user_message': "Channel detection failed. Using default configuration."
     }
 
 
