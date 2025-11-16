@@ -5,12 +5,12 @@ Uses pyABF (https://github.com/swharden/pyABF) to load ABF data into Electrophys
 
 Concern that pyABF yields distinct time indexing per sweep when using ABF files exported by WinWCP (when compared to the
 original WCP file time index).
- 
+
 We are using sweepTimesSec for the sweep start times and seeing times that are consistent with protocol duration,
 but not the stimulus repeat period. This distinction means that a voltage protocol with 0.5s sweeps that repeats every
 1s will yield sweep start times of 0s, 0.5s, 1.0s, 1.5s, etc. rather than 0s, 1s, 2s, etc. Since we only have access
 to ABF files exported by WinWCP, we will proceed with this approach for now, but it may need to be revisited if other ABF files
-(from pClamp or other software) behave differently.
+(from other software) behave differently.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)

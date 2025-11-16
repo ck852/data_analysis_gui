@@ -3,6 +3,11 @@ Background Subtraction Dialog
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
+
+Performs the simple background subtraction operation in which users specify
+a time range to calculate the background current, which is then subtracted from
+all sweeps in the dataset. 
+
 """
 
 import numpy as np
@@ -38,15 +43,7 @@ class BackgroundSubtractionDialog(QDialog):
     """
     
     def __init__(self, dataset: ElectrophysiologyDataset, sweep_index: str, parent=None, batch_mode: bool = False):
-        """
-        Initialize the background subtraction dialog with centralized styling.
-        
-        Args:
-            dataset: The electrophysiology dataset
-            sweep_index: Current sweep index to display
-            parent: Parent widget
-            batch_mode: If True, dialog is for defining BG range for batch analysis
-        """
+
         super().__init__(parent)
         
         self.dataset = dataset
@@ -185,21 +182,11 @@ class BackgroundSubtractionDialog(QDialog):
         self.accept()    
 
     def get_background_range(self):
-        """
-        Get the background range values defined in the dialog.
-        
-        Returns:
-            Tuple[float, float]: (start_ms, end_ms)
-        """
+
         return (self.start_spinbox.value(), self.end_spinbox.value())
 
     def _get_current_channel_data(self):
-        """
-        Get current channel data for the specified sweep.
-        
-        Returns:
-            Tuple[np.ndarray, np.ndarray]: Time and current data arrays, or (None, None) if failed
-        """
+
         try:
             sweep_data = self.data_extractor.extract_sweep_data(self.dataset, self.sweep_index)
             return sweep_data["time_ms"], sweep_data["current"]
@@ -249,12 +236,7 @@ class BackgroundSubtractionDialog(QDialog):
         self.canvas.draw_idle()
         
     def _validate_range(self):
-        """
-        Validate the background range using the service validation.
-        
-        Returns:
-            bool: True if range is valid, False otherwise
-        """
+
         start_time = self.start_spinbox.value()
         end_time = self.end_spinbox.value()
         

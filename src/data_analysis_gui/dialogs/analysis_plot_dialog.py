@@ -4,12 +4,7 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Dialog for displaying analysis plots in the GUI.
-
-Provides:
-    - Interactive plot display.
-    - Export controls for plot image and data.
-    - Clipboard copy functionality for data.
+Dialog for displaying single-file analysis plot from MainWindow.
 """
 
 import os
@@ -17,7 +12,6 @@ from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QHBoxLayout, Q
 from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
 from data_analysis_gui.core.analysis_plot import AnalysisPlotter, AnalysisPlotData
 from data_analysis_gui.core.plot_formatter import PlotFormatter
@@ -35,14 +29,11 @@ logger = get_logger(__name__)
 
 class AnalysisPlotDialog(QDialog):
     """
-    Dialog for displaying an analysis plot in a separate window.
+    Modal dialog for displaying analysis plots with export capabilities.
 
-    Features:
-        - Interactive matplotlib plot.
-        - Export plot as image.
-        - Export plot data as CSV.
-        - Copy data to clipboard.
-        - Themed controls and layout.
+    Presents an interactive matplotlib plot of electrophysiology analysis results
+    with controls for exporting the plot as an image or the data as CSV. Uses
+    dependency injection for file dialog and clipboard services.
     """
 
     def __init__(
@@ -76,8 +67,7 @@ class AnalysisPlotDialog(QDialog):
         self.y_label = plot_labels["y_label"]
         self.plot_title = plot_labels["title"]
 
-        # Share the file dialog service from parent instead of creating new instance
-        # This ensures directory memory is shared across the application
+        # Share the file dialog service from parent
         if hasattr(parent, 'file_dialog_service'):
             self.file_dialog_service = parent.file_dialog_service
         else:
@@ -97,7 +87,6 @@ class AnalysisPlotDialog(QDialog):
         )
         self.init_ui()
 
-        # Apply modern theme
         apply_modern_theme(self)
 
     def init_ui(self):
@@ -120,7 +109,6 @@ class AnalysisPlotDialog(QDialog):
         # Add prominent gridlines at x=0 and y=0
         add_zero_axis_lines(self.ax)
 
-        # Add export controls
         self._add_export_controls(layout)
 
     def _add_export_controls(self, parent_layout):

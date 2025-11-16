@@ -4,24 +4,10 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module defines the CurrentDensityResultsWindow, a graphical user interface
-window for displaying, editing, and exporting current density analysis results
-from electrophysiology batch data.
-
-Key Features:
-- Interactive visualization of current density calculations for multiple files.
-- Editable Cslow values per file, with automatic recalculation of current density.
-- Batch selection and plotting of results, including dual-range support.
-- Export capabilities for individual file CSVs, summary CSVs, and plot images.
-- Integration with business logic via CurrentDensityService.
-- Centralized styling and configuration for a consistent user experience.
-
-Classes:
-- CurrentDensityResultsWindow: QMainWindow subclass providing the main interface
-  for current density analysis results, including file list, plot, and export controls.
-
-All business logic for current density calculations is delegated to
-CurrentDensityService. This module focuses on user interaction and presentation.
+This module defines the CurrentDensityResultsWindow, which displays the outputs
+of the current density-corrected batch analyzed data. This dialog should ONLY display
+after being called from BatchAnalysisWindow after an IV batch analysis. Considering adding 
+support for GV batch analysis (conductance density) in the future (if such a thing is even useful).
 """
 
 import re
@@ -141,9 +127,7 @@ class CurrentDensityResultsWindow(QMainWindow):
 
 
     def init_ui(self):
-        """
-        Set up the user interface, including file list, plot, and export controls.
-        """
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -188,9 +172,6 @@ class CurrentDensityResultsWindow(QMainWindow):
     def _create_left_panel(self) -> QWidget:
         """
         Create the left panel containing the file list and selection controls.
-
-        Returns:
-            QWidget: The constructed left panel widget.
         """
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -218,12 +199,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         return panel
 
     def _add_export_controls(self, layout):
-        """
-        Add export buttons (individual CSVs, summary CSV, plot) to the window.
 
-        Args:
-            layout: The layout to which export controls are added.
-        """
         button_layout = QHBoxLayout()
 
         export_individual_btn = QPushButton("Export Individual CSVs...")
@@ -360,12 +336,6 @@ class CurrentDensityResultsWindow(QMainWindow):
     def _sort_results(self, results):
         """
         Sort analysis results numerically based on filename.
-
-        Args:
-            results: List of analysis results.
-
-        Returns:
-            List: Sorted results.
         """
 
         def extract_number(file_name):
@@ -427,10 +397,6 @@ class CurrentDensityResultsWindow(QMainWindow):
     def _on_cslow_changed(self, file_name: str, new_cslow: float):
         """
         Handle recalculation of density when a capacitance value is changed.
-
-        Args:
-            file_name (str): Name of the file whose capacitance value changed.
-            new_cslow (float): New capacitance value.
         """
         try:
             # Find the index
@@ -475,6 +441,7 @@ class CurrentDensityResultsWindow(QMainWindow):
     def _update_plot(self):
         """
         Update the plot to reflect current selections and data.
+        Used for initial plot and when file selection changes (for when user checks/unchecks files).
         """
         sorted_results = self._sort_results(self.active_batch_result.successful_results)
         self.plot_widget.set_data(

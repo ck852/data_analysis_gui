@@ -72,19 +72,12 @@ class CurrentDensityDialog(QDialog):
     """
     Dialog for entering Cslow (slow capacitance) values for each file.
 
-    Allows users to input capacitance values in picofarads (pF) for current density calculations.
+    Allows users to input capacitance values in picoFarads (pF) for current density calculations.
     Provides bulk entry, validation, and status feedback for each file.
     """
 
     def __init__(self, parent, batch_result: BatchAnalysisResult, analysis_type: str):
-        """
-        Initialize the dialog.
 
-        Args:
-            parent: Parent widget.
-            batch_result (BatchAnalysisResult): Batch analysis result containing file info.
-            analysis_type (str): Either "IV" for current density or "GV" for conductance density.
-        """
         super().__init__(parent)
         self.batch_result = batch_result
         self.analysis_type = analysis_type
@@ -103,9 +96,7 @@ class CurrentDensityDialog(QDialog):
         apply_compact_layout(self)
 
     def init_ui(self):
-        """
-        Initialize the dialog UI components and layout.
-        """
+
         layout = QVBoxLayout(self)
         self.resize(600, 600)
 
@@ -212,12 +203,6 @@ class CurrentDensityDialog(QDialog):
         
         Handles formats like 'date_exp' (e.g., 250923_001) by sorting first by date,
         then by experiment number within each date.
-
-        Args:
-            filename (str): File name string.
-
-        Returns:
-            tuple: Tuple of numbers for hierarchical sorting, or (0,) if no numbers found.
         """
         # Try to extract numbers on both sides of underscore (e.g., "250923_001")
         # Returns tuple (date, experiment_num) for proper hierarchical sorting
@@ -236,9 +221,6 @@ class CurrentDensityDialog(QDialog):
     def _update_status(self, row: int):
         """
         Update the status indicator for a given row based on input validity.
-
-        Args:
-            row (int): Row index in the table.
         """
         cslow_input = self.table.cellWidget(row, 1)
         status_item = self.table.item(row, 2)
@@ -255,12 +237,6 @@ class CurrentDensityDialog(QDialog):
     def _is_valid_number(self, text: str) -> bool:
         """
         Check if the provided text is a valid positive number.
-
-        Args:
-            text (str): Input text.
-
-        Returns:
-            bool: True if valid positive float, False otherwise.
         """
         try:
             value = float(text)
@@ -313,9 +289,6 @@ class CurrentDensityDialog(QDialog):
     def get_cslow_mapping(self) -> Dict[str, float]:
         """
         Get the mapping of filenames to entered Cslow values.
-
-        Returns:
-            Dict[str, float]: Mapping of file names to capacitance values.
         """
         mapping = {}
         for filename, cslow_input in self.cslow_inputs.items():
@@ -327,9 +300,6 @@ class CurrentDensityDialog(QDialog):
     def keyPressEvent(self, event):
         """
         Handle keyboard events for copy/paste support.
-
-        Args:
-            event: QKeyEvent instance.
         """
         # Check for paste shortcut: Ctrl+V on Windows/Linux, Cmd+V on Mac
         is_paste = (

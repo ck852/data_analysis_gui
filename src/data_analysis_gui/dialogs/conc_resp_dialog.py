@@ -4,11 +4,12 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Concentration-Response Analysis Dialog for time-series CSV data.
-
-Provides interactive range definition, background subtraction, and
-metric calculation (Average/Peak) for patch-clamp concentration-response
-experiments.
+For generalized analysis of time-course data. Designed to import CSV outputs from the 
+main analysis pipeline, enabling further analysis of steady state currents. Users can
+define analysis ranges with interactive cursors and calculate average/peak values within
+those ranges. Users can also add background ranges that will be subtracted from the main ranges.
+Users can pair background ranges with specific analysis ranges, or use a single background range 
+for all.
 """
 
 import numpy as np
@@ -55,24 +56,9 @@ logger = get_logger(__name__)
 
 
 class ConcentrationResponseDialog(QDialog):
-    """
-    Dialog for analyzing concentration-response time-series data.
-    
-    Features:
-    - Load multi-trace CSV files
-    - Define analysis ranges with interactive cursors
-    - Background subtraction with paired ranges
-    - Calculate Average or Peak metrics per range
-    - Export results in pivoted format
-    """
 
     def __init__(self, parent=None):
-        """
-        Initialize the concentration-response analysis dialog.
-        
-        Args:
-            parent: Parent widget
-        """
+
         super().__init__(parent)
 
         pg.setConfigOptions(antialias=True, useOpenGL=True)
@@ -148,7 +134,7 @@ class ConcentrationResponseDialog(QDialog):
         self.move(fg.topLeft())
     
     def _init_ui(self):
-        """Initialize the user interface."""
+
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(8)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -184,12 +170,7 @@ class ConcentrationResponseDialog(QDialog):
         main_splitter.setStretchFactor(1, 1)
     
     def _create_left_panel(self) -> QWidget:
-        """
-        Create the left panel with file, ranges, and results sections.
-        
-        Returns:
-            QWidget containing all left-side UI elements
-        """
+
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setSpacing(8)
@@ -209,12 +190,7 @@ class ConcentrationResponseDialog(QDialog):
         return panel
     
     def _create_file_group(self) -> QGroupBox:
-        """
-        Create the file loading section.
-        
-        Returns:
-            QGroupBox with file controls
-        """
+
         group = QGroupBox("File")
         style_group_box(group)
         layout = QVBoxLayout(group)
@@ -248,12 +224,7 @@ class ConcentrationResponseDialog(QDialog):
     #     logger.info("Opened dataset builder dialog")
 
     def _create_ranges_group(self) -> QGroupBox:
-        """
-        Create the ranges definition section.
-        
-        Returns:
-            QGroupBox containing ConcentrationRangeTable
-        """
+
         group = QGroupBox("Analysis Ranges (drag boundaries in plot)")
         style_group_box(group)
         layout = QVBoxLayout(group)
@@ -267,12 +238,7 @@ class ConcentrationResponseDialog(QDialog):
         return group
     
     def _create_results_group(self) -> QGroupBox:
-        """
-        Create the results section.
-        
-        Returns:
-            QGroupBox with results table and export button
-        """
+
         group = QGroupBox("Results")
         style_group_box(group)
         layout = QVBoxLayout(group)
@@ -324,12 +290,7 @@ class ConcentrationResponseDialog(QDialog):
         return group
     
     def _create_plot_panel(self) -> QGroupBox:
-        """
-        Create the plot panel with PyQtGraph widget.
-        
-        Returns:
-            QGroupBox containing plot
-        """
+
         group = QGroupBox("Data Visualization")
         style_group_box(group)
         layout = QVBoxLayout(group)
@@ -562,15 +523,7 @@ class ConcentrationResponseDialog(QDialog):
     # ========================================================================
     
     def _on_range_added(self, range_id: str, start_val: float, end_val: float, is_background: bool):
-        """
-        Handle range added signal from table.
-        
-        Args:
-            range_id: Internal identifier (e.g., "Range_1", "Background_1")
-            start_val: Start time
-            end_val: End time
-            is_background: Whether this is a background range
-        """
+
         self.cursors.add_range_pair(range_id, start_val, end_val, is_background)
         logger.debug(f"Added cursor pair for range: {range_id}")
     

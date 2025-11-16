@@ -3,24 +3,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Interactive batch analysis results viewer and export interface.
-
-This module provides a comprehensive window for viewing, selecting, and exporting
-batch electrophysiology analysis results. Users can interactively select file
-subsets, view color-coded plots with real-time updates, and export data in
-multiple formats including individual CSVs, IV summaries, and current density
-analyses.
-
-Classes:
-    - BatchResultsWindow: Main results viewer with file selection and export controls
-
-Features:
-    - Interactive file selection with real-time plot updates
-    - Color-coded trace visualization for easy file identification
-    - Multiple export formats (CSV, plots, IV summaries)
-    - Current density analysis integration
-    - Selective data export based on file selection
-    - Sortable results with intelligent numeric ordering
+Window for displaying batch analysis results with file selection and export options. Includes functionality for 
+adjusting which files are displayed in the plot, exporting individual analysis outputs (CSVs), exporting summary 
+outputs, and outlet to post-processing (current density analysis) in new dialog.
 """
 
 from pathlib import Path
@@ -57,18 +42,12 @@ class BatchResultsWindow(QMainWindow):
         - File selection and summary.
         - Interactive batch plot.
         - Export controls for CSVs, plots, IV summary, and current density analysis.
+
+    Assumes that all files in the batch are in the same units.
     """
 
     def __init__(self, parent, batch_result, batch_service, data_service):
-        """
-        Initialize the BatchResultsWindow.
-
-        Args:
-            parent: Parent widget.
-            batch_result: Batch analysis result object.
-            batch_service: Service for batch operations.
-            data_service: Service for data export.
-        """
+        
         super().__init__(parent)
 
         #self.setModal(True)
@@ -108,13 +87,10 @@ class BatchResultsWindow(QMainWindow):
         self.move(fg.topLeft())
         self.init_ui()
 
-        # Apply theme from themes.py
         style_main_window(self)
 
     def init_ui(self):
-        """
-        Initialize the user interface, including file list, plot, and export controls.
-        """
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -213,15 +189,6 @@ class BatchResultsWindow(QMainWindow):
         return panel
 
     def _sort_results(self, results):
-        """
-        Sort batch results numerically by file name.
-
-        Args:
-            results: List of batch result objects.
-
-        Returns:
-            List: Sorted batch result objects.
-        """
 
         def extract_number(file_name):
             # Try to extract numbers on both sides of underscore (e.g., "250923_001")
@@ -241,9 +208,7 @@ class BatchResultsWindow(QMainWindow):
         return sorted(results, key=lambda r: extract_number(r.base_name))
 
     def _populate_file_list(self):
-        """
-        Populate the file list widget with sorted results and color mapping.
-        """
+
         sorted_results = self._sort_results(self.batch_result.successful_results)
 
         # Generate color mapping
@@ -266,8 +231,7 @@ class BatchResultsWindow(QMainWindow):
             results: List of FileAnalysisResult objects with export_table data
             
         Returns:
-            Dict mapping filename to (voltage_r1, voltage_r2) tuples, or empty dict
-            if voltage annotations not found
+            Dict mapping filename to (voltage_r1, voltage_r2) tuples
         """
         import re
         
@@ -302,9 +266,7 @@ class BatchResultsWindow(QMainWindow):
 
 
     def _update_plot(self):
-        """
-        Update the plot to reflect selected files and current analysis parameters.
-        """
+
         sorted_results = self._sort_results(self.batch_result.successful_results)
 
         # Ramp IV batches don't use dual range
@@ -358,12 +320,7 @@ class BatchResultsWindow(QMainWindow):
         )
 
     def _add_export_controls(self, layout):
-        """
-        Add export controls for CSVs, plots, IV summary, and current density analysis.
 
-        Args:
-            layout: The layout to which export controls are added.
-        """
         export_group = QGroupBox("Export Options")
         style_group_box(export_group)
 
@@ -505,23 +462,10 @@ class BatchResultsWindow(QMainWindow):
             QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _is_ramp_iv_batch(self):
-        """
-        Check if this is a ramp IV batch analysis.
-        
-        Returns:
-            bool: True if ramp IV batch, False otherwise.
-        """
         return getattr(self.batch_result, 'is_ramp_iv', False)
 
     def _is_iv_analysis(self):
-        """
-        Check if the current analysis is an IV (current-voltage) analysis.
-        
-        Includes both standard IV analyses and ramp IV batches.
 
-        Returns:
-            bool: True if IV analysis, False otherwise.
-        """
         # Check if this is a ramp IV batch first
         if self._is_ramp_iv_batch():
             return True
@@ -541,12 +485,7 @@ class BatchResultsWindow(QMainWindow):
         )
 
     def _is_gv_analysis(self):
-        """
-        Check if the current analysis is a GV (conductance-voltage) analysis.
-        
-        Returns:
-            bool: True if GV analysis, False otherwise.
-        """
+
         params = self.batch_result.parameters
         
         if params is None:
@@ -569,9 +508,6 @@ class BatchResultsWindow(QMainWindow):
         Shows different summary export options based on analysis type:
         - IV analysis: Shows IV-specific summary export and current density
         - Other analyses (including GV): Shows generalized summary export
-
-        Args:
-            layout: The layout to which export controls are added.
         """
         export_group = QGroupBox("Export Options")
         style_group_box(export_group)
@@ -632,6 +568,9 @@ class BatchResultsWindow(QMainWindow):
         export_csvs_btn.clicked.connect(self._export_individual_csvs)
         export_plot_btn.clicked.connect(self._export_plot)
         copy_filenames_btn.clicked.connect(self._copy_file_names_to_clipboard)
+
+# =============================================================================
+# For later implementation. Generalized summary export works better for now for GV analyses.
 
 # GV Summary Exports - use for producing output like IV Summary (one voltage columnm, the rest G)
 # To be used in conjunction with GV classes in iv_analysis.py
@@ -863,6 +802,7 @@ class BatchResultsWindow(QMainWindow):
     #         logger.error(f"Error copying GV summary: {e}", exc_info=True)
     #         QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
+# =============================================================================
 
     def _export_generalized_summary(self):
         """
@@ -1015,9 +955,6 @@ class BatchResultsWindow(QMainWindow):
     def _get_filtered_results(self):
         """
         Get batch results filtered by current file selection.
-
-        Returns:
-            List: Filtered batch result objects.
         """
         selected_files = self.selection_state.get_selected_files()
         filtered = [
@@ -1110,11 +1047,7 @@ class BatchResultsWindow(QMainWindow):
                 QMessageBox.critical(self, "Export Failed", str(e))
 
     def _export_individual_csvs(self):
-        """
-        Export individual CSV files for selected batch results.
 
-        Prompts user for output directory and writes CSVs.
-        """
         filtered_results = self._get_filtered_results()
 
         if not filtered_results:
@@ -1198,10 +1131,7 @@ class BatchResultsWindow(QMainWindow):
 
     def _open_current_density_analysis(self):
         """
-        Open the density analysis dialog for selected files.
-        
-        Opens Current Density dialog for IV analyses or Conductance Density dialog
-        for GV analyses. Launches dialog and, if completed, shows results window.
+        Opens Current Density dialog for IV analyses.
         """
         from dataclasses import replace
 

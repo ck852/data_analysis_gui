@@ -4,24 +4,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Batch analysis dialog with threaded processing and progress tracking.
-
-This module provides a comprehensive dialog interface for performing batch analysis
-on multiple electrophysiology data files. It includes file selection management,
-threaded analysis processing with real-time progress updates, and integrated
-results viewing capabilities.
-
-Classes:
-    - BatchAnalysisWorker: QThread subclass for background batch processing
-    - BatchAnalysisDialog: Main dialog with file management and progress tracking
-
-Features:
-    - Interactive file list management (add, remove, clear operations)
-    - Background threaded analysis with progress bar and status updates
-    - Real-time processing feedback and error handling
-    - Integrated results viewing and export capabilities
-    - Modern themed UI with responsive button states
-    - Cancellable analysis operations with proper cleanup
+Initial dialog that appears after user selects "Batch Analysis" from MainWindow. User inputs
+files to analyze (file dialog appears automatically on open), can add/remove files, and starts
+the batch analysis process. Results are displayed in separate BatchResultsWindow upon completion.
 """
 
 from pathlib import Path
@@ -42,13 +27,11 @@ logger = get_logger(__name__)
 
 class BatchAnalysisWorker(QThread):
     """
-    Worker thread for performing batch analysis.
+    Background thread for batch analysis that keeps the GUI responsive.
 
-    Emits:
-        progress (int, int, str): Progress update (completed, total, filename).
-        file_complete (FileAnalysisResult): Signal when a file is processed.
-        finished (BatchAnalysisResult): Signal when batch is complete.
-        error (str): Signal on error.
+    Files are processed sequentially (one at a time), but running in a separate
+    thread prevents the window from freezing during analysis. Not strictly necessary
+    but keeps the UX smooth.
     """
 
     progress = Signal(int, int, str)
@@ -99,18 +82,10 @@ class BatchAnalysisWorker(QThread):
 class BatchAnalysisDialog(QDialog):
     """
     Dialog for batch analysis with file selection, progress tracking, and result viewing.
-
-    Provides:
-        - File list management (add, remove, clear).
-        - Progress bar and status updates.
-        - Start/cancel analysis.
-        - View results after completion.
     """
 
     def __init__(self, parent, batch_service, params, bg_subtraction_range=None):
-        """
-        Initialize the BatchAnalysisDialog.
-
+        """"
         Args:
             parent: Parent widget.
             batch_service: Service for batch analysis.
@@ -151,9 +126,7 @@ class BatchAnalysisDialog(QDialog):
 
 
     def init_ui(self):
-        """
-        Initialize the user interface, including file list, progress bar, and buttons.
-        """
+
         layout = QVBoxLayout(self)
 
         # Show BG subtraction info if enabled
@@ -456,9 +429,6 @@ class BatchAnalysisDialog(QDialog):
     def view_results(self):
         """
         Open the batch results window to display analysis results.
-
-        Raises:
-            Exception: If results window fails to open.
         """
         if not self.batch_result:
             return

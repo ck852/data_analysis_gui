@@ -1,5 +1,7 @@
 """
-Batch Sweep Extractor Dialog for PatchBatch Electrophysiology Data Analysis Tool
+Batch Sweep Extractor Dialog 
+
+PatchBatch Electrophysiology Data Analysis Tool
 
 This module provides a dialog for batch extracting selected sweeps from multiple
 data files to a combined CSV format. Users can select multiple files, and the dialog
@@ -43,16 +45,7 @@ class BatchSweepExtractorDialog(QDialog):
     
     def __init__(self, parent, initial_files: List[str], sweep_indices: List[str],
                 channel_mode: str, time_range: Tuple[float, float]):
-        """
-        Initialize the batch sweep extractor dialog.
-        
-        Args:
-            parent: Parent window (provides file_dialog_service)
-            initial_files: Initial list of files to process
-            sweep_indices: List of sweep indices to extract from each file
-            channel_mode: 'voltage', 'current', or 'both'
-            time_range: (start_ms, end_ms) for extraction
-        """
+
         super().__init__(parent)
         
         # Store extraction parameters
@@ -329,15 +322,7 @@ class BatchSweepExtractorDialog(QDialog):
         self._update_file_list()
         
     def _validate_file_formats(self, new_files: List[str]) -> bool:
-        """
-        Validate that all files have the same format.
-        
-        Args:
-            new_files: New files being added
-            
-        Returns:
-            bool: True if validation passes, False otherwise
-        """
+
         all_files = self.file_paths + new_files
         extensions = set(Path(fp).suffix.lower() for fp in all_files)
         
@@ -420,12 +405,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _extract_reference_time(self, dataset) -> np.ndarray:
         """
         Extract reference time array from the first valid sweep.
-        
-        Args:
-            dataset: Dataset to extract from
-            
-        Returns:
-            np.ndarray: Time array in milliseconds
         """
         start_ms, end_ms = self.time_range
         
@@ -451,14 +430,6 @@ class BatchSweepExtractorDialog(QDialog):
                             reference_time: np.ndarray) -> Dict:
         """
         Extract all requested sweeps from a single file.
-        
-        Args:
-            dataset: Loaded dataset
-            file_path: Path to file (for metadata)
-            reference_time: Reference time array to compare against
-            
-        Returns:
-            Dict with file metadata and extracted sweep data
         """
         start_ms, end_ms = self.time_range
         base_name = self._clean_filename(file_path)
@@ -514,13 +485,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _create_nan_file_data(self, file_path: str, reference_time: np.ndarray) -> Dict:
         """
         Create NaN placeholder data for a file that failed to load.
-        
-        Args:
-            file_path: Path to file
-            reference_time: Reference time array
-            
-        Returns:
-            Dict with NaN data for all sweeps
         """
         base_name = self._clean_filename(file_path)
         
@@ -541,13 +505,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _pad_or_truncate(self, array: np.ndarray, target_length: int) -> np.ndarray:
         """
         Pad array with NaN or truncate to match target length.
-        
-        Args:
-            array: Input array
-            target_length: Desired length
-            
-        Returns:
-            np.ndarray: Adjusted array
         """
         if len(array) < target_length:
             # Pad with NaN
@@ -564,14 +521,6 @@ class BatchSweepExtractorDialog(QDialog):
                                 reference_units: Dict) -> Dict:
         """
         Build the final output structure for export.
-        
-        Args:
-            all_data: List of file data dictionaries
-            reference_time: Reference time array
-            reference_units: Dictionary with voltage and current units
-            
-        Returns:
-            Dict with 'headers' and 'data' keys
         """
         headers = ["Time (ms)"]
         columns = [reference_time]
@@ -611,10 +560,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _update_status_after_extraction(self, num_files: int, all_data: List[Dict]):
         """
         Update status label after extraction completes.
-        
-        Args:
-            num_files: Number of files processed
-            all_data: List of file data dictionaries
         """
         total_sweeps = sum(len(fd['sweeps']) for fd in all_data)
         
@@ -758,12 +703,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _sort_files(self, file_paths: List[str]) -> List[str]:
         """
         Sort file paths using numeric ordering.
-        
-        Args:
-            file_paths: List of file paths to sort
-            
-        Returns:
-            List[str]: Sorted file paths
         """
         def extract_number(file_path):
             file_name = Path(file_path).stem
@@ -785,12 +724,6 @@ class BatchSweepExtractorDialog(QDialog):
     def _clean_filename(file_path: str) -> str:
         """
         Clean a filename for display by removing extension and bracketed content.
-        
-        Args:
-            file_path: Full file path
-            
-        Returns:
-            str: Cleaned filename
         """
         stem = Path(file_path).stem
         cleaned = re.sub(r"\[.*?\]", "", stem).strip()
