@@ -37,6 +37,7 @@ class AnalysisEngine:
         metrics_calculator: MetricsCalculator,
         plot_formatter: PlotFormatter,
     ):
+        """Wire up the analysis pipeline with its required components via dependency injection."""
 
         logger.info("Initializing AnalysisEngine")
 
@@ -102,6 +103,12 @@ class AnalysisEngine:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
+        """
+        Compute metrics and format them for plotting.
+        
+        Returns empty plot structure on failure rather than raising exceptions,
+        allowing the GUI to display a blank plot instead of crashing.
+        """
 
         try:
             # Default to empty set if None
@@ -125,9 +132,7 @@ class AnalysisEngine:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
-        """
-        Get analysis results formatted for export.
-        """
+        """Format analysis results as a table structure suitable for CSV/Excel export."""
         # Default to empty set if None
         if rejected_sweeps is None:
             rejected_sweeps = set()
@@ -141,9 +146,7 @@ class AnalysisEngine:
     def get_sweep_plot_data(
         self, dataset: ElectrophysiologyDataset, sweep_index: str, channel_type: str
     ) -> Dict[str, Any]:
-        """
-        Get single sweep data formatted for plotting.
-        """
+        """Extract raw time-series data for a single sweep's channel, formatted for plotting."""
         # Extract channel data
         time_ms, data_matrix, channel_id = self.data_extractor.extract_channel_for_plot(
             dataset, sweep_index, channel_type
@@ -164,6 +167,12 @@ class AnalysisEngine:
         params: AnalysisParameters,
         peak_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        """
+        Generate peak analysis data for multiple peak detection methods.
+        
+        Default peak_types cover the standard analysis modes: absolute, positive-only,
+        negative-only, and peak-to-peak measurements.
+        """
 
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
@@ -189,6 +198,12 @@ class AnalysisEngine:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> List[SweepMetrics]:
+        """
+        Core analysis loop that processes each sweep sequentially.
+        
+        Sweep times must be present in dataset metadata (required for both ABF and WCP files).
+        Individual sweep failures are logged but don't halt processing of remaining sweeps.
+        """
 
         metrics = []
         failed_sweeps = []
@@ -295,6 +310,7 @@ class AnalysisEngine:
 
 
 def create_analysis_engine() -> AnalysisEngine:
+    """Create an AnalysisEngine with standard components wired up."""
 
     from data_analysis_gui.core.data_extractor import DataExtractor
     from data_analysis_gui.core.metrics_calculator import MetricsCalculator

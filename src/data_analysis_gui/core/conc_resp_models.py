@@ -1,18 +1,13 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
+
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Data models for concentration-response analysis.
+Immutable data structures for concentration-response analysis ranges.
 
-This module defines immutable data structures for representing analysis ranges
-in concentration-response experiments. Each range defines a time window over which
-measurements (average or peak) are calculated, with optional background subtraction.
-
-Classes:
-    - AnalysisType: Enum for types of analysis (Average or Peak)
-    - PeakType: Enum for types of peak detection
-    - ConcentrationRange: Immutable configuration for a single analysis range
+Each ConcentrationRange defines a time window for measurement extraction,
+with optional background subtraction via paired background ranges.
 """
 
 from dataclasses import dataclass
@@ -21,24 +16,13 @@ from typing import Optional
 
 
 class AnalysisType(Enum):
-    """
-    Type of analysis to perform on a range.
-    
-    AVERAGE: Calculate mean value over the range
-    PEAK: Find peak value over the range (requires peak_type specification)
-    """
+    """Whether to calculate the mean or find a peak within the time window."""
     AVERAGE = "Average"
     PEAK = "Peak"
 
 
 class PeakType(Enum):
-    """
-    Type of peak detection for Peak analysis.
-    
-    MAX: Maximum value in the range (most positive)
-    MIN: Minimum value in the range (most negative)
-    ABSOLUTE_MAX: Value with maximum absolute magnitude
-    """
+    """Direction of peak detection: most positive, most negative, or largest magnitude."""
     MAX = "Max"
     MIN = "Min"
     ABSOLUTE_MAX = "Absolute Max"
@@ -47,48 +31,29 @@ class PeakType(Enum):
 @dataclass(frozen=True)
 class ConcentrationRange:
     """
-    Immutable configuration for a concentration-response analysis range.
+    Configuration for measuring a response within a specific time window.
     
     Represents a time window over which measurements are taken from time-series data.
     Supports both direct measurements and background-subtracted measurements when
     paired with a background range.
     
     Args:
-        range_id: Internal identifier (e.g., "Range_1", "Background_1")
+        range_id: Internal identifier like "Range_1" or "Background_1"
         concentration: Concentration value in µM
-        start_time: Start time in seconds for the analysis window
-        end_time: End time in seconds for the analysis window
-        analysis_type: Type of analysis to perform (Average or Peak)
-        peak_type: Type of peak detection (required if analysis_type is PEAK)
-        is_background: Whether this range is a background range
-        paired_background: Internal ID of background range to subtract from this range's values
-            (None means no background subtraction)
-    
-    Raises:
-        ValueError: If end_time <= start_time or analysis_type is invalid
+        start_time: Beginning of measurement window in seconds
+        end_time: End of measurement window in seconds
+        analysis_type: AVERAGE takes the mean, PEAK finds max/min/abs_max
+        peak_type: Required if analysis_type is PEAK
+        is_background: True if this range is used for background subtraction
+        paired_background: range_id of background to subtract from this measurement
     
     Example:
-        >>> # Analysis range with background subtraction
-        >>> analysis_range = ConcentrationRange(
-        ...     range_id="Range_1",
-        ...     concentration=10.0,
-        ...     start_time=100.0,
-        ...     end_time=150.0,
-        ...     analysis_type=AnalysisType.AVERAGE,
-        ...     is_background=False,
-        ...     paired_background="Background_1"
-        ... )
+        Create an analysis range that subtracts baseline from response:
         
-        >>> # Background range
-        >>> bg_range = ConcentrationRange(
-        ...     range_id="Background_1",
-        ...     concentration=0.0,
-        ...     start_time=10.0,
-        ...     end_time=50.0,
-        ...     analysis_type=AnalysisType.AVERAGE,
-        ...     is_background=True,
-        ...     paired_background=None
-        ... )
+        >>> bg = ConcentrationRange("BG_1", 0.0, 10.0, 50.0, AnalysisType.AVERAGE, 
+        ...                         is_background=True)
+        >>> measurement = ConcentrationRange("Range_1", 10.0, 100.0, 150.0,
+        ...                                   AnalysisType.AVERAGE, paired_background="BG_1")
     """
     
     range_id: str
@@ -101,24 +66,13 @@ class ConcentrationRange:
     paired_background: Optional[str] = None
     
     def __post_init__(self):
-        """
-        Validate range configuration after initialization.
-        
-        Ensures:
-            - end_time is after start_time
-            - analysis_type is valid
-        
-        Raises:
-            ValueError: If validation fails
-        """
-        # Validate time ordering
+        """Validates that end_time > start_time and analysis_type is valid."""
         if self.end_time <= self.start_time:
             raise ValueError(
                 f"Range '{self.range_id}': end_time ({self.end_time}) must be "
                 f"greater than start_time ({self.start_time})"
             )
         
-        # Validate analysis_type is an AnalysisType enum member
         if not isinstance(self.analysis_type, AnalysisType):
             raise ValueError(
                 f"Range '{self.range_id}': analysis_type must be an AnalysisType enum, "
@@ -127,31 +81,16 @@ class ConcentrationRange:
     
     @property
     def duration(self) -> float:
-        """
-        Duration of the range in seconds.
-        
-        Returns:
-            float: end_time - start_time
-        """
+        """Duration of the range in seconds."""
         return self.end_time - self.start_time
     
     @property
     def has_background_subtraction(self) -> bool:
-        """
-        Whether this range uses background subtraction.
-        
-        Returns:
-            bool: True if paired_background is specified
-        """
+        """True if this range will have a background measurement subtracted."""
         return self.paired_background is not None
     
     def describe(self) -> str:
-        """
-        Generate a human-readable description of the range.
-        
-        Returns:
-            str: Description including time window, analysis type, and background pairing
-        """
+        """Human-readable summary for display purposes."""
         desc = f"{self.range_id}: {self.concentration}µM, {self.start_time:.1f}-{self.end_time:.1f}s"
         
         if self.analysis_type == AnalysisType.PEAK and self.peak_type:

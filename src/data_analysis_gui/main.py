@@ -1,15 +1,11 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-A graphical application for analyzing electrophysiology data files, featuring
-modern UI theming, robust window management, and streamlined user workflows.
-
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module serves as the main entry point for launching the GUI, handling
-application initialization, theme application, window sizing, and event loop
-startup. Designed for extensibility and ease of integration with external scripts.
+Entry point for the GUI application. Handles initialization, theme application,
+logging configuration, and window management.
 """
 
 import sys
@@ -32,12 +28,7 @@ from data_analysis_gui.config.logging import setup_logging, get_logger
 
 
 def parse_arguments():
-    """
-    Parse command line arguments for logging configuration.
-    
-    Returns:
-        argparse.Namespace: Parsed arguments with console_level and file_level
-    """
+    """Parse command line args for logging levels. Returns (console_level, file_level, mode)."""
     parser = argparse.ArgumentParser(
         description="PatchBatch Electrophysiology Data Analysis Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -99,12 +90,7 @@ Available logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
     return console_level, file_level, mode
 
 def get_version_from_pyproject():
-    """
-    Read version directly from pyproject.toml.
-    
-    Returns:
-        str: Version string (e.g., "0.9.2b4") or "unknown" if not found
-    """
+    """Read version from pyproject.toml in project root. Returns "unknown" if not found."""
     try:
         # Navigate from main.py location to project root
         # main.py is in src/data_analysis_gui/main.py
@@ -123,9 +109,7 @@ def get_version_from_pyproject():
     return "unknown"
 
 def main():
-    """
-    Launches the PatchBatch Electrophysiology Data Analysis Tool.
-    """
+    """Initialize logging, create QApplication, configure window size, and start event loop."""
     
     # Parse command line arguments for logging configuration
     console_level, file_level, mode = parse_arguments()
@@ -238,11 +222,7 @@ def main():
 
 
 def run():
-    """
-    Entry point for launching the application from external scripts.
-
-    Calls the main() function to start the GUI.
-    """
+    """Entry point for external scripts that need to launch the GUI."""
     main()
 
 

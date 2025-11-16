@@ -97,7 +97,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Documentation builds (if you add docs generation)
+# Documentation builds
 docs/_build/
 site/
 

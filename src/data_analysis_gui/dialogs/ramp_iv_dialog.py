@@ -1,12 +1,12 @@
 """
-Ramp IV Analysis Dialog for PatchBatch Electrophysiology Data Analysis Tool
-
-This module provides dialog interfaces for voltage ramp IV curve analysis.
-It includes a voltage input dialog and the main ramp IV analysis dialog
-with sweep selection, plotting, and CSV export capabilities.
+PatchBatch Electrophysiology Data Analysis Tool
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
+
+Dialog for analyzing voltage ramp IV curves. Users select target voltages,
+choose sweeps to analyze, and extract current values at those voltages.
+Results can be plotted, exported to CSV, or used to launch batch processing.
 """
 
 import json
@@ -43,12 +43,12 @@ logger = get_logger(__name__)
 
 
 def _get_ramp_iv_settings_file():
-    """Get the ramp IV settings file path."""
+    """Return path to the JSON file storing user's last voltage input."""
     from data_analysis_gui.core.session_settings import get_settings_dir
     return get_settings_dir() / "ramp_iv_settings.json"
 
 def _load_ramp_iv_voltages():
-    """Load saved ramp IV voltages."""
+    """Load the previously saved voltage string, or return sensible defaults."""
     try:
         settings_file = _get_ramp_iv_settings_file()
         if settings_file.exists():
@@ -60,7 +60,7 @@ def _load_ramp_iv_voltages():
     return "-80, -60, -40, -20, 0, 20, 40"
 
 def _save_ramp_iv_voltages(voltage_text):
-    """Save ramp IV voltages."""
+    """Persist the voltage input string to settings file for next session."""
     try:
         settings_file = _get_ramp_iv_settings_file()
         with open(settings_file, 'w') as f:
@@ -71,7 +71,8 @@ def _save_ramp_iv_voltages(voltage_text):
 
 class VoltageInputDialog(QDialog):
     """
-    Simple dialog for entering target voltages as comma-separated values.
+    Prompts user to enter comma-separated voltage values for IV analysis.
+    Validates input and remembers the last entry across sessions.
     """
     
     def __init__(self, parent=None):
@@ -126,7 +127,7 @@ class VoltageInputDialog(QDialog):
         self.voltage_input.setFocus()
         
     def _validate_and_accept(self):
-        """Validate voltage input and accept if valid."""
+        """Parse and validate voltage input before accepting the dialog."""
         voltage_text = self.voltage_input.toPlainText().strip()
         
         if not voltage_text:
@@ -145,21 +146,16 @@ class VoltageInputDialog(QDialog):
         self.accept()
         
     def get_voltages(self) -> List[float]:
-        """Get the validated voltage list."""
+        """Return the list of validated voltages after dialog acceptance."""
         return getattr(self, 'voltages', [])
 
 class RampIVBatchWorker(QThread):
     """
-    Worker thread for performing batch ramp IV analysis.
-
-    Emits:
-        progress (int, int, str): Progress update (completed, total, filename).
-        file_complete (FileAnalysisResult): Signal when a file is processed.
-        finished (BatchAnalysisResult): Signal when batch is complete.
-        error (str): Signal on error.
+    Background thread for batch ramp IV processing. Emits progress updates
+    as files are processed and returns final batch results when complete.
     """
 
-    progress = Signal(int, int, str)
+    progress = Signal(int, int, str)  # completed, total, current_filename
     file_complete = Signal(object)  # FileAnalysisResult
     finished = Signal(object)  # BatchAnalysisResult
     error = Signal(str)
@@ -184,7 +180,7 @@ class RampIVBatchWorker(QThread):
         self.selected_sweeps = selected_sweeps
 
     def run(self):
-        """Run batch ramp IV analysis in a separate thread."""
+        """Execute batch analysis in background thread, emitting signals for UI updates."""
         try:
             processor = RampIVBatchProcessor()
 
@@ -221,10 +217,10 @@ class RampIVBatchWorker(QThread):
 
 class RampIVDialog(QDialog):
     """
-    Main dialog for ramp IV analysis with plot display and export capabilities.
-    
-    Follows the pattern of bg_subtraction_dialog.py for structure and theming,
-    with plotting capabilities similar to analysis_plot_dialog.py.
+    Interactive dialog for extracting current values from voltage ramps at
+    specific target voltages. Users configure analysis parameters, select sweeps,
+    generate plots, and export results. Can also launch batch processing on
+    multiple files using the same analysis settings.
     """
     
     def __init__(self, dataset: ElectrophysiologyDataset, 
@@ -277,7 +273,7 @@ class RampIVDialog(QDialog):
         apply_modern_theme(self)
         
     def show_with_voltage_input(self):
-        """Show the dialog, first getting voltage targets."""
+        """Display voltage input dialog first, then show main window if user proceeds."""
         if self._get_voltage_targets():
             # Update the voltage label now that we have the targets
             voltages_str = ", ".join([f"{v:+.0f}" for v in self.voltage_targets])
@@ -288,7 +284,7 @@ class RampIVDialog(QDialog):
             self.close()
 
     def _get_voltage_targets(self) -> bool:
-        """Get voltage targets from user input dialog."""
+        """Prompt for voltage targets and return True if user confirms."""
         dialog = VoltageInputDialog(self)
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -299,7 +295,7 @@ class RampIVDialog(QDialog):
         return False
         
     def _init_ui(self):
-        """Initialize the user interface following bg_subtraction_dialog pattern."""
+        """Build the dialog layout with controls panel and plot canvas."""
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -323,7 +319,7 @@ class RampIVDialog(QDialog):
         self._create_bottom_buttons(layout)
         
     def _create_controls_panel(self) -> QWidget:
-        """Create the left control panel with analysis settings and sweep selection."""
+        """Create left panel showing analysis settings and sweep selection."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 10, 0)
@@ -381,7 +377,7 @@ class RampIVDialog(QDialog):
         return panel
         
     def _create_plot_panel(self) -> QWidget:
-        """Create the plot panel following matplotlib integration patterns."""
+        """Create right panel with matplotlib canvas and navigation toolbar."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -402,7 +398,7 @@ class RampIVDialog(QDialog):
         return panel
         
     def _create_bottom_buttons(self, layout):
-        """Create bottom action buttons with batch analysis support."""
+        """Add action buttons for export, copy, batch analysis, and close."""
         button_layout = QHBoxLayout()
         
         # Export button (initially disabled until analysis is done)
@@ -430,14 +426,14 @@ class RampIVDialog(QDialog):
         layout.addLayout(button_layout)
         
     def _connect_signals(self):
-        """Connect UI signals to their handlers."""
+        """Wire up button clicks to their handlers."""
         self.generate_plot_btn.clicked.connect(self._generate_analysis_plot)
         self.export_btn.clicked.connect(self._export_summary_csv)
         self.copy_btn.clicked.connect(self._copy_data_to_clipboard)
         self.batch_analyze_btn.clicked.connect(self._batch_analyze)
         
     def _setup_empty_plot(self):
-        """Set up initial empty plot with consistent styling."""
+        """Display placeholder plot before analysis is run."""
         self.ax.clear()
         
         # Use centralized plot styling
@@ -458,7 +454,7 @@ class RampIVDialog(QDialog):
         self.canvas.draw_idle()
         
     def _generate_analysis_plot(self):
-        """Generate the ramp IV analysis plot using the service."""
+        """Run ramp IV analysis on selected sweeps and update the plot."""
         # Handle new tuple return from get_selected_sweeps
         selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
         
@@ -523,7 +519,7 @@ class RampIVDialog(QDialog):
             self.generate_plot_btn.setEnabled(True)
                                
     def _update_plot(self):
-        """Update the plot with analysis results using centralized styling."""
+        """Redraw plot canvas with current analysis results."""
         if not self.current_result or not self.current_result.success:
             return
             
@@ -581,7 +577,7 @@ class RampIVDialog(QDialog):
         self.canvas.draw()
         
     def _export_summary_csv(self):
-        """Export the analysis results to CSV using existing data manager."""
+        """Save analysis results to user-selected CSV file."""
         if not self.current_result or not self.current_result.success:
             QMessageBox.warning(self, "No Data", "No analysis results to export.")
             return
@@ -627,7 +623,7 @@ class RampIVDialog(QDialog):
             
     def _copy_data_to_clipboard(self):
         """
-        Copy the analysis results to clipboard as tab-separated values.
+        Copy analysis results to clipboard as tab-separated values.
         
         Allows users to paste data directly into Excel, Prism, or other applications
         without needing to save a CSV file first.
@@ -654,7 +650,7 @@ class RampIVDialog(QDialog):
             )
 
     def _batch_analyze(self):
-        """Launch batch analysis with current ramp IV parameters."""
+        """Start batch processing on multiple files using current analysis parameters."""
         if not self.analysis_completed:
             QMessageBox.warning(
                 self, "Analysis Required",
@@ -741,7 +737,7 @@ class RampIVDialog(QDialog):
 
 
     def _cancel_batch_analysis(self):
-        """Cancel the running batch analysis."""
+        """Stop the running batch worker thread."""
         if self.batch_worker and self.batch_worker.isRunning():
             self.batch_worker.quit()
             self.batch_worker.wait()
@@ -750,20 +746,20 @@ class RampIVDialog(QDialog):
 
 
     def _on_batch_progress(self, completed: int, total: int, current_file: str):
-        """Handle progress updates from batch worker."""
+        """Update progress dialog as batch worker processes files."""
         self.batch_progress_bar.setValue(completed)
         self.batch_progress_label.setText(f"Processing file {completed} of {total}")
         self.batch_status_label.setText(f"Current: {current_file}")
 
 
     def _on_batch_file_complete(self, result: FileAnalysisResult):
-        """Handle completion of individual file analysis."""
+        """Log completion of individual file in batch."""
         status = "✓" if result.success else "✗"
         logger.debug(f"{status} Completed: {result.base_name}")
 
 
     def _on_batch_complete(self, batch_result):
-        """Handle completion of batch analysis and open results window."""
+        """Close progress dialog and open results window when batch finishes."""
         self.batch_progress_dialog.close()
         
         success_count = len(batch_result.successful_results)
@@ -815,7 +811,7 @@ class RampIVDialog(QDialog):
 
 
     def _on_batch_error(self, error_msg: str):
-        """Handle errors from batch worker."""
+        """Display error message and close progress dialog if batch fails."""
         self.batch_progress_dialog.close()
         QMessageBox.critical(
             self, "Batch Analysis Error",

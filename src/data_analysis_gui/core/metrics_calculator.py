@@ -22,33 +22,10 @@ logger = get_logger(__name__)
 @dataclass
 class SweepMetrics:
     """
-    Computed metrics for a single sweep.
+    Computed voltage and current metrics for a single sweep.
 
-    Stores calculated voltage and current metrics for one sweep, including mean, absolute, positive, negative, and peak-to-peak values for up to two ranges.
-
-    Args:
-        sweep_index (str): Identifier for the sweep.
-        time_s (float): Time in seconds for the sweep.
-        voltage_mean_r1 (float): Mean voltage for range 1.
-        voltage_absolute_r1 (float): Absolute peak voltage for range 1.
-        voltage_positive_r1 (float): Maximum positive voltage for range 1.
-        voltage_negative_r1 (float): Minimum negative voltage for range 1.
-        voltage_peakpeak_r1 (float): Peak-to-peak voltage for range 1.
-        current_mean_r1 (float): Mean current for range 1.
-        current_absolute_r1 (float): Absolute peak current for range 1.
-        current_positive_r1 (float): Maximum positive current for range 1.
-        current_negative_r1 (float): Minimum negative current for range 1.
-        current_peakpeak_r1 (float): Peak-to-peak current for range 1.
-        voltage_mean_r2 (Optional[float]): Mean voltage for range 2.
-        voltage_absolute_r2 (Optional[float]): Absolute peak voltage for range 2.
-        voltage_positive_r2 (Optional[float]): Maximum positive voltage for range 2.
-        voltage_negative_r2 (Optional[float]): Minimum negative voltage for range 2.
-        voltage_peakpeak_r2 (Optional[float]): Peak-to-peak voltage for range 2.
-        current_mean_r2 (Optional[float]): Mean current for range 2.
-        current_absolute_r2 (Optional[float]): Absolute peak current for range 2.
-        current_positive_r2 (Optional[float]): Maximum positive current for range 2.
-        current_negative_r2 (Optional[float]): Minimum negative current for range 2.
-        current_peakpeak_r2 (Optional[float]): Peak-to-peak current for range 2.
+    Contains mean, absolute peak, positive/negative peaks, and peak-to-peak values 
+    for both voltage and current. Supports optional second range metrics (r2).
     """
 
     sweep_index: str
@@ -81,9 +58,7 @@ class SweepMetrics:
     current_peakpeak_r2: Optional[float] = None
 
 class MetricsCalculator:
-    """
-    Stateless class for computing voltage and current metrics from time series data arrays.
-    """
+    """Stateless calculator for voltage/current metrics from time series data."""
 
     @staticmethod
     def compute_sweep_metrics(
@@ -99,7 +74,12 @@ class MetricsCalculator:
         range2_end: Optional[float] = None,
     ) -> SweepMetrics:
         """
-        Compute metrics for a single sweep.
+        Compute voltage and current metrics for a single sweep.
+
+        Extracts data within specified time ranges and calculates mean, peak, and 
+        peak-to-peak values. Uses actual_sweep_time from file metadata rather than 
+        inferring from the time array. Raises DataError if time array is empty or 
+        no data exists in range1.
         """
         # Validate inputs
         if len(time_ms) == 0:
@@ -159,7 +139,7 @@ class MetricsCalculator:
 
     @staticmethod
     def _safe_mean(data: np.ndarray) -> float:
-
+        """Return mean of data, or nan if empty."""
         return np.mean(data) if len(data) > 0 else np.nan
 
 # ================= Peak Modes =================
@@ -175,19 +155,19 @@ class MetricsCalculator:
     # Positive Peak
     @staticmethod
     def _safe_max(data: np.ndarray) -> float:
-
+        """Return maximum value, or nan if empty."""
         return np.max(data) if len(data) > 0 else np.nan
 
     # Negative Peak
     @staticmethod
     def _safe_min(data: np.ndarray) -> float:
-
+        """Return minimum value, or nan if empty."""
         return np.min(data) if len(data) > 0 else np.nan
 
     # Peak-Peak
     @staticmethod
     def _peak_to_peak(data: np.ndarray) -> float:
-
+        """Return difference between max and min, or nan if empty."""
         if len(data) == 0:
             return np.nan
         return np.max(data) - np.min(data)

@@ -7,15 +7,12 @@ License: MIT (see LICENSE file for details)
 Main Range Coordinator
 
 Coordinates bidirectional synchronization between ControlPanel range spinboxes
-and PlotManager cursor positions. Extracted from MainWindow to provide focused
-responsibility for range value coordination without Qt widget dependencies.
+and PlotManager cursor positions. When a user drags a cursor, the spinbox updates.
+When they type in a spinbox, the cursor moves. Neither component needs to know
+about the other - this coordinator mediates all communication.
 
-This service follows the established pattern of extracting coordination logic
-into focused components (similar to ViewStateManager, CursorManager pattern).
-This simplifies MainWindow and encapsulates complex synchronization logic in separate modules.
-This will facilitate later migration to PyQtGraph if desired.
-
-Extensive documentation included to clarify signal flow and avoid feedback loops.
+Extracted from MainWindow to simplify that class and encapsulate the complex
+synchronization logic. Prevents feedback loops through careful signal blocking.
 """
 
 import logging
@@ -27,21 +24,14 @@ logger = logging.getLogger(__name__)
 
 class MainRangeCoordinator(QObject):
     """
-    Coordinates range values between ControlPanel spinboxes and PlotManager cursors.
+    Mediates range value synchronization between ControlPanel spinboxes and PlotManager cursors.
     
-    This class acts as a mediator between ControlPanel (which owns the spinboxes)
-    and PlotManager (which owns the cursor lines). Neither component needs to
-    know about the other - they only know about this coordinator.
+    Neither the ControlPanel nor PlotManager know about each other - they only communicate
+    through this coordinator. This prevents tight coupling and makes both components
+    independently testable.
     
-    Example Usage:
-        >>> coordinator = MainRangeCoordinator(control_panel, plot_manager)
-        >>> # Coordinator automatically handles all synchronization
-        >>> # No manual sync calls needed from MainWindow
-    
-    Signals:
-        All signals are pass-through for MainWindow convenience:
-        - analysis_requested: Forwarded from ControlPanel
-        - export_requested: Forwarded from ControlPanel
+    Pass-through signals (analysis_requested, export_requested) are provided so MainWindow
+    doesn't need to connect to ControlPanel directly.
     """
     
     # Pass-through signals from ControlPanel for MainWindow convenience
@@ -74,7 +64,7 @@ class MainRangeCoordinator(QObject):
         logger.info("MainRangeCoordinator initialized")
     
     def _connect_signals(self):
-        """Connect all coordination signals."""
+        """Wire up all bidirectional synchronization and pass-through signals."""
         # ControlPanel → Coordinator
         self.control_panel.dual_range_toggled.connect(self._on_dual_range_toggled)
         self.control_panel.range_values_changed.connect(self._sync_spinboxes_to_cursors)
@@ -93,10 +83,10 @@ class MainRangeCoordinator(QObject):
     
     def _connect_spinbox_editing_signals(self):
         """
-        Connect editingFinished signals from all range spinboxes.
+        Connect editingFinished signals for snap-back behavior.
         
-        This enables snap-back behavior: when user finishes editing a spinbox,
-        it updates to show the actual cursor position (which has snapped to time index data).
+        When user finishes editing a spinbox (Enter or focus loss), the spinbox
+        updates to show where the cursor actually landed after snapping to data.
         """
         spinboxes = self.control_panel.get_range_spinboxes()
         
@@ -111,11 +101,10 @@ class MainRangeCoordinator(QObject):
     
     def _sync_spinboxes_to_cursors(self):
         """
-        Synchronize cursor positions from spinbox values.
+        Update cursor positions when user types in spinboxes.
         
-        Called when user types in spinboxes. Updates cursors in real-time
-        as the user types. The cursors will snap to nearest data points
-        (handled by PlotManager's CursorManager).
+        Cursors snap to nearest time index data points (handled by PlotManager).
+        Called continuously as user types for real-time feedback.
         """
         vals = self.control_panel.get_range_values()
         
@@ -131,11 +120,10 @@ class MainRangeCoordinator(QObject):
     
     def _on_spinbox_editing_finished(self):
         """
-        Handle editingFinished signal from range spinboxes.
+        Update spinbox to show actual cursor position after user finishes editing.
         
-        When user finishes editing (loses focus or presses Enter), update the
-        spinbox to show the actual cursor position (which has already snapped).
-        This provides visual feedback that the cursor snapped to a data point.
+        Provides visual feedback that cursor snapped to a data point rather than
+        the exact typed value.
         """
         # Get actual cursor positions from plot
         positions = self.plot_manager.get_line_positions()
@@ -160,15 +148,12 @@ class MainRangeCoordinator(QObject):
     
     def _on_cursor_moved(self, action: str, line_id: str, position: float):
         """
-        Handle cursor movement events from PlotManager.
-        
-        When user drags a cursor, update the corresponding spinbox to show
-        the new position in real-time. When drag completes, trigger auto-save.
+        Update spinbox when user drags a cursor. Triggers auto-save on drag completion.
         
         Args:
-            action: Type of cursor action (e.g., "dragged", "centered", "released").
-            line_id: Identifier for the cursor line.
-            position: New position value for the cursor.
+            action: "dragged" (during), "centered" (after center operation), or "released" (after drag).
+            line_id: Which cursor moved (e.g., "range1_start").
+            position: New position in ms.
         """
         if action == "dragged":
             # During drag - update spinbox silently (no auto-save)
@@ -186,9 +171,7 @@ class MainRangeCoordinator(QObject):
             self.settings_changed.emit()
     
     def _sync_cursor_to_spinbox(self, line_id: str, position: float):
-        """
-        Synchronize a single cursor position to its corresponding spinbox.
-        """
+        """Update a single spinbox from its cursor position, blocking signals to prevent loops."""
         if line_id is None or position is None:
             return
         
@@ -208,9 +191,8 @@ class MainRangeCoordinator(QObject):
         """
         Update all spinbox values to match current cursor positions.
         
-        Called after cursors have snapped to ensure spinboxes display actual positions.
-        This is a public method that can be called by MainWindow when needed
-        (e.g., after loading a new sweep).
+        Called by MainWindow after loading a new sweep to ensure spinboxes
+        reflect where cursors actually snapped.
         """
         # Get actual cursor positions
         positions = self.plot_manager.get_line_positions()
@@ -235,13 +217,10 @@ class MainRangeCoordinator(QObject):
     
     def _on_dual_range_toggled(self, enabled: bool):
         """
-        Handle dual range checkbox toggle.
-        
-        Coordinates cursor visibility in PlotManager with the checkbox state.
-        When enabled, shows Range 2 cursors. When disabled, hides them.
+        Show/hide Range 2 cursors when dual range checkbox is toggled.
         
         Args:
-            enabled: True if dual range is enabled, False otherwise.
+            enabled: True to show Range 2 cursors, False to hide them.
         """
         if enabled:
             # Get Range 2 values from control panel

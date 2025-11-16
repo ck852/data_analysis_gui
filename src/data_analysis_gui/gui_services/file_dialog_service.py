@@ -19,12 +19,11 @@ logger = get_logger(__name__)
 
 class FileDialogService:
     """
-    Centralized service for all file dialog operations with directory memory.
+    Manages file dialogs with persistent directory memory.
 
-    Three dialog types with smart fallbacks:
-        - 'import_data': MainWindow file opening
-        - 'batch_import': All batch file selection (falls back to import_data location)
-        - 'export': All export operations (one location for all exports)
+    Tracks last-used directories separately for 'import_data' (MainWindow file opening),
+    'batch_import' (batch file selection), and 'export' (all exports). The batch_import
+    type automatically falls back to import_data location for convenience.
     """
 
     def __init__(self):
@@ -34,9 +33,7 @@ class FileDialogService:
         logger.debug("FileDialogService initialized")
 
     def set_last_directories(self, directories: Dict[str, str]) -> None:
-        """
-        Set the last used directories, typically loaded from session settings.
-        """
+        """Load directory memory from session settings, validating paths exist."""
         # Only set directories that actually exist
         self._last_directories = {}
         valid_count = 0
@@ -53,20 +50,16 @@ class FileDialogService:
         logger.info(f"Loaded directory memory: {valid_count} valid, {invalid_count} invalid")
 
     def get_last_directories(self) -> Dict[str, str]:
-        """
-        Get the current last used directories for saving to session settings.
-        """
+        """Return current directory memory for persisting to session settings."""
         logger.debug(f"Retrieved {len(self._last_directories)} stored directories")
         return self._last_directories.copy()
 
     def _get_fallback_for_dialog_type(self, dialog_type: str) -> Optional[str]:
         """
-        Get intelligent fallback directory for a dialog type.
+        Return intelligent fallback directory based on dialog type relationships.
         
-        Fallback logic:
-        - batch_import: Falls back to import_data (start near your current work)
-        - export: No automatic fallback (use explicit fallback parameter)
-        - import_data: No fallback (Qt default is fine)
+        Currently only batch_import falls back to import_data location, allowing
+        batch operations to start near currently active data files.
         """
         if dialog_type == "batch_import":
             # Batch imports start near where you last opened a file in MainWindow
@@ -82,7 +75,8 @@ class FileDialogService:
         self, dialog_type: str, fallback: Optional[str] = None
     ) -> Optional[str]:
         """
-        Get the default directory for a dialog type with smart fallbacks.
+        Resolve default directory using stored memory, explicit fallback, type-specific
+        fallback, or Qt defaults in that priority order.
         """
         # 1. First try the stored directory for this dialog type
         if dialog_type in self._last_directories:
@@ -108,13 +102,7 @@ class FileDialogService:
         return None
 
     def _remember_directory(self, dialog_type: str, file_path: str) -> None:
-        """
-        Remember the directory from a selected file path.
-
-        Args:
-            dialog_type (str): Type of dialog.
-            file_path (str): Full path to the selected file.
-        """
+        """Store parent directory of file_path for this dialog type."""
         if file_path:
             directory = str(Path(file_path).parent)
             if os.path.isdir(directory):
@@ -132,7 +120,9 @@ class FileDialogService:
         dialog_type: str = "export",
     ) -> Optional[str]:
         """
-        Show a save file dialog and return the selected path.
+        Show save file dialog with suggested filename.
+        
+        Returns selected path or None if cancelled. Updates directory memory on success.
         """
         logger.debug(f"Opening export dialog: type={dialog_type}, suggested={suggested_name}")
 
@@ -169,7 +159,9 @@ class FileDialogService:
         dialog_type: str = "import_data",
     ) -> Optional[str]:
         """
-        Show an open file dialog and return the selected path.
+        Show single-file selection dialog.
+        
+        Returns selected path or None if cancelled. Updates directory memory on success.
         """
         logger.debug(f"Opening import dialog: type={dialog_type}, title='{title}'")
 
@@ -198,7 +190,10 @@ class FileDialogService:
         dialog_type: str = "batch_import",
     ) -> List[str]:
         """
-        Show a multi-file selection dialog and return selected paths.
+        Show multi-file selection dialog.
+        
+        Returns list of selected paths (empty if cancelled). Updates directory memory
+        from first selected file.
         """
         logger.debug(f"Opening multi-file import dialog: type={dialog_type}, title='{title}'")
 
@@ -226,7 +221,9 @@ class FileDialogService:
         dialog_type: str = "export",
     ) -> Optional[str]:
         """
-        Show a directory selection dialog and return the selected path.
+        Show directory selection dialog.
+        
+        Returns selected directory or None if cancelled. Updates directory memory on success.
         """
         logger.debug(f"Opening directory selection dialog: type={dialog_type}, title='{title}'")
 

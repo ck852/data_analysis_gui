@@ -1,12 +1,12 @@
 """
-Sweep Extractor Dialog for PatchBatch Electrophysiology Data Analysis Tool
-
-This module provides a dialog for extracting selected sweeps from the currently
-loaded data file to CSV format. Users can select sweeps, choose channels
-(voltage/current/both), and define a time range for extraction.
+PatchBatch Electrophysiology Data Analysis Tool
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
+
+Dialog for extracting sweep data to CSV format. Handles sweep selection,
+channel filtering (voltage/current/both), time range specification, and
+batch processing across multiple files.
 """
 
 from typing import List
@@ -29,7 +29,7 @@ from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
 from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 
-from data_analysis_gui.core.session_settings import load_session_settings, save_session_settings
+from data_analysis_gui.core.session_settings import save_extract_sweeps_settings, load_extract_sweeps_settings
 
 from data_analysis_gui.config.logging import get_logger
 
@@ -48,14 +48,12 @@ class SweepExtractorDialog(QDialog):
     def __init__(self, parent, dataset: ElectrophysiologyDataset, file_path: str, 
                 default_start: float = 0.0, default_end: float = None):
         """
-        Initialize the sweep extractor dialog.
-        
         Args:
-            parent: Parent window (provides file_dialog_service)
-            dataset: Currently loaded dataset
-            file_path: Path to source file
-            default_start: Default start time for analysis range (ms)
-            default_end: Default end time for analysis range (ms), None = use max_time
+            parent: Parent window (must provide file_dialog_service attribute)
+            dataset: Current dataset to extract from
+            file_path: Source file path (used for naming exports)
+            default_start: Initial start time for range selector (ms)
+            default_end: Initial end time; None uses dataset maximum
         """
         super().__init__(parent)
         
@@ -100,7 +98,7 @@ class SweepExtractorDialog(QDialog):
         apply_modern_theme(self)
         
     def _init_ui(self):
-        """Initialize the user interface."""
+        """Build the complete UI layout with all sections."""
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -127,7 +125,7 @@ class SweepExtractorDialog(QDialog):
         self._create_action_buttons(layout)
         
     def _create_file_info_section(self, layout):
-        """Create the file information section."""
+        """Add file name and sweep count display."""
         file_group = QGroupBox("Source File")
         style_group_box(file_group)
         file_layout = QVBoxLayout(file_group)
@@ -145,7 +143,7 @@ class SweepExtractorDialog(QDialog):
         layout.addWidget(file_group)
         
     def _create_sweep_selection_section(self, layout):
-        """Create the sweep selection section."""
+        """Add sweep selection widget with select all/none controls."""
         sweep_group = QGroupBox(f"Select Sweeps to Extract")
         style_group_box(sweep_group)
         sweep_layout = QVBoxLayout(sweep_group)
@@ -174,7 +172,7 @@ class SweepExtractorDialog(QDialog):
         layout.addWidget(sweep_group)
         
     def _create_channel_selection_section(self, layout):
-        """Create the channel selection section."""
+        """Add radio buttons for voltage/current/both channel selection."""
         channel_group = QGroupBox("Channel to Extract")
         style_group_box(channel_group)
         channel_layout = QVBoxLayout(channel_group)
@@ -195,7 +193,12 @@ class SweepExtractorDialog(QDialog):
         
 
     def _create_time_range_section(self, layout):
-        """Create the time range configuration section."""
+        """
+        Add time range controls with 'use full trace' checkbox.
+        
+        Default state is full trace enabled with spinboxes disabled.
+        Clicking spinboxes auto-unchecks the checkbox for convenience.
+        """
         time_group = QGroupBox("Analysis Time Range")
         style_group_box(time_group)
         time_layout = QVBoxLayout(time_group)
@@ -245,7 +248,7 @@ class SweepExtractorDialog(QDialog):
         layout.addWidget(time_group)
         
     def _create_action_buttons(self, layout):
-        """Create the action buttons."""
+        """Add export, batch extract, copy, and close buttons."""
         button_layout = QHBoxLayout()
         
         # Export button (primary action)
@@ -271,7 +274,7 @@ class SweepExtractorDialog(QDialog):
         layout.addLayout(button_layout)
         
     def _connect_signals(self):
-        """Connect UI signals to handlers."""
+        """Wire up all UI event handlers."""
         # Connect checkbox to enable/disable spinboxes
         self.full_trace_checkbox.toggled.connect(self._on_full_trace_toggled)
         
@@ -291,12 +294,12 @@ class SweepExtractorDialog(QDialog):
 
     def _load_channel_mode(self):
         """
-        Load the saved channel mode preference from session settings.
+        Restore last-used channel mode from session settings.
         
-        Restores the last selected channel mode (voltage/current/both).
-        If no saved preference exists, voltage is selected by default.
+        Blocks radio button signals during restoration to prevent
+        triggering saves while loading. Defaults to voltage if no
+        saved preference exists.
         """
-        from data_analysis_gui.core.session_settings import load_extract_sweeps_settings
         
         settings = load_extract_sweeps_settings()
         if settings and 'channel_mode' in settings:
@@ -323,12 +326,12 @@ class SweepExtractorDialog(QDialog):
 
     def _save_channel_mode(self):
         """
-        Save the current channel mode selection to session settings.
+        Persist current channel mode selection to session settings.
         
-        This is called automatically when any channel radio button changes,
-        or explicitly when action buttons are clicked.
+        Called automatically when radio buttons change and when action
+        buttons are clicked. Filters out unchecked radio button events
+        to avoid redundant saves.
         """
-        from data_analysis_gui.core.session_settings import save_extract_sweeps_settings
         
         # Only filter out unchecked radio buttons when called from radio button signals
         sender = self.sender()
@@ -349,10 +352,11 @@ class SweepExtractorDialog(QDialog):
 
     def _copy_sweeps_to_clipboard(self):
         """
-        Copy sweep data to clipboard as tab-separated values.
+        Export sweep data to system clipboard as TSV.
         
-        Allows users to paste data directly into Excel, Prism, or other applications
-        without needing to save a CSV file first.
+        Uses same extraction logic as CSV export but formats for
+        direct paste into Excel/Prism. Validates sweeps and time
+        range before extraction.
         """
         self._save_channel_mode()
         # Validate selection - handle new tuple return
@@ -457,14 +461,7 @@ class SweepExtractorDialog(QDialog):
             )
 
     def _on_full_trace_toggled(self, checked: bool):
-        """
-        Handle the 'Use full trace' checkbox state change.
-        
-        Enables/disables the time range spinboxes based on checkbox state.
-        
-        Args:
-            checked: True if checkbox is checked, False otherwise
-        """
+        """Enable/disable time range spinboxes based on checkbox state."""
         # Enable spinboxes when unchecked, disable when checked
         enabled = not checked
         self.start_spinbox.setEnabled(enabled)
@@ -472,10 +469,11 @@ class SweepExtractorDialog(QDialog):
 
     def _on_spinbox_changed(self):
         """
-        Handle spinbox value changes.
+        Auto-uncheck 'use full trace' when user edits time range.
         
-        If 'Use full trace' is checked, uncheck it and enable the spinboxes.
-        This allows users to start editing time ranges by simply clicking on the spinboxes.
+        Improves UX by letting users click spinboxes directly without
+        manually unchecking the checkbox first. Blocks signals temporarily
+        to prevent recursive toggling.
         """
         if self.full_trace_checkbox.isChecked():
             # Block signals temporarily to prevent recursive calls
@@ -488,12 +486,7 @@ class SweepExtractorDialog(QDialog):
             self.end_spinbox.setEnabled(True)
         
     def _get_selected_channel_mode(self) -> str:
-        """
-        Get the selected channel mode.
-        
-        Returns:
-            str: 'voltage', 'current', or 'both'
-        """
+        """Return 'voltage', 'current', or 'both' based on radio selection."""
         if self.voltage_radio.isChecked():
             return 'voltage'
         elif self.current_radio.isChecked():
@@ -502,7 +495,12 @@ class SweepExtractorDialog(QDialog):
             return 'both'
             
     def _export_sweeps(self):
-        """Export selected sweeps to CSV."""
+        """
+        Handle single-file CSV export workflow.
+        
+        Validates selection, opens save dialog, performs extraction,
+        and triggers auto-save of parent settings if available.
+        """
         self._save_channel_mode()
 
         # Validate selection - handle new tuple return
@@ -576,7 +574,13 @@ class SweepExtractorDialog(QDialog):
             )
     
     def _batch_extract_sweeps(self):
-        """Open batch sweep extraction dialog."""
+        """
+        Launch batch extraction dialog for processing multiple files.
+        
+        Current selection settings (sweeps, channel mode, time range)
+        are passed to the batch dialog as templates. User selects
+        additional files via file dialog.
+        """
         self._save_channel_mode()
         # Validate selection - handle new tuple return
         selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
@@ -652,14 +656,24 @@ class SweepExtractorDialog(QDialog):
     def _perform_export(self, selected_sweeps: List[str], channel_mode: str,
                        start_time: float, end_time: float, file_path: str):
         """
-        Perform the actual data extraction and CSV export.
+        Execute data extraction and write CSV file.
         
-        Args:
-            selected_sweeps: List of sweep indices to export
-            channel_mode: 'voltage', 'current', or 'both'
-            start_time: Start time in ms
-            end_time: End time in ms
-            file_path: Output file path
+        Parameters
+        ----------
+        selected_sweeps : List[str]
+            Sweep indices to include
+        channel_mode : {'voltage', 'current', 'both'}
+            Which channels to export
+        start_time, end_time : float
+            Time window in milliseconds
+        file_path : str
+            Output CSV path
+            
+        Notes
+        -----
+        Failed sweeps are filled with NaN rather than aborting the entire
+        export. First valid sweep's time array becomes the reference for
+        all subsequent sweeps.
         """
         # Extract data for all selected sweeps
         all_data = {}
@@ -730,16 +744,30 @@ class SweepExtractorDialog(QDialog):
     def _build_csv_arrays(self, all_data: dict, selected_sweeps: List[str],
                         channel_mode: str, reference_time: np.ndarray):
         """
-        Build the headers and data array for CSV export.
+        Construct headers and data array for CSV output.
         
-        Args:
-            all_data: Dictionary of extracted sweep data
-            selected_sweeps: List of sweep indices
-            channel_mode: 'voltage', 'current', or 'both'
-            reference_time: Time array to use for all sweeps
+        Parameters
+        ----------
+        all_data : dict
+            Extracted sweep data keyed by sweep index
+        selected_sweeps : List[str]
+            Sweep indices in desired output order
+        channel_mode : {'voltage', 'current', 'both'}
+            Determines column layout
+        reference_time : np.ndarray
+            Time vector (shared across all sweeps)
             
-        Returns:
-            Tuple[List[str], np.ndarray]: Headers list and data array
+        Returns
+        -------
+        headers : List[str]
+            Column headers with units
+        data_array : np.ndarray
+            2D array ready for np.savetxt
+            
+        Notes
+        -----
+        When channel_mode='both', all voltage columns are grouped together
+        followed by all current columns, rather than interleaving V/I pairs.
         """
         # Start with time column
         headers = ["Time (ms)"]

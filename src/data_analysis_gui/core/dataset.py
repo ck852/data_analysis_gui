@@ -23,10 +23,10 @@ logger = get_logger(__name__)
 
 class ElectrophysiologyDataset:
     """
-    Container for electrophysiology data with multiple sweeps and channels.
-
-    Provides a format-agnostic, unified interface for managing and accessing electrophysiology recordings.
-    Stores channel mapping from file metadata read by loader scripts.
+    Format-agnostic container for multi-sweep electrophysiology recordings.
+    
+    Each sweep contains a time vector (ms) and a 2D data matrix (samples × channels).
+    Metadata tracks channel labels, units, sampling rate, and file provenance.
     """
 
     def __init__(self):
@@ -48,15 +48,15 @@ class ElectrophysiologyDataset:
         self, sweep_index: str, time_ms: np.ndarray, data_matrix: np.ndarray
     ) -> None:
         """
-        Add a sweep to the dataset.
+        Add a sweep with its time vector and channel data.
 
         Args:
-            sweep_index (str): Unique identifier for the sweep.
-            time_ms (np.ndarray): 1D array of time values in milliseconds (length N).
-            data_matrix (np.ndarray): 2D array of shape (N, C) where N=samples, C=channels.
+            sweep_index: Unique identifier for this sweep
+            time_ms: 1D time array in milliseconds (length N)
+            data_matrix: 2D array (N samples × C channels); 1D arrays auto-converted
 
         Raises:
-            ValueError: If time and data dimensions do not match.
+            ValueError: If time and data sample counts don't match
         """
         # Validate inputs
         time_ms = np.asarray(time_ms)
@@ -89,15 +89,11 @@ class ElectrophysiologyDataset:
         )
 
     def sweeps(self) -> Iterable[str]:
-        """
-        Get an iterable of all sweep indices in the dataset.
-        """
+        """Return iterable of sweep indices."""
         return self._sweeps.keys()
 
     def get_sweep(self, sweep_index: str) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-        """
-        Retrieve time and data for a specific sweep.
-        """
+        """Retrieve (time_ms, data_matrix) tuple for a sweep, or None if not found."""
         result = self._sweeps.get(sweep_index)
         if result is None:
             logger.warning(f"Sweep {sweep_index} not found in dataset")
@@ -107,7 +103,9 @@ class ElectrophysiologyDataset:
         self, sweep_index: str, channel_id: int
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
-        Get time and data for a specific channel in a sweep.
+        Extract a single channel's time and data from a sweep.
+        
+        Returns (None, None) if sweep doesn't exist or channel_id is out of range.
         """
         sweep_data = self.get_sweep(sweep_index)
         if sweep_data is None:
@@ -130,30 +128,15 @@ class ElectrophysiologyDataset:
         return time_ms, channel_data
 
     def channel_count(self) -> int:
-        """
-        Get the maximum number of channels across all sweeps in the dataset.
-
-        Returns:
-            int: Maximum channel count in the dataset.
-        """
+        """Maximum number of channels across all sweeps."""
         return self.metadata.get("channel_count", 0)
 
     def sweep_count(self) -> int:
-        """
-        Get the total number of sweeps in the dataset.
-
-        Returns:
-            int: Number of sweeps in the dataset.
-        """
+        """Total number of sweeps in the dataset."""
         return len(self._sweeps)
 
     def is_empty(self) -> bool:
-        """
-        Check if the dataset contains any sweeps.
-
-        Returns:
-            bool: True if no sweeps are loaded, False otherwise.
-        """
+        """True if no sweeps loaded."""
         return len(self._sweeps) == 0
 
     def get_sweep_duration_ms(self, sweep_index: str) -> Optional[float]:
@@ -169,10 +152,7 @@ class ElectrophysiologyDataset:
         return float(time_ms[-1] - time_ms[0])
 
     def get_max_sweep_time(self) -> float:
-        """
-        Get the maximum sweep duration across all sweeps in the dataset.
-        Useful in plotting operations for custom autoscaling.
-        """
+        """Maximum sweep duration across all sweeps. Used for plot autoscaling."""
         if self.is_empty():
             return 0.0
 
@@ -188,10 +168,14 @@ class ElectrophysiologyDataset:
         self, keep_sweeps: Iterable[str], reset_time: bool = False
     ) -> "ElectrophysiologyDataset":
         """
-        Create a new dataset containing only specified sweeps with optional time recalibration.
+        Create a new dataset with only the specified sweeps.
         
-        This creates a completely new dataset object, leaving the original unchanged.
-        Used for rejecting sweeps.
+        Primary use: removing rejected sweeps. Original dataset remains unchanged.
+        If reset_time=True, sweep_times metadata is offset so the first kept sweep starts at t=0.
+        Within-sweep time arrays are always preserved unchanged.
+        
+        Raises:
+            ValueError: If keep_sweeps is empty or contains invalid sweep indices
         """
         logger.info(f"Creating filtered dataset copy with {len(list(keep_sweeps))} sweeps")
         
@@ -262,7 +246,9 @@ class ElectrophysiologyDataset:
 
     def get_sampling_rate(self, sweep_index: Optional[str] = None) -> Optional[float]:
         """
-        Estimate the sampling rate for a sweep or the dataset.
+        Estimate sampling rate in Hz from sweep time vector or return metadata value.
+        
+        Calculates from mean time step if sweep data available, otherwise returns stored rate.
         """
         # Use provided sweep or get first one
         if sweep_index is None:
@@ -286,9 +272,7 @@ class ElectrophysiologyDataset:
         return self.metadata.get("sampling_rate_hz")
 
     def clear(self) -> None:
-        """
-        Remove all sweeps and reset metadata to default values.
-        """
+        """Remove all sweeps and reset metadata to defaults."""
         sweep_count = len(self._sweeps)
         self._sweeps.clear()
         self.metadata = {
@@ -303,15 +287,11 @@ class ElectrophysiologyDataset:
         logger.info(f"Cleared dataset: removed {sweep_count} sweep(s)")
 
     def __len__(self) -> int:
-        """
-        Return the number of sweeps in the dataset.
-        """
+        """Number of sweeps (enables len(dataset))."""
         return len(self._sweeps)
 
     def __repr__(self) -> str:
-        """
-        Return a string representation of the dataset summarizing sweeps, channels, and format.
-        """
+        """String summary: sweeps, channels, and file format."""
         return (
             f"ElectrophysiologyDataset("
             f"sweeps={self.sweep_count()}, "
@@ -321,7 +301,9 @@ class ElectrophysiologyDataset:
 
 class DatasetLoader:
     """
-    Works in conjunction with core/loaders/ to load electrophysiology datasets from various file formats. 
+    Loads electrophysiology data from ABF and WCP files into ElectrophysiologyDataset objects.
+    
+    Delegates to format-specific loaders in core/loaders/ based on file extension detection.
     """
 
     # Supported file extensions and their formats
@@ -332,9 +314,7 @@ class DatasetLoader:
 
     @staticmethod
     def detect_format(file_path: Union[str, Path]) -> Optional[str]:
-        """
-        Detect the file format based on file extension.
-        """
+        """Detect file format from extension. Returns 'abf', 'wcp', or None if unknown."""
         file_path = Path(file_path)
         extension = file_path.suffix.lower()
         format_type = DatasetLoader.FORMAT_EXTENSIONS.get(extension)
@@ -348,7 +328,15 @@ class DatasetLoader:
 
     @staticmethod
     def load(filepath: str) -> "ElectrophysiologyDataset":
-
+        """
+        Load an electrophysiology file into a dataset object.
+        
+        Detects format from extension and delegates to the appropriate loader.
+        
+        Raises:
+            ValueError: If file format is unsupported
+            Exception: If loader fails (logged with full traceback)
+        """
         logger.info(f"Loading dataset from: {Path(filepath).name}")
         
         format_type = DatasetLoader.detect_format(filepath)

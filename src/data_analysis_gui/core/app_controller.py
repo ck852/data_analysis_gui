@@ -6,10 +6,12 @@ maintains state while remaining agnostic to Qt widgets. Creates and manages Data
 AnalysisManager, and BatchProcessor.
 
 Maintains current_dataset and loaded_file_path state. This ensures that one file at 
-a time is loaded, and analysis operations are performed on the intended dataset.
+a time is loaded, and analysis operations are performed on the intended dataset. The primary
+goal is to keep individual files' data completely isolated from one another to avoid errors. 
 
 Analysis parameters (ranges, average/peak, channel, anything else specified in ControlPanel) 
-are passed to AnalysisManager for structuring in preparation for AnalysisEngine.
+are passed to AnalysisManager for structuring in preparation for AnalysisEngine, which dictates 
+the actual analysis calculations.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -70,12 +72,6 @@ class AnalysisOperationResult:
 class PlotDataResult:
     """
     Result wrapper for plot data operations.
-
-    Attributes:
-        success (bool): Whether the operation was successful.
-        data (Optional[PlotData]): The plot data, if successful.
-        error_message (Optional[str]): Error message if the operation failed.
-        error_type (Optional[str]): Type of error encountered, if any.
     """
 
     success: bool
@@ -88,12 +84,6 @@ class PlotDataResult:
 class PeakAnalysisOperationResult:
     """
     Result wrapper for peak analysis operations.
-
-    Attributes:
-        success (bool): Whether the operation was successful.
-        data (Optional[PeakAnalysisResult]): The peak analysis result, if successful.
-        error_message (Optional[str]): Error message if the operation failed.
-        error_type (Optional[str]): Type of error encountered, if any.
     """
 
     success: bool
@@ -106,12 +96,6 @@ class PeakAnalysisOperationResult:
 class FileLoadResult:
     """
     Result wrapper for file loading operations.
-
-    Attributes:
-        success (bool): Whether the file was loaded successfully.
-        file_info (Optional[FileInfo]): Information about the loaded file.
-        error_message (Optional[str]): Error message if the operation failed.
-        error_type (Optional[str]): Type of error encountered, if any.
     """
 
     success: bool

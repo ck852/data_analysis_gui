@@ -16,20 +16,10 @@ from typing import Optional, Any, Dict
 class AnalysisError(Exception):
     """
     Base exception for all analysis-related errors.
-
-    This is the root of the exception hierarchy. Catching this exception
-    will catch all application-specific errors, while still allowing
-    system exceptions (like KeyboardInterrupt) to propagate.
-
-    Args:
-        message (str): Human-readable error description.
-        details (Optional[Dict[str, Any]]): Optional dictionary with structured error information.
-        cause (Optional[Exception]): Original exception that triggered this error (if any).
-
-    Attributes:
-        message (str): Error message.
-        details (Dict[str, Any]): Structured error information.
-        cause (Optional[Exception]): Original exception.
+    
+    Root of the exception hierarchy. Catching this will catch all application-specific 
+    errors while allowing system exceptions (KeyboardInterrupt, etc.) to propagate.
+    Supports optional structured details and exception chaining for better debugging.
     """
 
     def __init__(
@@ -38,14 +28,6 @@ class AnalysisError(Exception):
         details: Optional[Dict[str, Any]] = None,
         cause: Optional[Exception] = None,
     ):
-        """
-        Initialize the analysis error.
-
-        Args:
-            message: Clear, actionable error message
-            details: Structured data about the error for logging/debugging
-            cause: Original exception that caused this error
-        """
         super().__init__(message)
         self.message = message
         self.details = details or {}
@@ -64,62 +46,32 @@ class AnalysisError(Exception):
 
 
 class ValidationError(AnalysisError):
-    """
-    Raised when input validation fails.
-
-    Used for invalid parameter ranges, missing required fields, type mismatches, or value constraint violations.
-    """
-
+    """Raised when input validation fails (invalid ranges, type mismatches, constraint violations)."""
     pass
 
 
 class DataError(AnalysisError):
-    """
-    Raised when data integrity issues are detected.
-
-    Used for NaN/Inf values, dimension mismatches, empty datasets, or corrupted data structures.
-    """
-
+    """Raised when data integrity issues are detected (NaN values, dimension mismatches, corrupted structures)."""
     pass
 
 
 class FileError(AnalysisError):
-    """
-    Raised for file I/O related problems.
-
-    Used for file not found, permission denied, unsupported format, or corrupted file structure.
-    """
-
+    """Raised for file I/O problems (not found, permissions, unsupported format)."""
     pass
 
 
 class ConfigurationError(AnalysisError):
-    """
-    Raised when system configuration is invalid.
-
-    Used for missing services, invalid channel configurations, incompatible settings, or environment setup issues.
-    """
-
+    """Raised when system configuration is invalid (missing services, incompatible settings)."""
     pass
 
 
 class ProcessingError(AnalysisError):
-    """
-    Raised when data processing operations fail.
-
-    Used for computation failures, memory errors, timeouts, or algorithmic failures.
-    """
-
+    """Raised when data processing operations fail (computation errors, timeouts, memory issues)."""
     pass
 
 
 class ExportError(AnalysisError):
-    """
-    Raised when export operations fail.
-
-    Used for write permission denied, disk full, invalid export format, or data serialization failures.
-    """
-
+    """Raised when export operations fail (write permissions, disk space, serialization errors)."""
     pass
 
 
@@ -127,38 +79,14 @@ class ExportError(AnalysisError):
 
 
 def validate_not_none(value: Any, name: str) -> Any:
-    """
-    Validate that a value is not None.
-
-    Args:
-        value (Any): Value to check.
-        name (str): Name of the parameter (for error message).
-
-    Returns:
-        Any: The value if not None.
-
-    Raises:
-        ValidationError: If value is None.
-    """
+    """Ensure value is not None, raising ValidationError if it is."""
     if value is None:
         raise ValidationError(f"{name} cannot be None")
     return value
 
 
 def validate_positive(value: float, name: str) -> float:
-    """
-    Validate that a numeric value is positive.
-
-    Args:
-        value (float): Value to check.
-        name (str): Name of the parameter.
-
-    Returns:
-        float: The value if positive.
-
-    Raises:
-        ValidationError: If value is not positive.
-    """
+    """Ensure numeric value is positive, raising ValidationError otherwise."""
     if value <= 0:
         raise ValidationError(f"{name} must be positive", details={name: value})
     return value
@@ -167,20 +95,7 @@ def validate_positive(value: float, name: str) -> float:
 def validate_range(
     start: float, end: float, name: str = "Range"
 ) -> tuple[float, float]:
-    """
-    Validate that a range is valid (end > start).
-
-    Args:
-        start (float): Range start value.
-        end (float): Range end value.
-        name (str): Name of the range.
-
-    Returns:
-        tuple[float, float]: Tuple of (start, end) if valid.
-
-    Raises:
-        ValidationError: If range is invalid.
-    """
+    """Ensure end > start for a valid range, raising ValidationError if not."""
     if end <= start:
         raise ValidationError(
             f"{name} is invalid: end ({end}) must be after start ({start})",
@@ -191,16 +106,10 @@ def validate_range(
 
 def validate_file_exists(filepath: str) -> str:
     """
-    Validate that a file exists and is readable.
-
-    Args:
-        filepath (str): Path to check.
-
-    Returns:
-        str: The filepath if valid.
-
+    Check that file exists and is readable.
+    
     Raises:
-        FileError: If file doesn't exist or isn't readable.
+        FileError: If file doesn't exist or lacks read permissions.
     """
     import os
 
@@ -218,18 +127,10 @@ def validate_file_exists(filepath: str) -> str:
 
 def validate_array_dimensions(array, expected_dims: int, name: str = "array"):
     """
-    Validate array dimensions.
-
-    Args:
-        array: Numpy array to check.
-        expected_dims (int): Expected number of dimensions.
-        name (str): Name of the array.
-
-    Returns:
-        np.ndarray: The array if valid.
-
+    Ensure array has the expected number of dimensions.
+    
     Raises:
-        DataError: If dimensions don't match.
+        DataError: If array isn't a numpy array or has wrong dimensionality.
     """
     import numpy as np
 
@@ -253,17 +154,10 @@ def validate_array_dimensions(array, expected_dims: int, name: str = "array"):
 
 def validate_no_nan(array, name: str = "array"):
     """
-    Validate that array contains no NaN values.
-
-    Args:
-        array: Numpy array to check.
-        name (str): Name of the array.
-
-    Returns:
-        np.ndarray: The array if valid.
-
+    Ensure array contains no NaN values.
+    
     Raises:
-        DataError: If NaN values are found.
+        DataError: If any NaN values are found, with count and shape details.
     """
     import numpy as np
 

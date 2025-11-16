@@ -1,5 +1,5 @@
 """
-PatchBatch Analysis Manager
+Coordinates dataset analysis operations between the application controller and analysis engine.
 
 Receives datasets and analysis parameters from ApplicationController, prepares them 
 for processing by AnalysisEngine, and returns AnalysisEngine results back to the controller.
@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 
 
 class AnalysisManager:
+    """Manages analysis workflows and coordinates between controllers and the analysis engine."""
 
     def __init__(self):
         self.engine = create_analysis_engine()
@@ -43,6 +44,20 @@ class AnalysisManager:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> AnalysisResult:
+        """
+        Perform analysis on the dataset and return formatted results.
+
+        Args:
+            dataset: Electrophysiology data to analyze
+            params: Analysis configuration parameters
+            rejected_sweeps: Set of sweep indices to exclude from analysis
+
+        Returns:
+            AnalysisResult containing plot data and metadata
+
+        Raises:
+            DataError: If dataset is empty or analysis produces no results
+        """
 
         if not dataset or dataset.is_empty():
             raise DataError("Cannot analyze empty dataset")
@@ -97,6 +112,21 @@ class AnalysisManager:
     def get_sweep_plot_data(
         self, dataset: ElectrophysiologyDataset, sweep_index: str, channel_type: str
     ) -> PlotData:
+        """
+        Retrieve plot data for a specific sweep and channel.
+
+        Args:
+            dataset: Source dataset
+            sweep_index: Identifier for the sweep to retrieve
+            channel_type: Either "Voltage" or "Current"
+
+        Returns:
+            PlotData with time series and channel information
+
+        Raises:
+            ValidationError: If channel_type is invalid
+            DataError: If sweep data cannot be retrieved
+        """
 
         if channel_type not in ["Voltage", "Current"]:
             raise ValidationError(f"Invalid channel type: {channel_type}")
@@ -122,6 +152,18 @@ class AnalysisManager:
         filepath: str,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> ExportResult:
+        """
+        Export analysis results to a CSV file.
+
+        Args:
+            dataset: Dataset to export
+            params: Analysis parameters for processing
+            filepath: Destination file path for CSV export
+            rejected_sweeps: Set of sweep indices to exclude
+
+        Returns:
+            ExportResult indicating success or failure with error details
+        """
 
         if dataset.is_empty():
             return ExportResult(success=False, error_message="Dataset is empty")
@@ -149,6 +191,20 @@ class AnalysisManager:
         params: AnalysisParameters,
         peak_types: List[str] = None,
     ) -> PeakAnalysisResult:
+        """
+        Analyze peak characteristics across sweeps.
+
+        Args:
+            dataset: Dataset to analyze
+            params: Analysis parameters
+            peak_types: Types of peaks to analyze (defaults to all types)
+
+        Returns:
+            PeakAnalysisResult with peak data and x-axis information
+
+        Raises:
+            DataError: If dataset is empty or peak analysis fails
+        """
 
         if dataset.is_empty():
             raise DataError("Cannot analyze empty dataset")
@@ -175,6 +231,17 @@ class AnalysisManager:
         params: AnalysisParameters,
         rejected_sweeps: Optional[Set[int]] = None,
     ) -> Dict[str, Any]:
+        """
+        Generate formatted table data for export.
+
+        Args:
+            dataset: Dataset to process
+            params: Analysis parameters
+            rejected_sweeps: Set of sweep indices to exclude
+
+        Returns:
+            Dictionary with headers, data array, and format specifications
+        """
 
         if dataset.is_empty():
             return {"headers": [], "data": np.array([[]]), "format_spec": "%.6f"}

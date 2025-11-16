@@ -18,16 +18,22 @@ logger = get_logger(__name__)
 
 class ClipboardService:
     """
-    Service for copying data tables to system clipboard.
+    Formats analysis data as tab-separated text and copies to system clipboard.
     
-    Formats data as tab-separated values (TSV) for simplicity, slight divergence 
-    from CSV file outputs to facilitate copy/paste.
+    Uses TSV instead of CSV for easier paste operations into spreadsheets.
     """
     
     @staticmethod
     def format_data_as_text(data: Dict[str, Any], separator: str = "\t") -> str:
         """
-        Format a data dictionary as delimited text.
+        Convert data dictionary to delimited text with headers.
+        
+        Args:
+            data: Dictionary with 'headers' (list) and 'data' (array-like) keys
+            separator: Column delimiter (default tab for TSV)
+            
+        Returns:
+            Formatted text string, or empty string on error
         """
         try:
             # Validate data structure
@@ -67,9 +73,7 @@ class ClipboardService:
     
     @staticmethod
     def copy_to_clipboard(text: str) -> bool:
-        """
-        Copy text to system clipboard.
-        """
+        """Copy text to system clipboard using Qt."""
         try:
             if not text:
                 logger.warning("Attempted to copy empty text to clipboard")
@@ -87,9 +91,7 @@ class ClipboardService:
     
     @staticmethod
     def copy_data_to_clipboard(data: Dict[str, Any], separator: str = "\t") -> bool:
-        """
-        Format and copy data to clipboard in one step.
-        """
+        """Format data and copy to clipboard. Returns True if successful."""
         text = ClipboardService.format_data_as_text(data, separator)
         
         if not text:

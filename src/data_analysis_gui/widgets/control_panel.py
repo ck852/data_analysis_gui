@@ -4,15 +4,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Control Panel Widget
-
-A large widget for managing all analysis and plot settings in the PatchBatch Electrophysiology Data Analysis Tool.
-Controls are always active, regardless of file loading state, and communicate user actions via Qt signals.
-Provides themed UI elements for analysis ranges, dual range selection, stimulus period, axis configuration, and peak mode.
-Validation is performed on input fields, with visual feedback for invalid states.
-
-Docstrings throughout describe methods in detail to assist learning/understanding for
-electrophysiology researchers interested in customizing or extending the tool.
+Control panel for configuring analysis ranges and plot axes in the PatchBatch tool.
+Provides real-time validation with visual feedback and communicates user actions via Qt signals.
+All controls remain active regardless of file state; analysis operations are blocked upstream until data loads.
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QGroupBox, QLabel, QPushButton, QCheckBox, QGridLayout
@@ -34,7 +28,7 @@ logger = get_logger(__name__)
 
 class ControlPanel(QWidget):
     """
-    Simple panel for configuring analysis ranges and plot settings.
+    Main configuration panel for analysis parameters and plot settings.
 
     Manages two analysis ranges (primary and optional dual range), peak calculation modes,
     and X/Y axis configurations, including option for conductance calculations. Performs real-time
@@ -101,10 +95,7 @@ class ControlPanel(QWidget):
         logger.info("ControlPanel initialized with default settings")
 
     def _setup_ui(self):
-        """
-        Set up the control panel UI with full theme integration.
-        Creates all controls, layouts, and applies styling.
-        """
+        """Build and style all UI components."""
         logger.debug("Setting up ControlPanel UI")
         
         # Create scroll area for the controls
@@ -145,12 +136,7 @@ class ControlPanel(QWidget):
         main_layout.setSpacing(0)
 
     def _create_analysis_settings_group(self):
-        """
-        Create the analysis settings group with themed controls.
-
-        Returns:
-            QGroupBox: The analysis settings group box.
-        """
+        """Create the analysis range configuration group."""
         analysis_group = QGroupBox("Analysis Settings")
         style_group_box(analysis_group)
 
@@ -172,12 +158,7 @@ class ControlPanel(QWidget):
         return analysis_group
 
     def _add_range1_settings(self, layout):
-        """
-        Add Range 1 controls to the provided layout.
-
-        Args:
-            layout (QGridLayout): The layout to add controls to.
-        """
+        """Add primary range start/end controls to layout."""
         # Range 1 Start
         start_label = QLabel("Range 1 Start (ms):")
         style_label(start_label, "normal")
@@ -209,12 +190,7 @@ class ControlPanel(QWidget):
         self.end_spin.setMaximumWidth(90)
 
     def _add_range2_settings(self, layout):
-        """
-        Add Range 2 controls to the provided layout.
-
-        Args:
-            layout (QGridLayout): The layout to add controls to.
-        """
+        """Add secondary range start/end controls to layout."""
         # Range 2 Start
         start2_label = QLabel("Range 2 Start (ms):")
         style_label(start2_label, "normal")
@@ -248,12 +224,7 @@ class ControlPanel(QWidget):
         self.end_spin2.setMaximumWidth(90)
 
     def _create_plot_settings_group(self):
-        """
-        Create the plot settings group with themed controls.
-
-        Returns:
-            QGroupBox: The plot settings group box.
-        """
+        """Create the plot axis configuration group."""
         plot_group = QGroupBox("Plot Settings")
         style_group_box(plot_group)
 
@@ -339,10 +310,10 @@ class ControlPanel(QWidget):
 
     def _create_conductance_settings_group(self):
         """
-        Create the conductance configuration group box with themed controls.
+        Create conductance calculation settings (I/V measures, reversal potential, units).
         
-        Returns:
-            QGroupBox: Group box containing conductance settings.
+        Visible only when Y-axis is set to Conductance. Peak mode combo enables when
+        either current or voltage uses Peak measurement.
         """
         conductance_group = QGroupBox("Conductance Settings")
         style_group_box(conductance_group)
@@ -416,13 +387,11 @@ class ControlPanel(QWidget):
 
     def _update_axis_dependent_controls(self):
         """
-        Update visibility and enabled state of controls based on axis selections.
+        Update control visibility and enabled states based on current axis selections.
         
-        Handles:
-        - Peak mode combo (enabled when Peak is used anywhere)
-        - X/Y channel combos (disabled for Time and Conductance)
-        - Conductance settings group (shown when Y-axis is Conductance)
-        - Dual range checkbox (disabled when Conductance selected)
+        Disables channel combos for Time/Conductance measures, shows conductance settings
+        when Y-axis is Conductance, disables dual range for conductance (unsupported),
+        and enables peak mode when Peak is used in any axis or conductance measurement.
         """
         x_measure = self.x_measure_combo.currentText()
         y_measure = self.y_measure_combo.currentText()
@@ -471,9 +440,7 @@ class ControlPanel(QWidget):
             style_combo_simple(self.peak_mode_combo)
 
     def _update_peak_mode_visibility(self):
-        """
-        Enable or disable the peak mode combo box based on axis selection.
-        """
+        """Enable peak mode combo only when X or Y axis uses Peak measurement."""
         is_peak_selected = (
             self.x_measure_combo.currentText() == "Peak"
             or self.y_measure_combo.currentText() == "Peak"
@@ -486,9 +453,7 @@ class ControlPanel(QWidget):
             style_combo_simple(self.peak_mode_combo)
 
     def _connect_signals(self):
-        """
-        Connect internal widget signals and perform initial validation.
-        """
+        """Wire up internal signals and run initial validation."""
         logger.debug("Connecting ControlPanel signals")
         
         # Validate on any value change
@@ -556,12 +521,7 @@ class ControlPanel(QWidget):
             self.range_values_changed.emit()
 
     def _mark_field_invalid(self, spinbox_key: str):
-        """
-        Mark a spinbox field as invalid, applying themed visual feedback.
-
-        Args:
-            spinbox_key (str): Key for the spinbox ('start1', 'end1', etc.).
-        """
+        """Apply visual feedback (red background/border) to indicate invalid range input."""
         spinbox_map = {
             "start1": self.start_spin,
             "end1": self.end_spin,
@@ -582,12 +542,7 @@ class ControlPanel(QWidget):
             spinbox.setStyleSheet(invalid_style)
 
     def _clear_invalid_state(self, spinbox_key: str):
-        """
-        Clear the invalid state from a spinbox field, restoring original styling.
-
-        Args:
-            spinbox_key (str): Key for the spinbox ('start1', 'end1', etc.).
-        """
+        """Remove invalid visual feedback and restore normal styling."""
         if spinbox_key in self._invalid_fields:
             self._invalid_fields.remove(spinbox_key)
             logger.debug(f"Clearing invalid state from field {spinbox_key}")
@@ -603,9 +558,7 @@ class ControlPanel(QWidget):
                 style_spinbox_with_arrows(spinbox)
 
     def _on_dual_range_changed(self):
-        """
-        Handle changes to the dual range checkbox, enabling/disabling controls.
-        """
+        """Handle dual range checkbox toggle, enabling/disabling Range 2 controls."""
         enabled = self.dual_range_cb.isChecked()
         logger.info(f"Dual range {'enabled' if enabled else 'disabled'}")
         
@@ -621,10 +574,10 @@ class ControlPanel(QWidget):
 
     def get_parameters(self) -> AnalysisParameters:
         """
-        Get current analysis parameters as an AnalysisParameters object.
+        Build AnalysisParameters object from current control values.
 
-        Returns:
-            AnalysisParameters: Object containing all current control values.
+        Returns parameter object containing all range, axis, and conductance settings
+        needed for analysis operations.
         """
         from data_analysis_gui.core.params import AnalysisParameters, AxisConfig, ConductanceConfig
 
@@ -682,12 +635,7 @@ class ControlPanel(QWidget):
     # --- Public methods for data access and updates ---
 
     def get_range_values(self) -> dict:
-        """
-        Get current range values as a dictionary.
-
-        Returns:
-            dict: Dictionary of current range values.
-        """
+        """Get current range values as dict (includes dual range state)."""
         return {
             "range1_start": self.start_spin.value(),
             "range1_end": self.end_spin.value(),
@@ -702,10 +650,9 @@ class ControlPanel(QWidget):
 
     def get_range_spinboxes(self) -> dict:
         """
-        Get references to range spinboxes for external use.
-
-        Returns:
-            dict: Dictionary mapping keys to spinbox widgets.
+        Get references to active range spinboxes for cursor synchronization.
+        
+        Returns only Range 1 spinboxes if dual range is disabled, otherwise includes Range 2.
         """
         spinboxes = {"start1": self.start_spin, "end1": self.end_spin}
         if self.dual_range_cb.isChecked():
@@ -715,21 +662,12 @@ class ControlPanel(QWidget):
 
     def validate_ranges(self) -> Tuple[bool, Optional[str]]:
         """
-        Validate all active analysis ranges.
-        
-        This is a public method for external callers (MainWindow, dialogs) to
-        check if ranges are valid before launching analysis operations.
+        Validate all active ranges for external callers (MainWindow, dialogs).
         
         Returns:
-            Tuple[bool, Optional[str]]: 
-                - First element: True if all ranges are valid, False otherwise
-                - Second element: Error message if invalid, None if valid
+            (is_valid, error_message): True/None if valid, False/error string if invalid.
         
-        Example:
-            >>> is_valid, error_msg = control_panel.validate_ranges()
-            >>> if not is_valid:
-            ...     QMessageBox.warning(self, "Invalid Range", error_msg)
-            ...     return
+        Use this before launching analysis operations to ensure ranges are sensible.
         """
         vals = self.get_range_values()
         
@@ -755,13 +693,7 @@ class ControlPanel(QWidget):
         return True, None
 
     def update_range_value(self, spinbox_key: str, value: float):
-        """
-        Update a specific range spinbox value.
-
-        Args:
-            spinbox_key (str): Key for the spinbox ('start1', 'end1', etc.).
-            value (float): Value to set.
-        """
+        """Update a range spinbox programmatically (triggers validation)."""
         spinbox_map = {
             "start1": self.start_spin,
             "end1": self.end_spin,
@@ -775,10 +707,9 @@ class ControlPanel(QWidget):
 
     def set_analysis_range(self, max_time: float):
         """
-        Set the maximum value for analysis range spinboxes and clamp current values.
-
-        Args:
-            max_time (float): Maximum allowed time value.
+        Set maximum allowed time for all range spinboxes, clamping current values if needed.
+        
+        Called after file load to prevent users from selecting ranges beyond the recording duration.
         """
         logger.info(f"Setting analysis range maximum to {max_time} ms")
         
@@ -815,10 +746,10 @@ class ControlPanel(QWidget):
 
     def set_parameters_from_dict(self, params: dict):
         """
-        Set analysis parameters from a dictionary, blocking signals during update.
-
-        Args:
-            params (dict): Dictionary of analysis parameter values.
+        Restore analysis range settings from dict (e.g., saved session or defaults).
+        
+        Blocks signals during update to prevent spurious validation triggers. Forces dual
+        range to False if conductance mode is detected (defensive programming for edge case).
         """
         logger.debug(f"Setting parameters from dict: {params}")
         
@@ -886,10 +817,9 @@ class ControlPanel(QWidget):
 
     def set_plot_settings_from_dict(self, params: dict):
         """
-        Set plot settings from a dictionary, blocking signals during update.
-
-        Args:
-            params (dict): Dictionary of plot setting values.
+        Restore plot axis and conductance settings from dict.
+        
+        Blocks signals during update, then triggers control visibility refresh after.
         """
         logger.debug(f"Setting plot settings from dict: {params}")
         
@@ -981,10 +911,9 @@ class ControlPanel(QWidget):
 
     def get_all_settings_dict(self) -> dict:
         """
-        Get all control panel settings as a dictionary for saving/restoring state.
-
-        Returns:
-            dict: Dictionary containing all current settings.
+        Export all current settings as dict for session saving.
+        
+        Includes conductance settings only if Y-axis is set to Conductance.
         """
         settings = {
             "analysis": {
@@ -1016,7 +945,7 @@ class ControlPanel(QWidget):
         return settings
 
     def update_range_value_silent(self, spinbox_key: str, value: float):
-        """Update spinbox without emitting signals (prevents feedback loop)."""
+        """Update spinbox without emitting signals (prevents cursor feedback loops)."""
         spinbox_map = {
             "start1": self.start_spin,
             "end1": self.end_spin,

@@ -40,12 +40,10 @@ logger = logging.getLogger(__name__)
 
 class LeakCursorManager:
     """
-    Manages VHold and VTest cursors across dual voltage/current plots.
+    Manages draggable VHold and VTest cursor lines across dual voltage/current plots.
     
-    Simplified cursor manager for exactly 2 cursors that span both subplots.
-    
-    Note: Cursors are matplotlib Line2D objects that get removed when axes.clear()
-    is called. Use recreate_cursors() after clearing to restore them.
+    Cursors are matplotlib Line2D objects that are removed when axes.clear() is called.
+    After clearing axes, call recreate_cursors() to restore them at their previous positions.
     """
     
     def __init__(self, ax_voltage, ax_current, canvas):
@@ -87,7 +85,12 @@ class LeakCursorManager:
         self.canvas.draw_idle()
     
     def recreate_cursors(self, vhold_pos: float, vtest_pos: float):
-        """Recreate cursor lines after axes have been cleared."""
+        """
+        Recreate cursor lines after axes.clear() has been called.
+        
+        This is necessary because matplotlib removes Line2D objects when clearing axes.
+        Must be called after any axes.clear() operation to restore interactive cursors.
+        """
         # Create new cursor lines
         self.vhold_line_v = self.ax_v.axvline(vhold_pos, color='blue', linewidth=1.5, picker=5, alpha=0.7)
         self.vhold_line_c = self.ax_c.axvline(vhold_pos, color='blue', linewidth=1.5, picker=5, alpha=0.7)
@@ -100,7 +103,7 @@ class LeakCursorManager:
         self.vtest_lines = [self.vtest_line_v, self.vtest_line_c]
     
     def _on_pick(self, event):
-        """Handle cursor pick event."""
+        """Initialize cursor drag when user clicks on a cursor line."""
         artist = event.artist
         
         if artist in self.vhold_lines:
@@ -109,7 +112,7 @@ class LeakCursorManager:
             self.dragging_cursor = 'vtest'
     
     def _on_drag(self, event):
-        """Handle cursor drag."""
+        """Update cursor position and notify callback during mouse drag."""
         if self.dragging_cursor and event.xdata is not None:
             x_pos = float(event.xdata)
             
@@ -123,22 +126,17 @@ class LeakCursorManager:
                     self.on_position_changed('vtest', x_pos)
     
     def _on_release(self, event):
-        """Handle mouse release."""
+        """End cursor drag operation."""
         self.dragging_cursor = None
 
 
 class LeakSubtractionDialog(QDialog):
     """
-    Dialog for interactive leak current subtraction.
+    Dialog for interactive leak current subtraction with dual voltage/current plots.
     
-    Features:
-    - Dual plot layout (voltage top, current bottom)
-    - Draggable VHold/VTest cursors
-    - Group navigation
-    - View mode selector (LEAK/TEST/Both)
-    - Range selector
-    - Sweep rejection
-    - Preview and apply functionality
+    Provides draggable cursors for VHold/VTest selection, group navigation, preview
+    of subtracted traces, and sweep rejection. Supports voltage-based or fixed scaling.
+    Returns a modified dataset with TEST sweeps replaced by leak-subtracted traces.
     """
     
     def __init__(self, dataset: ElectrophysiologyDataset, parent=None):
@@ -169,7 +167,7 @@ class LeakSubtractionDialog(QDialog):
         self._update_plot()
     
     def _validate_and_initialize(self):
-        """Validate dataset and initialize group list."""
+        """Validate dataset has suitable LEAK/TEST pairs and initialize group navigation."""
         # Validate dataset is suitable
         available, msg = is_leak_subtraction_available(self.dataset)
         if not available:
@@ -195,7 +193,7 @@ class LeakSubtractionDialog(QDialog):
         logger.info(f"Initialized with {len(self.valid_groups)} valid groups")
     
     def _init_ui(self):
-        """Build the dialog UI."""
+        """Build dialog layout with matplotlib canvas and control widgets."""
         self.setWindowTitle("Leak Subtraction")
         self.setModal(True)
         self.resize(1000, 700)
@@ -252,7 +250,7 @@ class LeakSubtractionDialog(QDialog):
         apply_modern_theme(self)
     
     def _create_controls(self) -> QVBoxLayout:
-        """Create the control panel."""
+        """Create control panel with navigation, cursors, scaling, and range inputs."""
         layout = QVBoxLayout()
         
         # Row 1: Group navigation and view mode
@@ -452,25 +450,25 @@ class LeakSubtractionDialog(QDialog):
         return layout
     
     def _on_channel_changed(self):
-        """Handle channel selection change."""
+        """Update plot when voltage or current channel selection changes."""
         self.voltage_ch = self.voltage_combo.currentIndex()
         self.current_ch = self.current_combo.currentIndex()
         self._update_plot()
     
     def _on_vhold_changed(self):
-        """Handle VHold spinbox change."""
+        """Update VHold cursor position when spinbox value changes."""
         val = self.vhold_spinbox.value()
         self.cursor_manager.set_vhold(val)
         self._update_scale_display()
     
     def _on_vtest_changed(self):
-        """Handle VTest spinbox change."""
+        """Update VTest cursor position when spinbox value changes."""
         val = self.vtest_spinbox.value()
         self.cursor_manager.set_vtest(val)
         self._update_scale_display()
     
     def _on_cursor_dragged(self, cursor_name: str, position: float):
-        """Handle cursor drag (update spinbox)."""
+        """Update corresponding spinbox when user drags a cursor line."""
         if cursor_name == 'vhold':
             self.vhold_spinbox.blockSignals(True)
             self.vhold_spinbox.setValue(position)
@@ -483,13 +481,13 @@ class LeakSubtractionDialog(QDialog):
         self._update_scale_display()
     
     def _on_scaling_mode_changed(self):
-        """Handle scaling mode change."""
+        """Toggle fixed scale input enabled state based on scaling mode selection."""
         is_fixed = self.fixed_scaling_radio.isChecked()
         self.fixed_scale_input.setEnabled(is_fixed)
         self._update_scale_display()
     
     def _on_reject_toggled(self):
-        """Handle reject sweep checkbox toggle."""
+        """Add or remove current group's LEAK and TEST sweeps from rejection set."""
         current_group = self.valid_groups[self.current_group_index]
         groups = get_group_summary(self.dataset, self.rejected_sweeps)
         
@@ -506,19 +504,25 @@ class LeakSubtractionDialog(QDialog):
         logger.debug(f"Group {current_group} rejection toggled: {self.reject_cb.isChecked()}")
     
     def _prev_group(self):
-        """Navigate to previous group."""
+        """Navigate to previous group and update display."""
         if self.current_group_index > 0:
             self.current_group_index -= 1
             self._update_plot()
     
     def _next_group(self):
-        """Navigate to next group."""
+        """Navigate to next group and update display."""
         if self.current_group_index < len(self.valid_groups) - 1:
             self.current_group_index += 1
             self._update_plot()
     
     def _update_plot(self):
-        """Update the dual plot display."""
+        """
+        Refresh voltage and current plots for current group and view mode.
+        
+        Clears and redraws both axes, recreates cursors at current positions,
+        and updates rejection checkbox state. Called after group navigation or
+        view mode changes.
+        """
         # Clear preview
         self._clear_preview()
         
@@ -591,7 +595,12 @@ class LeakSubtractionDialog(QDialog):
         self._update_scale_display()
     
     def _update_scale_display(self):
-        """Calculate and display scaling factor."""
+        """
+        Calculate and display current scaling factor.
+        
+        For voltage-based scaling, calculates factor from voltage traces at cursor positions
+        using baseline-corrected values. For fixed scaling, displays the user-entered value.
+        """
         if not self.voltage_scaling_radio.isChecked():
             # Fixed mode
             scale = self.fixed_scale_input.value()
@@ -634,7 +643,12 @@ class LeakSubtractionDialog(QDialog):
             self.scale_display.setText(f"Scale Factor: Error ({str(e)})")
     
     def _preview_subtraction(self):
-        """Preview the subtracted current trace."""
+        """
+        Display subtracted current trace for current group as dashed red line.
+        
+        Uses current cursor positions and scaling mode. Toggles between showing and
+        hiding the preview trace.
+        """
         if self.preview_active:
             self._clear_preview()
             return
@@ -696,7 +710,7 @@ class LeakSubtractionDialog(QDialog):
             QMessageBox.warning(self, "Preview Failed", f"Could not preview subtraction:\n{str(e)}")
     
     def _clear_preview(self):
-        """Clear preview traces."""
+        """Remove preview trace from current plot and reset button text."""
         for line in self.preview_lines:
             line.remove()
         self.preview_lines.clear()
@@ -709,7 +723,13 @@ class LeakSubtractionDialog(QDialog):
             self.canvas.draw()
     
     def _apply_subtraction(self):
-        """Apply leak subtraction to dataset."""
+        """
+        Apply leak subtraction to selected group range and create modified dataset.
+        
+        Replaces TEST sweeps with leak-subtracted traces, removes LEAK sweeps, and
+        preserves all metadata. Uses current cursor positions and scaling parameters.
+        Stores result in self.modified_dataset and closes dialog on success.
+        """
         try:
             # Get range
             start_group = int(self.start_group_input.value())
@@ -759,5 +779,5 @@ class LeakSubtractionDialog(QDialog):
             )
     
     def get_modified_dataset(self) -> Optional[ElectrophysiologyDataset]:
-        """Get the modified dataset after successful subtraction."""
+        """Return the leak-subtracted dataset after successful application, or None."""
         return self.modified_dataset

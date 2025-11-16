@@ -85,7 +85,11 @@ logger = get_logger(__name__)
 
 class MainWindow(QMainWindow):
     """
-    Center point of the GUI and singular class of this module.
+    Central GUI coordinator managing user interactions with the analysis pipeline.
+    
+    Connects UI components (control panel, plot display, navigation) with backend 
+    services through ApplicationController. Handles file loading, parameter collection, 
+    and result display while delegating actual analysis to service/core layer.
     """
 
     # Application events
@@ -155,7 +159,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PatchBatch BETA")
 
     def _init_ui(self):
-        """Initialize the complete UI with full theme integration"""
+        """Build the main UI layout with control panel, plot area, toolbar, and menus."""
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
@@ -197,7 +201,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
 
     def _create_menus(self):
-        """Create the application menu bar with all menus and actions."""
+        """Create menu bar with File, Analysis, and About menus."""
         menubar = self.menuBar()
 
         # File menu
@@ -272,11 +276,18 @@ class MainWindow(QMainWindow):
         menubar.addAction(about_action)
 
     def _open_concentration_response(self):
+        """Launch concentration-response curve analysis dialog."""
 
         dialog = ConcentrationResponseDialog(self)
         dialog.exec()
 
     def _background_subtraction(self):
+        """
+        Apply background subtraction to current sweep.
+        
+        Opens dialog for user to define background region, then updates the display
+        with the subtracted trace.
+        """
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -297,6 +308,12 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("Background subtraction applied", 3000)
 
     def _open_reject_sweeps_dialog(self):
+        """
+        Open dialog for bulk sweep rejection.
+        
+        Allows users to skip first/last N sweeps and optionally reset time base.
+        Creates a filtered dataset copy rather than modifying original data.
+        """
 
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -316,6 +333,12 @@ class MainWindow(QMainWindow):
             self._apply_sweep_rejection_filter(skip_first, skip_last, reset_time)
 
     def _open_leak_subtraction(self):
+        """
+        Launch leak subtraction dialog if file supports it.
+        
+        Checks for required metadata (LEAK sweeps) before opening. Only recognizes WCP files for now.
+        Applies P/N leak subtraction and replaces current dataset with corrected version.
+        """
 
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -366,6 +389,12 @@ class MainWindow(QMainWindow):
 
 
     def _apply_sweep_rejection_filter(self, skip_first: int, skip_last: int, reset_time: bool):
+        """
+        Create filtered dataset excluding specified sweeps.
+        
+        Generates new dataset copy with only the kept sweeps. Optionally resets
+        time axis to start from zero. Updates UI to reflect new sweep list.
+        """
 
         if not self.controller.has_data():
             return
@@ -435,6 +464,12 @@ class MainWindow(QMainWindow):
 
 
     def _update_ui_after_filtering(self, keep_sweeps: list):
+        """
+        Refresh UI components after dataset filtering.
+        
+        Updates sweep count, navigation panel, and display to match the new filtered
+        dataset. Selects first available sweep and updates plot.
+        """
 
         if not keep_sweeps:
             logger.warning("No sweeps to update UI with")
@@ -470,7 +505,13 @@ class MainWindow(QMainWindow):
         logger.debug(f"UI updated after filtering: displaying sweep {first_sweep}")
 
     def _ramp_iv_analysis(self):
-        """Open the ramp IV analysis dialog."""
+        """
+        Launch ramp I-V analysis with current Range 1 settings.
+        
+        Validates range before opening dialog. Shows voltage input first, then
+        main I-V analysis dialog if user doesn't cancel.
+        """
+
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -507,10 +548,11 @@ class MainWindow(QMainWindow):
         dialog.show_with_voltage_input()
 
     def _show_no_data_warning(self):
-        """Display a warning that no data file is loaded."""
+        """Display standard warning when operation requires loaded data."""
         QMessageBox.warning(self, "No Data", "Please load a data file first.")
 
     def _create_toolbar(self):
+        """Build main toolbar with file operations, channel selection, and sweep navigation."""
 
         toolbar = QToolBar("Main")
         toolbar.setMovable(False)
@@ -585,12 +627,10 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         """
-        Connect UI signals to their respective logic handlers.
+        Connect UI component signals to handlers.
         
-        NOTE: This is called from _init_ui(), so it cannot reference
-        self.range_coordinator (which doesn't exist yet because it requires
-        self.control_panel and self.plot_manager to be initialized first).
-        Coordinator signals are connected separately in _connect_coordinator_signals().
+        Called from _init_ui() before range_coordinator exists. Coordinator-specific
+        connections happen separately in _connect_coordinator_signals().
         """
         # Connect sweep navigation panel
         self.sweep_nav_panel.sweep_changed.connect(self._on_sweep_changed)
@@ -620,15 +660,16 @@ class MainWindow(QMainWindow):
         self.splitter.splitterMoved.connect(self._on_splitter_moved)
 
     def _on_splitter_moved(self):
-        """
-        Handle splitter movement with debouncing.
-        
-        Restarts the timer on each movement, so settings only save
-        after the user has stopped dragging for 500ms.
-        """
+        """Debounce splitter movement - save settings 500ms after user stops dragging."""
         self.splitter_save_timer.start()
 
     def _open_file(self):
+        """
+        Prompt user to select and load a data file.
+        
+        Supports WCP and ABF formats. Uses FileDialogService for consistent directory
+        memory. Delegates actual loading to ApplicationController.
+        """
 
         file_types = (
             "WCP files (*.wcp);;"
@@ -663,6 +704,12 @@ class MainWindow(QMainWindow):
             # Error handling is done by controller callbacks
 
     def _copy_current_sweep_data(self):
+        """
+        Copy full current sweep data (both channels) to clipboard.
+        
+        Quick export feature for current visible sweep. Always exports complete time
+        range with both voltage and current channels in tab-delimited format.
+        """
 
         # Check if data is loaded
         if not self.controller.has_data():
@@ -713,12 +760,12 @@ class MainWindow(QMainWindow):
 
     def _batch_analyze_with_bg_subtraction(self):
         """
-        Open batch analysis with background subtraction workflow.
+        Run batch analysis with background subtraction applied to all files.
         
-        First opens the background subtraction dialog in batch mode to get
-        the background range, then proceeds to batch analysis with that range.
+        Shows background definition dialog first using current sweep as preview,
+        then applies that same background range across all files in batch.
         """
-        
+
         # Check if file is loaded
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -761,6 +808,7 @@ class MainWindow(QMainWindow):
             dialog.show()
 
     def _center_nearest_cursor(self):
+        """Center the nearest cursor line in current plot view."""
         """
         Handle center cursor button click.
         
@@ -774,12 +822,12 @@ class MainWindow(QMainWindow):
 
     def _connect_coordinator_signals(self):
         """
-        Connect range coordinator signals.
+        Wire up range coordinator connections.
         
-        Called from __init__ after range_coordinator is created.
-        Separated from _connect_signals() because the coordinator
-        doesn't exist when _connect_signals() is called.
+        Separate from _connect_signals() because coordinator doesn't exist until
+        after control_panel and plot_manager are initialized.
         """
+
         # Range coordinator handles analysis/export requests
         self.range_coordinator.analysis_requested.connect(self._generate_analysis)
         self.range_coordinator.export_requested.connect(self._export_data)
@@ -794,11 +842,12 @@ class MainWindow(QMainWindow):
 
     def _on_file_loaded(self, file_info: FileInfo):
         """
-        Respond to successful file load and update UI components.
-
-        Updates file labels, sweep count, revalidates ranges,
-        populates the sweep selection combo box, and clears rejected sweeps.
+        Update UI after successful file load.
+        
+        Refreshes labels, populates sweep list, validates ranges, and displays
+        first sweep. Clears any previous rejection state.
         """
+
         # Clear welcome message on first file load
         self.plot_manager.clear_welcome_state()
         
@@ -847,11 +896,12 @@ class MainWindow(QMainWindow):
 
     def _check_channel_warnings(self):
         """
-        Check for channel configuration warnings and display to user if needed.
+        Alert user to channel detection issues immediately after file load.
         
-        Called immediately after file load to alert user of channel detection issues
-        such as multiple channels detected or missing voltage/current channels.
+        Displays warnings for multiple channels detected or missing voltage/current
+        channels based on metadata from file reader.
         """
+
         if not self.controller.has_data():
             return
         
@@ -925,11 +975,17 @@ class MainWindow(QMainWindow):
 
     def _on_channel_changed(self):
         """
-        Update the plot when the channel selection changes.
+        Redraw plot when user switches between voltage/current view.
         """
         self._update_plot()
 
     def _update_plot(self):
+        """
+        Refresh main plot display with current sweep and channel selection.
+        
+        Gets data from controller, formats labels via PlotFormatter, and updates
+        PlotManager. Adds zero-axis gridlines and syncs cursors with spinboxes.
+        """
 
         if not self.controller.has_data():
             return
@@ -990,8 +1046,12 @@ class MainWindow(QMainWindow):
 
     def _generate_analysis(self):
         """
-        Generate and display an analysis plot using the controller.
+        Run analysis with current parameters and show results dialog.
+        
+        Collects parameters from control panel, runs through analysis pipeline,
+        and displays results in AnalysisPlotDialog. Respects rejected sweeps.
         """
+
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -1067,7 +1127,13 @@ class MainWindow(QMainWindow):
         self.analysis_completed.emit()
 
     def _sweep_extraction(self):
-        """Open the sweep extraction dialog."""
+        """
+        Launch sweep extraction dialog.
+        
+        Opens dialog pre-filled with Range 1 values as default time window.
+        Users can select specific sweeps and time ranges to export.
+        """
+
         if not self.controller.has_data():
             self._show_no_data_warning()
             return
@@ -1096,6 +1162,12 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _export_data(self):
+        """
+        Export analysis results to CSV file.
+        
+        Prompts for save location with smart filename suggestion based on current
+        parameters. Uses controller to generate and write data. Respects rejected sweeps.
+        """
 
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -1139,8 +1211,12 @@ class MainWindow(QMainWindow):
 
     def _batch_analyze(self):
         """
-        Passes current analysis parameters and batch processor to the dialog for batch processing.
+        Launch batch analysis dialog with current parameters.
+        
+        Opens dialog that applies these same analysis settings across multiple files.
+        Requires valid range settings before opening.
         """
+
         # Check if file is loaded
         if not self.controller.has_data():
             self._show_no_data_warning()
@@ -1160,9 +1236,7 @@ class MainWindow(QMainWindow):
         dialog.show()
 
     def _auto_save_settings(self):
-        """
-        Automatically save current user settings whenever they change.
-        """
+        """Persist current UI state to settings file. Called on any parameter change."""
         try:
             settings = extract_settings_from_main_window(self)
             
@@ -1172,9 +1246,7 @@ class MainWindow(QMainWindow):
             logger.warning(f"Failed to auto-save settings: {e}")
 
     def _show_about_dialog(self):
-        """
-        Display the About dialog with application information.
-        """
+        """Display application version and license information."""
         version = QApplication.applicationVersion()
         
         about_text = f"""<h3>PatchBatch v{version}</h3>

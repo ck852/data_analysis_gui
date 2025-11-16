@@ -25,8 +25,7 @@ class RejectSweepsDialog(QDialog):
     """
     Dialog for rejecting sweeps from beginning and/or end of recording.
     
-    Provides a simple interface to skip initial equilibration sweeps and/or
-    final rundown sweeps, with optional time axis recalibration.
+    Provides a simple interface to skip unwanted sweeps with optional time axis recalibration.
     """
     
     def __init__(self, parent, file_name: str, total_sweeps: int):
@@ -148,7 +147,7 @@ class RejectSweepsDialog(QDialog):
         self.setMinimumWidth(450)
     
     def _update_preview(self):
-        """Update the preview text and validation."""
+        """Update the preview text showing which sweeps will be kept."""
         skip_first = self.skip_first_spin.value()
         skip_last = self.skip_last_spin.value()
         

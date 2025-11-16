@@ -1,12 +1,10 @@
 """
-Ramp IV Batch Sweep Selection Dialog for PatchBatch
-
-Simple dialog to let users choose how sweeps should be handled during
-batch ramp IV analysis: use all sweeps from each file, or use the same
-sweep selection across all files.
+PatchBatch Electrophysiology Data Analysis Tool
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
+
+Dialog for choosing sweep selection strategy during batch ramp IV analysis.
 """
 
 from typing import List, Tuple, Optional
@@ -19,7 +17,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QDialogButtonBox,
 )
-from PySide6.QtCore import Qt
 
 from data_analysis_gui.config.themes import apply_modern_theme, style_label
 from data_analysis_gui.config.logging import get_logger
@@ -29,20 +26,17 @@ logger = get_logger(__name__)
 
 class RampIVBatchSweepDialog(QDialog):
     """
-    Dialog for selecting sweep handling mode in ramp IV batch analysis.
-
-    Allows users to choose between:
-    - Using all sweeps from each file
-    - Using the same sweep selection for all files
+    Dialog for selecting whether batch analysis uses all sweeps or a fixed sweep selection.
+    
+    Returns the chosen mode ("all" or "same") and optionally the sweep indices to apply
+    across all files. Used when running batch ramp IV analysis on multiple files.
     """
 
     def __init__(self, parent=None, current_sweep_selection: Optional[List[str]] = None):
         """
-        Initialize the sweep selection dialog.
-
         Args:
             parent: Parent widget.
-            current_sweep_selection: List of sweep indices from preview analysis.
+            current_sweep_selection: Sweep indices from preview analysis to offer as option.
         """
         super().__init__(parent)
 
@@ -57,7 +51,7 @@ class RampIVBatchSweepDialog(QDialog):
         apply_modern_theme(self)
 
     def _init_ui(self):
-        """Initialize the user interface."""
+        """Build dialog with radio buttons for all-sweeps vs same-sweeps modes."""
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -123,12 +117,11 @@ class RampIVBatchSweepDialog(QDialog):
 
     def get_selection(self) -> Tuple[str, Optional[List[str]]]:
         """
-        Get the selected sweep mode and sweep list.
-
+        Return selected mode and sweep list.
+        
         Returns:
-            Tuple of (mode, selected_sweeps) where:
-            - mode is "all" or "same"
-            - selected_sweeps is the list of sweep indices if mode is "same", else None
+            ("all", None) if using all sweeps from each file, or
+            ("same", sweep_list) if using fixed sweep selection across files.
         """
         if self.all_sweeps_radio.isChecked():
             return ("all", None)
