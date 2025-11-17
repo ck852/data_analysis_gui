@@ -385,13 +385,14 @@ class ControlPanel(QWidget):
         
         return conductance_group
 
+
     def _update_axis_dependent_controls(self):
         """
         Update control visibility and enabled states based on current axis selections.
         
         Disables channel combos for Time/Conductance measures, shows conductance settings
-        when Y-axis is Conductance, disables dual range for conductance (unsupported),
-        and enables peak mode when Peak is used in any axis or conductance measurement.
+        when Y-axis is Conductance, and enables peak mode when Peak is used in any axis 
+        or conductance measurement.
         """
         x_measure = self.x_measure_combo.currentText()
         y_measure = self.y_measure_combo.currentText()
@@ -411,16 +412,6 @@ class ControlPanel(QWidget):
         # Show/hide conductance settings group
         is_conductance = y_measure == "Conductance"
         self.conductance_group.setVisible(is_conductance)
-        
-        # If conductance selected and dual range is checked, uncheck it
-        if is_conductance and self.dual_range_cb.isChecked():
-            logger.warning("Conductance selected: disabling dual range (not supported)")
-            self.dual_range_cb.setChecked(False)
-        
-        # Disable dual range checkbox when conductance is selected
-        self.dual_range_cb.setEnabled(not is_conductance)
-        if is_conductance:
-            style_checkbox(self.dual_range_cb)
         
         # Determine if peak mode should be enabled
         # Peak mode is used when:
@@ -748,8 +739,7 @@ class ControlPanel(QWidget):
         """
         Restore analysis range settings from dict (e.g., saved session or defaults).
         
-        Blocks signals during update to prevent spurious validation triggers. Forces dual
-        range to False if conductance mode is detected (defensive programming for edge case).
+        Blocks signals during update to prevent spurious validation triggers.
         """
         logger.debug(f"Setting parameters from dict: {params}")
         
@@ -771,19 +761,6 @@ class ControlPanel(QWidget):
 
             # Set dual range checkbox
             use_dual = params.get("use_dual_range", False)
-            
-            # EDGE CASE HANDLING: If loading settings with conductance + dual range,
-            # force dual_range to False to maintain valid state
-            # (This shouldn't happen normally, but defensive programming)
-            if hasattr(self, 'y_measure_combo'):
-                y_measure = self.y_measure_combo.currentText()
-                if y_measure == "Conductance" and use_dual:
-                    logger.warning(
-                        "Loaded settings had Conductance with dual_range=True. "
-                        "Forcing dual_range to False."
-                    )
-                    use_dual = False
-            
             self.dual_range_cb.setChecked(use_dual)
 
             # Enable/disable Range 2 controls based on dual range

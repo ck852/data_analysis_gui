@@ -107,7 +107,6 @@ class AnalysisParameters:
             - Range end times are after start times.
             - Dual range parameters are provided when dual range is enabled.
             - Conductance configuration is valid when Y-axis is Conductance.
-            - Conductance is not used with dual range (may not be necessary). 
 
         Raises:
             ValueError: If validation fails.
@@ -144,11 +143,6 @@ class AnalysisParameters:
         if self.y_axis.measure == "Conductance":
             if self.conductance_config is None:
                 error_msg = "Y-axis is Conductance but conductance_config not provided"
-                logger.error(f"Validation failed: {error_msg}")
-                raise ValueError(error_msg)
-            
-            if self.use_dual_range:
-                error_msg = "Conductance measurement does not support dual range analysis"
                 logger.error(f"Validation failed: {error_msg}")
                 raise ValueError(error_msg)
         
