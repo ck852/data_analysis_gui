@@ -5,10 +5,12 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 Formatting utilities for analysis data, providing stateless transformation
-for plotting and exporting electrophysiology metrics.
+for plotting and exporting electrophysiology metrics. Also calls services for extended analysis modes
+such as conductance calculation and leak subtraction when needed.
 
-Handles PRESENTATION logic, separate from core analysis calculations. Also calls services for extended analysis modes
-such as conductance calculation and leak subtraction when needed. 
+This handles more than just plotting - it formats the data for export as well,
+which affects things like dual range data structure and labeling. Additions like 
+conductance calculations need to be integrated here as well for correct outputs.
 """
 
 from typing import Dict, List, Any, Tuple, Optional
@@ -56,7 +58,7 @@ class PlotFormatter:
         
         # Extract Y-axis data - check for conductance
         if params.y_axis.measure == "Conductance":
-            y_data = self._calculate_conductance_array(metrics, params, current_units)
+            y_data = self._calculate_conductance_array(metrics, params, current_units, range_num=1)
             y_label = f"Conductance ({params.conductance_config.units})"
         else:
             y_data, y_label = self._extract_axis_data(
@@ -98,9 +100,13 @@ class PlotFormatter:
                 result["x_data2"] = np.array(x_data2)
 
             # Y-data is always extracted separately for range 2
-            y_data2, _ = self._extract_axis_data(
-                metrics, params.y_axis, 2, current_units
-            )
+            # BUT: Check if Y-axis is Conductance!
+            if params.y_axis.measure == "Conductance":
+                y_data2 = self._calculate_conductance_array(metrics, params, current_units, range_num=2)
+            else:
+                y_data2, _ = self._extract_axis_data(
+                    metrics, params.y_axis, 2, current_units
+                )
             result["y_data2"] = np.array(y_data2)
 
             # Add voltage labels for range 2
@@ -252,7 +258,8 @@ class PlotFormatter:
         self,
         metrics: List[SweepMetrics],
         params: AnalysisParameters,
-        current_units: str
+        current_units: str,
+        range_num: int = 1
     ) -> List[float]:
         """
         Calculate conductance values for all sweeps in the metrics list.
@@ -264,7 +271,7 @@ class PlotFormatter:
         voltage_units = self._get_voltage_units(params)
         
         conductance_data = [
-            calculate_conductance(m, params, current_units, voltage_units, range_num=1)
+            calculate_conductance(m, params, current_units, voltage_units, range_num=range_num)
             for m in metrics
         ]
         
@@ -273,8 +280,8 @@ class PlotFormatter:
         skipped_count = len(conductance_data) - valid_count
         if skipped_count > 0:
             logger.info(
-                f"Conductance calculation: {valid_count} valid points, {skipped_count} skipped "
-                f"(V too close to Vrev)"
+                f"Conductance calculation (Range {range_num}): {valid_count} valid points, "
+                f"{skipped_count} skipped (V too close to Vrev)"
             )
         
         return conductance_data
