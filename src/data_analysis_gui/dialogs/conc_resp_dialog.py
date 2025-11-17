@@ -22,7 +22,7 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QPushButton, QSplitter, QGroupBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QApplication
+    QTableWidgetItem, QHeaderView, QMessageBox, QApplication, QSplitter
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -169,28 +169,8 @@ class ConcentrationResponseDialog(QDialog):
         main_splitter.setStretchFactor(0, 0)
         main_splitter.setStretchFactor(1, 1)
     
-    def _create_left_panel(self) -> QWidget:
-
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setSpacing(8)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        # File section
-        layout.addWidget(self._create_file_group())
-        
-        # Ranges section
-        layout.addWidget(self._create_ranges_group())
-        
-        # Results section
-        layout.addWidget(self._create_results_group())
-        
-        layout.addStretch()
-        
-        return panel
-    
     def _create_file_group(self) -> QGroupBox:
-
+        """Create file loading section."""
         group = QGroupBox("File")
         style_group_box(group)
         layout = QVBoxLayout(group)
@@ -213,6 +193,35 @@ class ConcentrationResponseDialog(QDialog):
         
         return group
     
+    def _create_left_panel(self) -> QWidget:
+        """Create left panel with resizable sections."""
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setSpacing(8)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Use splitter for resizable sections
+        left_splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # File section
+        left_splitter.addWidget(self._create_file_group())
+        
+        # Ranges section
+        left_splitter.addWidget(self._create_ranges_group())
+        
+        # Results section
+        left_splitter.addWidget(self._create_results_group())
+        
+        # Set initial proportions
+        left_splitter.setSizes([100, 500, 400])
+        left_splitter.setCollapsible(0, False)
+        left_splitter.setCollapsible(1, False)
+        left_splitter.setCollapsible(2, False)
+        
+        layout.addWidget(left_splitter)
+        
+        return panel
+    
     # Expand later - for building a dose response dataset from multiple files
     # def _open_dataset_builder(self):
     #     """Open the dataset builder dialog."""
@@ -228,6 +237,8 @@ class ConcentrationResponseDialog(QDialog):
         group = QGroupBox("Analysis Configuration")
         style_group_box(group)
         layout = QVBoxLayout(group)
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
         
         # Create tab widget
         from PySide6.QtWidgets import QTabWidget
@@ -236,7 +247,8 @@ class ConcentrationResponseDialog(QDialog):
         # Tab 1: Standard ranges (existing)
         ranges_tab = QWidget()
         ranges_layout = QVBoxLayout(ranges_tab)
-        ranges_layout.addWidget(QLabel("Analysis Ranges (drag boundaries in plot)"))
+        ranges_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.range_table = ConcentrationRangeTable()
         ranges_layout.addWidget(self.range_table)
         
@@ -421,14 +433,33 @@ class ConcentrationResponseDialog(QDialog):
         self.range_table.range_removed.connect(self._update_calculator_ranges)
 
     def _update_calculator_ranges(self):
-        """Update available ranges in calculator widget."""
+        """Update available ranges in calculator widget using Condition field names."""
         ranges = self.range_table.get_all_ranges()
         
         # Build list of (range_id, display_name) for calculator
         ranges_info = []
-        for r in ranges:
+        for i, r in enumerate(ranges):
             if not r.is_background:  # Only analysis ranges, not backgrounds
-                display = f"{r.range_id}: {r.concentration}µM ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                # Get the condition text from the table (column 2)
+                condition_widget = self.range_table.table.cellWidget(i, 2)
+                
+                if condition_widget:
+                    if hasattr(condition_widget, 'text'):
+                        # It's a SelectAllLineEdit
+                        condition_text = condition_widget.text().strip()
+                    else:
+                        # Fallback
+                        condition_text = ""
+                    
+                    # Use condition text if available, otherwise "nan"
+                    display_name = condition_text if condition_text else "nan"
+                    
+                    # Add time range info for clarity
+                    display = f"{display_name} ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                else:
+                    # Fallback if widget not found
+                    display = f"{r.range_id} ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                
                 ranges_info.append((r.range_id, display))
         
         self.calculator_widget.set_available_ranges(ranges_info)
@@ -825,79 +856,54 @@ class ConcentrationResponseDialog(QDialog):
         # Pass other events to parent
         super().keyPressEvent(event)
 
-    def _display_results(self):
-        """Display analysis results in the results table with enhanced styling."""
+    def _display_calculator_results(self, results_df):
+        """Display calculator results in results table."""
         self.results_table.setRowCount(0)
         
-        if not self.results_dfs:
+        if results_df.empty:
             return
         
-        # Populate table from all result DataFrames
-        for trace_name, df in self.results_dfs.items():
-            for idx, row_data in df.iterrows():
-                row_pos = self.results_table.rowCount()
-                self.results_table.insertRow(row_pos)
-                
-                # Column name mapping - handle both old and new column names
-                column_mapping = {
-                    'File': 'File',
-                    'Data Trace': 'Data Trace',
-                    'Condition': 'Concentration (μM)' if 'Concentration (μM)' in df.columns else 'Condition',
-                    'Raw Value': 'Raw Value',
-                    'Background': 'Background',
-                    'Corrected Value': 'Corrected Value'
-                }
-                
-                # Column order: File, Data Trace, Condition, Raw Value, Background, Corrected Value
-                columns = [
-                    ('File', 0, 'left'),
-                    ('Data Trace', 1, 'left'),
-                    ('Condition', 2, 'right'),
-                    ('Raw Value', 3, 'right'),
-                    ('Background', 4, 'right'),
-                    ('Corrected Value', 5, 'right')
-                ]
-                
-                for display_name, col_idx, alignment in columns:
-                    # Get actual column name from DataFrame
-                    df_col_name = column_mapping[display_name]
-                    value = row_data[df_col_name]
-                    
-                    # Format value
-                    if isinstance(value, float) and not np.isnan(value):
-                        text = f"{value:.4f}"
-                    elif pd.isna(value):
-                        text = "N/A"
-                    else:
-                        text = str(value)
-                    
-                    # Create item
-                    item = QTableWidgetItem(text)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    
-                    # Set alignment
-                    if alignment == 'right':
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    else:
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                    
-                    # Enhanced color coding for Corrected Value column
-                    if display_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
-                        if value >= 0:
-                            # Positive values: sage green
-                            item.setForeground(QColor(PLOT_COLORS['success']))
-                        else:
-                            # Negative values: rust red
-                            item.setForeground(QColor(PLOT_COLORS['warning']))
-                    
-                    self.results_table.setItem(row_pos, col_idx, item)
+        # Get variable columns (all except File, Data Trace, Result)
+        var_cols = [col for col in results_df.columns 
+                    if col not in ['File', 'Data Trace', 'Result']]
         
-        # Enable copy button now that we have results
+        # Reconfigure table for calculator output
+        columns = ['File', 'Data Trace'] + var_cols + ['Result']
+        self.results_table.setColumnCount(len(columns))
+        self.results_table.setHorizontalHeaderLabels(columns)
+        
+        # Populate table
+        for idx, row_data in results_df.iterrows():
+            row_pos = self.results_table.rowCount()
+            self.results_table.insertRow(row_pos)
+            
+            for col_idx, col_name in enumerate(columns):
+                value = row_data[col_name]
+                
+                # Format numeric values
+                if isinstance(value, float) and not pd.isna(value):
+                    text = f"{value:.4f}"
+                else:
+                    text = str(value)
+                
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                
+                # Right-align numeric columns
+                if col_name in var_cols or col_name == 'Result':
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                else:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                
+                self.results_table.setItem(row_pos, col_idx, item)
+        
+        # Resize columns
+        header = self.results_table.horizontalHeader()
+        for i in range(len(columns)):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        
         self.copy_selected_btn.setEnabled(True)
-
-        logger.info(
-            f"Displayed {self.results_table.rowCount()} result rows in table"
-        )
+        logger.info(f"Displayed {len(results_df)} calculator results")
     
     def _update_summary_statistics(self):
         """Update the summary statistics label with key metrics."""

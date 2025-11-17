@@ -47,6 +47,8 @@ class RangeCalculatorWidget(QWidget):
     
     def _init_ui(self):
         """Initialize UI components."""
+        from PySide6.QtWidgets import QSplitter
+        
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -59,6 +61,9 @@ class RangeCalculatorWidget(QWidget):
         info_label.setWordWrap(True)
         style_label(info_label, "muted")
         layout.addWidget(info_label)
+        
+        # Main splitter for resizable sections
+        main_splitter = QSplitter(Qt.Orientation.Vertical)
         
         # Variable assignment section
         var_group = QGroupBox("Variable Assignments")
@@ -92,7 +97,7 @@ class RangeCalculatorWidget(QWidget):
         self.var_table = QTableWidget()
         self.var_table.setColumnCount(3)
         self.var_table.setHorizontalHeaderLabels(["Variable", "Range", ""])
-        self.var_table.setMaximumHeight(150)
+        self.var_table.setMinimumHeight(100)
         self.var_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         
         header = self.var_table.horizontalHeader()
@@ -102,7 +107,7 @@ class RangeCalculatorWidget(QWidget):
         self.var_table.setColumnWidth(2, 80)
         
         var_layout.addWidget(self.var_table)
-        layout.addWidget(var_group)
+        main_splitter.addWidget(var_group)
         
         # Equation section
         eq_group = QGroupBox("Equation")
@@ -143,10 +148,17 @@ class RangeCalculatorWidget(QWidget):
         self.preview_label = QLabel("Equation not set")
         self.preview_label.setWordWrap(True)
         style_label(self.preview_label, "muted")
-        self.preview_label.setMaximumHeight(60)
+        self.preview_label.setMinimumHeight(60)
         eq_layout.addWidget(self.preview_label)
         
-        layout.addWidget(eq_group)
+        main_splitter.addWidget(eq_group)
+        
+        # Set splitter proportions (60% variables, 40% equation)
+        main_splitter.setSizes([600, 400])
+        main_splitter.setCollapsible(0, False)
+        main_splitter.setCollapsible(1, False)
+        
+        layout.addWidget(main_splitter)
         
         # Available functions help
         help_label = QLabel(
@@ -155,8 +167,6 @@ class RangeCalculatorWidget(QWidget):
         help_label.setWordWrap(True)
         style_label(help_label, "muted")
         layout.addWidget(help_label)
-        
-        layout.addStretch()
         
         # Connect signals
         self._connect_signals()
