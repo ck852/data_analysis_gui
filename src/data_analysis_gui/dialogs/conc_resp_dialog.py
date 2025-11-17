@@ -224,16 +224,30 @@ class ConcentrationResponseDialog(QDialog):
     #     logger.info("Opened dataset builder dialog")
 
     def _create_ranges_group(self) -> QGroupBox:
-
-        group = QGroupBox("Analysis Ranges (drag boundaries in plot)")
+        """Create ranges section with tabs for normal ranges and calculator."""
+        group = QGroupBox("Analysis Configuration")
         style_group_box(group)
         layout = QVBoxLayout(group)
-        layout.setSpacing(4)
-        layout.setContentsMargins(8, 8, 8, 8)
         
-        # Create range table widget
+        # Create tab widget
+        from PySide6.QtWidgets import QTabWidget
+        self.config_tabs = QTabWidget()
+        
+        # Tab 1: Standard ranges (existing)
+        ranges_tab = QWidget()
+        ranges_layout = QVBoxLayout(ranges_tab)
+        ranges_layout.addWidget(QLabel("Analysis Ranges (drag boundaries in plot)"))
         self.range_table = ConcentrationRangeTable()
-        layout.addWidget(self.range_table)
+        ranges_layout.addWidget(self.range_table)
+        
+        self.config_tabs.addTab(ranges_tab, "📊 Standard Analysis")
+        
+        # Tab 2: Calculator (new)
+        from data_analysis_gui.widgets.range_calculator_widget import RangeCalculatorWidget
+        self.calculator_widget = RangeCalculatorWidget()
+        self.config_tabs.addTab(self.calculator_widget, "🧮 Custom Calculator")
+        
+        layout.addWidget(self.config_tabs)
         
         return group
     
@@ -398,6 +412,35 @@ class ConcentrationResponseDialog(QDialog):
 
         # Copy selected cells
         self.copy_selected_btn.clicked.connect(self._copy_selected_cells)
+
+        # Calculator signals
+        self.calculator_widget.calculator_configured.connect(self._on_calculator_ready)
+        
+        # Update calculator when ranges change
+        self.range_table.range_added.connect(self._update_calculator_ranges)
+        self.range_table.range_removed.connect(self._update_calculator_ranges)
+
+    def _update_calculator_ranges(self):
+        """Update available ranges in calculator widget."""
+        ranges = self.range_table.get_all_ranges()
+        
+        # Build list of (range_id, display_name) for calculator
+        ranges_info = []
+        for r in ranges:
+            if not r.is_background:  # Only analysis ranges, not backgrounds
+                display = f"{r.range_id}: {r.concentration}µM ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                ranges_info.append((r.range_id, display))
+        
+        self.calculator_widget.set_available_ranges(ranges_info)
+        logger.debug(f"Updated calculator with {len(ranges_info)} range(s)")
+
+    def _on_calculator_ready(self, calculator_service, statistic):
+        """Handle calculator configuration signal."""
+        self.status_label.setText(
+            f"Calculator configured with {len(calculator_service.variable_map)} variable(s)"
+        )
+        style_label(self.status_label, "success")
+        logger.info(calculator_service.get_summary())
 
     # ========================================================================
     # File Loading
@@ -630,104 +673,145 @@ class ConcentrationResponseDialog(QDialog):
             self.status_label.setText("Error copying to clipboard")
             style_label(self.status_label, "error")
 
+    def _display_calculator_results(self, results_df):
+        """Display calculator results in results table."""
+        self.results_table.setRowCount(0)
+        
+        if results_df.empty:
+            return
+        
+        # Get variable columns (all except File, Data Trace, Result)
+        var_cols = [col for col in results_df.columns 
+                    if col not in ['File', 'Data Trace', 'Result']]
+        
+        # Reconfigure table for calculator output
+        columns = ['File', 'Data Trace'] + var_cols + ['Result']
+        self.results_table.setColumnCount(len(columns))
+        self.results_table.setHorizontalHeaderLabels(columns)
+        
+        # Populate table
+        for idx, row_data in results_df.iterrows():
+            row_pos = self.results_table.rowCount()
+            self.results_table.insertRow(row_pos)
+            
+            for col_idx, col_name in enumerate(columns):
+                value = row_data[col_name]
+                
+                # Format numeric values
+                if isinstance(value, float) and not pd.isna(value):
+                    text = f"{value:.4f}"
+                else:
+                    text = str(value)
+                
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                
+                # Right-align numeric columns
+                if col_name in var_cols or col_name == 'Result':
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                else:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                
+                self.results_table.setItem(row_pos, col_idx, item)
+        
+        # Resize columns
+        header = self.results_table.horizontalHeader()
+        for i in range(len(columns)):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        
+        self.copy_selected_btn.setEnabled(True)
+        logger.info(f"Displayed {len(results_df)} calculator results")
+
     # ========================================================================
     # Analysis Execution
     # ========================================================================
     
     def _run_analysis(self):
-        """Run concentration-response analysis on loaded data."""
-        # Validation checks
+        """Run analysis - either standard or calculator mode."""
+        
+        # Validation
         if self.data_df is None:
-            QMessageBox.warning(
-                self,
-                "No File",
-                "Please load a CSV file before running analysis."
-            )
+            QMessageBox.warning(self, "No File", "Please load a CSV file first.")
             return
         
         if self.range_table.table.rowCount() == 0:
-            QMessageBox.warning(
-                self,
-                "No Ranges",
-                "Please define at least one analysis range."
-            )
+            QMessageBox.warning(self, "No Ranges", "Please define analysis ranges.")
             return
         
         try:
-            # Get ranges from table
             ranges = self.range_table.get_all_ranges()
             
-            # Apply auto-pairing
-            ranges, was_auto_paired = self.service.apply_auto_pairing(ranges)
+            # Check which tab is active
+            current_tab = self.config_tabs.currentIndex()
+            use_calculator = (current_tab == 1)  # Calculator tab
             
-            # Show auto-pairing notification
-            if was_auto_paired:
-                bg_ranges = [r for r in ranges if r.is_background]
-                if bg_ranges:
-                    single_bg_name = self.range_table._format_background_display(bg_ranges[0].range_id)
-                    self.status_label.setText(
-                        f"Auto-paired all ranges to '{single_bg_name}' background"
-                    )
-                    style_label(self.status_label, "info")
-            
-            # Run analysis with wait cursor
-            self.results_dfs.clear()
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             
             try:
-                self.results_dfs = self.service.run_analysis(
-                    df=self.data_df,
-                    time_col=self.time_col,
-                    data_cols=self.data_cols,
-                    ranges=ranges,
-                    filename=self.filename
-                )
+                if use_calculator:
+                    self._run_calculator_analysis(ranges)
+                else:
+                    self._run_standard_analysis(ranges)
             finally:
                 QApplication.restoreOverrideCursor()
-            
-            # Display results
-            if self.results_dfs:
-                self._display_results()
-                #self._update_summary_statistics()
-                self.export_btn.setEnabled(True)
                 
-                # Update status if not showing auto-pairing message
-                if not was_auto_paired:
-                    total_results = sum(len(df) for df in self.results_dfs.values())
-                    self.status_label.setText(
-                        f"Analysis complete: {total_results} results across "
-                        f"{len(self.results_dfs)} trace(s)"
-                    )
-                    style_label(self.status_label, "success")
-            else:
-                QMessageBox.warning(
-                    self,
-                    "No Results",
-                    "No results were generated."
-                )
-                self.export_btn.setEnabled(False)
-                self.status_label.setText("Analysis produced no results")
-                style_label(self.status_label, "warning")
-        
-        except ValueError as e:
-            logger.error(f"Validation error during analysis: {e}")
-            QMessageBox.critical(
-                self,
-                "Validation Error",
-                f"Invalid range configuration:\n\n{str(e)}"
-            )
-            self.status_label.setText("Analysis failed: validation error")
-            style_label(self.status_label, "error")
-        
         except Exception as e:
-            logger.error(f"Unexpected error during analysis: {e}", exc_info=True)
-            QMessageBox.critical(
+            logger.error(f"Analysis error: {e}", exc_info=True)
+            QMessageBox.critical(self, "Analysis Error", str(e))
+
+    def _run_standard_analysis(self, ranges):
+        """Run standard concentration-response analysis."""
+        # Your existing analysis code
+        ranges, was_auto_paired = self.service.apply_auto_pairing(ranges)
+        
+        self.results_dfs = self.service.run_analysis(
+            df=self.data_df,
+            time_col=self.time_col,
+            data_cols=self.data_cols,
+            ranges=ranges,
+            filename=self.filename
+        )
+        
+        if self.results_dfs:
+            self._display_results()
+            self.export_btn.setEnabled(True)
+            self.status_label.setText("Analysis complete")
+            style_label(self.status_label, "success")
+
+    def _run_calculator_analysis(self, ranges):
+        """Run custom calculator analysis."""
+        calculator = self.calculator_widget.get_calculator()
+        statistic = self.calculator_widget.get_statistic()
+        
+        if not calculator.equation:
+            QMessageBox.warning(
                 self,
-                "Analysis Error",
-                f"An unexpected error occurred:\n\n{str(e)}"
+                "No Equation",
+                "Please configure the calculator equation first."
             )
-            self.status_label.setText("Analysis failed: unexpected error")
-            style_label(self.status_label, "error")
+            return
+        
+        # Calculate using calculator service
+        results_df = calculator.calculate_for_traces(
+            df=self.data_df,
+            time_col=self.time_col,
+            data_cols=self.data_cols,
+            ranges=ranges,
+            filename=self.filename,
+            statistic=statistic
+        )
+        
+        # Convert to same format as standard analysis for display
+        self.results_dfs = {
+            col: results_df[results_df['Data Trace'] == col].copy()
+            for col in self.data_cols
+        }
+        
+        if self.results_dfs:
+            self._display_calculator_results(results_df)
+            self.export_btn.setEnabled(True)
+            self.status_label.setText(f"Calculator complete: {len(results_df)} results")
+            style_label(self.status_label, "success")
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
