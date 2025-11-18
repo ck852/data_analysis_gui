@@ -97,10 +97,12 @@ class ConcentrationResponseDialog(QDialog):
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Dose-Response Analysis")
         self._setup_window_geometry()
-        
+
         # Initialize UI
         self._init_ui()
         
+
+
         self.range_creator = InteractiveRangeCreator(
             canvas=self.plot_widget,
             ax=self.plot,
@@ -125,8 +127,16 @@ class ConcentrationResponseDialog(QDialog):
         screen = self.screen() or QApplication.primaryScreen()
         avail = screen.availableGeometry()
         
-        # Use 90% of available screen space
-        self.resize(int(avail.width() * 0.9), int(avail.height() * 0.9))
+        # Use 85% to leave room for window decorations and taskbar
+        target_width = int(avail.width() * 0.85)
+        target_height = int(avail.height() * 0.85)
+        
+        # Set size WITHOUT maximum constraint (let maximize button work)
+        self.resize(target_width, target_height)
+        
+        # CRITICAL: Set size policy to prevent layout from resizing dialog
+        from PySide6.QtWidgets import QSizePolicy
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         
         # Center the window
         fg = self.frameGeometry()
@@ -134,10 +144,13 @@ class ConcentrationResponseDialog(QDialog):
         self.move(fg.topLeft())
     
     def _init_ui(self):
-
+        """Initialize the user interface."""
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(8)
         main_layout.setContentsMargins(10, 10, 10, 10)
+
+        from PySide6.QtWidgets import QLayout
+        main_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         
         # Status label at top
         self.status_label = QLabel("Load a CSV file to begin")
@@ -151,17 +164,15 @@ class ConcentrationResponseDialog(QDialog):
         
         # Left panel
         left_panel = self._create_left_panel()
-        left_panel.setMinimumWidth(0)  # Allow full collapse
+        left_panel.setMaximumWidth(550)
         main_splitter.addWidget(left_panel)
         
         # Right panel (plot)
         right_panel = self._create_plot_panel()
-        right_panel.setMinimumWidth(0)  # Allow full collapse
         main_splitter.addWidget(right_panel)
         
-        # Allow both panels to be collapsed
-        main_splitter.setCollapsible(0, True)
-        main_splitter.setCollapsible(1, True)
+        # REMOVED: setCollapsible lines
+        # These were causing dynamic resizing
         
         # Set splitter proportions (30% left, 70% right)
         total_width = self.width()
@@ -194,33 +205,25 @@ class ConcentrationResponseDialog(QDialog):
         return group
     
     def _create_left_panel(self) -> QWidget:
-        """Create left panel with resizable sections."""
+        """Create left panel with file, ranges, and results sections."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setSpacing(8)
         layout.setContentsMargins(5, 5, 5, 5)
         
-        # Use splitter for resizable sections
-        left_splitter = QSplitter(Qt.Orientation.Vertical)
-        
         # File section
-        left_splitter.addWidget(self._create_file_group())
+        layout.addWidget(self._create_file_group())
         
-        # Ranges section
-        left_splitter.addWidget(self._create_ranges_group())
+        # Ranges section  
+        layout.addWidget(self._create_ranges_group())
         
         # Results section
-        left_splitter.addWidget(self._create_results_group())
+        layout.addWidget(self._create_results_group())
         
-        # Set initial proportions
-        left_splitter.setSizes([100, 500, 400])
-        left_splitter.setCollapsible(0, False)
-        left_splitter.setCollapsible(1, False)
-        left_splitter.setCollapsible(2, False)
-        
-        layout.addWidget(left_splitter)
+        layout.addStretch()
         
         return panel
+
     
     # Expand later - for building a dose response dataset from multiple files
     # def _open_dataset_builder(self):
@@ -250,6 +253,7 @@ class ConcentrationResponseDialog(QDialog):
         ranges_layout.setContentsMargins(0, 0, 0, 0)
         
         self.range_table = ConcentrationRangeTable()
+        self.range_table.setMaximumHeight(280)
         ranges_layout.addWidget(self.range_table)
         
         self.config_tabs.addTab(ranges_tab, "📊 Standard Analysis")
@@ -703,6 +707,70 @@ class ConcentrationResponseDialog(QDialog):
             logger.error(f"Error copying cells: {e}", exc_info=True)
             self.status_label.setText("Error copying to clipboard")
             style_label(self.status_label, "error")
+
+    def _display_results(self):
+        """Display analysis results in the results table with color coding."""
+        self.results_table.setRowCount(0)
+        
+        # Update table headers to use Condition instead of Concentration
+        self.results_table.setColumnCount(6)
+        self.results_table.setHorizontalHeaderLabels([
+            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
+        ])
+        
+        if not self.results_dfs:
+            return
+        
+        # Populate table from all result DataFrames
+        for trace_name, df in self.results_dfs.items():
+            for idx, row_data in df.iterrows():
+                row_pos = self.results_table.rowCount()
+                self.results_table.insertRow(row_pos)
+                
+                # Column name mapping - handle both old and new column names
+                column_mapping = {
+                    'File': 'File',
+                    'Data Trace': 'Data Trace',
+                    'Condition': 'Concentration (µM)' if 'Concentration (µM)' in df.columns else 'Condition',
+                    'Raw Value': 'Raw Value',
+                    'Background': 'Background',
+                    'Corrected Value': 'Corrected Value'
+                }
+                
+                # Add each column
+                for col_idx, display_name in enumerate([
+                    'File', 'Data Trace', 'Condition', 'Raw Value', 'Background', 'Corrected Value'
+                ]):
+                    df_col_name = column_mapping[display_name]
+                    value = row_data[df_col_name]
+                    
+                    # Format value
+                    if isinstance(value, float) and not np.isnan(value):
+                        text = f"{value:.4f}"
+                    elif pd.isna(value):
+                        text = "N/A"
+                    else:
+                        text = str(value)
+                    
+                    # Create item
+                    item = QTableWidgetItem(text)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    
+                    # Color coding for Corrected Value column (legacy behavior)
+                    if display_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
+                        if value >= 0:
+                            item.setBackground(QColor(220, 255, 220))  # Light green
+                        else:
+                            item.setBackground(QColor(255, 220, 220))  # Light red
+                    
+                    self.results_table.setItem(row_pos, col_idx, item)
+        
+        # Enable copy button now that we have results
+        self.copy_selected_btn.setEnabled(True)
+        
+        logger.info(
+            f"Displayed {self.results_table.rowCount()} result rows in table"
+        )
 
     def _display_calculator_results(self, results_df):
         """Display calculator results in results table."""
