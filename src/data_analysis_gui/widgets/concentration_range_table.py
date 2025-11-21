@@ -57,6 +57,9 @@ class ConcentrationRangeTable(QWidget):
         # Track last focused editor for μ insertion
         self.last_focused_editor = None
         
+        # Install event filter to track focus
+        QApplication.instance().installEventFilter(self)
+        
         self._init_ui()
         
     def _init_ui(self):
@@ -72,21 +75,6 @@ class ConcentrationRangeTable(QWidget):
             "✖", "ID", "Condition", "Start", "End",
             "Analysis", "BG", "Paired BG"
         ])
-        
-        # ===== PREVENT HOVER FOCUS =====
-        # Only allow widgets to receive focus on explicit click or tab
-        self.table.setEditTriggers(
-            QTableWidget.EditTrigger.DoubleClicked | 
-            QTableWidget.EditTrigger.SelectedClicked |
-            QTableWidget.EditTrigger.EditKeyPressed
-        )
-        
-        # Disable mouse tracking to prevent hover events from affecting widgets
-        self.table.setMouseTracking(False)
-        
-        # Set focus policy to prevent table from giving focus to widgets on hover
-        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        # =================================
         
         # Hide the ID column (index 1) and BG column (index 6)
         self.table.setColumnHidden(1, True)
@@ -172,6 +160,7 @@ class ConcentrationRangeTable(QWidget):
         # Remove button (column 0)
         remove_btn = QPushButton("✖", self.table)
         remove_btn.setFont(table_font)
+        remove_btn.setFixedSize(12, 12)
         remove_btn.clicked.connect(self._remove_row_by_button)
         style_button(remove_btn, "secondary")
         
@@ -188,12 +177,10 @@ class ConcentrationRangeTable(QWidget):
             """
         )
         remove_btn.setFixedSize(14, 14)
-        remove_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # Hidden ID label (column 1)
         id_label = QLabel(internal_id, self.table)
         id_label.setFont(table_font)
-        id_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         # Condition field (column 2) - accepts any text
         if is_background:
@@ -202,7 +189,6 @@ class ConcentrationRangeTable(QWidget):
             condition_widget.setFont(table_font)
             condition_widget.setFixedHeight(WIDGET_HEIGHT)
             condition_widget.setStyleSheet("QLabel { padding: 2px 8px; }")
-            condition_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         else:
             # Editable text field for analysis ranges - START EMPTY
             condition_widget = SelectAllLineEdit(self.table)
@@ -210,7 +196,6 @@ class ConcentrationRangeTable(QWidget):
             condition_widget.setText("")  # Start with empty text
             condition_widget.setFixedHeight(WIDGET_HEIGHT)
             condition_widget.textChanged.connect(self._on_range_value_changed)
-            condition_widget.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Start time field (column 3)
         start_edit = PositiveFloatLineEdit(self.table)
@@ -221,7 +206,6 @@ class ConcentrationRangeTable(QWidget):
         start_edit.setValue(start_time)
         start_edit.blockSignals(False)
         start_edit.textChanged.connect(self._on_range_value_changed)
-        start_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # End time field (column 4)
         end_edit = PositiveFloatLineEdit(self.table)
@@ -232,7 +216,6 @@ class ConcentrationRangeTable(QWidget):
         end_edit.setValue(end_time)
         end_edit.blockSignals(False)
         end_edit.textChanged.connect(self._on_range_value_changed)
-        end_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Analysis type widget (column 5)
         analysis_widget = QWidget(self.table)
@@ -245,7 +228,6 @@ class ConcentrationRangeTable(QWidget):
         analysis_combo.setFixedHeight(WIDGET_HEIGHT)
         analysis_combo.setFixedWidth(80)
         analysis_combo.currentTextChanged.connect(self._on_range_value_changed)
-        analysis_combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         analysis_layout.addWidget(analysis_combo)
         
@@ -256,7 +238,6 @@ class ConcentrationRangeTable(QWidget):
         bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
-        bg_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
@@ -264,7 +245,6 @@ class ConcentrationRangeTable(QWidget):
         paired_combo.addItem("None")
         paired_combo.currentTextChanged.connect(self._on_range_value_changed)
         paired_combo.setFixedHeight(WIDGET_HEIGHT)
-        paired_combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Add widgets to table
         self.table.setCellWidget(row, 0, self._center_widget(remove_btn))
@@ -288,6 +268,19 @@ class ConcentrationRangeTable(QWidget):
         
         logger.debug(f"Added range row: {internal_id} ({start_time}-{end_time})")
 
+    def eventFilter(self, obj, event):
+        """
+        Event filter to capture focus-in events and store the
+        last focused QLineEdit widget for μ insertion.
+        """
+        # Old - used when 'Condition' field was for concentration input in uM. 
+        # Keeping for possible future use in a dedicated dose response utility
+
+        if event.type() == QEvent.Type.FocusIn:
+            if isinstance(obj, (SelectAllLineEdit, PositiveFloatLineEdit)):
+                self.last_focused_editor = obj
+        return super().eventFilter(obj, event)
+    
     def remove_range_row(self, row: int):
         """
         Remove a range row from the table.
@@ -361,6 +354,7 @@ class ConcentrationRangeTable(QWidget):
         # Remove button (column 0)
         remove_btn = QPushButton("✖", self.table)
         remove_btn.setFont(table_font)
+        remove_btn.setFixedSize(12, 12)
         remove_btn.clicked.connect(self._remove_row_by_button)
         style_button(remove_btn, "secondary")
         
@@ -377,12 +371,10 @@ class ConcentrationRangeTable(QWidget):
             """
         )
         remove_btn.setFixedSize(14, 14)
-        remove_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # Hidden ID label (column 1)
         id_label = QLabel(internal_id, self.table)
         id_label.setFont(table_font)
-        id_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         # Condition field (column 2) - accepts any text
         if is_background:
@@ -390,7 +382,6 @@ class ConcentrationRangeTable(QWidget):
             condition_widget.setFont(table_font)
             condition_widget.setFixedHeight(WIDGET_HEIGHT)
             condition_widget.setStyleSheet("QLabel { padding: 2px 8px; }")
-            condition_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         else:
             # Editable text field for analysis ranges - START EMPTY
             condition_widget = SelectAllLineEdit(self.table)
@@ -398,7 +389,6 @@ class ConcentrationRangeTable(QWidget):
             condition_widget.setText("")  # Start with empty text
             condition_widget.setFixedHeight(WIDGET_HEIGHT)
             condition_widget.textChanged.connect(self._on_range_value_changed)
-            condition_widget.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Start time field (column 3) - using PositiveFloatLineEdit instead of spinbox
         start_edit = PositiveFloatLineEdit(self.table)
@@ -409,7 +399,6 @@ class ConcentrationRangeTable(QWidget):
         start_edit.setValue(new_start_time)
         start_edit.blockSignals(False)
         start_edit.textChanged.connect(self._on_range_value_changed)
-        start_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # End time field (column 4) - using PositiveFloatLineEdit instead of spinbox
         end_edit = PositiveFloatLineEdit(self.table)
@@ -420,7 +409,6 @@ class ConcentrationRangeTable(QWidget):
         end_edit.setValue(new_end_time)
         end_edit.blockSignals(False)
         end_edit.textChanged.connect(self._on_range_value_changed)
-        end_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Analysis type widget (column 5)
         analysis_widget = QWidget(self.table)
@@ -433,7 +421,6 @@ class ConcentrationRangeTable(QWidget):
         analysis_combo.setFixedHeight(WIDGET_HEIGHT)
         analysis_combo.setFixedWidth(80)
         analysis_combo.currentTextChanged.connect(self._on_range_value_changed)
-        analysis_combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         analysis_layout.addWidget(analysis_combo)
         
@@ -444,7 +431,6 @@ class ConcentrationRangeTable(QWidget):
         bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
-        bg_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
@@ -452,7 +438,6 @@ class ConcentrationRangeTable(QWidget):
         paired_combo.addItem("None")
         paired_combo.currentTextChanged.connect(self._on_range_value_changed)
         paired_combo.setFixedHeight(WIDGET_HEIGHT)
-        paired_combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         
         # Add widgets to table
         self.table.setCellWidget(row, 0, self._center_widget(remove_btn))

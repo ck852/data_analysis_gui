@@ -65,14 +65,17 @@ class SelectAllLineEdit(QLineEdit):
         if focus_reason not in (Qt.FocusReason.MouseFocusReason, 
                             Qt.FocusReason.TabFocusReason,
                             Qt.FocusReason.BacktabFocusReason):
-
+           # print(f"❌ SelectAllLineEdit REJECTING focus from {focus_reason}")
+            # Clear focus immediately - don't accept it
             self.clearFocus()
             return
         
         # Accept focus from click or tab
         super().focusInEvent(event)
+       # print(f"✅ SelectAllLineEdit ACCEPTED focus from {focus_reason}")
         
         if self._select_all_on_focus:
+            print(f"   → Selecting all text")
             QTimer.singleShot(0, self.selectAll)
         
         self._select_all_on_focus = True
@@ -101,19 +104,15 @@ class SelectAllSpinBox(QDoubleSpinBox):
         logger.debug("Initialized SelectAllSpinBox")
 
     def focusInEvent(self, event):
-        """Handle focus-in event, selecting all text only on direct interaction."""
+        """
+        Handle focus-in event, selecting all text.
+
+        Args:
+            event: QFocusEvent
+        """
         super().focusInEvent(event)
-        
-        focus_reason = event.reason()
-        
-        # Only select all if user clicked or tabbed in
-        if self._select_all_on_focus:
-            if focus_reason in (Qt.FocusReason.MouseFocusReason, 
-                            Qt.FocusReason.TabFocusReason,
-                            Qt.FocusReason.BacktabFocusReason):
-                QTimer.singleShot(0, self.selectAll)
-        
-        self._select_all_on_focus = True
+        logger.debug(f"SelectAllSpinBox gained focus, value={self.value()}")
+        QTimer.singleShot(0, self.selectAll)
 
     def wheelEvent(self, event):
         """
@@ -124,6 +123,7 @@ class SelectAllSpinBox(QDoubleSpinBox):
         """
         logger.debug("SelectAllSpinBox ignoring wheel event")
         event.ignore()
+
 
 class NoScrollComboBox(QComboBox):
     """
@@ -177,14 +177,17 @@ class PositiveFloatLineEdit(QLineEdit):
         if focus_reason not in (Qt.FocusReason.MouseFocusReason, 
                             Qt.FocusReason.TabFocusReason,
                             Qt.FocusReason.BacktabFocusReason):
-
+           # print(f"❌ PositiveFloatLineEdit REJECTING focus from {focus_reason}")
+            # Clear focus immediately - don't accept it
             self.clearFocus()
             return
         
         # Accept focus from click or tab
         super().focusInEvent(event)
+        #print(f"✅ PositiveFloatLineEdit ACCEPTED focus from {focus_reason}")
         
         if self._select_all_on_focus:
+            print(f"   → Selecting all text")
             QTimer.singleShot(0, self.selectAll)
         
         self._select_all_on_focus = True
