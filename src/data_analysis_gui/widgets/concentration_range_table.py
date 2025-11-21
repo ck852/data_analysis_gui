@@ -57,9 +57,6 @@ class ConcentrationRangeTable(QWidget):
         # Track last focused editor for μ insertion
         self.last_focused_editor = None
         
-        # Install event filter to track focus
-        QApplication.instance().installEventFilter(self)
-        
         self._init_ui()
         
     def _init_ui(self):
@@ -145,8 +142,6 @@ class ConcentrationRangeTable(QWidget):
         
         # Apply theme
         apply_modern_theme(self.table)
-
-        self.table.installEventFilter(self)
     
     def add_range_row_with_times(self, start_time: float, end_time: float, is_background: bool = False):
         """
@@ -293,12 +288,6 @@ class ConcentrationRangeTable(QWidget):
         
         logger.debug(f"Added range row: {internal_id} ({start_time}-{end_time})")
 
-    def eventFilter(self, obj, event):
-        """Debug event filter to track what's happening during hover."""
-        # Safety check - make sure table exists
-        if not hasattr(self, 'table'):
-            return super().eventFilter(obj, event)
-    
     def remove_range_row(self, row: int):
         """
         Remove a range row from the table.

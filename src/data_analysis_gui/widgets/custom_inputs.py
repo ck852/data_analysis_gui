@@ -71,10 +71,8 @@ class SelectAllLineEdit(QLineEdit):
         
         # Accept focus from click or tab
         super().focusInEvent(event)
-        print(f"✅ SelectAllLineEdit ACCEPTED focus from {focus_reason}")
         
         if self._select_all_on_focus:
-            print(f"   → Selecting all text")
             QTimer.singleShot(0, self.selectAll)
         
         self._select_all_on_focus = True
@@ -113,10 +111,7 @@ class SelectAllSpinBox(QDoubleSpinBox):
             if focus_reason in (Qt.FocusReason.MouseFocusReason, 
                             Qt.FocusReason.TabFocusReason,
                             Qt.FocusReason.BacktabFocusReason):
-                print(f"   ✅ SELECTING ALL TEXT")
                 QTimer.singleShot(0, self.selectAll)
-            else:
-                print(f"   ❌ SKIPPING text selection (non-interactive reason)")
         
         self._select_all_on_focus = True
 
@@ -190,7 +185,6 @@ class PositiveFloatLineEdit(QLineEdit):
         super().focusInEvent(event)
         
         if self._select_all_on_focus:
-            print(f"   → Selecting all text")
             QTimer.singleShot(0, self.selectAll)
         
         self._select_all_on_focus = True
