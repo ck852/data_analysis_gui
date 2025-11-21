@@ -201,7 +201,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
 
     def _create_menus(self):
-        """Create menu bar with File, Analysis, and About menus."""
+        """Create menu bar with File, Analysis, Tools, and About menus."""
         menubar = self.menuBar()
 
         # File menu
@@ -247,10 +247,6 @@ class MainWindow(QMainWindow):
         self.ramp_iv_action.triggered.connect(self._ramp_iv_analysis)
         analysis_menu.addAction(self.ramp_iv_action)
 
-        # Concentration Response Analysis
-        conc_resp_action = analysis_menu.addAction("Concentration Response...")
-        conc_resp_action.triggered.connect(self._open_concentration_response)
-
         # Sweep Extractor
         sweep_extract_action = analysis_menu.addAction("Extract Sweeps...")
         sweep_extract_action.triggered.connect(self._sweep_extraction)
@@ -269,6 +265,13 @@ class MainWindow(QMainWindow):
         self.leak_sub_action = QAction("&Leak Subtraction...", self)
         self.leak_sub_action.triggered.connect(self._open_leak_subtraction)
         analysis_menu.addAction(self.leak_sub_action)
+
+        # Tools menu
+        tools_menu = menubar.addMenu("&Tools")
+
+        # Concentration Response Analysis
+        conc_resp_action = tools_menu.addAction("&Concentration Response...")
+        conc_resp_action.triggered.connect(self._open_concentration_response)
 
         # About button (no submenu)
         about_action = QAction("&About", self)
