@@ -123,7 +123,7 @@ def apply_modern_theme(widget: QWidget) -> None:
         widget.setStyleSheet(_get_base_stylesheet())
 
 
-def style_button(button: QPushButton, style_type: str = "secondary") -> None:
+def style_button(button: QPushButton, style_type: str = "secondary", height: int = None, width: int = None) -> None:
     """
     Styles a QPushButton according to the specified type.
 
@@ -132,6 +132,8 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
     Args:
         button (QPushButton): The button to style.
         style_type (str, optional): The style type. Defaults to "secondary".
+        height (int, optional): Custom height in pixels. Defaults to theme standard.
+        width (int, optional): Custom minimum width in pixels. Defaults to theme standard.
     """
     styles = {
         "primary": {
@@ -156,6 +158,10 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
 
     style = styles.get(style_type, styles["secondary"])
     border = style.get("border", "none")
+    
+    # Use provided dimensions or fall back to theme defaults
+    btn_height = height if height is not None else WIDGET_SIZES['button_height']
+    btn_width = width if width is not None else WIDGET_SIZES['button_min_width']
 
     button.setStyleSheet(
         f"""
@@ -168,8 +174,9 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
             font-weight: 500;
-            min-height: {WIDGET_SIZES['button_height']}px;
-            min-width: {WIDGET_SIZES['button_min_width']}px;
+            min-height: {btn_height}px;
+            max-height: {btn_height}px;
+            min-width: {btn_width}px;
         }}
         QPushButton:hover {{
             background-color: {style['hover']};
@@ -187,7 +194,7 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
     )
 
 
-def style_input_field(widget: QWidget, invalid: bool = False) -> None:
+def style_input_field(widget: QWidget, invalid: bool = False, height: int = None, width: int = None) -> None:
     """
     Styles input fields (QLineEdit, QSpinBox, QDoubleSpinBox) with modern appearance.
 
@@ -196,9 +203,19 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
     Args:
         widget (QWidget): The input widget to style.
         invalid (bool, optional): Whether to apply invalid styling. Defaults to False.
+        height (int, optional): Custom height in pixels. Defaults to theme standard.
+        width (int, optional): Custom width in pixels. If provided, sets both min and max width.
     """
     bg_color = "#ffcccc" if invalid else MODERN_COLORS["background"]
     border_color = MODERN_COLORS["danger"] if invalid else MODERN_COLORS["border"]
+    
+    # Use provided dimensions or fall back to theme defaults
+    input_height = height if height is not None else WIDGET_SIZES['input_height']
+    
+    # Width handling - only apply if specified
+    width_style = ""
+    if width is not None:
+        width_style = f"min-width: {width}px; max-width: {width}px;"
 
     base_style = f"""
         QLineEdit, QSpinBox, QDoubleSpinBox {{
@@ -208,7 +225,8 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
             background-color: {bg_color};
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
-            min-height: {WIDGET_SIZES['input_height']}px;
+            min-height: {input_height}px;
+            {width_style}
             color: {MODERN_COLORS['text']};
         }}
         QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
@@ -242,13 +260,23 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
     widget.setStyleSheet(base_style)
 
 
-def style_combo_box(widget: QComboBox) -> None:
+def style_combo_box(widget: QComboBox, height: int = None, width: int = None) -> None:
     """
     Styles a QComboBox with modern appearance, including dropdown and item view.
 
     Args:
         widget (QComboBox): The combo box to style.
+        height (int, optional): Custom height in pixels. Defaults to theme standard.
+        width (int, optional): Custom width in pixels. If provided, sets both min and max width.
     """
+    # Use provided dimensions or fall back to theme defaults
+    combo_height = height if height is not None else WIDGET_SIZES['input_height']
+    
+    # Width handling - only apply if specified
+    width_style = ""
+    if width is not None:
+        width_style = f"min-width: {width}px; max-width: {width}px;"
+    
     widget.setStyleSheet(
         f"""
         QComboBox {{
@@ -258,7 +286,8 @@ def style_combo_box(widget: QComboBox) -> None:
             background-color: {MODERN_COLORS['background']};
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
-            min-height: {WIDGET_SIZES['input_height']}px;
+            min-height: {combo_height}px;
+            {width_style}
             color: {MODERN_COLORS['text']};
         }}
         QComboBox:hover {{
@@ -652,201 +681,13 @@ def apply_theme_to_application(app: QApplication) -> None:
     _apply_palette(app)
     app.setStyleSheet(_get_base_stylesheet())
 
-def style_button(button: QPushButton, style_type: str = "secondary", height: int = None, width: int = None) -> None:
-    """
-    Styles a QPushButton according to the specified type.
-
-    Supports 'primary', 'secondary', 'accent' (success), 'danger', and 'warning' styles.
-
-    Args:
-        button (QPushButton): The button to style.
-        style_type (str, optional): The style type. Defaults to "secondary".
-        height (int, optional): Custom height in pixels. Defaults to theme standard.
-        width (int, optional): Custom minimum width in pixels. Defaults to theme standard.
-    """
-    styles = {
-        "primary": {
-            "bg": MODERN_COLORS["primary"],
-            "hover": "#0066CC",
-            "text": "white",
-        },
-        "secondary": {
-            "bg": MODERN_COLORS["surface"],
-            "hover": MODERN_COLORS["hover"],
-            "text": MODERN_COLORS["text"],
-            "border": f"1px solid {MODERN_COLORS['border']}",
-        },
-        "accent": {"bg": MODERN_COLORS["success"], "hover": "#218838", "text": "white"},
-        "danger": {"bg": MODERN_COLORS["danger"], "hover": "#C82333", "text": "white"},
-        "warning": {
-            "bg": MODERN_COLORS["warning"],
-            "hover": "#E0A800",
-            "text": MODERN_COLORS["text"],
-        },
-    }
-
-    style = styles.get(style_type, styles["secondary"])
-    border = style.get("border", "none")
-    
-    # Use provided dimensions or fall back to theme defaults
-    btn_height = height if height is not None else WIDGET_SIZES['button_height']
-    btn_width = width if width is not None else WIDGET_SIZES['button_min_width']
-
-    button.setStyleSheet(
-        f"""
-        QPushButton {{
-            background-color: {style['bg']};
-            color: {style['text']};
-            border: {border};
-            border-radius: {SPACING['border_radius']};
-            padding: {SPACING['padding']};
-            {BASE_FONT}
-            font-size: {FONT_SIZES['normal']};
-            font-weight: 500;
-            min-height: {btn_height}px;
-            max-height: {btn_height}px;
-            min-width: {btn_width}px;
-        }}
-        QPushButton:hover {{
-            background-color: {style['hover']};
-        }}
-        QPushButton:pressed {{
-            background-color: {style['hover']};
-            padding: 7px 11px 5px 13px;
-        }}
-        QPushButton:disabled {{
-            background-color: {MODERN_COLORS['disabled']};
-            color: {MODERN_COLORS['text_muted']};
-            border-color: {MODERN_COLORS['border']};
-        }}
-    """
-    )
 
 
-def style_input_field(widget: QWidget, invalid: bool = False, height: int = None, width: int = None) -> None:
-    """
-    Styles input fields (QLineEdit, QSpinBox, QDoubleSpinBox) with modern appearance.
-
-    Handles both normal and invalid states, changing border and background color if invalid.
-
-    Args:
-        widget (QWidget): The input widget to style.
-        invalid (bool, optional): Whether to apply invalid styling. Defaults to False.
-        height (int, optional): Custom height in pixels. Defaults to theme standard.
-        width (int, optional): Custom width in pixels. If provided, sets both min and max width.
-    """
-    bg_color = "#ffcccc" if invalid else MODERN_COLORS["background"]
-    border_color = MODERN_COLORS["danger"] if invalid else MODERN_COLORS["border"]
-    
-    # Use provided dimensions or fall back to theme defaults
-    input_height = height if height is not None else WIDGET_SIZES['input_height']
-    
-    # Width handling - only apply if specified
-    width_style = ""
-    if width is not None:
-        width_style = f"min-width: {width}px; max-width: {width}px;"
-
-    base_style = f"""
-        QLineEdit, QSpinBox, QDoubleSpinBox {{
-            border: 1px solid {border_color};
-            border-radius: {SPACING['border_radius']};
-            padding: 4px 8px;
-            background-color: {bg_color};
-            {BASE_FONT}
-            font-size: {FONT_SIZES['normal']};
-            min-height: {input_height}px;
-            {width_style}
-            color: {MODERN_COLORS['text']};
-        }}
-        QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
-            border-color: {MODERN_COLORS['primary'] if not invalid else MODERN_COLORS['danger']};
-        }}
-        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
-            border-color: {MODERN_COLORS['focus']};
-            outline: none;
-        }}
-        QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
-            background-color: {MODERN_COLORS['disabled']};
-            color: {MODERN_COLORS['text_muted']};
-        }}
-    """
-
-    # Add spinbox-specific styling
-    if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-        base_style += f"""
-            QSpinBox::up-button, QDoubleSpinBox::up-button,
-            QSpinBox::down-button, QDoubleSpinBox::down-button {{
-                width: 16px;
-                background: {MODERN_COLORS['surface']};
-                border: none;
-            }}
-            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
-            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
-                background: {MODERN_COLORS['hover']};
-            }}
-        """
-
-    widget.setStyleSheet(base_style)
 
 
-def style_combo_box(widget: QComboBox, height: int = None, width: int = None) -> None:
-    """
-    Styles a QComboBox with modern appearance, including dropdown and item view.
 
-    Args:
-        widget (QComboBox): The combo box to style.
-        height (int, optional): Custom height in pixels. Defaults to theme standard.
-        width (int, optional): Custom width in pixels. If provided, sets both min and max width.
-    """
-    # Use provided dimensions or fall back to theme defaults
-    combo_height = height if height is not None else WIDGET_SIZES['input_height']
-    
-    # Width handling - only apply if specified
-    width_style = ""
-    if width is not None:
-        width_style = f"min-width: {width}px; max-width: {width}px;"
-    
-    widget.setStyleSheet(
-        f"""
-        QComboBox {{
-            border: 1px solid {MODERN_COLORS['border']};
-            border-radius: {SPACING['border_radius']};
-            padding: 4px 8px;
-            background-color: {MODERN_COLORS['background']};
-            {BASE_FONT}
-            font-size: {FONT_SIZES['normal']};
-            min-height: {combo_height}px;
-            {width_style}
-            color: {MODERN_COLORS['text']};
-        }}
-        QComboBox:hover {{
-            border-color: {MODERN_COLORS['primary']};
-        }}
-        QComboBox:disabled {{
-            background-color: {MODERN_COLORS['disabled']};
-            color: {MODERN_COLORS['text_muted']};
-        }}
-        QComboBox::drop-down {{
-            width: 0px;
-            border: none;
-        }}
-        QComboBox::drop-down:hover {{
-            background: {MODERN_COLORS['hover']};
-        }}
-        QComboBox::down-arrow {{
-            image: none;
-            width: 0px;
-            height: 0px;
-            border: none;
-        }}
-        QComboBox QAbstractItemView {{
-            border: 1px solid {MODERN_COLORS['border']};
-            background-color: {MODERN_COLORS['background']};
-            selection-background-color: {MODERN_COLORS['selected']};
-            padding: 2px;
-        }}
-    """
-    )
+
+
 
 
 # ============================================================================
