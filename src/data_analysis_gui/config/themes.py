@@ -159,9 +159,9 @@ def style_button(button: QPushButton, style_type: str = "secondary", height: int
     style = styles.get(style_type, styles["secondary"])
     border = style.get("border", "none")
     
-    # Use provided dimensions or fall back to theme defaults
-    btn_height = height if height is not None else WIDGET_SIZES['button_height']
-    btn_width = width if width is not None else WIDGET_SIZES['button_min_width']
+    # Simplify sizing: only apply if explicitly provided
+    height_style = f"min-height: {height}px; max-height: {height}px;" if height is not None else ""
+    width_style = f"min-width: {width}px;" if width is not None else ""
 
     button.setStyleSheet(
         f"""
@@ -174,9 +174,8 @@ def style_button(button: QPushButton, style_type: str = "secondary", height: int
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
             font-weight: 500;
-            min-height: {btn_height}px;
-            max-height: {btn_height}px;
-            min-width: {btn_width}px;
+            {height_style}
+            {width_style}
         }}
         QPushButton:hover {{
             background-color: {style['hover']};
@@ -209,13 +208,9 @@ def style_input_field(widget: QWidget, invalid: bool = False, height: int = None
     bg_color = "#ffcccc" if invalid else MODERN_COLORS["background"]
     border_color = MODERN_COLORS["danger"] if invalid else MODERN_COLORS["border"]
     
-    # Use provided dimensions or fall back to theme defaults
-    input_height = height if height is not None else WIDGET_SIZES['input_height']
-    
-    # Width handling - only apply if specified
-    width_style = ""
-    if width is not None:
-        width_style = f"min-width: {width}px; max-width: {width}px;"
+    # Simplify sizing: only apply if explicitly provided
+    height_style = f"min-height: {height}px;" if height is not None else ""
+    width_style = f"min-width: {width}px; max-width: {width}px;" if width is not None else ""
 
     base_style = f"""
         QLineEdit, QSpinBox, QDoubleSpinBox {{
@@ -225,7 +220,7 @@ def style_input_field(widget: QWidget, invalid: bool = False, height: int = None
             background-color: {bg_color};
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
-            min-height: {input_height}px;
+            {height_style}
             {width_style}
             color: {MODERN_COLORS['text']};
         }}
@@ -269,13 +264,9 @@ def style_combo_box(widget: QComboBox, height: int = None, width: int = None) ->
         height (int, optional): Custom height in pixels. Defaults to theme standard.
         width (int, optional): Custom width in pixels. If provided, sets both min and max width.
     """
-    # Use provided dimensions or fall back to theme defaults
-    combo_height = height if height is not None else WIDGET_SIZES['input_height']
-    
-    # Width handling - only apply if specified
-    width_style = ""
-    if width is not None:
-        width_style = f"min-width: {width}px; max-width: {width}px;"
+    # Simplify sizing: only apply if explicitly provided
+    height_style = f"min-height: {height}px;" if height is not None else ""
+    width_style = f"min-width: {width}px; max-width: {width}px;" if width is not None else ""
     
     widget.setStyleSheet(
         f"""
@@ -286,7 +277,7 @@ def style_combo_box(widget: QComboBox, height: int = None, width: int = None) ->
             background-color: {MODERN_COLORS['background']};
             {BASE_FONT}
             font-size: {FONT_SIZES['normal']};
-            min-height: {combo_height}px;
+            {height_style}
             {width_style}
             color: {MODERN_COLORS['text']};
         }}
