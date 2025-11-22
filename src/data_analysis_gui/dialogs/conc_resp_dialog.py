@@ -146,17 +146,29 @@ class ConcentrationResponseDialog(QDialog):
     def _init_ui(self):
         """Initialize the user interface."""
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(8)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(4)
+        main_layout.setContentsMargins(10, 6, 10, 10)
 
         from PySide6.QtWidgets import QLayout
         main_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         
-        # Status label at top
+        # Top bar: Load button + Status label
+        top_bar_layout = QHBoxLayout()
+        top_bar_layout.setSpacing(6)
+        top_bar_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.load_btn = QPushButton("📂 Open CSV")
+        self.load_btn.setFixedWidth(110)
+        self.load_btn.setFixedHeight(24)
+        style_button(self.load_btn, "secondary")
+        top_bar_layout.addWidget(self.load_btn)
+        
         self.status_label = QLabel("Load a CSV file to begin")
         style_label(self.status_label, "muted")
         self.status_label.setMaximumHeight(24)
-        main_layout.addWidget(self.status_label)
+        top_bar_layout.addWidget(self.status_label, stretch=1)
+        
+        main_layout.addLayout(top_bar_layout)
         
         # Main splitter: left panel | plot
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -180,28 +192,29 @@ class ConcentrationResponseDialog(QDialog):
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 2)
     
-    def _create_file_group(self) -> CollapsibleGroupBox:
-        """Create file loading section."""
-        group = CollapsibleGroupBox("File")
-        layout = group.get_content_layout()
-        layout.setSpacing(6)
-        layout.setContentsMargins(8, 8, 8, 8)
+    # TESTING
+    # def _create_file_group(self) -> CollapsibleGroupBox:
+    #     """Create file loading section."""
+    #     group = CollapsibleGroupBox("File")
+    #     layout = group.get_content_layout()
+    #     layout.setSpacing(6)
+    #     layout.setContentsMargins(8, 8, 8, 8)
         
-        # Primary load button
-        btn_layout = QHBoxLayout()
+    #     # Primary load button
+    #     btn_layout = QHBoxLayout()
         
-        self.load_btn = QPushButton("📂 Load CSV")
-        self.load_btn.setFixedWidth(110)
-        style_button(self.load_btn, "secondary")
-        btn_layout.addWidget(self.load_btn)
+    #     self.load_btn = QPushButton("📂 Load CSV")
+    #     self.load_btn.setFixedWidth(110)
+    #     style_button(self.load_btn, "secondary")
+    #     btn_layout.addWidget(self.load_btn)
         
-        self.file_path_display = QLabel("No file loaded")
-        style_label(self.file_path_display, "muted")
-        btn_layout.addWidget(self.file_path_display)
+    #     self.file_path_display = QLabel("No file loaded")
+    #     style_label(self.file_path_display, "muted")
+    #     btn_layout.addWidget(self.file_path_display)
         
-        layout.addLayout(btn_layout)
+    #     layout.addLayout(btn_layout)
         
-        return group
+    #     return group
     
     def _create_left_panel(self) -> QWidget:
         """Create left panel with file, ranges, and results sections."""
@@ -211,7 +224,7 @@ class ConcentrationResponseDialog(QDialog):
         layout.setContentsMargins(5, 5, 5, 5)
         
         # File section
-        layout.addWidget(self._create_file_group())
+        #layout.addWidget(self._create_file_group())
         
         # Ranges section  
         layout.addWidget(self._create_ranges_group())
@@ -299,7 +312,7 @@ class ConcentrationResponseDialog(QDialog):
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
+            "File", "Data Trace", "Condition", "Raw", "BG", "Corrected"
         ])
         self.results_table.setMaximumHeight(250)
         
@@ -318,7 +331,7 @@ class ConcentrationResponseDialog(QDialog):
     
     def _create_plot_panel(self) -> QGroupBox:
 
-        group = QGroupBox("Data Visualization")
+        group = QGroupBox("Plot")
         style_group_box(group)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -522,10 +535,6 @@ class ConcentrationResponseDialog(QDialog):
             self.time_col = time_col
             self.data_cols = data_cols  # Simplified voltage-only names
             self.original_data_cols = original_data_cols  # Full original headers
-            
-            # Update UI
-            self.file_path_display.setText(self.filename)
-            style_label(self.file_path_display, "normal")
             
             self.status_label.setText(
                 f"{self.filename} ({len(df)} pts, {len(data_cols)} trace(s))"
@@ -733,7 +742,7 @@ class ConcentrationResponseDialog(QDialog):
         # Set table headers
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
-            "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
+            "File", "Data Trace", "Condition", "Raw", "BG", "Corrected"
         ])
         
         if not self.results_dfs:
@@ -747,7 +756,7 @@ class ConcentrationResponseDialog(QDialog):
                 
                 # Add each column
                 for col_idx, col_name in enumerate([
-                    'File', 'Data Trace', 'Condition', 'Raw Value', 'Background', 'Corrected Value'
+                    'File', 'Data Trace', 'Condition', 'Raw', 'Background', 'Corrected'
                 ]):
                     value = row_data[col_name]
                     
@@ -763,8 +772,8 @@ class ConcentrationResponseDialog(QDialog):
                     item = QTableWidgetItem(text)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     
-                    # Color coding for Corrected Value column
-                    if col_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
+                    # Color coding for Corrected column
+                    if col_name == 'Corrected' and isinstance(value, float) and not np.isnan(value):
                         if value >= 0:
                             item.setBackground(QColor(220, 255, 220))  # Light green
                         else:
@@ -874,7 +883,7 @@ class ConcentrationResponseDialog(QDialog):
             time_col=self.time_col,
             data_cols=self.data_cols,
             ranges=ranges,
-            filename=self.filename
+            filename=Path(self.filename).stem
         )
         
         if self.results_dfs:
@@ -902,7 +911,7 @@ class ConcentrationResponseDialog(QDialog):
             time_col=self.time_col,
             data_cols=self.data_cols,
             ranges=ranges,
-            filename=self.filename,
+            filename=Path(self.filename).stem,
             statistic=statistic
         )
         

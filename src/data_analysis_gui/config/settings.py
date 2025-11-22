@@ -81,9 +81,9 @@ TABLE_HEADERS = {
         "File",
         "Data Trace",
         "Range",
-        "Raw Value",
+        "Raw",
         "Background",
-        "Corrected Value",
+        "Corrected",
     ],
     "current_density_iv": ["File", "Include", "Cslow (pF)"],
 }

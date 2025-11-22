@@ -283,7 +283,7 @@ class ConcentrationResponseService:
         Returns:
             Dictionary mapping data column names to results DataFrames.
             Each DataFrame has columns: File, Data Trace, Condition, 
-            Raw Value, Background, Corrected Value
+            Raw, Background, Corrected
         
         Raises:
             ValueError: If ranges configuration is invalid
@@ -340,9 +340,9 @@ class ConcentrationResponseService:
                     "File": filename,
                     "Data Trace": data_col,
                     "Condition": analysis_range.condition,  # Changed from concentration
-                    "Raw Value": raw_value,
+                    "Raw": raw_value,
                     "Background": bg_value,
-                    "Corrected Value": corrected_value,
+                    "Corrected": corrected_value,
                 })
             
             if results_rows:
@@ -362,12 +362,12 @@ class ConcentrationResponseService:
         
         Args:
             results_df: Results DataFrame with columns:
-                File, Data Trace, Condition, Raw Value, Background, Corrected Value
+                File, Data Trace, Condition, Raw, Background, Corrected
                 
         Returns:
             Pivoted DataFrame with:
                 - First column containing condition values
-                - Second column containing corrected values
+                - Second column containing Correcteds
                 - Empty column headers
         """
         if results_df.empty:
@@ -377,7 +377,7 @@ class ConcentrationResponseService:
         # Extract conditions and corrected values
         export_df = pd.DataFrame({
             "": results_df["Condition"].tolist(),
-            " ": results_df["Corrected Value"].tolist()
+            " ": results_df["Corrected"].tolist()
         })
         
         logger.debug(f"Pivoted results: {len(results_df)} rows")
