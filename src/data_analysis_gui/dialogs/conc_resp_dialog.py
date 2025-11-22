@@ -41,7 +41,6 @@ from data_analysis_gui.config.pyqtgraph_style import (
     get_marker_settings,
     DATA_COLOR_CYCLE,
 )
-from data_analysis_gui.core.plot_formatter import PlotFormatter
 from data_analysis_gui.gui_services.file_dialog_service import FileDialogService
 from data_analysis_gui.widgets.concentration_range_table import ConcentrationRangeTable
 from data_analysis_gui.widgets.cursor_pyqtgraph import PyQtGraphCursorManager
@@ -92,7 +91,6 @@ class ConcentrationResponseDialog(QDialog):
             self.file_dialog_service = FileDialogService()
 
         self.service = ConcentrationResponseService()
-        self.plot_formatter = PlotFormatter()
         
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Dose-Response Analysis")
@@ -256,12 +254,12 @@ class ConcentrationResponseDialog(QDialog):
         self.range_table.setMaximumHeight(280)
         ranges_layout.addWidget(self.range_table)
         
-        self.config_tabs.addTab(ranges_tab, "📊 Standard Analysis")
+        self.config_tabs.addTab(ranges_tab, "Plot Ranges")
         
         # Tab 2: Calculator (new)
         from data_analysis_gui.widgets.range_calculator_widget import RangeCalculatorWidget
         self.calculator_widget = RangeCalculatorWidget()
-        self.config_tabs.addTab(self.calculator_widget, "🧮 Custom Calculator")
+        self.config_tabs.addTab(self.calculator_widget, "Custom Calculator")
         
         layout.addWidget(self.config_tabs)
         
