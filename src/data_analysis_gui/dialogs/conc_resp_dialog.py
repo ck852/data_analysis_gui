@@ -59,7 +59,6 @@ logger = get_logger(__name__)
 class ConcentrationResponseDialog(QDialog):
 
     def __init__(self, parent=None):
-
         super().__init__(parent)
 
         pg.setConfigOptions(antialias=True, useOpenGL=True)
@@ -100,8 +99,6 @@ class ConcentrationResponseDialog(QDialog):
 
         # Initialize UI
         self._init_ui()
-        
-
 
         self.range_creator = InteractiveRangeCreator(
             canvas=self.plot_widget,
@@ -121,7 +118,7 @@ class ConcentrationResponseDialog(QDialog):
         
         # Apply enhanced styling to tables
         self._apply_enhanced_table_styling()
-    
+
     def _setup_window_geometry(self):
         """Set up window size and position dynamically based on screen size."""
         screen = self.screen() or QApplication.primaryScreen()
@@ -303,27 +300,44 @@ class ConcentrationResponseDialog(QDialog):
         return group
     
     def _create_plot_panel(self) -> QGroupBox:
-
+        """Create plot panel with placeholder."""
         group = QGroupBox("Plot")
         style_group_box(group)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(8, 8, 8, 8)
         
-        # Create PyQtGraph plot widget
+        # Create PyQtGraph plot widget (hidden initially)
         self.plot_widget = pg.PlotWidget()
         self.plot = self.plot_widget.getPlotItem()
         
         self.plot_widget.setAntialiasing(True)
-
-        # Set background color
         self.plot_widget.setBackground('#FAFAFA')
-        
-        # Disable grid - we'll use only x=0 and y=0 lines instead
         self.plot.showGrid(x=False, y=False)
         
         # Create cursor manager
         self.cursors = PyQtGraphCursorManager(self.plot, self.plot_widget)
         
+        # Hide plot initially
+        self.plot_widget.setVisible(False)
+        
+        # Create placeholder label
+        self.plot_placeholder_label = QLabel("Open a file to begin")
+        self.plot_placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.plot_placeholder_label.setStyleSheet("""
+            QLabel {
+                font-size: 18pt;
+                color: #1976D2;
+                background-color: #FAFAFA;
+            }
+            QLabel:hover {
+                color: #1565C0;
+            }
+        """)
+        self.plot_placeholder_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.plot_placeholder_label.mousePressEvent = lambda event: self._load_file()
+        
+        # Add both to layout (only one visible at a time)
+        layout.addWidget(self.plot_placeholder_label)
         layout.addWidget(self.plot_widget)
         
         return group
@@ -539,6 +553,11 @@ class ConcentrationResponseDialog(QDialog):
         """Plot all data traces on the canvas using PyQtGraph."""
         if self.data_df is None or not self.data_cols:
             return
+        
+        # Hide placeholder and show plot on first data load
+        if hasattr(self, 'plot_placeholder_label') and self.plot_placeholder_label.isVisible():
+            self.plot_placeholder_label.setVisible(False)
+            self.plot_widget.setVisible(True)
         
         self.plot.clear()
 
