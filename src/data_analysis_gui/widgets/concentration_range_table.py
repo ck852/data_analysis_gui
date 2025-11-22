@@ -80,7 +80,7 @@ class ConcentrationRangeTable(QWidget):
         self.table.setColumnHidden(1, True)
         self.table.setColumnHidden(6, True)
         
-        self.table.setMaximumHeight(250)
+        self.table.setMinimumHeight(150)
         #self.table.setMinimumWidth(520)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
@@ -100,7 +100,7 @@ class ConcentrationRangeTable(QWidget):
         self.table.setColumnWidth(3, 75)
         self.table.setColumnWidth(4, 75)
         
-        layout.addWidget(self.table)
+        layout.addWidget(self.table, stretch=1)
         
         # Bottom button layout
         bottom_layout = QHBoxLayout()

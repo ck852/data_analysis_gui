@@ -234,10 +234,11 @@ class ConcentrationResponseDialog(QDialog):
         ranges_tab = QWidget()
         ranges_layout = QVBoxLayout(ranges_tab)
         ranges_layout.setContentsMargins(0, 0, 0, 0)
+        ranges_layout.setSpacing(0)
         
         self.range_table = ConcentrationRangeTable()
-        self.range_table.setMaximumHeight(280)
-        ranges_layout.addWidget(self.range_table)
+        #self.range_table.setMaximumHeight(280)
+        ranges_layout.addWidget(self.range_table, stretch=1)
         
         self.config_tabs.addTab(ranges_tab, "Plot Ranges")
         

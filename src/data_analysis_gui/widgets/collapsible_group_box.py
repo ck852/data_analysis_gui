@@ -148,6 +148,10 @@ class CollapsibleGroupBox(QWidget):
         self.animation.setStartValue(self.content_widget.height())
         self.animation.setEndValue(0)
         self.animation.start()
+
+        # Hide content when collapsed
+        self.content_widget.setVisible(False)
+        self.content_widget.setMaximumHeight(0)
         
         self.toggled.emit(False)
         logger.debug(f"Collapsed section: {self._title}")
@@ -159,6 +163,9 @@ class CollapsibleGroupBox(QWidget):
         
         self._is_collapsed = False
         self.arrow_label.setText("▼")
+
+        # Show content when expanding
+        self.content_widget.setVisible(True)
         
         # Get the natural height of content
         self.content_widget.setMaximumHeight(16777215)  # Remove constraint temporarily
