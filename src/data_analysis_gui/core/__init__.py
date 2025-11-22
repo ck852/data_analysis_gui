@@ -10,9 +10,9 @@ Core business logic module for the data analysis GUI.
 from data_analysis_gui.core.conc_resp_models import (
     AnalysisType,
     PeakType,
-    ConcentrationRange,
+    AnalysisRange,
 )
 
 __all__ = [    "AnalysisType",
     "PeakType", 
-    "ConcentrationRange",]
+    "AnalysisRange",]

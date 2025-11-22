@@ -22,7 +22,7 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QPushButton, QSplitter, QGroupBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QApplication, QSplitter
+    QTableWidgetItem, QHeaderView, QMessageBox, QApplication, QSplitter, QCheckBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -46,7 +46,7 @@ from data_analysis_gui.widgets.concentration_range_table import ConcentrationRan
 from data_analysis_gui.widgets.cursor_pyqtgraph import PyQtGraphCursorManager
 from data_analysis_gui.widgets.interactive_range_creator import InteractiveRangeCreator
 from data_analysis_gui.services.conc_resp_service import ConcentrationResponseService
-from data_analysis_gui.core.conc_resp_models import ConcentrationRange
+from data_analysis_gui.core.conc_resp_models import AnalysisRange
 from data_analysis_gui.services.conc_resp_exporter import ConcentrationResponseExporter
 
 from data_analysis_gui.config.logging import get_logger
@@ -440,10 +440,30 @@ class ConcentrationResponseDialog(QDialog):
         
         # Build list of (range_id, display_name) for calculator
         ranges_info = []
-        for i, r in enumerate(ranges):
-            if not r.is_background:  # Only analysis ranges, not backgrounds
+        
+        # Iterate through actual table rows, not filtered ranges
+        for row in range(self.range_table.table.rowCount()):
+            # Check if this row is a background range
+            bg_widget = self.range_table.table.cellWidget(row, 6)
+            if not bg_widget:
+                continue
+                
+            is_background = bg_widget.findChild(QCheckBox).isChecked()
+            
+            if not is_background:  # Only analysis ranges, not backgrounds
+                # Get the range ID from hidden column
+                id_widget = self.range_table.table.cellWidget(row, 1)
+                if not id_widget:
+                    continue
+                range_id = id_widget.text()
+                
+                # Find the matching range object
+                range_obj = next((r for r in ranges if r.range_id == range_id), None)
+                if not range_obj:
+                    continue
+                
                 # Get the condition text from the table (column 2)
-                condition_widget = self.range_table.table.cellWidget(i, 2)
+                condition_widget = self.range_table.table.cellWidget(row, 2)
                 
                 if condition_widget:
                     if hasattr(condition_widget, 'text'):
@@ -453,19 +473,20 @@ class ConcentrationResponseDialog(QDialog):
                         # Fallback
                         condition_text = ""
                     
-                    # Use condition text if available, otherwise "nan"
-                    display_name = condition_text if condition_text else "nan"
+                    # Use condition text if available, otherwise use empty string
+                    display_name = condition_text if condition_text else "(no label)"
                     
                     # Add time range info for clarity
-                    display = f"{display_name} ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                    display = f"{display_name} ({range_obj.start_time:.1f}-{range_obj.end_time:.1f}s)"
                 else:
                     # Fallback if widget not found
-                    display = f"{r.range_id} ({r.start_time:.1f}-{r.end_time:.1f}s)"
+                    display = f"{range_obj.range_id} ({range_obj.start_time:.1f}-{range_obj.end_time:.1f}s)"
                 
-                ranges_info.append((r.range_id, display))
+                ranges_info.append((range_id, display))
         
         self.calculator_widget.set_available_ranges(ranges_info)
         logger.debug(f"Updated calculator with {len(ranges_info)} range(s)")
+
 
     def _on_calculator_ready(self, calculator_service, statistic):
         """Handle calculator configuration signal."""
@@ -613,13 +634,13 @@ class ConcentrationResponseDialog(QDialog):
         self.cursors.remove_range_pair(range_id)
         logger.debug(f"Removed cursor pair for range: {range_id}")
     
-    def _on_range_modified(self, row: int, range_obj: ConcentrationRange):
+    def _on_range_modified(self, row: int, range_obj: AnalysisRange):
         """
         Handle range modified signal from table.
         
         Args:
             row: Table row index
-            range_obj: Updated ConcentrationRange object
+            range_obj: Updated AnalysisRange object
         """
         self.cursors.update_range_position(
             range_obj.range_id,
@@ -710,7 +731,7 @@ class ConcentrationResponseDialog(QDialog):
         """Display analysis results in the results table with color coding."""
         self.results_table.setRowCount(0)
         
-        # Update table headers to use Condition instead of Concentration
+        # Set table headers
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
             "File", "Data Trace", "Condition", "Raw Value", "BG", "Corrected Value"
@@ -725,22 +746,11 @@ class ConcentrationResponseDialog(QDialog):
                 row_pos = self.results_table.rowCount()
                 self.results_table.insertRow(row_pos)
                 
-                # Column name mapping - handle both old and new column names
-                column_mapping = {
-                    'File': 'File',
-                    'Data Trace': 'Data Trace',
-                    'Condition': 'Concentration (µM)' if 'Concentration (µM)' in df.columns else 'Condition',
-                    'Raw Value': 'Raw Value',
-                    'Background': 'Background',
-                    'Corrected Value': 'Corrected Value'
-                }
-                
                 # Add each column
-                for col_idx, display_name in enumerate([
+                for col_idx, col_name in enumerate([
                     'File', 'Data Trace', 'Condition', 'Raw Value', 'Background', 'Corrected Value'
                 ]):
-                    df_col_name = column_mapping[display_name]
-                    value = row_data[df_col_name]
+                    value = row_data[col_name]
                     
                     # Format value
                     if isinstance(value, float) and not np.isnan(value):
@@ -754,8 +764,8 @@ class ConcentrationResponseDialog(QDialog):
                     item = QTableWidgetItem(text)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     
-                    # Color coding for Corrected Value column (legacy behavior)
-                    if display_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
+                    # Color coding for Corrected Value column
+                    if col_name == 'Corrected Value' and isinstance(value, float) and not np.isnan(value):
                         if value >= 0:
                             item.setBackground(QColor(220, 255, 220))  # Light green
                         else:
@@ -857,8 +867,7 @@ class ConcentrationResponseDialog(QDialog):
             QMessageBox.critical(self, "Analysis Error", str(e))
 
     def _run_standard_analysis(self, ranges):
-        """Run standard concentration-response analysis."""
-        # Your existing analysis code
+        """Run standard range-based analysis."""
         ranges, was_auto_paired = self.service.apply_auto_pairing(ranges)
         
         self.results_dfs = self.service.run_analysis(

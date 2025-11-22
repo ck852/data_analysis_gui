@@ -21,7 +21,7 @@ from dataclasses import replace
 import re
 
 from data_analysis_gui.core.conc_resp_models import (
-    ConcentrationRange,
+    AnalysisRange,
     AnalysisType,
     PeakType,
 )
@@ -175,7 +175,7 @@ class ConcentrationResponseService:
         df: pd.DataFrame,
         time_col: str,
         data_cols: List[str],
-        bg_ranges: List[ConcentrationRange],
+        bg_ranges: List[AnalysisRange],  # Updated type
     ) -> Dict[str, Dict[str, float]]:
         """
         Calculate background values for all background ranges and data columns.
@@ -184,7 +184,7 @@ class ConcentrationResponseService:
             df: DataFrame containing the time-series data
             time_col: Name of the time column
             data_cols: List of data column names
-            bg_ranges: List of background ConcentrationRange objects
+            bg_ranges: List of background AnalysisRange objects
             
         Returns:
             Nested dictionary: {bg_range_id: {data_col_name: value}}
@@ -215,8 +215,8 @@ class ConcentrationResponseService:
     
     @staticmethod
     def apply_auto_pairing(
-        ranges: List[ConcentrationRange],
-    ) -> Tuple[List[ConcentrationRange], bool]:
+        ranges: List[AnalysisRange],  # Updated type
+    ) -> Tuple[List[AnalysisRange], bool]:  # Updated type
         """
         Automatically pair all non-background ranges to a single background range.
         
@@ -225,7 +225,7 @@ class ConcentrationResponseService:
         - All non-background ranges have no paired background (None)
         
         Args:
-            ranges: List of ConcentrationRange objects
+            ranges: List of AnalysisRange objects
             
         Returns:
             Tuple containing:
@@ -267,17 +267,17 @@ class ConcentrationResponseService:
         df: pd.DataFrame,
         time_col: str,
         data_cols: List[str],
-        ranges: List[ConcentrationRange],
+        ranges: List[AnalysisRange],  # Updated type
         filename: str = "data",
     ) -> Dict[str, pd.DataFrame]:
         """
-        Run complete concentration-response analysis for all data columns.
+        Run complete range-based analysis for all data columns.
         
         Args:
             df: DataFrame containing the time-series data
             time_col: Name of the time column
             data_cols: List of data column names to analyze
-            ranges: List of ConcentrationRange objects (after auto-pairing if applicable)
+            ranges: List of AnalysisRange objects (after auto-pairing if applicable)
             filename: Name of the source file (for results table)
             
         Returns:
@@ -339,7 +339,7 @@ class ConcentrationResponseService:
                 results_rows.append({
                     "File": filename,
                     "Data Trace": data_col,
-                    "Condition": analysis_range.concentration,
+                    "Condition": analysis_range.condition,  # Changed from concentration
                     "Raw Value": raw_value,
                     "Background": bg_value,
                     "Corrected Value": corrected_value,

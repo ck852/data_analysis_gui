@@ -24,7 +24,7 @@ from data_analysis_gui.widgets.custom_inputs import (
     SelectAllLineEdit, NoScrollComboBox, PositiveFloatLineEdit
 )
 from data_analysis_gui.core.conc_resp_models import (
-    ConcentrationRange, AnalysisType, PeakType
+    AnalysisRange, AnalysisType, PeakType
 )
 from data_analysis_gui.config.logging import get_logger
 
@@ -43,7 +43,7 @@ class ConcentrationRangeTable(QWidget):
     # Signals
     range_added = Signal(str, float, float, bool)  # range_id, start, end, is_bg
     range_removed = Signal(str)  # range_id
-    range_modified = Signal(int, object)  # row, ConcentrationRange object
+    range_modified = Signal(int, object)  # row, AnalysisRange object
     
     def __init__(self, parent=None):
         """
@@ -504,12 +504,12 @@ class ConcentrationRangeTable(QWidget):
             except Exception as e:
                 logger.warning(f"Error emitting range_modified after pairing: {e}")
 
-    def get_all_ranges(self) -> List[ConcentrationRange]:
+    def get_all_ranges(self) -> List[AnalysisRange]:  # Updated return type
         """
-        Get all ranges as ConcentrationRange objects.
+        Get all ranges as AnalysisRange objects.
         
         Returns:
-            List of ConcentrationRange objects representing all table rows
+            List of AnalysisRange objects representing all table rows
         
         Raises:
             ValueError: If any range has invalid configuration
@@ -566,12 +566,10 @@ class ConcentrationRangeTable(QWidget):
                     # paired_bg_text is display name like "BG 1", need to find internal ID
                     paired_background = self._find_background_id_by_display(paired_bg_text)
                 
-                # Create ConcentrationRange object
-                # Note: We pass condition as the concentration field
-                # The service layer should handle this as a string label
-                range_obj = ConcentrationRange(
+                # Create AnalysisRange object
+                range_obj = AnalysisRange(
                     range_id=range_id,
-                    concentration=condition,  # Pass text as-is
+                    condition=condition,  # Now a string, no type conflict
                     start_time=start_time,
                     end_time=end_time,
                     analysis_type=analysis_type,

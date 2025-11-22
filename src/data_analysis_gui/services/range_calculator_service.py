@@ -13,7 +13,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 import re
 
-from data_analysis_gui.core.conc_resp_models import ConcentrationRange, AnalysisType
+from data_analysis_gui.core.conc_resp_models import AnalysisRange, AnalysisType
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ class RangeCalculatorService:
     Service for defining custom equations using range-based variables.
     
     Extends ConcentrationResponseService by allowing users to:
-    1. Assign variable names to ConcentrationRange objects
+    1. Assign variable names to AnalysisRange objects
     2. Define a custom equation using those variables
     3. Calculate equation results across all data traces
     
@@ -124,7 +124,7 @@ class RangeCalculatorService:
         df: pd.DataFrame,
         time_col: str,
         data_col: str,
-        ranges: List[ConcentrationRange],
+        ranges: List[AnalysisRange],  # Updated type
         statistic: str = 'mean'
     ) -> Dict[str, float]:
         """
@@ -134,13 +134,13 @@ class RangeCalculatorService:
             df: DataFrame containing time-series data
             time_col: Name of time column
             data_col: Name of data column to analyze
-            ranges: List of ConcentrationRange objects
+            ranges: List of AnalysisRange objects
             statistic: 'mean', 'median', 'max', 'min', or 'last'
         
         Returns:
             Dictionary mapping variable names to extracted values
         """
-        # Build lookup of range_id -> ConcentrationRange
+        # Build lookup of range_id -> AnalysisRange
         range_lookup = {r.range_id: r for r in ranges}
         
         # Extract values for each variable
@@ -220,7 +220,7 @@ class RangeCalculatorService:
         df: pd.DataFrame,
         time_col: str,
         data_cols: List[str],
-        ranges: List[ConcentrationRange],
+        ranges: List[AnalysisRange],  # Updated type
         filename: str = "data",
         statistic: str = 'mean'
     ) -> pd.DataFrame:
@@ -231,7 +231,7 @@ class RangeCalculatorService:
             df: DataFrame containing time-series data
             time_col: Name of time column
             data_cols: List of data column names to analyze
-            ranges: List of ConcentrationRange objects
+            ranges: List of AnalysisRange objects
             filename: Source filename (for results table)
             statistic: Statistical measure to extract from ranges
         
@@ -320,7 +320,7 @@ class ConcentrationResponseServiceExtended:
         df: pd.DataFrame,
         time_col: str,
         data_cols: List[str],
-        ranges: List[ConcentrationRange],
+        ranges: List[AnalysisRange],  # Updated type
         filename: str = "data",
         use_calculator: bool = False,
         statistic: str = 'mean'
@@ -332,7 +332,7 @@ class ConcentrationResponseServiceExtended:
             df: DataFrame with time-series data
             time_col: Time column name
             data_cols: Data column names
-            ranges: ConcentrationRange objects
+            ranges: AnalysisRange objects
             filename: Source file name
             use_calculator: If True, use calculator equation; else standard analysis
             statistic: Statistic for range extraction (calculator only)

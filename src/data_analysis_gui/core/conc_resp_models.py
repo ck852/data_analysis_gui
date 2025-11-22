@@ -4,9 +4,9 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Immutable data structures for concentration-response analysis ranges.
+Immutable data structures for range-based analysis.
 
-Each ConcentrationRange defines a time window for measurement extraction,
+Each AnalysisRange defines a time window for measurement extraction,
 with optional background subtraction via paired background ranges.
 """
 
@@ -29,7 +29,7 @@ class PeakType(Enum):
 
 
 @dataclass(frozen=True)
-class ConcentrationRange:
+class AnalysisRange:
     """
     Configuration for measuring a response within a specific time window.
     
@@ -39,7 +39,7 @@ class ConcentrationRange:
     
     Args:
         range_id: Internal identifier like "Range_1" or "Background_1"
-        concentration: Concentration value in µM
+        condition: Text label describing the experimental condition
         start_time: Beginning of measurement window in seconds
         end_time: End of measurement window in seconds
         analysis_type: AVERAGE takes the mean, PEAK finds max/min/abs_max
@@ -50,14 +50,14 @@ class ConcentrationRange:
     Example:
         Create an analysis range that subtracts baseline from response:
         
-        >>> bg = ConcentrationRange("BG_1", 0.0, 10.0, 50.0, AnalysisType.AVERAGE, 
-        ...                         is_background=True)
-        >>> measurement = ConcentrationRange("Range_1", 10.0, 100.0, 150.0,
-        ...                                   AnalysisType.AVERAGE, paired_background="BG_1")
+        >>> bg = AnalysisRange("BG_1", "baseline", 10.0, 50.0, AnalysisType.AVERAGE, 
+        ...                    is_background=True)
+        >>> measurement = AnalysisRange("Range_1", "drug", 100.0, 150.0,
+        ...                             AnalysisType.AVERAGE, paired_background="BG_1")
     """
     
     range_id: str
-    concentration: float
+    condition: str
     start_time: float
     end_time: float
     analysis_type: AnalysisType
@@ -91,7 +91,7 @@ class ConcentrationRange:
     
     def describe(self) -> str:
         """Human-readable summary for display purposes."""
-        desc = f"{self.range_id}: {self.concentration}µM, {self.start_time:.1f}-{self.end_time:.1f}s"
+        desc = f"{self.range_id}: {self.condition}, {self.start_time:.1f}-{self.end_time:.1f}s"
         
         if self.analysis_type == AnalysisType.PEAK and self.peak_type:
             desc += f", {self.analysis_type.value} ({self.peak_type.value})"
