@@ -162,7 +162,7 @@ class ConcentrationResponseDialog(QDialog):
         
         # Left panel
         left_panel = self._create_left_panel()
-        left_panel.setMaximumWidth(550)
+        #left_panel.setMaximumWidth(550)
         main_splitter.addWidget(left_panel)
         
         # Right panel (plot)
