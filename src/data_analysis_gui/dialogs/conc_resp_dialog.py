@@ -31,6 +31,8 @@ from data_analysis_gui.config.themes import (
     apply_modern_theme, style_button, style_label, style_group_box,
     style_table_widget, MODERN_COLORS
 )
+
+from data_analysis_gui.widgets.collapsible_group_box import CollapsibleGroupBox
 from data_analysis_gui.config.plot_style import COLOR_CYCLE, COLORS as PLOT_COLORS
 from data_analysis_gui.config.pyqtgraph_style import (
     style_plot_widget,
@@ -172,17 +174,16 @@ class ConcentrationResponseDialog(QDialog):
         # REMOVED: setCollapsible lines
         # These were causing dynamic resizing
         
-        # Set splitter proportions (30% left, 70% right)
+        # Set splitter proportions
         total_width = self.width()
-        main_splitter.setSizes([int(total_width * 0.3), int(total_width * 0.7)])
-        main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([int(total_width * 0.5), int(total_width * 0.5)])
+        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(1, 2)
     
-    def _create_file_group(self) -> QGroupBox:
+    def _create_file_group(self) -> CollapsibleGroupBox:
         """Create file loading section."""
-        group = QGroupBox("File")
-        style_group_box(group)
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("File")
+        layout = group.get_content_layout()
         layout.setSpacing(6)
         layout.setContentsMargins(8, 8, 8, 8)
         
@@ -233,11 +234,10 @@ class ConcentrationResponseDialog(QDialog):
         
     #     logger.info("Opened dataset builder dialog")
 
-    def _create_ranges_group(self) -> QGroupBox:
+    def _create_ranges_group(self) -> CollapsibleGroupBox:
         """Create ranges section with tabs for normal ranges and calculator."""
-        group = QGroupBox("Analysis Configuration")
-        style_group_box(group)
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Analysis Configuration")
+        layout = group.get_content_layout()
         layout.setSpacing(4)
         layout.setContentsMargins(8, 8, 8, 8)
         
@@ -265,11 +265,10 @@ class ConcentrationResponseDialog(QDialog):
         
         return group
     
-    def _create_results_group(self) -> QGroupBox:
-
-        group = QGroupBox("Results")
-        style_group_box(group)
-        layout = QVBoxLayout(group)
+    def _create_results_group(self) -> CollapsibleGroupBox:
+        """Create results section."""
+        group = CollapsibleGroupBox("Results")
+        layout = group.get_content_layout()
         layout.setSpacing(2)
         layout.setContentsMargins(5, 5, 5, 5)
         

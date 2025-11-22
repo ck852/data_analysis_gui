@@ -81,7 +81,7 @@ class ConcentrationRangeTable(QWidget):
         self.table.setColumnHidden(6, True)
         
         self.table.setMaximumHeight(250)
-        self.table.setMinimumWidth(520)
+        #self.table.setMinimumWidth(520)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
         # Configure column sizing
