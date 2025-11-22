@@ -183,38 +183,13 @@ class ConcentrationResponseDialog(QDialog):
         right_panel = self._create_plot_panel()
         main_splitter.addWidget(right_panel)
         
-        # REMOVED: setCollapsible lines
-        # These were causing dynamic resizing
-        
         # Set splitter proportions
         total_width = self.width()
         main_splitter.setSizes([int(total_width * 0.5), int(total_width * 0.5)])
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 2)
-    
-    # TESTING
-    # def _create_file_group(self) -> CollapsibleGroupBox:
-    #     """Create file loading section."""
-    #     group = CollapsibleGroupBox("File")
-    #     layout = group.get_content_layout()
-    #     layout.setSpacing(6)
-    #     layout.setContentsMargins(8, 8, 8, 8)
-        
-    #     # Primary load button
-    #     btn_layout = QHBoxLayout()
-        
-    #     self.load_btn = QPushButton("📂 Load CSV")
-    #     self.load_btn.setFixedWidth(110)
-    #     style_button(self.load_btn, "secondary")
-    #     btn_layout.addWidget(self.load_btn)
-        
-    #     self.file_path_display = QLabel("No file loaded")
-    #     style_label(self.file_path_display, "muted")
-    #     btn_layout.addWidget(self.file_path_display)
-        
-    #     layout.addLayout(btn_layout)
-        
-    #     return group
+
+        # TODO: Save splitter state and restore on load
     
     def _create_left_panel(self) -> QWidget:
         """Create left panel with file, ranges, and results sections."""
@@ -222,9 +197,6 @@ class ConcentrationResponseDialog(QDialog):
         layout = QVBoxLayout(panel)
         layout.setSpacing(8)
         layout.setContentsMargins(5, 5, 5, 5)
-        
-        # File section
-        #layout.addWidget(self._create_file_group())
         
         # Ranges section  
         layout.addWidget(self._create_ranges_group())
