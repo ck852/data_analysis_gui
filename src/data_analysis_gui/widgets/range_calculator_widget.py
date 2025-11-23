@@ -88,21 +88,21 @@ class RangeCalculatorWidget(QWidget):
         
         # Add variable controls
         add_var_layout = QHBoxLayout()
-        
-        add_var_layout.addWidget(QLabel("Assign range to variable:"))
-        
+        add_var_layout.setSpacing(4)
+
+        add_var_layout.addWidget(QLabel("Range:"))
+
         self.range_selector = NoScrollComboBox()
-        self.range_selector.setMinimumWidth(200)
+        self.range_selector.setMaximumWidth(140)
         style_combo(self.range_selector)
         add_var_layout.addWidget(self.range_selector)
-        
+
         self.add_var_btn = create_button("+ Add Variable", "secondary")
         add_var_layout.addWidget(self.add_var_btn)
-        
+
         self.add_all_btn = create_button("Add All Ranges", "secondary")
         add_var_layout.addWidget(self.add_all_btn)
-        
-        add_var_layout.addStretch()
+
         var_layout.addLayout(add_var_layout)
         
         # Variable table
