@@ -14,6 +14,8 @@ module which uses Matplotlib.
 """
 
 import pyqtgraph as pg
+import numpy as np
+from typing import Optional
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor
 
@@ -42,7 +44,8 @@ class PyQtGraphRangeCursor(QObject):
     
     position_changed = Signal(str, str, float)
     
-    def __init__(self, plot_item, range_id: str, start_value: float, end_value: float, is_background: bool = False):
+    def __init__(self, plot_item, range_id: str, start_value: float, end_value: float, 
+                 is_background: bool = False, time_values: Optional[np.ndarray] = None):
         """
         Initialize a range cursor.
         
@@ -52,12 +55,19 @@ class PyQtGraphRangeCursor(QObject):
             start_value: Start boundary position
             end_value: End boundary position
             is_background: Whether this is a background range (affects color)
+            time_values: Array of valid time points for snapping (optional)
         """
         super().__init__()
         
         self.plot_item = plot_item
         self.range_id = range_id
         self.is_background = is_background
+        self.time_values = time_values
+        
+        # Snap initial values if time_values provided
+        if self.time_values is not None:
+            start_value = self._snap_to_nearest(start_value)
+            end_value = self._snap_to_nearest(end_value)
         
         # Get styled pen and brush from centralized styling
         pen = get_cursor_pen(is_background)
@@ -83,24 +93,51 @@ class PyQtGraphRangeCursor(QObject):
         range_type = "background" if is_background else "analysis"
         logger.debug(f"Created {range_type} cursor '{range_id}': [{start_value:.2f}, {end_value:.2f}]")
     
+    def _snap_to_nearest(self, value: float) -> float:
+        """
+        Snap a value to the nearest time point in time_values.
+        
+        Args:
+            value: Value to snap
+            
+        Returns:
+            Nearest time value, or original value if time_values not set
+        """
+        if self.time_values is None or len(self.time_values) == 0:
+            return value
+        
+        idx = np.argmin(np.abs(self.time_values - value))
+        return float(self.time_values[idx])
+    
     def _on_region_changed(self):
         """
         Handle region change from user dragging.
         
-        Always emits position_changed signals for both boundaries with sorted values,
-        ensuring Start is always <= End regardless of which cursor was dragged.
+        Snaps values to nearest time points, then emits position_changed signals 
+        for both boundaries with sorted values, ensuring Start is always <= End 
+        regardless of which cursor was dragged.
         """
-        new_start, new_end = self.region.getRegion()  # PyQtGraph returns sorted [min, max]
+        current_start, current_end = self.region.getRegion()  # Get current unsnapped position
         
-        # Always emit both boundaries with sorted values
-        # This ensures Start is always the smaller value, End is always the larger value
-        if abs(new_start - self._start_value) > 1e-6 or abs(new_end - self._end_value) > 1e-6:
-            self._start_value = new_start
-            self._end_value = new_end
+        # Snap to nearest time values
+        snapped_start = self._snap_to_nearest(current_start)
+        snapped_end = self._snap_to_nearest(current_end)
+        
+        # Check if snapping changed the visual position
+        if abs(snapped_start - current_start) > 1e-6 or abs(snapped_end - current_end) > 1e-6:
+            # Update region to snapped position
+            self.region.sigRegionChanged.disconnect(self._on_region_changed)
+            self.region.setRegion([snapped_start, snapped_end])
+            self.region.sigRegionChanged.connect(self._on_region_changed)
+        
+        # Check if snapped values differ from last stored position
+        if abs(snapped_start - self._start_value) > 1e-6 or abs(snapped_end - self._end_value) > 1e-6:
+            self._start_value = snapped_start
+            self._end_value = snapped_end
             
             # Emit both boundaries so spinboxes update to sorted values
-            self.position_changed.emit(self.range_id, 'start', new_start)
-            self.position_changed.emit(self.range_id, 'end', new_end)
+            self.position_changed.emit(self.range_id, 'start', snapped_start)
+            self.position_changed.emit(self.range_id, 'end', snapped_end)
     
     def update_position(self, start_value: float, end_value: float):
         """
@@ -110,6 +147,11 @@ class PyQtGraphRangeCursor(QObject):
             start_value: New start boundary position
             end_value: New end boundary position
         """
+        # Snap values
+        if self.time_values is not None:
+            start_value = self._snap_to_nearest(start_value)
+            end_value = self._snap_to_nearest(end_value)
+        
         # Block signals to prevent triggering _on_region_changed
         self.region.sigRegionChanged.disconnect(self._on_region_changed)
         
@@ -139,6 +181,7 @@ class PyQtGraphRangeCursor(QObject):
         """
         return self.region.getRegion()
 
+
 class PyQtGraphCursorManager(QObject):
     """
     Manages all range cursors for a plot.
@@ -167,7 +210,20 @@ class PyQtGraphCursorManager(QObject):
         # Storage for cursors
         self.cursors = {}  # {range_id: PyQtGraphRangeCursor}
         
+        # Time values for snapping
+        self.time_values: Optional[np.ndarray] = None
+        
         logger.debug("PyQtGraphCursorManager initialized")
+    
+    def set_time_values(self, time_values: np.ndarray):
+        """
+        Set time values for snapping cursor positions.
+        
+        Args:
+            time_values: Array of valid time points from loaded CSV
+        """
+        self.time_values = time_values
+        logger.debug(f"Set time values for snapping: {len(time_values)} points")
     
     def add_range_pair(self, range_id: str, start_val: float, end_val: float, is_background: bool = False):
         """
@@ -184,13 +240,19 @@ class PyQtGraphCursorManager(QObject):
             self.update_range_position(range_id, start_val, end_val)
             return
         
-        # Create new cursor
+        # Snap values before creating cursor
+        if self.time_values is not None:
+            start_val = self._snap_to_nearest(start_val)
+            end_val = self._snap_to_nearest(end_val)
+        
+        # Create new cursor with time_values
         cursor = PyQtGraphRangeCursor(
             self.plot_item,
             range_id,
             start_val,
             end_val,
-            is_background
+            is_background,
+            time_values=self.time_values
         )
         
         # Connect signal to forward to manager's signal
@@ -235,6 +297,11 @@ class PyQtGraphCursorManager(QObject):
             logger.warning(f"Attempted to update non-existent cursor '{range_id}'")
             return
         
+        # Snap values before updating
+        if self.time_values is not None:
+            start_val = self._snap_to_nearest(start_val)
+            end_val = self._snap_to_nearest(end_val)
+        
         cursor = self.cursors[range_id]
         cursor.update_position(start_val, end_val)
         
@@ -275,6 +342,22 @@ class PyQtGraphCursorManager(QObject):
             )
         
         logger.info(f"Recreated {len(cursor_data)} cursors after plot clear")
+    
+    def _snap_to_nearest(self, value: float) -> float:
+        """
+        Snap a value to the nearest time point in time_values.
+        
+        Args:
+            value: Value to snap
+            
+        Returns:
+            Nearest time value, or original value if time_values not set
+        """
+        if self.time_values is None or len(self.time_values) == 0:
+            return value
+        
+        idx = np.argmin(np.abs(self.time_values - value))
+        return float(self.time_values[idx])
     
     def _forward_position_change(self, range_id: str, boundary: str, new_value: float):
         """

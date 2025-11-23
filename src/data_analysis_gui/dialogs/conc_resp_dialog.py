@@ -473,6 +473,9 @@ class ConcentrationResponseDialog(QDialog):
             self.data_cols = data_cols  # Simplified voltage-only names
             self.original_data_cols = original_data_cols  # Full original headers
             
+            time_values = self.data_df[self.time_col].values # Numpy array of time values
+            self.cursors.set_time_values(time_values)   # Provide time values for cursor snapping
+
             self.status_label.setText(
                 f"{self.filename} ({len(df)} pts, {len(data_cols)} trace(s))"
             )
