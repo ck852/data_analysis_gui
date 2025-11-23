@@ -53,7 +53,7 @@ class RangeCalculatorWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.calculator = RangeCalculatorService()
-        self._available_ranges = []  # List of (range_id, display_name) tuples
+        self._available_ranges = []  # List of (range_id, display_name, start_time) tuples
         self._range_display_map = {}  # Map range_id to display_name for summary
         self._next_letter_index = 0  # Track next variable letter (a=0, b=1, ...)
         self._is_validated = False  # Track if current equation is validated
@@ -98,6 +98,9 @@ class RangeCalculatorWidget(QWidget):
         
         self.add_var_btn = create_button("+ Add Variable", "secondary")
         add_var_layout.addWidget(self.add_var_btn)
+        
+        self.add_all_btn = create_button("Add All Ranges", "secondary")
+        add_var_layout.addWidget(self.add_all_btn)
         
         add_var_layout.addStretch()
         var_layout.addLayout(add_var_layout)
@@ -186,6 +189,7 @@ class RangeCalculatorWidget(QWidget):
     def _connect_signals(self):
         """Connect UI signals."""
         self.add_var_btn.clicked.connect(self._add_variable)
+        self.add_all_btn.clicked.connect(self._add_all_ranges)
         self.validate_btn.clicked.connect(self._validate_and_emit)
         self.clear_btn.clicked.connect(self._clear_all)
         self.equation_input.returnPressed.connect(self._validate_and_emit)
@@ -279,14 +283,14 @@ class RangeCalculatorWidget(QWidget):
         Update available ranges for variable assignment.
         
         Args:
-            ranges_info: List of (range_id, display_name) tuples
+            ranges_info: List of (range_id, display_name, start_time) tuples
         """
         self._available_ranges = ranges_info
         self.range_selector.clear()
         
         # Build display name mapping
         self._range_display_map.clear()
-        for range_id, display_name in ranges_info:
+        for range_id, display_name, start_time in ranges_info:
             self.range_selector.addItem(display_name, userData=range_id)
             self._range_display_map[range_id] = display_name
         
@@ -339,6 +343,72 @@ class RangeCalculatorWidget(QWidget):
         except ValueError as e:
             # This shouldn't happen with auto-generated names, but keep for safety
             QMessageBox.warning(self, "Invalid Variable", str(e))
+    
+    def _add_all_ranges(self):
+        """Add all available ranges as variables in order of start_time."""
+        if not self._available_ranges:
+            QMessageBox.warning(
+                self,
+                "No Ranges",
+                "Please define analysis ranges first."
+            )
+            return
+        
+        # Show minimal confirmation if variables already exist
+        if self.var_table.rowCount() > 0:
+            reply = QMessageBox.question(
+                self,
+                "Replace Variables?",
+                "This will clear existing variables. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+        
+        # Check if we have too many ranges
+        if len(self._available_ranges) > 26:
+            QMessageBox.warning(
+                self,
+                "Too Many Ranges",
+                f"Cannot add {len(self._available_ranges)} ranges. Maximum is 26 variables (a-z)."
+            )
+            return
+        
+        # Clear existing variables and reset counter
+        self.calculator.clear_variables()
+        self.var_table.setRowCount(0)
+        self._next_letter_index = 0
+        
+        # Sort ranges by start_time (third element in tuple)
+        sorted_ranges = sorted(self._available_ranges, key=lambda x: x[2])
+        
+        # Add each range as a variable
+        for range_id, display_name, start_time in sorted_ranges:
+            var_name = chr(ord('a') + self._next_letter_index)
+            self._next_letter_index += 1
+            
+            try:
+                self.calculator.assign_variable(var_name, range_id)
+                
+                # Add to table
+                row = self.var_table.rowCount()
+                self.var_table.insertRow(row)
+                
+                self.var_table.setItem(row, 0, QTableWidgetItem(var_name))
+                self.var_table.setItem(row, 1, QTableWidgetItem(display_name))
+                
+                # Add remove button
+                remove_btn = create_button("Clear", "secondary")
+                remove_btn.setProperty("var_name", var_name)
+                remove_btn.clicked.connect(lambda checked=False, v=var_name: self._remove_variable(v))
+                self.var_table.setCellWidget(row, 2, remove_btn)
+                
+            except ValueError as e:
+                logger.error(f"Error adding variable {var_name}: {e}")
+                continue
+        
+        logger.info(f"Added all {len(sorted_ranges)} ranges as variables")
     
     def _remove_variable(self, var_name: str):
         """

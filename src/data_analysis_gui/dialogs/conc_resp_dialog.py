@@ -387,7 +387,7 @@ class ConcentrationResponseDialog(QDialog):
         """Update available ranges in calculator widget using Condition field names."""
         ranges = self.range_table.get_all_ranges()
         
-        # Build list of (range_id, display_name) for calculator
+        # Build list of (range_id, display_name, start_time) for calculator
         ranges_info = []
         
         # Iterate through actual table rows, not filtered ranges
@@ -431,7 +431,8 @@ class ConcentrationResponseDialog(QDialog):
                     # Fallback if widget not found
                     display = f"{range_obj.range_id} ({range_obj.start_time:.1f}-{range_obj.end_time:.1f}s)"
                 
-                ranges_info.append((range_id, display))
+                # Add tuple with start_time for sorting
+                ranges_info.append((range_id, display, range_obj.start_time))
         
         self.calculator_widget.set_available_ranges(ranges_info)
         logger.debug(f"Updated calculator with {len(ranges_info)} range(s)")
