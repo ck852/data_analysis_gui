@@ -27,9 +27,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from data_analysis_gui.config.themes import (
-    apply_modern_theme, style_button, style_label, style_group_box,
-    style_table_widget, MODERN_COLORS
+from data_analysis_gui.config.compact_themes import (
+    MODERN_COLORS,
+    COMPACT_HEIGHT,
+    apply_compact_theme,
+    style_table,
+    create_button,
+    style_label,
+    style_group_box,
 )
 
 from data_analysis_gui.widgets.collapsible_group_box import CollapsibleGroupBox
@@ -114,10 +119,7 @@ class ConcentrationResponseDialog(QDialog):
         self.range_creator.setup_buttons()
 
         # Apply theme to dialog and all child widgets
-        apply_modern_theme(self)
-        
-        # Apply enhanced styling to tables
-        self._apply_enhanced_table_styling()
+        apply_compact_theme(self)
 
     def _setup_window_geometry(self):
         """Set up window size and position dynamically based on screen size."""
@@ -154,15 +156,12 @@ class ConcentrationResponseDialog(QDialog):
         top_bar_layout.setSpacing(6)
         top_bar_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.load_btn = QPushButton("📂 Open CSV")
-        self.load_btn.setFixedWidth(110)
-        self.load_btn.setFixedHeight(24)
-        style_button(self.load_btn, "secondary")
+        self.load_btn = create_button("📂 Open CSV", "secondary", width=110, height=COMPACT_HEIGHT)
         top_bar_layout.addWidget(self.load_btn)
         
         self.status_label = QLabel("Load a CSV file to begin")
         style_label(self.status_label, "muted")
-        self.status_label.setMaximumHeight(24)
+        self.status_label.setMaximumHeight(COMPACT_HEIGHT)
         top_bar_layout.addWidget(self.status_label, stretch=1)
         
         main_layout.addLayout(top_bar_layout)
@@ -173,7 +172,6 @@ class ConcentrationResponseDialog(QDialog):
         
         # Left panel
         left_panel = self._create_left_panel()
-        #left_panel.setMaximumWidth(550)
         main_splitter.addWidget(left_panel)
         
         # Right panel (plot)
@@ -205,17 +203,6 @@ class ConcentrationResponseDialog(QDialog):
         
         return panel
 
-    
-    # Expand later - for building a dose response dataset from multiple files
-    # def _open_dataset_builder(self):
-    #     """Open the dataset builder dialog."""
-    #     from data_analysis_gui.dialogs.conc_dataset_dialog import ConcentrationDatasetDialog
-        
-    #     dataset_dialog = ConcentrationDatasetDialog(self)
-    #     dataset_dialog.exec()
-        
-    #     logger.info("Opened dataset builder dialog")
-
     def _create_ranges_group(self) -> CollapsibleGroupBox:
         """Create ranges section with tabs for normal ranges and calculator."""
         group = CollapsibleGroupBox("Analysis Configuration")
@@ -234,7 +221,6 @@ class ConcentrationResponseDialog(QDialog):
         ranges_layout.setSpacing(0)
         
         self.range_table = ConcentrationRangeTable()
-        #self.range_table.setMaximumHeight(280)
         ranges_layout.addWidget(self.range_table, stretch=1)
         
         self.config_tabs.addTab(ranges_tab, "Plot Ranges")
@@ -258,21 +244,15 @@ class ConcentrationResponseDialog(QDialog):
         # Button layout
         btn_layout = QHBoxLayout()
         
-        self.run_analysis_btn = QPushButton("▶ Run Analysis")
-        self.run_analysis_btn.setFixedHeight(24)
-        style_button(self.run_analysis_btn, "primary")
+        self.run_analysis_btn = create_button("▶ Run Analysis", "primary", height=COMPACT_HEIGHT)
         btn_layout.addWidget(self.run_analysis_btn)
         
-        self.copy_selected_btn = QPushButton("Copy Selected")
+        self.copy_selected_btn = create_button("Copy Selected", "secondary", height=COMPACT_HEIGHT)
         self.copy_selected_btn.setEnabled(False)
-        self.copy_selected_btn.setFixedHeight(24)
-        style_button(self.copy_selected_btn, "secondary")
         btn_layout.addWidget(self.copy_selected_btn)
         
-        self.export_btn = QPushButton("Export CSV(s)")
+        self.export_btn = create_button("Export CSV(s)", "secondary", height=COMPACT_HEIGHT)
         self.export_btn.setEnabled(False)
-        self.export_btn.setFixedHeight(24)
-        style_button(self.export_btn, "secondary")
         btn_layout.addWidget(self.export_btn)
         
         btn_layout.addStretch()
@@ -286,14 +266,16 @@ class ConcentrationResponseDialog(QDialog):
         ])
         self.results_table.setMaximumHeight(250)
         
-        # Configure column sizing - all stretch except BG column
+        # Configure column sizing
         header = self.results_table.horizontalHeader()
         for i in range(6):
             if i == 4:  # BG column
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
-                self.results_table.setColumnWidth(i, 60)  # Narrow width for BG column
+                self.results_table.setColumnWidth(i, 60)
             else:
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        
+        style_table(self.results_table)
         
         layout.addWidget(self.results_table)
         
@@ -341,70 +323,6 @@ class ConcentrationResponseDialog(QDialog):
         layout.addWidget(self.plot_widget)
         
         return group
-    
-    def _apply_enhanced_table_styling(self):
-        """Apply enhanced styling to both tables for better scientific data display."""
-        
-        # Base styling from themes.py
-        style_table_widget(self.range_table.table)
-        style_table_widget(self.results_table)
-        
-        # Enhanced QSS for scientific tables with proper header styling
-        enhanced_style = f"""
-            QTableWidget {{
-                border: 1px solid {MODERN_COLORS['border']};
-                border-radius: 3px;
-                background-color: {MODERN_COLORS['background']};
-                alternate-background-color: {MODERN_COLORS['surface']};
-                gridline-color: {MODERN_COLORS['border']};
-                font-size: 10pt;
-            }}
-            
-            QTableWidget::item {{
-                padding: 6px 8px;
-                border: none;
-            }}
-            
-            QTableWidget::item:selected {{
-                background-color: {MODERN_COLORS['selected']};
-                color: {MODERN_COLORS['text']};
-            }}
-            
-            QTableWidget::item:hover {{
-                background-color: {MODERN_COLORS['hover']};
-            }}
-            
-            QHeaderView::section {{
-                background-color: {MODERN_COLORS['surface']};
-                color: {MODERN_COLORS['text']};
-                border: none;
-                border-right: 1px solid {MODERN_COLORS['border']};
-                border-bottom: 2px solid {MODERN_COLORS['border']};
-                padding: 8px 8px;
-                font-weight: 600;
-                font-size: 9pt;
-                text-align: center;
-            }}
-            
-            QHeaderView::section:last {{
-                border-right: none;
-            }}
-            
-            QHeaderView::section:hover {{
-                background-color: {MODERN_COLORS['hover']};
-            }}
-        """
-        
-        self.range_table.table.setStyleSheet(enhanced_style)
-        self.results_table.setStyleSheet(enhanced_style)
-        
-        # Enable alternating row colors
-        self.range_table.table.setAlternatingRowColors(True)
-        self.results_table.setAlternatingRowColors(True)
-        
-        # Set selection behavior
-        self.results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
-        self.results_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
     
     def _connect_signals(self):
         """Connect all signals to their handlers."""
@@ -930,55 +848,6 @@ class ConcentrationResponseDialog(QDialog):
         
         # Pass other events to parent
         super().keyPressEvent(event)
-
-    def _display_calculator_results(self, results_df):
-        """Display calculator results in results table."""
-        self.results_table.setRowCount(0)
-        
-        if results_df.empty:
-            return
-        
-        # Get variable columns (all except File, Data Trace, Result)
-        var_cols = [col for col in results_df.columns 
-                    if col not in ['File', 'Data Trace', 'Result']]
-        
-        # Reconfigure table for calculator output
-        columns = ['File', 'Data Trace'] + var_cols + ['Result']
-        self.results_table.setColumnCount(len(columns))
-        self.results_table.setHorizontalHeaderLabels(columns)
-        
-        # Populate table
-        for idx, row_data in results_df.iterrows():
-            row_pos = self.results_table.rowCount()
-            self.results_table.insertRow(row_pos)
-            
-            for col_idx, col_name in enumerate(columns):
-                value = row_data[col_name]
-                
-                # Format numeric values
-                if isinstance(value, float) and not pd.isna(value):
-                    text = f"{value:.4f}"
-                else:
-                    text = str(value)
-                
-                item = QTableWidgetItem(text)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                
-                # Right-align numeric columns
-                if col_name in var_cols or col_name == 'Result':
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                
-                self.results_table.setItem(row_pos, col_idx, item)
-        
-        # Resize columns
-        header = self.results_table.horizontalHeader()
-        for i in range(len(columns)):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-        
-        self.copy_selected_btn.setEnabled(True)
-        logger.info(f"Displayed {len(results_df)} calculator results")
     
     def _update_summary_statistics(self):
         """Update the summary statistics label with key metrics."""

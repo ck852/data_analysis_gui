@@ -19,10 +19,12 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
-from data_analysis_gui.config.themes import apply_modern_theme, style_table_widget
 from data_analysis_gui.config.compact_themes import (
-    COMPACT_HEIGHT, style_compact_input, style_compact_combo, 
-    style_compact_button, align_center
+    style_table,
+    style_input,
+    style_combo,
+    style_button,
+    align_center
 )
 from data_analysis_gui.widgets.custom_inputs import (
     SelectAllLineEdit, NoScrollComboBox, PositiveFloatLineEdit
@@ -48,9 +50,6 @@ class ConcentrationRangeTable(QWidget):
     range_added = Signal(str, float, float, bool)  # range_id, start, end, is_bg
     range_removed = Signal(str)  # range_id
     range_modified = Signal(int, object)  # row, AnalysisRange object
-    
-    # UI Constants
-    ROW_HEIGHT = 30  # Increased to accommodate 24px widgets with padding
     
     def __init__(self, parent=None):
         """
@@ -105,6 +104,8 @@ class ConcentrationRangeTable(QWidget):
         
         self.table.verticalHeader().setVisible(False)
         
+        style_table(self.table)
+        
         layout.addWidget(self.table, stretch=1)
         
         # Bottom button layout
@@ -113,18 +114,15 @@ class ConcentrationRangeTable(QWidget):
         # Store button references as instance variables
         self.add_range_btn = QPushButton("Add Range")
         self.add_range_btn.clicked.connect(lambda: self.add_range_row(is_background=False))
-        self.add_range_btn.setFixedHeight(22)
-        style_compact_button(self.add_range_btn)
+        style_button(self.add_range_btn, height=22)
         
         self.add_bg_range_btn = QPushButton("Add Background Range")
         self.add_bg_range_btn.clicked.connect(lambda: self.add_range_row(is_background=True))
-        self.add_bg_range_btn.setFixedHeight(22)
-        style_compact_button(self.add_bg_range_btn)
+        style_button(self.add_bg_range_btn, height=22)
 
         add_paired_bg_btn = QPushButton("Add Paired Background Range")
         add_paired_bg_btn.clicked.connect(self.add_paired_background_range)
-        add_paired_bg_btn.setFixedHeight(22)
-        style_compact_button(add_paired_bg_btn)
+        style_button(add_paired_bg_btn, height=22)
         
         bottom_layout.addWidget(self.add_range_btn)
         bottom_layout.addWidget(self.add_bg_range_btn)
@@ -132,10 +130,6 @@ class ConcentrationRangeTable(QWidget):
         bottom_layout.addStretch()
         
         layout.addLayout(bottom_layout)
-        
-        # Apply theme
-        apply_modern_theme(self.table)
-        style_table_widget(self.table)
     
     def add_range_row_with_times(self, start_time: float, end_time: float, is_background: bool = False):
         """
@@ -148,10 +142,6 @@ class ConcentrationRangeTable(QWidget):
         """
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setRowHeight(row, COMPACT_HEIGHT)
-        
-        # Get table font for consistency
-        table_font = self.table.font()
         
         # Generate internal ID
         if is_background:
@@ -163,30 +153,26 @@ class ConcentrationRangeTable(QWidget):
         
         # Remove button (column 0) - centered
         remove_btn = QPushButton("✖", self.table)
-        remove_btn.setFont(table_font)
+        remove_btn.setFixedWidth(20)
         remove_btn.clicked.connect(self._remove_row_by_button)
-        style_compact_button(remove_btn, width=20, height=20)
+        style_button(remove_btn, height=20)
         
         # Hidden ID label (column 1)
         id_label = QLabel(internal_id, self.table)
-        id_label.setFont(table_font)
         
         # Condition field (column 2)
         if is_background:
             condition_widget = QLabel(display_name, self.table)
-            condition_widget.setFont(table_font)
             condition_widget.setStyleSheet("QLabel { padding: 2px 4px; }")
         else:
             condition_widget = SelectAllLineEdit(self.table)
-            condition_widget.setFont(table_font)
             condition_widget.setText("")
-            style_compact_input(condition_widget)
+            style_input(condition_widget)
             condition_widget.textChanged.connect(self._on_range_value_changed)
         
         # Start time field (column 3)
         start_edit = PositiveFloatLineEdit(self.table)
-        start_edit.setFont(table_font)
-        style_compact_input(start_edit, width=65)
+        style_input(start_edit)
         start_edit.blockSignals(True)
         start_edit.setValue(start_time)
         start_edit.blockSignals(False)
@@ -194,8 +180,7 @@ class ConcentrationRangeTable(QWidget):
         
         # End time field (column 4)
         end_edit = PositiveFloatLineEdit(self.table)
-        end_edit.setFont(table_font)
-        style_compact_input(end_edit, width=65)
+        style_input(end_edit)
         end_edit.blockSignals(True)
         end_edit.setValue(end_time)
         end_edit.blockSignals(False)
@@ -203,23 +188,20 @@ class ConcentrationRangeTable(QWidget):
         
         # Analysis type combo (column 5)
         analysis_combo = NoScrollComboBox(self.table)
-        analysis_combo.setFont(table_font)
         analysis_combo.addItems(["Average", "Peak"])
-        style_compact_combo(analysis_combo, width=85)
+        style_combo(analysis_combo)
         analysis_combo.currentTextChanged.connect(self._on_range_value_changed)
         
         # Background checkbox (column 6) - centered
         bg_checkbox = QCheckBox(self.table)
-        bg_checkbox.setFont(table_font)
         bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
         
         # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
-        paired_combo.setFont(table_font)
         paired_combo.addItem("None")
-        style_compact_combo(paired_combo, width=85)
+        style_combo(paired_combo)
         paired_combo.currentTextChanged.connect(self._on_range_value_changed)
         
         # Add widgets to table - center button and checkbox only
@@ -295,10 +277,6 @@ class ConcentrationRangeTable(QWidget):
         
         row = self.table.rowCount()
         self.table.insertRow(row)
-        self.table.setRowHeight(row, COMPACT_HEIGHT)
-        
-        # Get table font for consistency
-        table_font = self.table.font()
         
         # Generate internal ID
         if is_background:
@@ -310,30 +288,26 @@ class ConcentrationRangeTable(QWidget):
         
         # Remove button (column 0) - centered
         remove_btn = QPushButton("✖", self.table)
-        remove_btn.setFont(table_font)
+        remove_btn.setFixedWidth(20)
         remove_btn.clicked.connect(self._remove_row_by_button)
-        style_compact_button(remove_btn, width=20, height=20)
+        style_button(remove_btn, height=20)
 
         # Hidden ID label (column 1)
         id_label = QLabel(internal_id, self.table)
-        id_label.setFont(table_font)
         
         # Condition field (column 2)
         if is_background:
             condition_widget = QLabel(display_name, self.table)
-            condition_widget.setFont(table_font)
             condition_widget.setStyleSheet("QLabel { padding: 2px 4px; }")
         else:
             condition_widget = SelectAllLineEdit(self.table)
-            condition_widget.setFont(table_font)
             condition_widget.setText("")
-            style_compact_input(condition_widget)
+            style_input(condition_widget)
             condition_widget.textChanged.connect(self._on_range_value_changed)
         
         # Start time field (column 3)
         start_edit = PositiveFloatLineEdit(self.table)
-        start_edit.setFont(table_font)
-        style_compact_input(start_edit, width=65)
+        style_input(start_edit)
         start_edit.blockSignals(True)
         start_edit.setValue(new_start_time)
         start_edit.blockSignals(False)
@@ -341,8 +315,7 @@ class ConcentrationRangeTable(QWidget):
         
         # End time field (column 4)
         end_edit = PositiveFloatLineEdit(self.table)
-        end_edit.setFont(table_font)
-        style_compact_input(end_edit, width=65)
+        style_input(end_edit)
         end_edit.blockSignals(True)
         end_edit.setValue(new_end_time)
         end_edit.blockSignals(False)
@@ -350,23 +323,20 @@ class ConcentrationRangeTable(QWidget):
         
         # Analysis type combo (column 5)
         analysis_combo = NoScrollComboBox(self.table)
-        analysis_combo.setFont(table_font)
         analysis_combo.addItems(["Average", "Peak"])
-        style_compact_combo(analysis_combo, width=85)
+        style_combo(analysis_combo)
         analysis_combo.currentTextChanged.connect(self._on_range_value_changed)
         
         # Background checkbox (column 6) - centered
         bg_checkbox = QCheckBox(self.table)
-        bg_checkbox.setFont(table_font)
         bg_checkbox.blockSignals(True)
         if is_background:
             bg_checkbox.setChecked(True)
         
         # Paired background combo (column 7)
         paired_combo = NoScrollComboBox(self.table)
-        paired_combo.setFont(table_font)
         paired_combo.addItem("None")
-        style_compact_combo(paired_combo, width=85)
+        style_combo(paired_combo)
         paired_combo.currentTextChanged.connect(self._on_range_value_changed)
         
         # Add widgets to table - center button and checkbox only

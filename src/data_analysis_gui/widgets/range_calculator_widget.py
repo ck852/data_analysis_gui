@@ -10,13 +10,18 @@ License: MIT (see LICENSE file for details)
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
     QPushButton, QLineEdit, QComboBox, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QMessageBox
+    QTableWidgetItem, QHeaderView, QMessageBox, QSplitter
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 
-from data_analysis_gui.config.themes import (
-    style_button, style_label, style_group_box, MODERN_COLORS
+from data_analysis_gui.config.compact_themes import (
+    style_button,
+    style_label,
+    style_group_box,
+    style_input,
+    style_combo,
+    style_table,
+    create_button,
 )
 from data_analysis_gui.services.range_calculator_service import RangeCalculatorService
 from data_analysis_gui.config.logging import get_logger
@@ -47,8 +52,6 @@ class RangeCalculatorWidget(QWidget):
     
     def _init_ui(self):
         """Initialize UI components."""
-        from PySide6.QtWidgets import QSplitter
-        
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -76,6 +79,7 @@ class RangeCalculatorWidget(QWidget):
         self.var_name_input = QLineEdit()
         self.var_name_input.setPlaceholderText("Variable (e.g., x, baseline, pll)")
         self.var_name_input.setMaximumWidth(180)
+        style_input(self.var_name_input)
         add_var_layout.addWidget(QLabel("Name:"))
         add_var_layout.addWidget(self.var_name_input)
         
@@ -83,11 +87,11 @@ class RangeCalculatorWidget(QWidget):
         
         self.range_selector = QComboBox()
         self.range_selector.setMinimumWidth(150)
+        style_combo(self.range_selector)
         add_var_layout.addWidget(QLabel("Range:"))
         add_var_layout.addWidget(self.range_selector)
         
-        self.add_var_btn = QPushButton("+ Add Variable")
-        style_button(self.add_var_btn, "secondary")
+        self.add_var_btn = create_button("+ Add Variable", "secondary")
         add_var_layout.addWidget(self.add_var_btn)
         
         add_var_layout.addStretch()
@@ -106,6 +110,8 @@ class RangeCalculatorWidget(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         self.var_table.setColumnWidth(2, 80)
         
+        style_table(self.var_table)
+        
         var_layout.addWidget(self.var_table)
         main_splitter.addWidget(var_group)
         
@@ -117,6 +123,7 @@ class RangeCalculatorWidget(QWidget):
         eq_input_layout = QHBoxLayout()
         self.equation_input = QLineEdit()
         self.equation_input.setPlaceholderText("e.g., 100 * (d - p) / (x - p)")
+        style_input(self.equation_input)
         eq_input_layout.addWidget(QLabel("Formula:"))
         eq_input_layout.addWidget(self.equation_input)
         eq_layout.addLayout(eq_input_layout)
@@ -127,18 +134,17 @@ class RangeCalculatorWidget(QWidget):
         self.statistic_combo = QComboBox()
         self.statistic_combo.addItems(['mean', 'median', 'max', 'min', 'last'])
         self.statistic_combo.setMaximumWidth(120)
+        style_combo(self.statistic_combo)
         stat_layout.addWidget(self.statistic_combo)
         stat_layout.addStretch()
         eq_layout.addLayout(stat_layout)
         
         # Preview and validate
         preview_layout = QHBoxLayout()
-        self.validate_btn = QPushButton("✓ Validate Equation")
-        style_button(self.validate_btn, "primary")
+        self.validate_btn = create_button("✓ Validate Equation", "primary")
         preview_layout.addWidget(self.validate_btn)
         
-        self.clear_btn = QPushButton("Clear All")
-        style_button(self.clear_btn, "secondary")
+        self.clear_btn = create_button("Clear All", "secondary")
         preview_layout.addWidget(self.clear_btn)
         
         preview_layout.addStretch()
@@ -224,9 +230,8 @@ class RangeCalculatorWidget(QWidget):
             self.var_table.setItem(row, 1, QTableWidgetItem(range_display))
             
             # Add remove button
-            remove_btn = QPushButton("Remove")
+            remove_btn = create_button("Remove", "secondary")
             remove_btn.setProperty("var_name", var_name)
-            style_button(remove_btn, "secondary")
             remove_btn.clicked.connect(lambda: self._remove_variable(var_name))
             self.var_table.setCellWidget(row, 2, remove_btn)
             
