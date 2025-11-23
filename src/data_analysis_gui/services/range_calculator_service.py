@@ -31,8 +31,8 @@ class RangeCalculatorService:
     Example workflow:
         >>> calc = RangeCalculatorService()
         >>> calc.assign_variable('x', 'Range_1')  # baseline
-        >>> calc.assign_variable('p', 'Range_2')  # PLL
-        >>> calc.assign_variable('d', 'Range_3')  # diC8
+        >>> calc.assign_variable('p', 'Range_2')  # Treatment 1
+        >>> calc.assign_variable('d', 'Range_3')  # Treatment 2
         >>> calc.set_equation('100 * (d - p) / (x - p)')
         >>> results = calc.calculate_for_traces(df, time_col, data_cols, ranges)
     """

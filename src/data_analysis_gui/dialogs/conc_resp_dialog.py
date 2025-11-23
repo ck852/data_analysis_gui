@@ -244,7 +244,7 @@ class ConcentrationResponseDialog(QDialog):
         # Button layout
         btn_layout = QHBoxLayout()
         
-        self.run_analysis_btn = create_button("▶ Run Analysis", "primary", height=COMPACT_HEIGHT)
+        self.run_analysis_btn = create_button("Run Analysis", "primary", height=COMPACT_HEIGHT)
         btn_layout.addWidget(self.run_analysis_btn)
         
         self.copy_selected_btn = create_button("Copy Selected", "secondary", height=COMPACT_HEIGHT)
@@ -346,11 +346,42 @@ class ConcentrationResponseDialog(QDialog):
 
         # Calculator signals
         self.calculator_widget.calculator_configured.connect(self._on_calculator_ready)
+        self.calculator_widget.validation_state_changed.connect(self._update_run_button_state)  # NEW
         self.range_table.range_modified.connect(self._update_calculator_ranges)
         
         # Update calculator when ranges change
         self.range_table.range_added.connect(self._update_calculator_ranges)
         self.range_table.range_removed.connect(self._update_calculator_ranges)
+        
+        # Tab switching
+        self.config_tabs.currentChanged.connect(self._update_run_button_state)
+
+    def _update_run_button_state(self):
+        """Update Run Analysis button state based on active tab and validation."""
+        # Check if data is loaded
+        if self.data_df is None:
+            self.run_analysis_btn.setEnabled(False)
+            return
+        
+        # Check if ranges exist
+        if self.range_table.table.rowCount() == 0:
+            self.run_analysis_btn.setEnabled(False)
+            return
+        
+        # Check active tab
+        current_tab = self.config_tabs.currentIndex()
+        
+        if current_tab == 0:
+            # Plot Ranges tab - enable if we have data and ranges
+            self.run_analysis_btn.setEnabled(True)
+        else:
+            # Calculator tab - only enable if validated
+            self.run_analysis_btn.setEnabled(self.calculator_widget.is_validated())
+        
+        logger.debug(
+            f"Run button state updated: tab={current_tab}, "
+            f"enabled={self.run_analysis_btn.isEnabled()}"
+        )
 
     def _update_calculator_ranges(self):
         """Update available ranges in calculator widget using Condition field names."""
