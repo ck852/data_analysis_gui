@@ -166,47 +166,65 @@ def main():
     window = MainWindow()
     window.setWindowIcon(app_icon)  # Set explicitly on window
 
-    # Ensure we are not starting maximized
-    window.setWindowState(Qt.WindowState.WindowNoState)
-
-    # Calculate appropriate window size
+    # Move to primary screen before showing
+    #--------------------------------------
+    # Comment this section out to enable program to initialize on secondary display
     screen = app.primaryScreen()
     if screen:
-        avail = screen.availableGeometry()
-
-        # Get the window's size hints to respect minimum sizes
-        min_size = window.minimumSizeHint()
-        if not min_size.isValid():
-            min_size = window.sizeHint()
-
-        # Use 85% of available space, but respect minimums
-        target_w = int(avail.width() * 0.85)
-        target_h = int(avail.height() * 0.85)
-
-        # Ensure we don't go below minimum sizes
-        if min_size.isValid():
-            target_w = max(target_w, min_size.width())
-            target_h = max(target_h, min_size.height())
-
-        # Also ensure we don't exceed available space
-        max_w = avail.width() - 50
-        max_h = avail.height() - 100
-
-        final_w = min(target_w, max_w)
-        final_h = min(target_h, max_h)
-
-        # Set size and center
-        window.resize(final_w, final_h)
-
-        frame = window.frameGeometry()
-        frame.moveCenter(avail.center())
-        window.move(frame.topLeft())
-    else:
-        # Fallback size
-        window.resize(1200, 800)
+        window.move(screen.availableGeometry().topLeft())
+    #--------------------------------------
 
     window.show()
     logger.info("Main window displayed")
+
+    # Maximize to fill screen (excluding taskbar)
+    window.showMaximized()
+
+#------------------------------------------------------
+    ## For non-max MainWindow startup
+
+    # # Ensure we are not starting maximized
+    # window.setWindowState(Qt.WindowState.WindowNoState)
+
+    # # Calculate appropriate window size
+    # screen = app.primaryScreen()
+    # if screen:
+    #     avail = screen.availableGeometry()
+
+    #     # Get the window's size hints to respect minimum sizes
+    #     min_size = window.minimumSizeHint()
+    #     if not min_size.isValid():
+    #         min_size = window.sizeHint()
+
+    #     # Use 85% of available space, but respect minimums
+    #     target_w = int(avail.width() * 0.85)
+    #     target_h = int(avail.height() * 0.85)
+
+    #     # Ensure we don't go below minimum sizes
+    #     if min_size.isValid():
+    #         target_w = max(target_w, min_size.width())
+    #         target_h = max(target_h, min_size.height())
+
+    #     # Also ensure we don't exceed available space
+    #     max_w = avail.width() - 50
+    #     max_h = avail.height() - 100
+
+    #     final_w = min(target_w, max_w)
+    #     final_h = min(target_h, max_h)
+
+    #     # Set size and center
+    #     window.resize(final_w, final_h)
+
+    #     frame = window.frameGeometry()
+    #     frame.moveCenter(avail.center())
+    #     window.move(frame.topLeft())
+    # else:
+    #     # Fallback size
+    #     window.resize(1200, 800)
+
+    # window.show()
+    # logger.info("Main window displayed")
+#------------------------------------------------------
 
     # Process events to ensure geometry is applied
     app.processEvents()
