@@ -127,20 +127,20 @@ class ConcentrationResponseDialog(QDialog):
         avail = screen.availableGeometry()
         
         # Use 85% to leave room for window decorations and taskbar
-        target_width = int(avail.width() * 0.85)
-        target_height = int(avail.height() * 0.85)
+        # target_width = int(avail.width() * 0.85)
+        # target_height = int(avail.height() * 0.85)
         
         # Set size WITHOUT maximum constraint (let maximize button work)
-        self.resize(target_width, target_height)
+        # self.resize(target_width, target_height)
         
         # CRITICAL: Set size policy to prevent layout from resizing dialog
         from PySide6.QtWidgets import QSizePolicy
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         
         # Center the window
-        fg = self.frameGeometry()
-        fg.moveCenter(avail.center())
-        self.move(fg.topLeft())
+        # fg = self.frameGeometry()
+        # fg.moveCenter(avail.center())
+        # self.move(fg.topLeft())
     
     def _init_ui(self):
         """Initialize the user interface."""

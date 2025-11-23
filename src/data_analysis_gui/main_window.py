@@ -280,9 +280,9 @@ class MainWindow(QMainWindow):
 
     def _open_concentration_response(self):
         """Launch concentration-response curve analysis dialog."""
-
         dialog = ConcentrationResponseDialog(self)
-        dialog.exec()
+        dialog.showMaximized()
+        dialog.show()  # Non-modal 
 
     def _background_subtraction(self):
         """
