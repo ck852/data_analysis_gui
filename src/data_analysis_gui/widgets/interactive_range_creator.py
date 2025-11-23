@@ -14,7 +14,11 @@ from PySide6.QtWidgets import QPushButton
 from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 
-from data_analysis_gui.config.compact_themes import style_button, style_label
+from data_analysis_gui.config.compact_themes import (
+    style_button, style_label, MODERN_COLORS, COMPACT_HEIGHT,
+    BASE_FONT, FONT_SIZES, COMPACT_PADDING, COMPACT_BORDER_RADIUS
+)
+
 
 from data_analysis_gui.config.pyqtgraph_style import (
     create_crosshair_cursor,
@@ -197,9 +201,29 @@ class InteractiveRangeCreator:
         
         # Update button appearance to show cancellation option
         active_button.setText("✖ Cancel")
-        style_button(active_button, "warning")
-        
-        logger.info(f"Entered range creation mode (background={is_background})")
+        active_button.setFixedHeight(COMPACT_HEIGHT)
+        active_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {MODERN_COLORS['warning']};
+                color: {MODERN_COLORS['text']};
+                border: none;
+                border-radius: {COMPACT_BORDER_RADIUS};
+                padding: {COMPACT_PADDING};
+                {BASE_FONT}
+                font-size: {FONT_SIZES['normal']};
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: #E0A800;
+            }}
+            QPushButton:pressed {{
+                background-color: #E0A800;
+            }}
+            QPushButton:disabled {{
+                background-color: {MODERN_COLORS['disabled']};
+                color: {MODERN_COLORS['text_muted']};
+            }}
+        """)
     
     def cancel_mode(self):
         """Cancel range creation mode and restore normal state."""
@@ -410,14 +434,40 @@ class InteractiveRangeCreator:
     
     def _restore_button_appearance(self):
         """Restore all add range buttons to normal appearance."""
+        secondary_style = f"""
+            QPushButton {{
+                background-color: {MODERN_COLORS['surface']};
+                color: {MODERN_COLORS['text']};
+                border: 1px solid {MODERN_COLORS['border']};
+                border-radius: {COMPACT_BORDER_RADIUS};
+                padding: {COMPACT_PADDING};
+                {BASE_FONT}
+                font-size: {FONT_SIZES['normal']};
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {MODERN_COLORS['hover']};
+            }}
+            QPushButton:pressed {{
+                background-color: {MODERN_COLORS['hover']};
+            }}
+            QPushButton:disabled {{
+                background-color: {MODERN_COLORS['disabled']};
+                color: {MODERN_COLORS['text_muted']};
+            }}
+        """
+        
         if self.add_range_btn:
             self.add_range_btn.setText("Add Range")
-            style_button(self.add_range_btn, "secondary")
+            self.add_range_btn.setFixedHeight(COMPACT_HEIGHT)
+            self.add_range_btn.setStyleSheet(secondary_style)
         
         if self.add_bg_range_btn:
             self.add_bg_range_btn.setText("Add Background Range")
-            style_button(self.add_bg_range_btn, "secondary")
+            self.add_bg_range_btn.setFixedHeight(COMPACT_HEIGHT)
+            self.add_bg_range_btn.setStyleSheet(secondary_style)
         
         if self.add_paired_bg_btn:
             self.add_paired_bg_btn.setText("Add Paired Background Range")
-            style_button(self.add_paired_bg_btn, "secondary")
+            self.add_paired_bg_btn.setFixedHeight(COMPACT_HEIGHT)
+            self.add_paired_bg_btn.setStyleSheet(secondary_style)
