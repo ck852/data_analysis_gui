@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QPushButton
 from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 
-from data_analysis_gui.config.themes import style_button, style_label
+from data_analysis_gui.config.compact_themes import style_button, style_label
 
 from data_analysis_gui.config.pyqtgraph_style import (
     create_crosshair_cursor,

@@ -346,6 +346,7 @@ class ConcentrationResponseDialog(QDialog):
 
         # Calculator signals
         self.calculator_widget.calculator_configured.connect(self._on_calculator_ready)
+        self.range_table.range_modified.connect(self._update_calculator_ranges)
         
         # Update calculator when ranges change
         self.range_table.range_added.connect(self._update_calculator_ranges)
