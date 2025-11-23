@@ -27,6 +27,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
+from data_analysis_gui.core.session_settings import (
+    save_conc_resp_settings,
+    load_conc_resp_settings
+)
+
 from data_analysis_gui.config.compact_themes import (
     MODERN_COLORS,
     COMPACT_HEIGHT,
@@ -115,6 +120,11 @@ class ConcentrationResponseDialog(QDialog):
         # Connect signals (including matplotlib events)
         self._connect_signals()
 
+        # Load saved settings
+        saved_settings = load_conc_resp_settings()
+        if saved_settings:
+            self._apply_settings_dict(saved_settings)
+
         # Setup button handlers
         self.range_creator.setup_buttons()
 
@@ -168,6 +178,7 @@ class ConcentrationResponseDialog(QDialog):
         
         # Main splitter: left panel | plot
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter = main_splitter
         main_layout.addWidget(main_splitter)
         
         # Left panel
@@ -355,6 +366,14 @@ class ConcentrationResponseDialog(QDialog):
         
         # Tab switching
         self.config_tabs.currentChanged.connect(self._update_run_button_state)
+
+        # Auto-save on splitter move
+        self.main_splitter.splitterMoved.connect(self._auto_save_settings)
+
+        # Auto-save after calculator validation
+        self.calculator_widget.validation_state_changed.connect(
+            lambda is_valid: self._auto_save_settings() if is_valid else None
+        )
 
     def _update_run_button_state(self):
         """Update Run Analysis button state based on active tab and validation."""
@@ -782,6 +801,64 @@ class ConcentrationResponseDialog(QDialog):
         
         self.copy_selected_btn.setEnabled(True)
         logger.info(f"Displayed {len(results_df)} calculator results")
+
+    def _get_settings_dict(self) -> dict:
+        """Extract dialog settings for saving."""
+        settings = {}
+        
+        # Save splitter proportion
+        if hasattr(self, "main_splitter"):
+            sizes = self.main_splitter.sizes()
+            if len(sizes) == 2 and sum(sizes) > 0:
+                total_width = sum(sizes)
+                proportion = sizes[0] / total_width
+                settings["splitter_proportion"] = proportion
+        
+        # Save calculator equation and statistic
+        settings["calculator_equation"] = self.calculator_widget.equation_input.text().strip()
+        settings["calculator_statistic"] = self.calculator_widget.statistic_combo.currentText()
+        
+        return settings
+
+
+    def _apply_settings_dict(self, settings: dict):
+        """Apply loaded settings to dialog."""
+        # Restore splitter proportion
+        if "splitter_proportion" in settings and hasattr(self, "main_splitter"):
+            try:
+                proportion = settings["splitter_proportion"]
+                if 0.1 <= proportion <= 0.9:
+                    current_sizes = self.main_splitter.sizes()
+                    if len(current_sizes) == 2:
+                        total_width = sum(current_sizes)
+                        first_size = int(total_width * proportion)
+                        second_size = total_width - first_size
+                        self.main_splitter.setSizes([first_size, second_size])
+            except Exception as e:
+                logger.warning(f"Failed to restore splitter proportion: {e}")
+        
+        # Restore calculator equation (without validating)
+        if "calculator_equation" in settings:
+            equation = settings["calculator_equation"]
+            if equation:
+                self.calculator_widget.equation_input.setText(equation)
+        
+        # Restore calculator statistic
+        if "calculator_statistic" in settings:
+            statistic = settings["calculator_statistic"]
+            idx = self.calculator_widget.statistic_combo.findText(statistic)
+            if idx >= 0:
+                self.calculator_widget.statistic_combo.setCurrentIndex(idx)
+
+
+    def _auto_save_settings(self):
+        """Auto-save dialog settings."""
+        try:
+            settings = self._get_settings_dict()
+            save_conc_resp_settings(settings)
+            logger.debug("Auto-saved conc_resp dialog settings")
+        except Exception as e:
+            logger.warning(f"Failed to auto-save conc_resp settings: {e}")
 
     # ========================================================================
     # Analysis Execution
