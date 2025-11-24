@@ -105,7 +105,7 @@ class ConcentrationResponseDialog(QDialog):
         
         # Window setup - use dynamic sizing like batch_results_window
         self.setWindowTitle("Dose-Response Analysis")
-        self._setup_window_geometry()
+        #self._setup_window_geometry()
 
         # Initialize UI
         self._init_ui()
@@ -120,37 +120,32 @@ class ConcentrationResponseDialog(QDialog):
         # Connect signals (including matplotlib events)
         self._connect_signals()
 
-        # Load saved settings
-        saved_settings = load_conc_resp_settings()
-        if saved_settings:
-            self._apply_settings_dict(saved_settings)
-
         # Setup button handlers
         self.range_creator.setup_buttons()
 
         # Apply theme to dialog and all child widgets
         apply_compact_theme(self)
 
-    def _setup_window_geometry(self):
-        """Set up window size and position dynamically based on screen size."""
-        screen = self.screen() or QApplication.primaryScreen()
-        avail = screen.availableGeometry()
+    # def _setup_window_geometry(self):
+    #     """Set up window size and position dynamically based on screen size."""
+    #     screen = self.screen() or QApplication.primaryScreen()
+    #     avail = screen.availableGeometry()
         
-        # Use 85% to leave room for window decorations and taskbar
-        # target_width = int(avail.width() * 0.85)
-        # target_height = int(avail.height() * 0.85)
+    #     # Use 85% to leave room for window decorations and taskbar
+    #     # target_width = int(avail.width() * 0.85)
+    #     # target_height = int(avail.height() * 0.85)
         
-        # Set size WITHOUT maximum constraint (let maximize button work)
-        # self.resize(target_width, target_height)
+    #     # Set size WITHOUT maximum constraint (let maximize button work)
+    #     # self.resize(target_width, target_height)
         
-        # CRITICAL: Set size policy to prevent layout from resizing dialog
-        from PySide6.QtWidgets import QSizePolicy
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+    #     # CRITICAL: Set size policy to prevent layout from resizing dialog
+    #     from PySide6.QtWidgets import QSizePolicy
+    #     self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         
-        # Center the window
-        # fg = self.frameGeometry()
-        # fg.moveCenter(avail.center())
-        # self.move(fg.topLeft())
+    #     # Center the window
+    #     # fg = self.frameGeometry()
+    #     # fg.moveCenter(avail.center())
+    #     # self.move(fg.topLeft())
     
     def _init_ui(self):
         """Initialize the user interface."""

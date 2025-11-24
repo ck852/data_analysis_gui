@@ -45,7 +45,7 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                 )
 
 from data_analysis_gui.core.session_settings import (extract_settings_from_main_window,
-                                                    save_session_settings,
+                                                    save_session_settings, load_conc_resp_settings
 )
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
@@ -282,7 +282,13 @@ class MainWindow(QMainWindow):
         """Launch concentration-response curve analysis dialog."""
         dialog = ConcentrationResponseDialog(self)
         dialog.showMaximized()
-        dialog.show()  # Non-modal 
+        
+        # Apply saved settings after window is maximized
+        saved_settings = load_conc_resp_settings()
+        if saved_settings:
+            QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
+        
+        dialog.show() # non-modal
 
     def _background_subtraction(self):
         """
