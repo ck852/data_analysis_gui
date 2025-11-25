@@ -17,9 +17,7 @@ SETTINGS_VERSION = "1.0"
 # or different analysis parameter profiles for particular voltage protocols. 
 
 def get_settings_dir() -> Path:
-    """
-    Returns the application settings directory as a Path object.
-    """
+    """Get or create the app settings directory."""
     app_config = QStandardPaths.writableLocation(
         QStandardPaths.StandardLocation.AppConfigLocation
     )
@@ -29,26 +27,20 @@ def get_settings_dir() -> Path:
 
 
 def save_session_settings(settings: Dict[str, Any]) -> bool:
-    """
-    Saves MainWindow session settings to disk.
-    """
+    """Save MainWindow settings, preserving other sections in the file."""
     try:
         settings_file = get_settings_dir() / "session_settings.json"
 
-        # Load existing data to preserve other sections
         existing_data = {}
         if settings_file.exists():
             with open(settings_file, "r") as f:
                 existing_data = json.load(f)
         
-        # Ensure we have the version/settings structure
         if "version" not in existing_data:
             existing_data = {"version": SETTINGS_VERSION, "settings": {}}
         
-        # Update only the main window settings, preserve everything else
         existing_data["settings"] = settings
         
-        # Write back to file
         with open(settings_file, "w") as f:
             json.dump(existing_data, f, indent=2)
         return True
@@ -58,9 +50,7 @@ def save_session_settings(settings: Dict[str, Any]) -> bool:
 
 
 def load_session_settings() -> Optional[Dict[str, Any]]:
-    """
-    Loads MainWindow session settings from disk.
-    """
+    """Load MainWindow settings from disk."""
     try:
         settings_file = get_settings_dir() / "session_settings.json"
         if not settings_file.exists():
@@ -71,7 +61,6 @@ def load_session_settings() -> Optional[Dict[str, Any]]:
 
         if isinstance(data, dict):
             if "version" in data and "settings" in data:
-                # New format
                 return data["settings"]
 
     except Exception as e:
@@ -81,29 +70,30 @@ def load_session_settings() -> Optional[Dict[str, Any]]:
 
 def extract_settings_from_main_window(main_window) -> dict:
     """
-    Saves ControlPanel settings, channel display, splitter positions, and file dialog directory memory
-    from MainWindow into a dictionary.
+    Extract current state from MainWindow for persistence.
+    
+    Captures ControlPanel settings, channel view, splitter proportions, and 
+    file dialog directory memory.
     """
     settings = {}
 
-    # Get control panel settings
+    # Control panel settings
     if hasattr(main_window, "control_panel"):
         settings.update(main_window.control_panel.get_all_settings_dict())
 
-    # Add window-level settings
+    # Window state
     if hasattr(main_window, "channel_combo"):
         settings["last_channel_view"] = main_window.channel_combo.currentText()
 
-    # Save splitter proportion instead of absolute sizes
+    # Store splitter as proportion rather than absolute pixels
     if hasattr(main_window, "splitter"):
         sizes = main_window.splitter.sizes()
         if len(sizes) == 2 and sum(sizes) > 0:
-            # Save proportion of first panel (control panel)
             total_width = sum(sizes)
             proportion = sizes[0] / total_width
             settings["splitter_proportion"] = proportion
 
-    # Save file dialog directory memory
+    # File dialog memory
     if hasattr(main_window, "file_dialog_service"):
         settings["file_dialog_directories"] = (
             main_window.file_dialog_service.get_last_directories()
@@ -113,43 +103,37 @@ def extract_settings_from_main_window(main_window) -> dict:
 
 
 def apply_settings_to_main_window(main_window, settings: dict):
-    """
-    Applies loaded settings to MainWindow.
-    """
-    # Apply analysis settings
+    """Restore saved settings to MainWindow."""
+    # Analysis settings
     if "analysis" in settings and hasattr(main_window, "control_panel"):
         main_window.control_panel.set_parameters_from_dict(settings["analysis"])
 
-    # Apply plot settings
+    # Plot settings
     if "plot" in settings and hasattr(main_window, "control_panel"):
         main_window.control_panel.set_plot_settings_from_dict(settings["plot"])
 
-    # Apply window-level settings
+    # Channel view
     if "last_channel_view" in settings and hasattr(main_window, "channel_combo"):
         idx = main_window.channel_combo.findText(settings["last_channel_view"])
         if idx >= 0:
             main_window.channel_combo.setCurrentIndex(idx)
-        # Store for later use
         main_window.last_channel_view = settings["last_channel_view"]
 
-    # Restore splitter proportion
+    # Splitter proportion (validate to avoid broken layouts)
     if "splitter_proportion" in settings and hasattr(main_window, "splitter"):
         try:
             proportion = settings["splitter_proportion"]
-            # Validate proportion is reasonable (between 10% and 90%)
             if 0.1 <= proportion <= 0.9:
-                # Get current total width
                 current_sizes = main_window.splitter.sizes()
                 if len(current_sizes) == 2:
                     total_width = sum(current_sizes)
-                    # Calculate new sizes based on proportion
                     first_size = int(total_width * proportion)
                     second_size = total_width - first_size
                     main_window.splitter.setSizes([first_size, second_size])
         except Exception as e:
             print(f"Failed to restore splitter proportion: {e}")
 
-    # Apply file dialog directory memory
+    # File dialog directories
     if "file_dialog_directories" in settings and hasattr(
         main_window, "file_dialog_service"
     ):
@@ -161,26 +145,20 @@ def apply_settings_to_main_window(main_window, settings: dict):
 # ========================== Other Dialogs' Settings ==========================
 
 def save_extract_sweeps_settings(settings: dict) -> bool:
-    """
-    Saves extract sweeps dialog settings independently of main window settings.
-    """
+    """Save extract sweeps dialog settings independently."""
     try:
         settings_file = get_settings_dir() / "session_settings.json"
         
-        # Load existing settings to preserve other sections
         existing_data = {}
         if settings_file.exists():
             with open(settings_file, "r") as f:
                 existing_data = json.load(f)
         
-        # Ensure we have the version/settings structure
         if "version" not in existing_data:
-            existing_data = {"version": SETTINGS_VERSION, "settings": {}}   # Probably adjust this if expand SETTINGS_VERSION functionality
+            existing_data = {"version": SETTINGS_VERSION, "settings": {}}
         
-        # Update just the extract_sweeps section
         existing_data["extract_sweeps"] = settings
         
-        # Save back to disk
         with open(settings_file, "w") as f:
             json.dump(existing_data, f, indent=2)
         return True
@@ -190,9 +168,7 @@ def save_extract_sweeps_settings(settings: dict) -> bool:
 
 
 def load_extract_sweeps_settings() -> Optional[dict]:
-    """
-    Loads extract sweeps dialog settings independently of main window settings.
-    """
+    """Load extract sweeps dialog settings."""
     try:
         settings_file = get_settings_dir() / "session_settings.json"
         if not settings_file.exists():

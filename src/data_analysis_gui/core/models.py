@@ -3,10 +3,8 @@ PatchBatch Electrophysiology Data Analysis Tool
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-Validation layer for all data that moves through the analysis pipeline. Also serves
-as a template for data structures. Not explicitly necessary, but helps keep everything
-on the same page and serves as a reference for how data must be structured.
-
+Data structures for the analysis pipeline. These classes validate inputs at
+construction time to identify errors before analysis.
 """
 
 from dataclasses import dataclass, field
@@ -24,12 +22,7 @@ logger = get_logger(__name__)
 
 
 class ModelValidationError(ValueError):
-    """
-    Exception raised when model validation fails.
-
-    This error is used throughout model classes to indicate invalid or inconsistent data.
-    """
-
+    """Raised when model validation fails."""
     pass
 
 
@@ -38,13 +31,13 @@ class ModelValidationError(ValueError):
 # ==============================================================================
 
 
-@dataclass(frozen=True)
+@dataclass
 class AnalysisResult:
     """
-    Represents the result of an analysis operation with plot-ready data.
-
-    Contains both primary and optional dual-range data arrays, labels, and metadata
-    required for plotting and exporting analysis results.
+    Analysis output ready for plotting or export.
+    
+    Contains primary data arrays and optional dual-range data for comparative
+    measurements at different voltage steps.
     """
 
     x_data: np.ndarray
@@ -63,74 +56,54 @@ class AnalysisResult:
     use_dual_range: bool = False
 
     def __post_init__(self):
-        """
-        Validate data consistency after initialization.
-
-        Ensures that all arrays are numpy arrays and that their lengths match.
-        Validates dual-range data if enabled.
-        """
         # Ensure numpy arrays
-        if not isinstance(self.x_data, np.ndarray):
-            object.__setattr__(self, "x_data", np.array(self.x_data))
-        if not isinstance(self.y_data, np.ndarray):
-            object.__setattr__(self, "y_data", np.array(self.y_data))
+        self.x_data = np.asarray(self.x_data)
+        self.y_data = np.asarray(self.y_data)
 
-        # Validate array dimensions match
         if len(self.x_data) != len(self.y_data):
-            error_msg = (
-                f"x_data and y_data must have same length: "
+            raise ModelValidationError(
+                f"x_data and y_data length mismatch: "
                 f"{len(self.x_data)} != {len(self.y_data)}"
             )
-            logger.error(f"AnalysisResult validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
 
-        # Validate dual range data if enabled
+        # Validate dual range if enabled
         if self.use_dual_range:
             if self.x_data2 is None or self.y_data2 is None:
-                error_msg = "x_data2 and y_data2 must be provided when use_dual_range=True"
-                logger.error(f"AnalysisResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError(
+                    "x_data2 and y_data2 required when use_dual_range=True"
+                )
 
-            if not isinstance(self.x_data2, np.ndarray):
-                object.__setattr__(self, "x_data2", np.array(self.x_data2))
-            if not isinstance(self.y_data2, np.ndarray):
-                object.__setattr__(self, "y_data2", np.array(self.y_data2))
+            self.x_data2 = np.asarray(self.x_data2)
+            self.y_data2 = np.asarray(self.y_data2)
 
             if len(self.x_data2) != len(self.y_data2):
-                error_msg = (
-                    f"x_data2 and y_data2 must have same length: "
+                raise ModelValidationError(
+                    f"x_data2 and y_data2 length mismatch: "
                     f"{len(self.x_data2)} != {len(self.y_data2)}"
                 )
-                logger.error(f"AnalysisResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
             
             logger.debug(
-                f"AnalysisResult created with dual-range data: "
-                f"{len(self.x_data)} points in range 1, {len(self.x_data2)} points in range 2"
+                f"Created AnalysisResult with dual ranges: "
+                f"{len(self.x_data)} and {len(self.x_data2)} points"
             )
         else:
-            # Ensure dual range arrays are None when not used
-            object.__setattr__(self, "x_data2", None)
-            object.__setattr__(self, "y_data2", None)
-            logger.debug(f"AnalysisResult created with single-range data: {len(self.x_data)} points")
+            self.x_data2 = None
+            self.y_data2 = None
+            logger.debug(f"Created AnalysisResult with {len(self.x_data)} points")
 
     @property
     def has_data(self) -> bool:
-        """
-        Returns whether the result contains valid (non-empty) data arrays.
-
-        Returns:
-            bool: True if both x_data and y_data are non-empty, False otherwise.
-        """
+        """Check if result contains valid data."""
         return len(self.x_data) > 0 and len(self.y_data) > 0
 
 
-@dataclass(frozen=True)
+@dataclass
 class PlotData:
     """
-    Data structure for plotting a single sweep.
-
-    Contains time series data and metadata for displaying a single sweep in the plot manager.
+    Single sweep data formatted for plotting.
+    
+    Wraps time series with channel metadata so plot manager knows what
+    it's displaying.
     """
 
     time_ms: np.ndarray
@@ -140,57 +113,44 @@ class PlotData:
     channel_type: str
 
     def __post_init__(self):
-        """
-        Validate data consistency after initialization.
+        self.time_ms = np.asarray(self.time_ms)
+        self.data_matrix = np.asarray(self.data_matrix)
 
-        Ensures arrays are numpy arrays and checks dimensions and channel info.
-        """
-        # Ensure numpy arrays
-        if not isinstance(self.time_ms, np.ndarray):
-            object.__setattr__(self, "time_ms", np.array(self.time_ms))
-        if not isinstance(self.data_matrix, np.ndarray):
-            object.__setattr__(self, "data_matrix", np.array(self.data_matrix))
-
-        # Validate dimensions
         if self.data_matrix.ndim != 2:
-            error_msg = f"data_matrix must be 2D, got shape {self.data_matrix.shape}"
-            logger.error(f"PlotData validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError(
+                f"data_matrix must be 2D, got shape {self.data_matrix.shape}"
+            )
 
         if len(self.time_ms) != self.data_matrix.shape[0]:
-            error_msg = (
-                f"time_ms length ({len(self.time_ms)}) must match "
+            raise ModelValidationError(
+                f"time_ms length ({len(self.time_ms)}) doesn't match "
                 f"data_matrix rows ({self.data_matrix.shape[0]})"
             )
-            logger.error(f"PlotData validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
 
-        # Validate channel_id is within bounds
         if self.channel_id >= self.data_matrix.shape[1]:
-            error_msg = (
+            raise ModelValidationError(
                 f"channel_id {self.channel_id} out of bounds for "
-                f"data with {self.data_matrix.shape[1]} channels"
+                f"{self.data_matrix.shape[1]} channels"
             )
-            logger.error(f"PlotData validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
 
-        # Validate channel_type
         if self.channel_type not in ["Voltage", "Current"]:
-            error_msg = f"channel_type must be 'Voltage' or 'Current', got '{self.channel_type}'"
-            logger.error(f"PlotData validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError(
+                f"channel_type must be 'Voltage' or 'Current', got '{self.channel_type}'"
+            )
         
         logger.debug(
-            f"PlotData created for sweep {self.sweep_index}: "
-            f"{self.channel_type} channel {self.channel_id}, {len(self.time_ms)} points"
+            f"Created PlotData for sweep {self.sweep_index}: "
+            f"{self.channel_type} ch{self.channel_id}, {len(self.time_ms)} samples"
         )
 
-@dataclass(frozen=True)
+
+@dataclass
 class PeakAnalysisResult:
     """
-    Result of peak analysis across multiple peak types.
-
-    Contains comprehensive peak analysis data for different peak modes.
+    Peak analysis across multiple detection modes.
+    
+    Each peak type (Absolute, Positive, Negative, Peak-Peak) gets its own
+    data array for comparison.
     """
 
     peak_data: Dict[str, Any]
@@ -199,41 +159,33 @@ class PeakAnalysisResult:
     sweep_indices: List[str] = field(default_factory=list)
 
     def __post_init__(self):
-        """
-        Validate peak data structure after initialization.
-
-        Ensures peak data is present and all arrays are consistent in length.
-        """
-        if not isinstance(self.x_data, np.ndarray):
-            object.__setattr__(self, "x_data", np.array(self.x_data))
+        self.x_data = np.asarray(self.x_data)
 
         if not self.peak_data:
-            error_msg = "peak_data cannot be empty"
-            logger.error(f"PeakAnalysisResult validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError("peak_data cannot be empty")
 
-        # Validate each peak type has consistent data length
+        # Ensure all peak arrays match x_data length
         data_length = len(self.x_data)
         for peak_type, data in self.peak_data.items():
             if "data" in data:
-                if not isinstance(data["data"], np.ndarray):
-                    data["data"] = np.array(data["data"])
+                data["data"] = np.asarray(data["data"])
                 if len(data["data"]) != data_length:
-                    error_msg = f"Peak data for '{peak_type}' has inconsistent length"
-                    logger.error(f"PeakAnalysisResult validation failed: {error_msg}")
-                    raise ModelValidationError(error_msg)
+                    raise ModelValidationError(
+                        f"Peak data for '{peak_type}' has inconsistent length"
+                    )
         
         logger.debug(
-            f"PeakAnalysisResult created with {len(self.peak_data)} peak types, "
-            f"{data_length} data points"
+            f"Created PeakAnalysisResult: {len(self.peak_data)} peak types, "
+            f"{data_length} points"
         )
 
-@dataclass(frozen=True)
+
+@dataclass
 class FileInfo:
     """
-    Information about a loaded data file.
-
-    Provides metadata about the loaded file for GUI display and parameter configuration.
+    Metadata about a loaded data file.
+    
+    Used by GUI to populate sweep selectors and configure time range controls.
     """
 
     name: str
@@ -243,46 +195,36 @@ class FileInfo:
     max_sweep_time: Optional[float] = None
 
     def __post_init__(self):
-
         if not self.name:
-            error_msg = "File name cannot be empty"
-            logger.error(f"FileInfo validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError("File name cannot be empty")
 
         if not self.path:
-            error_msg = "File path cannot be empty"
-            logger.error(f"FileInfo validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError("File path cannot be empty")
 
         if self.sweep_count < 0:
-            error_msg = f"Invalid sweep count: {self.sweep_count}"
-            logger.error(f"FileInfo validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError(f"Invalid sweep count: {self.sweep_count}")
 
         if len(self.sweep_names) != self.sweep_count:
-            error_msg = (
-                f"sweep_names length ({len(self.sweep_names)}) "
-                f"doesn't match sweep_count ({self.sweep_count})"
+            raise ModelValidationError(
+                f"sweep_names length ({len(self.sweep_names)}) doesn't match "
+                f"sweep_count ({self.sweep_count})"
             )
-            logger.error(f"FileInfo validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
 
         if self.max_sweep_time is not None and self.max_sweep_time <= 0:
-            error_msg = f"Invalid max_sweep_time: {self.max_sweep_time}"
-            logger.error(f"FileInfo validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
+            raise ModelValidationError(f"Invalid max_sweep_time: {self.max_sweep_time}")
         
         logger.info(
-            f"FileInfo created: {self.name} with {self.sweep_count} sweeps"
-            f"{f', max_time={self.max_sweep_time:.3f}s' if self.max_sweep_time else ''}"
+            f"Loaded {self.name}: {self.sweep_count} sweeps"
+            f"{f', {self.max_sweep_time:.1f}ms max' if self.max_sweep_time else ''}"
         )
 
-@dataclass(frozen=True)
+
+@dataclass
 class AnalysisPlotData:
     """
-    Data structure for analysis plots.
-
-    Consolidates data needed for creating analysis plots with support for single and dual-range analysis.
+    Plot-ready analysis data with optional dual-range support.
+    
+    Simpler than AnalysisResult - focused on what matplotlib needs.
     """
 
     x_data: np.ndarray
@@ -294,61 +236,44 @@ class AnalysisPlotData:
     y_label_r2: Optional[str] = None
 
     def __post_init__(self):
-        """
-        Validate plot data consistency after initialization.
+        self.x_data = np.asarray(self.x_data)
+        self.y_data = np.asarray(self.y_data)
 
-        Ensures all arrays are numpy arrays and their lengths match.
-        Validates dual-range data if enabled.
-        """
-        # Ensure numpy arrays
-        if not isinstance(self.x_data, np.ndarray):
-            object.__setattr__(self, "x_data", np.array(self.x_data))
-        if not isinstance(self.y_data, np.ndarray):
-            object.__setattr__(self, "y_data", np.array(self.y_data))
-
-        # Validate primary data alignment
         if len(self.x_data) != len(self.y_data):
-            error_msg = (
-                f"x_data and y_data must have same length: "
+            raise ModelValidationError(
+                f"x_data and y_data length mismatch: "
                 f"{len(self.x_data)} != {len(self.y_data)}"
             )
-            logger.error(f"AnalysisPlotData validation failed: {error_msg}")
-            raise ModelValidationError(error_msg)
 
-        # Validate dual range if enabled
         if self.use_dual_range:
             if self.y_data2 is None:
-                error_msg = "y_data2 must be provided when use_dual_range=True"
-                logger.error(f"AnalysisPlotData validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
-            if not isinstance(self.y_data2, np.ndarray):
-                object.__setattr__(self, "y_data2", np.array(self.y_data2))
+                raise ModelValidationError("y_data2 required when use_dual_range=True")
+            
+            self.y_data2 = np.asarray(self.y_data2)
+            
             if len(self.y_data2) != len(self.x_data):
-                error_msg = (
-                    f"y_data2 length ({len(self.y_data2)}) must match "
+                raise ModelValidationError(
+                    f"y_data2 length ({len(self.y_data2)}) doesn't match "
                     f"x_data length ({len(self.x_data)})"
                 )
-                logger.error(f"AnalysisPlotData validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
             
             logger.debug(
-                f"AnalysisPlotData created with dual-range: "
-                f"{len(self.sweep_indices)} sweeps, {len(self.x_data)} points"
+                f"Created AnalysisPlotData with dual ranges: "
+                f"{len(self.sweep_indices)} sweeps"
             )
         else:
             logger.debug(
-                f"AnalysisPlotData created: {len(self.sweep_indices)} sweeps, "
+                f"Created AnalysisPlotData: {len(self.sweep_indices)} sweeps, "
                 f"{len(self.x_data)} points"
             )
 
 
-@dataclass(frozen=True)
+@dataclass
 class FileAnalysisResult:
     """
-    Result of analyzing a single file in batch processing.
-
-    Stores the outcome of analysis for a single file, including data arrays, export info,
-    error messages, and processing time.
+    Outcome of analyzing a single file in batch mode.
+    
+    Tracks success/failure and timing for progress reporting.
     """
 
     file_path: str
@@ -363,49 +288,42 @@ class FileAnalysisResult:
     processing_time: float = 0.0
 
     def __post_init__(self):
-        """Validate file analysis result consistency."""
         if self.success:
             logger.debug(
-                f"FileAnalysisResult: {self.base_name} analyzed successfully "
+                f"FileAnalysisResult: {self.base_name} succeeded "
                 f"in {self.processing_time:.3f}s"
             )
         else:
             logger.warning(
-                f"FileAnalysisResult: {self.base_name} analysis failed: "
-                f"{self.error_message}"
+                f"FileAnalysisResult: {self.base_name} failed - {self.error_message}"
             )
 
-@dataclass(frozen=True)
+
+@dataclass
 class BatchAnalysisResult:
     """
-    Complete result of batch analysis operation.
-
-    Stores all successful and failed file analysis results, parameters used, timing, and selected files.
+    Complete batch analysis results with file selection state.
+    
+    Tracks which files succeeded, which failed, and which files are selected
+    for export in the batch results dialog.
     """
 
     successful_results: List[FileAnalysisResult]
     failed_results: List[FileAnalysisResult]
-    parameters: "AnalysisParameters"  # The params used for all files
+    parameters: "AnalysisParameters"
     start_time: float
     end_time: float
     selected_files: Optional[Set[str]] = None
     is_ramp_iv: bool = False
 
     def __post_init__(self):
-        """
-        Initialize selected_files if not provided.
-
-        If selected_files is None, initializes with all successful file base names.
-        """
+        # Initialize selection with all successful files if not provided
         if self.selected_files is None:
-            # Initialize with all successful file names
-            object.__setattr__(
-                self, "selected_files", {r.base_name for r in self.successful_results}
-            )
+            self.selected_files = {r.base_name for r in self.successful_results}
         
         logger.info(
-            f"BatchAnalysisResult created: {len(self.successful_results)} successful, "
-            f"{len(self.failed_results)} failed, total time {self.processing_time:.3f}s"
+            f"BatchAnalysisResult: {len(self.successful_results)} succeeded, "
+            f"{len(self.failed_results)} failed in {self.processing_time:.3f}s"
         )
 
     @property
@@ -423,8 +341,9 @@ class BatchAnalysisResult:
         return self.end_time - self.start_time
 
 
-@dataclass(frozen=True)
+@dataclass
 class BatchExportResult:
+    """Results of exporting batch analysis to CSV files."""
 
     export_results: List["ExportResult"]
     output_directory: str
@@ -432,24 +351,18 @@ class BatchExportResult:
 
     @property
     def success_count(self) -> int:
-        """
-        Returns the number of successful exports.
-
-        Returns:
-            int: Count of successful export results.
-        """
         return sum(1 for r in self.export_results if r.success)
 
     def __post_init__(self):
-        """Log batch export result creation."""
         logger.info(
             f"BatchExportResult: {self.success_count}/{len(self.export_results)} "
-            f"files exported successfully to {self.output_directory}"
+            f"files exported to {self.output_directory}"
         )
 
-@dataclass(frozen=True)
-class ExportResult:
 
+@dataclass
+class ExportResult:
+    """Outcome of a single export operation."""
 
     success: bool
     file_path: Optional[str] = None
@@ -457,37 +370,22 @@ class ExportResult:
     error_message: Optional[str] = None
 
     def __post_init__(self):
-        """
-        Validate export result consistency after initialization.
-
-        Ensures that success, file_path, records_exported, and error_message are consistent.
-        """
         if self.success:
             if not self.file_path:
-                error_msg = "Successful export must have a file_path"
-                logger.error(f"ExportResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError("Successful export must have file_path")
             if self.records_exported <= 0:
-                error_msg = "Successful export must have records_exported > 0"
-                logger.error(f"ExportResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError("Successful export must have records_exported > 0")
             if self.error_message:
-                error_msg = "Successful export should not have an error_message"
-                logger.error(f"ExportResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError("Successful export should not have error_message")
             
             logger.debug(
-                f"ExportResult: Successfully exported {self.records_exported} records "
-                f"to {Path(self.file_path).name}"
+                f"Exported {self.records_exported} records to "
+                f"{Path(self.file_path).name}"
             )
         else:
             if not self.error_message:
-                error_msg = "Failed export must have an error_message"
-                logger.error(f"ExportResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError("Failed export must have error_message")
             if self.records_exported > 0:
-                error_msg = "Failed export should not have records_exported > 0"
-                logger.error(f"ExportResult validation failed: {error_msg}")
-                raise ModelValidationError(error_msg)
+                raise ModelValidationError("Failed export should not have records_exported > 0")
             
-            logger.warning(f"ExportResult: Export failed - {self.error_message}")
+            logger.warning(f"Export failed: {self.error_message}")

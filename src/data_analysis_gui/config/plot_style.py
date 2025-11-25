@@ -1,7 +1,7 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-Reusable visual style definitions for matplotlib plots. 
+Visual style definitions for matplotlib plots. 
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -13,32 +13,35 @@ from typing import Dict, Any
 
 from data_analysis_gui.config.themes import TYPOGRAPHY
 
-# Define a modern scientific color palette
+
+# --- Color Palette ---
+
 COLORS = {
-    "primary": "#2E86AB",  # Deep blue
-    "secondary": "#A23B72",  # Muted purple
-    "accent": "#F18F01",  # Orange
-    "success": "#73AB84",  # Sage green
-    "warning": "#C73E1D",  # Rust red
-    "info": "#6C91BF",  # Light blue
-    "dark": "#2D3436",  # Near black
-    "light": "#F7F9FB",  # Off white
-    "grid": "#E1E5E8",  # Light gray
+    "primary": "#2E86AB",
+    "secondary": "#A23B72",
+    "accent": "#F18F01",
+    "success": "#73AB84",
+    "warning": "#C73E1D",
+    "info": "#6C91BF",
+    "dark": "#2D3436",
+    "light": "#F7F9FB",
+    "grid": "#E1E5E8",
 }
 
-# Color cycle for multiple data series
 COLOR_CYCLE = [
-    "#2E86AB",  # Deep blue
-    "#A23B72",  # Muted purple
-    "#73AB84",  # Sage green
-    "#F18F01",  # Orange
-    "#C73E1D",  # Rust red
-    "#6C91BF",  # Light blue
-    "#8B6F90",  # Dusty purple
-    "#4A7C59",  # Forest green
+    "#2E86AB",
+    "#A23B72",
+    "#73AB84",
+    "#F18F01",
+    "#C73E1D",
+    "#6C91BF",
+    "#8B6F90",
+    "#4A7C59",
 ]
 
-# TOOLBAR CONFIGURATION - Centralized here
+
+# --- Toolbar Configuration ---
+
 TOOLBAR_CONFIG = {
     "button_font_size": 12,
     "button_padding": "4px 8px",
@@ -49,19 +52,19 @@ TOOLBAR_CONFIG = {
 }
 
 
-def get_plot_style() -> Dict[str, Any]:
+# --- Plot Style Functions ---
 
-    # Extract font family from theme (handle the CSS font-family string)
+def get_plot_style() -> Dict[str, Any]:
+    """Return matplotlib rcParams dict with styling."""
+    # Extract font family from theme
     font_family_str = TYPOGRAPHY["font_family"]
     font_list = [f.strip() for f in font_family_str.split(",")]
-    # Filter out generic families and -apple-system
     font_list = [
         f
         for f in font_list
         if f not in ["-apple-system", "BlinkMacSystemFont", "sans-serif"]
     ]
 
-    # INCREASED FONT SIZES FOR BETTER READABILITY
     plot_font_sizes = {
         "tick_size": 9,
         "label_size": 10,
@@ -89,7 +92,7 @@ def get_plot_style() -> Dict[str, Any]:
         "axes.labelsize": plot_font_sizes["label_size"],
         "axes.labelweight": "normal",
         "axes.labelcolor": "#2D3436",
-        "axes.labelpad": 6,  # Added explicit padding
+        "axes.labelpad": 6,
         "axes.axisbelow": True,
         "axes.prop_cycle": mpl.cycler(color=COLOR_CYCLE),
         "axes.spines.left": True,
@@ -136,10 +139,10 @@ def get_plot_style() -> Dict[str, Any]:
         "ytick.labelsize": plot_font_sizes["tick_size"],
         "ytick.direction": "out",
         "ytick.right": False,
-        # Font - synchronized with theme
+        # Font
         "font.family": ["sans-serif"],
         "font.sans-serif": font_list + ["Helvetica", "Arial", "DejaVu Sans"],
-        "font.size": plot_font_sizes["label_size"],  # Base size from theme
+        "font.size": plot_font_sizes["label_size"],
         "font.weight": "normal",
         # Legend
         "legend.frameon": True,
@@ -153,7 +156,7 @@ def get_plot_style() -> Dict[str, Any]:
         "legend.markerscale": 1.0,
         "legend.fontsize": plot_font_sizes["legend_size"],
         "legend.title_fontsize": plot_font_sizes["label_size"],
-        "legend.borderpad": 0.5,  # Increased slightly
+        "legend.borderpad": 0.5,
         "legend.columnspacing": 1.2,
         "legend.loc": "best",
         # Savefig
@@ -173,17 +176,17 @@ def get_plot_style() -> Dict[str, Any]:
 
 
 def apply_plot_style():
-    """
-    Updates matplotlib's rcParams with the style returned by get_plot_style().
-    """
+    """Update matplotlib rcParams."""
     plt.rcParams.update(get_plot_style())
 
+
 def add_zero_axis_lines(ax, color=None, linewidth=0.8, alpha=0.4, linestyle=':'):
-    """Add prominent gridlines at x=0 and y=0."""
+    """Add gridlines at x=0 and y=0."""
     if color is None:
         color = COLORS["dark"]
     ax.axhline(y=0, color=color, linewidth=linewidth, linestyle=linestyle, alpha=alpha, zorder=1)
     ax.axvline(x=0, color=color, linewidth=linewidth, linestyle=linestyle, alpha=alpha, zorder=1)
+
 
 def style_axis(
     ax,
@@ -192,15 +195,11 @@ def style_axis(
     ylabel: str = None,
     remove_top_right: bool = True,
 ):
-    """
-    Applies consistent styling to a single matplotlib axis using theme settings.
-    """
-    # Use the increased font sizes
+    """Apply consistent styling to matplotlib axis."""
     plot_font_sizes = {
         "tick_size": 9,
         "label_size": 10,
         "title_size": 12,
-        "legend_size": 9,
     }
 
     if title:
@@ -220,17 +219,14 @@ def style_axis(
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    # Subtle spine styling
     for spine in ax.spines.values():
         if spine.get_visible():
             spine.set_linewidth(0.8)
             spine.set_color("#B0B0B0")
 
-    # Grid styling
     ax.grid(True, alpha=0.3, linestyle="-", linewidth=0.5, color="#E1E5E8")
     ax.set_axisbelow(True)
 
-    # Tick styling with increased font sizes
     ax.tick_params(
         axis="both",
         which="major",
@@ -243,9 +239,7 @@ def style_axis(
 
 
 def get_line_styles():
-    """
-    Returns a dictionary of consistent line styles for different plot types.
-    """
+    """Return consistent line styles for different plot types."""
     return {
         "primary": {
             "color": COLORS["primary"],
@@ -266,13 +260,13 @@ def get_line_styles():
         },
         "range_line": {"linewidth": 2, "alpha": 0.7, "linestyle": "-"},
         "range1": {
-            "color": "#32CD32",  # Sage green
+            "color": "#32CD32",
             "linewidth": 1.2,
             "alpha": 1.0,
             "linestyle": "-",
         },
         "range2": {
-            "color": "#C73E1D",  # Rust red
+            "color": "#C73E1D",
             "linewidth": 1.2,
             "alpha": 1.0,
             "linestyle": "-",
@@ -281,7 +275,7 @@ def get_line_styles():
 
 
 def format_sweep_plot(ax, sweep_index: int, channel_type: str):
-
+    """Format plot for individual sweep display."""
     unit = "mV" if channel_type == "Voltage" else "pA"
 
     style_axis(
@@ -291,34 +285,21 @@ def format_sweep_plot(ax, sweep_index: int, channel_type: str):
         ylabel=f"{channel_type} ({unit})",
     )
 
-    # Make sweep plots slightly different
     ax.set_facecolor("#FAFBFC")
 
 
 def format_analysis_plot(ax, x_label: str, y_label: str, title: str = None):
-
+    """Format plot for analysis display."""
     style_axis(ax, title=title, xlabel=x_label, ylabel=y_label)
-
-    # Analysis plots get a subtle background
     ax.set_facecolor("#FFFFFF")
 
 
 def format_batch_plot(ax, x_label: str, y_label: str):
-    """
-    Applies specific formatting for batch plots with multiple series, using theme fonts and legend styling.
-    """
+    """Format plot for batch display with multiple series."""
     style_axis(ax, xlabel=x_label, ylabel=y_label)
-
-    # Batch plots need clear differentiation
     ax.set_facecolor("#FFFFFF")
 
-    # Get the increased font sizes
-    plot_font_sizes = {
-        "legend_size": 12,
-    }
-
-    # Ensure legend is well-positioned with increased font size
-    if ax.get_lines():  # Check if there are any lines plotted
+    if ax.get_lines():
         ax.legend(
             loc="best",
             frameon=True,
@@ -326,19 +307,12 @@ def format_batch_plot(ax, x_label: str, y_label: str):
             shadow=False,
             framealpha=0.95,
             edgecolor="#D0D0D0",
-            fontsize=plot_font_sizes["legend_size"],
+            fontsize=12,
         )
 
 
 def get_toolbar_style() -> str:
-    """
-    Returns the CSS stylesheet string for the plot toolbar, with proper font sizes and spacing.
-
-    Centralized here to maintain a single source of truth for plot-related styling.
-
-    Returns:
-        str: CSS stylesheet string for use with Qt toolbars.
-    """
+    """Return CSS stylesheet for plot toolbar."""
     config = TOOLBAR_CONFIG
 
     return f"""

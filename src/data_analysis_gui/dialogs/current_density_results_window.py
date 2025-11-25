@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMainWindow, Q
                                 )
 
 from data_analysis_gui.config.logging import get_logger
-from data_analysis_gui.config.themes import style_button, style_label, style_main_window, style_splitter
+from data_analysis_gui.config.themes import style_button, style_label, apply_modern_theme, apply_modern_theme
 from data_analysis_gui.core.models import BatchAnalysisResult
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.services.current_density_service import CurrentDensityService
@@ -123,7 +123,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         self.init_ui()
 
         # Apply centralized styling from themes.py
-        style_main_window(self)
+        apply_modern_theme(self)
 
 
     def init_ui(self):
@@ -138,7 +138,7 @@ class CurrentDensityResultsWindow(QMainWindow):
         main_layout.addWidget(info_label)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        style_splitter(splitter)
+        apply_modern_theme(splitter)
         splitter.addWidget(self._create_left_panel())
 
         self.plot_widget = DynamicBatchPlotWidget()

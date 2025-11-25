@@ -16,8 +16,8 @@ from data_analysis_gui.widgets.custom_inputs import NoScrollComboBox, NumericLin
 from data_analysis_gui.config import DEFAULT_SETTINGS
 from data_analysis_gui.core.params import AnalysisParameters
 
-from data_analysis_gui.config.themes import (style_button, style_scroll_area, style_group_box, style_label, style_checkbox, apply_compact_layout, 
-                                             style_spinbox_with_arrows, style_combo_simple, MODERN_COLORS, WIDGET_SIZES)
+from data_analysis_gui.config.themes import (style_button, apply_modern_theme, style_group_box, style_label, style_checkbox, apply_compact_layout, 
+                                             style_input_field, style_combo_box, MODERN_COLORS, WIDGET_SIZES)
 
 from data_analysis_gui.config.logging import get_logger
 
@@ -104,7 +104,7 @@ class ControlPanel(QWidget):
         scroll_area.setMinimumWidth(100)
 
         # Apply theme styling to scroll area
-        style_scroll_area(scroll_area)
+        apply_modern_theme(scroll_area)
 
         # Main control widget inside scroll area
         control_widget = QWidget()
@@ -170,7 +170,7 @@ class ControlPanel(QWidget):
         self.start_spin.setSingleStep(0.05)
         self.start_spin.setDecimals(2)
         self.start_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.start_spin)
+        style_input_field(self.start_spin)
         layout.addWidget(self.start_spin, 0, 1)
         self.start_spin.setMaximumWidth(90)
 
@@ -185,7 +185,7 @@ class ControlPanel(QWidget):
         self.end_spin.setSingleStep(0.05)
         self.end_spin.setDecimals(2)
         self.end_spin.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.end_spin)
+        style_input_field(self.end_spin)
         layout.addWidget(self.end_spin, 1, 1)
         self.end_spin.setMaximumWidth(90)
 
@@ -203,7 +203,7 @@ class ControlPanel(QWidget):
         self.start_spin2.setDecimals(2)
         self.start_spin2.setEnabled(False)
         self.start_spin2.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.start_spin2)
+        style_input_field(self.start_spin2)
         layout.addWidget(self.start_spin2, 3, 1)
         self.start_spin2.setMaximumWidth(90)
 
@@ -219,7 +219,7 @@ class ControlPanel(QWidget):
         self.end_spin2.setDecimals(2)
         self.end_spin2.setEnabled(False)
         self.end_spin2.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.end_spin2)
+        style_input_field(self.end_spin2)
         layout.addWidget(self.end_spin2, 4, 1)
         self.end_spin2.setMaximumWidth(90)
 
@@ -240,14 +240,14 @@ class ControlPanel(QWidget):
         self.x_measure_combo.addItems(["Time", "Peak", "Average"])
         self.x_measure_combo.setCurrentText("Average")
         self.x_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.x_measure_combo)
+        style_combo_box(self.x_measure_combo)
         plot_layout.addWidget(self.x_measure_combo, 0, 1)
 
         self.x_channel_combo = NoScrollComboBox()
         self.x_channel_combo.addItems(["Voltage", "Current"])
         self.x_channel_combo.setCurrentText("Voltage")
         self.x_channel_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.x_channel_combo)
+        style_combo_box(self.x_channel_combo)
         plot_layout.addWidget(self.x_channel_combo, 0, 2)
 
         # Y-axis settings with NoScrollComboBox
@@ -259,14 +259,14 @@ class ControlPanel(QWidget):
         self.y_measure_combo.addItems(["Peak", "Average", "Time", "Conductance"])
         self.y_measure_combo.setCurrentText("Average")
         self.y_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.y_measure_combo)
+        style_combo_box(self.y_measure_combo)
         plot_layout.addWidget(self.y_measure_combo, 1, 1)
 
         self.y_channel_combo = NoScrollComboBox()
         self.y_channel_combo.addItems(["Voltage", "Current"])
         self.y_channel_combo.setCurrentText("Current")
         self.y_channel_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.y_channel_combo)
+        style_combo_box(self.y_channel_combo)
         plot_layout.addWidget(self.y_channel_combo, 1, 2)
 
         # Conductance settings group (initially hidden)
@@ -294,7 +294,7 @@ class ControlPanel(QWidget):
             "or when Conductance uses Peak measurements)"
         )
         self.peak_mode_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.peak_mode_combo)
+        style_combo_box(self.peak_mode_combo)
         plot_layout.addWidget(self.peak_mode_combo, 4, 1, 1, 2)
 
         # Connect signals to enable/disable peak mode and channel combos
@@ -330,7 +330,7 @@ class ControlPanel(QWidget):
         self.cond_i_measure_combo.addItems(["Average", "Peak"])
         self.cond_i_measure_combo.setCurrentText("Average")
         self.cond_i_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.cond_i_measure_combo)
+        style_combo_box(self.cond_i_measure_combo)
         cond_layout.addWidget(self.cond_i_measure_combo, 0, 1)
         
         # Voltage measure selection
@@ -342,7 +342,7 @@ class ControlPanel(QWidget):
         self.cond_v_measure_combo.addItems(["Average", "Peak"])
         self.cond_v_measure_combo.setCurrentText("Average")
         self.cond_v_measure_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.cond_v_measure_combo)
+        style_combo_box(self.cond_v_measure_combo)
         cond_layout.addWidget(self.cond_v_measure_combo, 1, 1)
         
         # Reversal potential input
@@ -356,7 +356,7 @@ class ControlPanel(QWidget):
         self.cond_vrev_input.setSingleStep(1.0)
         self.cond_vrev_input.setDecimals(1)
         self.cond_vrev_input.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_spinbox_with_arrows(self.cond_vrev_input)
+        style_input_field(self.cond_vrev_input)
         cond_layout.addWidget(self.cond_vrev_input, 2, 1)
         self.cond_vrev_input.setMaximumWidth(90)
         
@@ -369,7 +369,7 @@ class ControlPanel(QWidget):
         self.cond_units_combo.addItems(["pS", "nS", "μS", "mS", "S"])
         self.cond_units_combo.setCurrentText("nS")
         self.cond_units_combo.setMinimumHeight(WIDGET_SIZES["input_height"])
-        style_combo_simple(self.cond_units_combo)
+        style_combo_box(self.cond_units_combo)
         cond_layout.addWidget(self.cond_units_combo, 3, 1)
         
         # Initially hidden
@@ -401,13 +401,13 @@ class ControlPanel(QWidget):
         x_is_time = x_measure == "Time"
         self.x_channel_combo.setEnabled(not x_is_time)
         if not x_is_time:
-            style_combo_simple(self.x_channel_combo)
+            style_combo_box(self.x_channel_combo)
         
         # Update Y-axis channel combo visibility (disabled for Time and Conductance)
         y_needs_channel = y_measure not in ["Time", "Conductance"]
         self.y_channel_combo.setEnabled(y_needs_channel)
         if y_needs_channel:
-            style_combo_simple(self.y_channel_combo)
+            style_combo_box(self.y_channel_combo)
         
         # Show/hide conductance settings group
         is_conductance = y_measure == "Conductance"
@@ -428,7 +428,7 @@ class ControlPanel(QWidget):
         
         # Re-apply styling to ensure disabled state looks correct
         if not is_peak_used:
-            style_combo_simple(self.peak_mode_combo)
+            style_combo_box(self.peak_mode_combo)
 
     def _update_peak_mode_visibility(self):
         """Enable peak mode combo only when X or Y axis uses Peak measurement."""
@@ -441,7 +441,7 @@ class ControlPanel(QWidget):
         # Update visual state when disabled
         if not is_peak_selected:
             # Re-apply combo box styling to ensure disabled state looks correct
-            style_combo_simple(self.peak_mode_combo)
+            style_combo_box(self.peak_mode_combo)
 
     def _connect_signals(self):
         """Wire up internal signals and run initial validation."""
@@ -546,7 +546,7 @@ class ControlPanel(QWidget):
             spinbox = spinbox_map.get(spinbox_key)
             if spinbox:
                 # Restore the original styled state
-                style_spinbox_with_arrows(spinbox)
+                style_input_field(spinbox)
 
     def _on_dual_range_changed(self):
         """Handle dual range checkbox toggle, enabling/disabling Range 2 controls."""
@@ -557,8 +557,8 @@ class ControlPanel(QWidget):
         self.end_spin2.setEnabled(enabled)
 
         # Re-apply styling to ensure disabled state looks correct
-        style_spinbox_with_arrows(self.start_spin2)
-        style_spinbox_with_arrows(self.end_spin2)
+        style_input_field(self.start_spin2)
+        style_input_field(self.end_spin2)
 
         self.dual_range_toggled.emit(enabled)
         # The validation is handled by the connected signal
@@ -782,8 +782,8 @@ class ControlPanel(QWidget):
             self.dual_range_cb.blockSignals(signals_were_blocked[4])
 
             # Re-apply styling to ensure correct appearance
-            style_spinbox_with_arrows(self.start_spin2)
-            style_spinbox_with_arrows(self.end_spin2)
+            style_input_field(self.start_spin2)
+            style_input_field(self.end_spin2)
 
             # Now validate everything once and emit signals
             self._validate_and_update()

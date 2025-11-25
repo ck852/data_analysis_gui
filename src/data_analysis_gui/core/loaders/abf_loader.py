@@ -19,7 +19,7 @@ License: MIT (see LICENSE file for details)
 
 import logging
 from pathlib import Path
-from typing import Optional, Any, Union, Dict, List
+from typing import Any, Union, Dict, List
 import numpy as np
 
 

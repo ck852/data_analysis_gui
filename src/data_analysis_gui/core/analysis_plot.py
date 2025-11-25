@@ -2,8 +2,7 @@
 PatchBatch Electrophysiology Data Analysis Tool
 
 Matplotlib-based plotting module. Main use is to display the plot called
-by "Generate Analysis Plot" in MainWindow. Also used for exporting batch-analyzed plots (not a core
-focus of the program at this time).
+by "Generate Analysis Plot" in MainWindow. Also used to export plots to image files.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -14,10 +13,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 import matplotlib
 
-# Set thread-safe backend as default for non-GUI operations
-# We don't actually use parallel processing, but this keeps things clean
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
@@ -89,14 +85,12 @@ class AnalysisPlotter:
         """
         logger.debug(f"Creating analysis figure: {title}, size={figsize}")
         
-        # Apply global style
         apply_plot_style()
 
-        # Create figure with styled background
         figure = Figure(figsize=figsize, facecolor="#FAFAFA")
         ax = figure.add_subplot(111)
 
-        # Extract voltage-annotated labels from plot_data for legend
+        # Extract voltage-annotated labels from plot_data for legend (very nice to have for time-course plots)
         y_label_r1 = plot_data.y_label_r1
         y_label_r2 = plot_data.y_label_r2
 
@@ -105,13 +99,10 @@ class AnalysisPlotter:
             f"dual_range={plot_data.use_dual_range}"
         )
 
-        # Configure plot with modern styling
+        # Configure plot with data and v labels
         AnalysisPlotter._configure_plot(
             ax, 
             plot_data, 
-            x_label, 
-            y_label, 
-            title,
             y_label_r1=y_label_r1,
             y_label_r2=y_label_r2
         )
@@ -131,10 +122,7 @@ class AnalysisPlotter:
     @staticmethod
     def _configure_plot(
         ax: Axes, 
-        plot_data: AnalysisPlotData, 
-        x_label: str, 
-        y_label: str, 
-        title: str,
+        plot_data: AnalysisPlotData,
         y_label_r1: Optional[str] = None,
         y_label_r2: Optional[str] = None
     ) -> None:
@@ -145,9 +133,7 @@ class AnalysisPlotter:
         """
         x_data = plot_data.x_data
         y_data = plot_data.y_data
-        sweep_indices = plot_data.sweep_indices
 
-        # Get line styles
         line_styles = get_line_styles()
 
         if len(x_data) > 0 and len(y_data) > 0:
@@ -156,9 +142,9 @@ class AnalysisPlotter:
             
             logger.debug(f"Plotting Range 1 data: {len(x_data)} points, label='{range1_label}'")
             
-            # Create plot with modern styling for Range 1
+            # Plot Range 1
             primary_style = line_styles["primary"]
-            line1 = ax.plot(
+            ax.plot(
                 x_data,
                 y_data,
                 marker=primary_style["marker"],
@@ -168,7 +154,7 @@ class AnalysisPlotter:
                 color=primary_style["color"],
                 alpha=primary_style["alpha"],
                 label=range1_label,
-            )[0]
+            )
 
         # Plot Range 2 if applicable with contrasting style
         if plot_data.use_dual_range and plot_data.y_data2 is not None:
@@ -180,7 +166,7 @@ class AnalysisPlotter:
                 logger.debug(f"Plotting Range 2 data: {len(y_data2)} points, label='{range2_label}'")
                 
                 secondary_style = line_styles["secondary"]
-                line2 = ax.plot(
+                ax.plot(
                     x_data,
                     y_data2,
                     marker=secondary_style["marker"],
@@ -191,9 +177,9 @@ class AnalysisPlotter:
                     color=secondary_style["color"],
                     alpha=secondary_style["alpha"],
                     label=range2_label,
-                )[0]
+                )
 
-        # Modern legend styling if dual range
+        # Dual range legend
         if plot_data.use_dual_range:
             logger.debug("Adding legend for dual-range plot")
             ax.legend(
@@ -207,7 +193,6 @@ class AnalysisPlotter:
                 fontsize=9,
             )
 
-        # Apply axis padding with subtle animation-ready margins
         AnalysisPlotter._apply_axis_padding(ax, x_data, y_data)
 
     @staticmethod
@@ -273,7 +258,7 @@ class AnalysisPlotter:
 
 
 #     CLI helper for creating analysis plots from dictionary data.
-#     CLI was not implemented. This is kept in case of future implementation.
+#     CLI was not implemented. This is kept in case of future utility.
 
 # def create_analysis_plot(
 #     plot_data_dict: Dict[str, Any],

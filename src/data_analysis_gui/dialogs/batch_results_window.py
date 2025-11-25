@@ -23,7 +23,7 @@ from data_analysis_gui.dialogs.current_density_results_window import CurrentDens
 
 from data_analysis_gui.widgets.shared_widgets import DynamicBatchPlotWidget, BatchFileListWidget, FileSelectionState
 
-from data_analysis_gui.config.themes import (style_main_window, create_styled_button, style_group_box, get_selection_summary_color,
+from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_button, style_group_box, get_selection_summary_color,
                                             style_label,
                                             )
 
@@ -87,7 +87,7 @@ class BatchResultsWindow(QMainWindow):
         self.move(fg.topLeft())
         self.init_ui()
 
-        style_main_window(self)
+        apply_modern_theme(self)
 
     def init_ui(self):
 

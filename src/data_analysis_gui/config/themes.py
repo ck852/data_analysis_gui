@@ -1,8 +1,7 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-This module contains resuable colors and styling functions to be used throughtout the codebase. 
-Docstrings are extensive to facilitate adjustments and optimizations.
+Reusable colors and styling functions for consistent UI appearance.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -28,9 +27,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPalette, QColor
 
-# ============================================================================
-# SIMPLIFIED COLOR PALETTE - Only essential colors
-# ============================================================================
+
+# --- Color Palette ---
 
 MODERN_COLORS = {
     # Core action colors
@@ -52,38 +50,31 @@ MODERN_COLORS = {
     "focus": "#80BDFF",
 }
 
-# Simple sizing constants
+
+# --- Layout Constants ---
+
 WIDGET_SIZES = {
     "button_height": 20,
     "input_height": 20,
     "button_min_width": 40,
 }
 
-# Simple spacing values
 SPACING = {"border_radius": "3px", "padding": "4px 8px", "margin": "2px"}
 
-# Base font settings
 BASE_FONT = "font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;"
 FONT_SIZES = {"normal": "10pt", "large": "11pt", "small": "9pt"}
 
-# ============================================================================
-# CORE STYLING FUNCTIONS - Simplified API
-# ============================================================================
+# Typography export for plot_style
+TYPOGRAPHY = {"font_family": BASE_FONT}
 
+
+# --- Core Styling Functions ---
 
 def apply_modern_theme(widget: QWidget) -> None:
-    """
-    Applies the modern PatchBatch theme to a given Qt widget.
-
-    Automatically detects the widget type and applies appropriate styling, including colors, fonts, and layout. For QMainWindow, also sets the application palette.
-
-    Args:
-        widget (QWidget): The widget to style. Can be any supported Qt widget.
-    """
+    """Apply theme to widget, automatically detecting type."""
     if isinstance(widget, QMainWindow) or isinstance(widget, QDialog):
         widget.setStyleSheet(_get_base_stylesheet())
 
-        # Set application palette if main window
         if isinstance(widget, QMainWindow):
             _apply_palette(widget)
 
@@ -106,7 +97,6 @@ def apply_modern_theme(widget: QWidget) -> None:
     elif isinstance(widget, QCheckBox):
         style_checkbox(widget)
     elif isinstance(widget, QSplitter):
-        # Use minimal splitter styling
         widget.setStyleSheet(
             f"""
             QSplitter::handle {{
@@ -119,20 +109,11 @@ def apply_modern_theme(widget: QWidget) -> None:
         """
         )
     else:
-        # Apply base stylesheet for unknown widgets
         widget.setStyleSheet(_get_base_stylesheet())
 
 
 def style_button(button: QPushButton, style_type: str = "secondary") -> None:
-    """
-    Styles a QPushButton according to the specified type.
-
-    Supports 'primary', 'secondary', 'accent' (success), 'danger', and 'warning' styles.
-
-    Args:
-        button (QPushButton): The button to style.
-        style_type (str, optional): The style type. Defaults to "secondary".
-    """
+    """Style button with specified type (primary, secondary, accent, danger, warning)."""
     styles = {
         "primary": {
             "bg": MODERN_COLORS["primary"],
@@ -188,15 +169,7 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
 
 
 def style_input_field(widget: QWidget, invalid: bool = False) -> None:
-    """
-    Styles input fields (QLineEdit, QSpinBox, QDoubleSpinBox) with modern appearance.
-
-    Handles both normal and invalid states, changing border and background color if invalid.
-
-    Args:
-        widget (QWidget): The input widget to style.
-        invalid (bool, optional): Whether to apply invalid styling. Defaults to False.
-    """
+    """Style input fields with optional invalid state (red border/background)."""
     bg_color = "#ffcccc" if invalid else MODERN_COLORS["background"]
     border_color = MODERN_COLORS["danger"] if invalid else MODERN_COLORS["border"]
 
@@ -224,7 +197,6 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
         }}
     """
 
-    # Add spinbox-specific styling
     if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
         base_style += f"""
             QSpinBox::up-button, QDoubleSpinBox::up-button,
@@ -243,12 +215,7 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
 
 
 def style_combo_box(widget: QComboBox) -> None:
-    """
-    Styles a QComboBox with modern appearance, including dropdown and item view.
-
-    Args:
-        widget (QComboBox): The combo box to style.
-    """
+    """Style combo box with dropdown and item view."""
     widget.setStyleSheet(
         f"""
         QComboBox {{
@@ -292,15 +259,7 @@ def style_combo_box(widget: QComboBox) -> None:
 
 
 def style_label(widget: QLabel, style_type: str = "normal") -> None:
-    """
-    Styles a QLabel according to the specified type.
-
-    Supported types: 'normal', 'heading', 'subheading', 'muted', 'caption', 'info', 'success', 'warning', 'error'.
-
-    Args:
-        widget (QLabel): The label to style.
-        style_type (str, optional): The style type. Defaults to "normal".
-    """
+    """Style label with type (normal, heading, subheading, muted, caption, info, success, warning, error)."""
     styles = {
         "normal": {
             "color": MODERN_COLORS["text"],
@@ -366,12 +325,7 @@ def style_label(widget: QLabel, style_type: str = "normal") -> None:
 
 
 def style_table_widget(widget: QTableWidget) -> None:
-    """
-    Styles a QTableWidget with alternating row colors and modern header appearance.
-
-    Args:
-        widget (QTableWidget): The table widget to style.
-    """
+    """Style table with alternating row colors and modern header."""
     widget.setAlternatingRowColors(True)
     widget.setStyleSheet(
         f"""
@@ -403,12 +357,7 @@ def style_table_widget(widget: QTableWidget) -> None:
 
 
 def style_list_widget(widget: QListWidget) -> None:
-    """
-    Styles a QListWidget with modern appearance, including hover and selection states.
-
-    Args:
-        widget (QListWidget): The list widget to style.
-    """
+    """Style list widget with hover and selection states."""
     widget.setStyleSheet(
         f"""
         QListWidget {{
@@ -434,12 +383,7 @@ def style_list_widget(widget: QListWidget) -> None:
 
 
 def style_progress_bar(widget: QProgressBar) -> None:
-    """
-    Styles a QProgressBar with modern appearance.
-
-    Args:
-        widget (QProgressBar): The progress bar to style.
-    """
+    """Style progress bar."""
     widget.setStyleSheet(
         f"""
         QProgressBar {{
@@ -461,12 +405,7 @@ def style_progress_bar(widget: QProgressBar) -> None:
 
 
 def style_group_box(widget: QGroupBox) -> None:
-    """
-    Styles a QGroupBox with modern appearance, including title and border.
-
-    Args:
-        widget (QGroupBox): The group box to style.
-    """
+    """Style group box with title and border."""
     widget.setStyleSheet(
         f"""
         QGroupBox {{
@@ -489,12 +428,7 @@ def style_group_box(widget: QGroupBox) -> None:
 
 
 def style_checkbox(widget: QCheckBox) -> None:
-    """
-    Styles a QCheckBox with modern appearance, including indicator and hover states.
-
-    Args:
-        widget (QCheckBox): The checkbox to style.
-    """
+    """Style checkbox with indicator and hover states."""
     widget.setStyleSheet(
         f"""
         QCheckBox {{
@@ -525,50 +459,25 @@ def style_checkbox(widget: QCheckBox) -> None:
 
 
 def apply_compact_layout(widget: QWidget, spacing: int = 8, margin: int = 10) -> None:
-    """
-    Applies compact spacing and margins to a widget's layout, if present.
-
-    Args:
-        widget (QWidget): The widget whose layout will be updated.
-        spacing (int, optional): Spacing between items. Defaults to 8.
-        margin (int, optional): Margin around the layout. Defaults to 10.
-    """
+    """Apply compact spacing and margins to widget's layout."""
     if widget.layout():
         widget.layout().setSpacing(spacing)
         widget.layout().setContentsMargins(margin, margin, margin, margin)
 
 
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
+# --- Utility Functions ---
 
 def create_styled_button(
     text: str, style_type: str = "secondary", parent: QWidget = None
 ) -> QPushButton:
-    """
-    Creates a QPushButton with the specified text and style, and returns it.
-
-    Args:
-        text (str): The button text.
-        style_type (str, optional): The style type. Defaults to "secondary".
-        parent (QWidget, optional): The parent widget. Defaults to None.
-
-    Returns:
-        QPushButton: The styled button instance.
-    """
+    """Create and return a styled button."""
     button = QPushButton(text, parent)
     style_button(button, style_type)
     return button
 
 
 def _get_base_stylesheet() -> str:
-    """
-    Returns the base stylesheet string for dialogs and main windows.
-
-    Returns:
-        str: The base stylesheet.
-    """
+    """Return base stylesheet for dialogs and main windows."""
     return f"""
         QDialog, QMainWindow {{
             background-color: {MODERN_COLORS['background']};
@@ -590,7 +499,6 @@ def _get_base_stylesheet() -> str:
             max-width: 1px;
         }}
         
-        /* Input field base styling - includes disabled state */
         QLineEdit, QSpinBox, QDoubleSpinBox {{
             border: 1px solid {MODERN_COLORS['border']};
             border-radius: {SPACING['border_radius']};
@@ -617,13 +525,9 @@ def _get_base_stylesheet() -> str:
         }}
     """
 
-def _apply_palette(widget: QWidget) -> None:
-    """
-    Applies the PatchBatch color palette to a widget or QApplication.
 
-    Args:
-        widget (QWidget or QApplication): The widget or application to apply the palette to.
-    """
+def _apply_palette(widget: QWidget) -> None:
+    """Apply color palette to widget or application."""
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(MODERN_COLORS["background"]))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(MODERN_COLORS["text"]))
@@ -642,52 +546,16 @@ def _apply_palette(widget: QWidget) -> None:
 
 
 def apply_theme_to_application(app: QApplication) -> None:
-    """
-    Applies the PatchBatch theme to the entire QApplication instance.
-
-    Args:
-        app (QApplication): The application instance to style.
-    """
+    """Apply theme to entire application."""
     app.setStyle("Fusion")
     _apply_palette(app)
     app.setStyleSheet(_get_base_stylesheet())
 
 
-# ============================================================================
-# BACKWARD COMPATIBILITY ALIASES
-# Keep these for existing code that uses the old function names
-# ============================================================================
+# --- Color Helpers ---
 
-style_main_window = apply_modern_theme
-style_dialog = apply_modern_theme
-style_splitter = apply_modern_theme
-style_toolbar = lambda w: None  # No-op for compatibility
-style_menu_bar = lambda w: None
-style_menu = lambda w: None
-style_status_bar = lambda w: None
-style_input_invalid = lambda w: style_input_field(w, invalid=True)
-style_input_valid = style_input_field
-style_spinbox_with_arrows = style_input_field
-style_combo_simple = style_combo_box
-style_scroll_area = apply_modern_theme
-apply_modern_style = apply_modern_theme
-style_status_label = style_label
-apply_widget_palette = apply_modern_theme
-get_theme_stylesheet = _get_base_stylesheet
-
-
-# Color utility functions for compatibility
 def get_file_count_color(count: int, max_count: int = 10) -> str:
-    """
-    Returns a color string based on the file count relative to max_count.
-
-    Args:
-        count (int): The current file count.
-        max_count (int, optional): The maximum file count. Defaults to 10.
-
-    Returns:
-        str: The color string for the count status.
-    """
+    """Return color based on file count relative to max_count."""
     return (
         MODERN_COLORS["success"]
         if count >= max_count // 2
@@ -696,15 +564,7 @@ def get_file_count_color(count: int, max_count: int = 10) -> str:
 
 
 def get_status_color(status: str) -> str:
-    """
-    Returns a color string based on the status string.
-
-    Args:
-        status (str): The status type (e.g., 'success', 'warning', 'error', 'info', 'muted').
-
-    Returns:
-        str: The color string for the status.
-    """
+    """Return color for status (success, warning, error, info, muted)."""
     status_map = {
         "success": MODERN_COLORS["success"],
         "warning": MODERN_COLORS["warning"],
@@ -716,74 +576,10 @@ def get_status_color(status: str) -> str:
 
 
 def get_selection_summary_color(selected: int, total: int) -> str:
-    """
-    Returns a color string for selection summary based on selected and total counts.
-
-    Args:
-        selected (int): Number of selected items.
-        total (int): Total number of items.
-
-    Returns:
-        str: The color string for the selection summary.
-    """
+    """Return color for selection summary based on counts."""
     if selected == 0:
         return MODERN_COLORS["warning"]
     elif selected == total:
         return MODERN_COLORS["success"]
     else:
         return MODERN_COLORS["primary"]
-
-
-# Typography and spacing exports for compatibility
-TYPOGRAPHY = {"font_family": BASE_FONT}
-
-
-# Button style getter for compatibility
-def get_button_style(style_type: str = "secondary") -> str:
-    """
-    Returns the stylesheet string for a button of the specified style type.
-
-    Args:
-        style_type (str, optional): The style type. Defaults to "secondary".
-
-    Returns:
-        str: The stylesheet string for the button.
-    """
-    button = QPushButton()
-    style_button(button, style_type)
-    return button.styleSheet()
-
-
-# ============================================================================
-# EXPORTS
-# ============================================================================
-
-__all__ = [
-    # Core colors and constants
-    "MODERN_COLORS",
-    "WIDGET_SIZES",
-    "SPACING",
-    # Main styling functions
-    "apply_modern_theme",
-    "style_button",
-    "style_input_field",
-    "style_combo_box",
-    "style_label",
-    "style_table_widget",
-    "style_list_widget",
-    "style_progress_bar",
-    "style_group_box",
-    "style_checkbox",
-    "apply_compact_layout",
-    # Utility functions
-    "create_styled_button",
-    "apply_theme_to_application",
-    # Backward compatibility
-    "style_main_window",
-    "style_dialog",
-    "get_button_style",
-    "get_file_count_color",
-    "get_status_color",
-    "get_selection_summary_color",
-    "TYPOGRAPHY",
-]
