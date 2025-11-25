@@ -42,7 +42,7 @@ class SweepSelectionWidget(QWidget):
         self.table_mode_radio.setChecked(True)  # Default to table mode
         
         self.range_input = RangeInputLineEdit()
-        self.range_input.setPlaceholderText("e.g., 1,2,3-15,20")
+        self.range_input.setPlaceholderText("e.g., 1,3-15,20,21")
         self.range_input.setMaximumWidth(150)
         #self.range_input.setEnabled(False)  # Disabled by default
         
@@ -155,12 +155,12 @@ class SweepSelectionWidget(QWidget):
 
     def _parse_range_input(self) -> Tuple[List[str], List[str]]:
         """
-        Parse range input like '1,2,3-15,20' and return matching sweep names.
+        Parse range input like '1,3-15,20,21' and return matching sweep names.
         
         Supports:
         - Single numbers: 1,2,3
         - Ranges: 3-15
-        - Combined: 1,2,3-15,20-25
+        - Combined: 1,3-15,20,21-25
         """
         range_text = self.range_input.text().strip()
         if not range_text:
