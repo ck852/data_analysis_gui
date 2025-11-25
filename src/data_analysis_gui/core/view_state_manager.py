@@ -19,26 +19,10 @@ logger = get_logger(__name__)
 
 class ViewStateManager:
     """
-    Manages plot view state with independent tracking for Voltage and Current channels.
+    Tracks independent axis limits for Voltage and Current channels.
     
-    Each channel type stores its own xlim/ylim state, allowing users to:
-    - Zoom into Current data
-    - Switch to Voltage channel
-    - See Voltage at its own zoom level (or autoscaled on first view)
-    - Switch back to Current and see the previous Current zoom level
-    
-    Example Usage:
-        >>> view_mgr = ViewStateManager()
-        >>> 
-        >>> # Store Voltage view
-        >>> view_mgr.update_current_view((0, 1000), (-80, 40), 'Voltage')
-        >>> 
-        >>> # Store Current view  
-        >>> view_mgr.update_current_view((0, 1000), (-500, 100), 'Current')
-        >>> 
-        >>> # Retrieve Voltage view
-        >>> view = view_mgr.get_current_view('Voltage')
-        >>> # Returns: ((0, 1000), (-80, 40))
+    Preserves each channel's zoom/pan state across channel switches when user is 
+    zoomed into a region of interest.
     """
     
     def __init__(self):
@@ -108,9 +92,6 @@ class ViewStateManager:
             current_xlim: Current X-axis limits.
             current_ylim: Current Y-axis limits.
             channel_type: Channel type to check against.
-        
-        Returns:
-            True if view has changed from stored state, False otherwise.
         """
         if channel_type not in self._channel_views:
             channel_type = 'Voltage'

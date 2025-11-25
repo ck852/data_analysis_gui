@@ -35,7 +35,7 @@ from data_analysis_gui.core.models import (
 )
 from data_analysis_gui.core.exceptions import DataError, FileError, ValidationError
 
-# Services (new)
+# Services
 from data_analysis_gui.services.data_manager import DataManager
 from data_analysis_gui.services.analysis_manager import AnalysisManager
 from data_analysis_gui.services.batch_processor import BatchProcessor
@@ -122,20 +122,16 @@ class ApplicationController:
         self.current_dataset: Optional[ElectrophysiologyDataset] = None
         self.loaded_file_path: Optional[str] = None
 
-        # Services - use provided or create new
+        # Services
         self.data_manager = data_manager or DataManager()
         self.analysis_manager = analysis_manager or AnalysisManager()
         self.batch_processor = batch_processor or BatchProcessor()
 
-        # Compatibility aliases (to avoid breaking older code)
+        # Compatibility aliases
         self.data_service = self.data_manager
         self.export_service = self.data_manager
         self.dataset_service = self.data_manager
         self.batch_service = self.batch_processor
-
-        # # Keep reference to analysis engine from analysis manager if it exists
-        # if hasattr(self.analysis_manager, "engine"):
-        #     self.engine = self.analysis_manager.engine
 
         # GUI callbacks (set by view)
         self.on_file_loaded: Optional[Callable[[FileInfo], None]] = None

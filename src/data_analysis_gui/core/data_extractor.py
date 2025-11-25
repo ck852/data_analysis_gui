@@ -13,11 +13,9 @@ from typing import Dict, Tuple
 import numpy as np
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
-from data_analysis_gui.core.exceptions import (
-    DataError,
-    ValidationError,
-    validate_not_none,
-)
+
+from data_analysis_gui.core.exceptions import DataError, ValidationError
+
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,8 +33,10 @@ class DataExtractor:
             self, dataset: ElectrophysiologyDataset, sweep_index: str
         ) -> Dict[str, np.ndarray]:
             
-            validate_not_none(dataset, "dataset")
-            validate_not_none(sweep_index, "sweep_index")
+            if dataset is None:
+                raise ValidationError("Dataset cannot be None")
+            if sweep_index is None:
+                raise ValidationError("Sweep index cannot be None")
 
             if sweep_index not in dataset.sweeps():
                 raise DataError(

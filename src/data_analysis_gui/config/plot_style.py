@@ -38,7 +38,7 @@ COLOR_CYCLE = [
     "#4A7C59",  # Forest green
 ]
 
-# TOOLBAR CONFIGURATION - Centralized here for single source of truth
+# TOOLBAR CONFIGURATION - Centralized here
 TOOLBAR_CONFIG = {
     "button_font_size": 12,
     "button_padding": "4px 8px",
@@ -106,7 +106,7 @@ def get_plot_style() -> Dict[str, Any]:
         # Lines
         "lines.linewidth": 1.5,
         "lines.antialiased": True,
-        "lines.markersize": 6,  # Increased slightly for visibility
+        "lines.markersize": 6,
         "lines.markeredgewidth": 0,
         "lines.markeredgecolor": "auto",
         "lines.solid_capstyle": "round",
@@ -115,7 +115,7 @@ def get_plot_style() -> Dict[str, Any]:
         "patch.facecolor": COLORS["primary"],
         "patch.edgecolor": "none",
         "patch.antialiased": True,
-        # Ticks - synchronized with increased font sizes
+        # Ticks
         "xtick.major.size": 5,
         "xtick.minor.size": 3,
         "xtick.major.width": 0.8,
@@ -141,7 +141,7 @@ def get_plot_style() -> Dict[str, Any]:
         "font.sans-serif": font_list + ["Helvetica", "Arial", "DejaVu Sans"],
         "font.size": plot_font_sizes["label_size"],  # Base size from theme
         "font.weight": "normal",
-        # Legend - synchronized with increased font sizes
+        # Legend
         "legend.frameon": True,
         "legend.framealpha": 0.95,
         "legend.facecolor": "white",

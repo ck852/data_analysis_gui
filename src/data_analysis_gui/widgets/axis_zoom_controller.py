@@ -28,36 +28,10 @@ logger = logging.getLogger(__name__)
 
 class AxisZoomController:
     """
-    Manages axis-specific zoom buttons for matplotlib plots.
+    Manages X+/X-/Y+/Y- zoom buttons on matplotlib figures.
     
-    This class handles:
-    - Creating and positioning matplotlib Button widgets for X+/X-/Y+/Y-
-    - Calculating new axis limits for zoom in/out operations
-    - Properly cleaning up button event handlers to prevent conflicts
-    - Returning calculated limits for coordinator to apply
-    
-    Not a QObject - returns values for the coordinator (PlotManager) to handle.
-    Requires Figure and Axes references for creating matplotlib widgets.
-    
-    Zoom behavior:
-    - Zoom in: Reduces visible range by 20% (factor = 0.8)
-    - Zoom out: Increases visible range by 25% (factor = 1.25)
-    - These factors are symmetric: 5 clicks in gives same result as 5 clicks out
-    - Zoom is centered on current view's midpoint
-    
-    Example Usage:
-        >>> zoom_controller = AxisZoomController(fig, ax)
-        >>> 
-        >>> # After plotting and tight_layout, create buttons
-        >>> zoom_controller.create_buttons(on_zoom_callback)
-        >>> 
-        >>> # Before clearing axes, remove buttons
-        >>> zoom_controller.clear_buttons()
-        >>> ax.clear()
-        >>> 
-        >>> # Calculate new limits (doesn't apply them)
-        >>> new_xlim = zoom_controller.calculate_zoom('x', 'in', current_xlim)
-        >>> ax.set_xlim(new_xlim)
+    Zoom is 20% in, 25% out (symmetric). Buttons are matplotlib widgets
+    that need to be recreated after clearing axes.
     """
     
     # Zoom factors (reciprocals to ensure symmetric behavior)

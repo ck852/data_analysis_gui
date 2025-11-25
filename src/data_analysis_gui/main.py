@@ -16,7 +16,6 @@ import re
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
-from PySide6.QtCore import Qt
 from data_analysis_gui.main_window import MainWindow
 from data_analysis_gui.core.session_settings import (
     load_session_settings, 
@@ -34,7 +33,7 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Logging Examples:
-  python -m data_analysis_gui.main              # Normal mode (quiet)
+  python -m data_analysis_gui.main              # Production mode (warnings only on console)
   python -m data_analysis_gui.main -debug       # Beta mode (clean console, verbose file)
   python -m data_analysis_gui.main -debug DEBUG # Full debug mode (everything)
   python -m data_analysis_gui.main -debug INFO  # Info level everywhere
@@ -56,19 +55,19 @@ Available logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
     
     # Determine logging levels based on arguments
     if args.debug is None:
-        # No -debug flag: Production mode (quiet)
+        # No -debug flag: Production mode (console: WARNING, file: INFO)
         console_level = logging.WARNING
         file_level = logging.INFO
         mode = "Production"
         
     elif args.debug == 'beta':
-        # -debug with no level: Beta mode (Scenario 2)
+        # -debug with no level: Beta mode (clean console at INFO, verbose file at DEBUG)
         console_level = logging.INFO
         file_level = logging.DEBUG
         mode = "Beta"
         
     else:
-        # -debug with specific level: Use that level for both
+        # -debug with specific level: Apply that level to both console and file
         level_str = args.debug.upper()
         level_map = {
             'DEBUG': logging.DEBUG,
@@ -92,14 +91,12 @@ Available logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
 def get_version_from_pyproject():
     """Read version from pyproject.toml in project root. Returns "unknown" if not found."""
     try:
-        # Navigate from main.py location to project root
-        # main.py is in src/data_analysis_gui/main.py
         project_root = Path(__file__).parent.parent.parent
         pyproject_path = project_root / "pyproject.toml"
         
         if pyproject_path.exists():
             content = pyproject_path.read_text(encoding='utf-8')
-            # Match: version = "0.9.2b4"
+            # Match: version = "0.9.2b4" (example)
             match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
             if match:
                 return match.group(1)

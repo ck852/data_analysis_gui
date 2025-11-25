@@ -9,11 +9,9 @@ from .custom_inputs import (
     SelectAllSpinBox,
     NoScrollComboBox,
 )
-from data_analysis_gui.widgets.concentration_range_table import ConcentrationRangeTable
 
 __all__ = [
     "SelectAllLineEdit",
     "SelectAllSpinBox",
     "NoScrollComboBox",
-    "ConcentrationRangeTable",
 ]

@@ -132,7 +132,6 @@ def build_executable():
             "--hidden-import=matplotlib",
             "--hidden-import=pyabf",
             "--hidden-import=pandas",
-            "--hidden-import=PyQtGraph",
             "--exclude-module=tkinter",
             "src/data_analysis_gui/main.py"
         ]

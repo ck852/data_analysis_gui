@@ -198,16 +198,6 @@ Requirements:
 
 It has been noted that some leak-subtracted outputs by WinWCP do not match the outputs of this program. This is likely due to WinWCP version differences in which a wcp file was recorded in an earlier version but analyzed in a later version. Outputs from this program match manually-performed leak subtractions in Excel using complete raw TEST and LEAK traces following the algorithm described above.
 
-### Dose-Response
-
-Click the "Add Range" buttons then click the plot to add them. This is meant for time vs. current output files by the main window. This window can be used to extract average/peak values from time ranges of interest over the duration of a recording, such as the average steady-state current during application of a drug. While this is geared for dose-response preparation, it can be used to easily extract steady-state currents for any time-course experiment.
-
-<img src="images/dose_response_main.PNG" alt="dose_response_main"/>
-
-Extracted steady-state currents can then be easily imported or directly copied into downstream data visualization tools for final preparation for data presentation.
-
-<img src="images/ca_dose_response.png" alt="ca_dose_response" width="550"/>
-
 ## Validation
 
 To validate the data processing modules of this program, analyses were performed on sets of real electrophysiology data files. The outputs by this program were compared with outputs by WinWCP, both analyses using identical parameters. 

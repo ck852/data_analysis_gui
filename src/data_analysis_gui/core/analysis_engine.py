@@ -15,16 +15,9 @@ from data_analysis_gui.core.params import AnalysisParameters
 from data_analysis_gui.core.metrics_calculator import MetricsCalculator, SweepMetrics
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.core.plot_formatter import PlotFormatter
-from data_analysis_gui.core.exceptions import (
-    ValidationError,
-    DataError,
-    ProcessingError,
-)
-from data_analysis_gui.config.logging import (
-    get_logger,
-    log_performance,
-    log_analysis_request,
-)
+
+from data_analysis_gui.core.exceptions import ValidationError, DataError
+from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -37,19 +30,14 @@ class AnalysisEngine:
         metrics_calculator: MetricsCalculator,
         plot_formatter: PlotFormatter,
     ):
-        """Wire up the analysis pipeline with its required components via dependency injection."""
+        """Wire up the analysis pipeline components."""
 
         logger.info("Initializing AnalysisEngine")
 
-        # Validate required dependencies
-        if data_extractor is None:
-            raise ValidationError("data_extractor cannot be None")
-        if metrics_calculator is None:
-            raise ValidationError("metrics_calculator cannot be None")
-        if plot_formatter is None:
-            raise ValidationError("plot_formatter cannot be None")
+        # These are required - fail fast if missing
+        if not all([data_extractor, metrics_calculator, plot_formatter]):
+            raise ValueError("AnalysisEngine requires all three components")
 
-        # Store injected dependencies
         self.data_extractor = data_extractor
         self.metrics_calculator = metrics_calculator
         self.plot_formatter = plot_formatter
@@ -80,20 +68,16 @@ class AnalysisEngine:
             rejected_sweeps = set()
 
         # Log the analysis request
-        dataset_info = {
-            "sweep_count": dataset.sweep_count(),
-            "identifier": f"{dataset.source_file if hasattr(dataset, 'source_file') else 'unknown'}",
-            "rejected_count": len(rejected_sweeps),
-        }
-        log_analysis_request(logger, params.to_export_dict(), dataset_info)
+        logger.info(
+            f"Analyzing {dataset.sweep_count()} sweeps "
+            f"(rejected: {len(rejected_sweeps)})"
+        )
 
-        # Log rejected sweeps if any
         if rejected_sweeps:
-            logger.info(f"Excluding {len(rejected_sweeps)} rejected sweeps: {sorted(rejected_sweeps)}")
+            logger.info(f"Excluding rejected sweeps: {sorted(rejected_sweeps)}")
 
-        # Perform analysis 
-        with log_performance(logger, f"analyze {dataset.sweep_count()} sweeps"):
-            metrics = self._compute_all_metrics(dataset, params, rejected_sweeps)
+        # Perform analysis
+        metrics = self._compute_all_metrics(dataset, params, rejected_sweeps)
 
         return metrics
 
@@ -121,7 +105,7 @@ class AnalysisEngine:
             # Format for plotting
             return self.plot_formatter.format_for_plot(metrics, params)
 
-        except (DataError, ProcessingError) as e:
+        except DataError as e:
             logger.error(f"Failed to generate plot data: {e}")
             # Return empty structure rather than propagating exception
             return self.plot_formatter.empty_plot_data()
@@ -177,20 +161,17 @@ class AnalysisEngine:
         if peak_types is None:
             peak_types = ["Absolute", "Positive", "Negative", "Peak-Peak"]
 
-        with log_performance(logger, f"peak analysis for {len(peak_types)} types"):
-            # Get base metrics
-            metrics = self.analyze_dataset(dataset, params)
+        logger.debug(f"Running peak analysis for {len(peak_types)} types")
+        
+        # Get base metrics
+        metrics = self.analyze_dataset(dataset, params)
 
-            if not metrics:
-                logger.warning("No metrics available for peak analysis")
-                return {}
+        if not metrics:
+            logger.warning("No metrics available for peak analysis")
+            return {}
 
-            # Format peak analysis data
-            return self.plot_formatter.format_peak_analysis(metrics, params, peak_types)
-
-    # =========================================================================
-    # Private Helper Methods
-    # =========================================================================
+        # Format peak analysis data
+        return self.plot_formatter.format_peak_analysis(metrics, params, peak_types)
 
     def _compute_all_metrics(
         self,
@@ -275,23 +256,23 @@ class AnalysisEngine:
 
                 metrics.append(metric)
 
-            except (DataError, ProcessingError) as e:
+            except DataError as e:
                 logger.warning(f"Failed to process sweep {sweep_index}: {e}")
                 failed_sweeps.append(sweep_index)
 
         # Log summary
         if skipped_sweeps:
-            logger.info(f"Skipped {len(skipped_sweeps)} rejected sweeps: {skipped_sweeps}")
+            logger.info(f"Skipped {len(skipped_sweeps)} rejected sweeps")
         
         if failed_sweeps:
             logger.warning(
                 f"Failed to process {len(failed_sweeps)} of {len(sweep_list)} sweeps. "
-                f"Failed sweeps: {failed_sweeps[:10]}"  # Show first 10
+                f"Failed sweeps: {failed_sweeps[:10]}"
             )
 
         # Ensure we have at least some valid metrics
         if not metrics:
-            raise ProcessingError(
+            raise DataError(
                 "No valid metrics computed for any sweep",
                 details={
                     "total_sweeps": len(sweep_list),
@@ -304,11 +285,6 @@ class AnalysisEngine:
         return metrics
 
 
-# ===========================================================================
-# Factory function for convenient creation with default components
-# ===========================================================================
-
-
 def create_analysis_engine() -> AnalysisEngine:
     """Create an AnalysisEngine with standard components wired up."""
 
@@ -316,14 +292,8 @@ def create_analysis_engine() -> AnalysisEngine:
     from data_analysis_gui.core.metrics_calculator import MetricsCalculator
     from data_analysis_gui.core.plot_formatter import PlotFormatter
 
-    # Create components
-    data_extractor = DataExtractor()
-    metrics_calculator = MetricsCalculator()
-    plot_formatter = PlotFormatter()
-
-    # Create and return engine
     return AnalysisEngine(
-        data_extractor=data_extractor,
-        metrics_calculator=metrics_calculator,
-        plot_formatter=plot_formatter,
+        data_extractor=DataExtractor(),
+        metrics_calculator=MetricsCalculator(),
+        plot_formatter=PlotFormatter(),
     )

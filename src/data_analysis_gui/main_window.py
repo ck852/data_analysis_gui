@@ -31,7 +31,6 @@ Key design principles (during initial development; these are negotiable as the p
 
 from pathlib import Path
 from typing import Optional, Set
-import re
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout,
     QMessageBox, QSplitter, QToolBar, QStatusBar, QLabel, QCheckBox,
@@ -45,7 +44,7 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                 )
 
 from data_analysis_gui.core.session_settings import (extract_settings_from_main_window,
-                                                    save_session_settings, load_conc_resp_settings
+                                                    save_session_settings
 )
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
@@ -67,7 +66,6 @@ from data_analysis_gui.dialogs.analysis_plot_dialog import AnalysisPlotDialog
 from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
-from data_analysis_gui.dialogs import ConcentrationResponseDialog
 from data_analysis_gui.dialogs.reject_sweeps_dialog import RejectSweepsDialog
 
 # Service imports
@@ -99,19 +97,17 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Initialize controller (which creates all services)
         self.controller = ApplicationController()
 
-        # Initialize plot formatter for consistent plot labeling
         self.plot_formatter = PlotFormatter()
 
-        # Get shared services from controller
+        # Get shared services from AppController
         services = self.controller.get_services()
         self.data_manager = services["data_manager"]
         self.analysis_manager = services["analysis_manager"]
         self.batch_processor = services["batch_processor"]
 
-        # Sweep extraction service for quick copy feature
+        # Sweep extraction service for copying sweeps direct from MainWindow
         self.sweep_extraction_service = SweepExtractionService()
 
         # GUI services
@@ -140,7 +136,6 @@ class MainWindow(QMainWindow):
         self.last_channel_view = "Voltage"
         self.last_directory = None
 
-        # Build UI (this calls _connect_signals internally)
         self._init_ui()
         
         # Initialize range coordinator AFTER UI is built (needs control_panel and plot_manager to exist)
@@ -149,14 +144,14 @@ class MainWindow(QMainWindow):
             self.plot_manager
         )
         
-        # Connect coordinator signals (must be after coordinator creation)
+        # Connect coordinator signals (must be after range coordinator creation)
         self._connect_coordinator_signals()
 
         # Apply modern theme to the main window (handles everything including toolbars and menus)
         apply_modern_theme(self)
 
         # Set window title
-        self.setWindowTitle("PatchBatch BETA")
+        self.setWindowTitle("PatchBatch v1.0")
 
     def _init_ui(self):
         """Build the main UI layout with control panel, plot area, toolbar, and menus."""
@@ -185,8 +180,6 @@ class MainWindow(QMainWindow):
         # Allow splitter to flexibly resize
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
-        # splitter.setMinimumWidth(600)
-        # probably don't need to set min width, delete later if no issues
 
         # Menus and toolbar
         self._create_menus()
@@ -266,29 +259,11 @@ class MainWindow(QMainWindow):
         self.leak_sub_action.triggered.connect(self._open_leak_subtraction)
         analysis_menu.addAction(self.leak_sub_action)
 
-        # Tools menu
-        tools_menu = menubar.addMenu("&Tools")
-
-        # Concentration Response Analysis
-        conc_resp_action = tools_menu.addAction("&Concentration Response...")
-        conc_resp_action.triggered.connect(self._open_concentration_response)
-
         # About button (no submenu)
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
         menubar.addAction(about_action)
 
-    def _open_concentration_response(self):
-        """Launch concentration-response curve analysis dialog."""
-        dialog = ConcentrationResponseDialog(self)
-        dialog.showMaximized()
-        
-        # Apply saved settings after window is maximized
-        saved_settings = load_conc_resp_settings()
-        if saved_settings:
-            QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
-        
-        dialog.show() # non-modal
 
     def _background_subtraction(self):
         """

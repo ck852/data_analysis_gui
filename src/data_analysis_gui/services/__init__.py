@@ -9,7 +9,6 @@ from .analysis_manager import AnalysisManager
 from .batch_processor import BatchProcessor
 from .current_density_service import CurrentDensityService
 from .ramp_iv_service import RampIVService, RampIVResult
-from .conc_resp_service import ConcentrationResponseService
 
 __all__ = [
     "DataManager",
@@ -18,5 +17,4 @@ __all__ = [
     "CurrentDensityService",
     "RampIVService",
     "RampIVResult",
-    "ConcentrationResponseService",
 ]

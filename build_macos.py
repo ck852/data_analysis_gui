@@ -70,7 +70,7 @@ a = Analysis(
         ('LICENSE.md', '.'),
         ('LICENSES', 'LICENSES'),
     ],
-    hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf', 'pandas', 'PyQtGraph'],
+    hiddenimports=['PySide6', 'numpy', 'scipy', 'matplotlib', 'pyabf', 'pandas'],
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[],

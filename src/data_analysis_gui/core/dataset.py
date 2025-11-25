@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, Iterable, Any, Union
 import numpy as np
 
-from data_analysis_gui.config.logging import get_logger, log_performance
+from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -342,17 +342,16 @@ class DatasetLoader:
         format_type = DatasetLoader.detect_format(filepath)
 
         try:
-            with log_performance(logger, f"load {format_type} file"):
-                if format_type == "wcp":
-                    from data_analysis_gui.core.loaders.wcp_loader import load_wcp
-                    dataset = load_wcp(filepath)
-                elif format_type == "abf":
-                    from data_analysis_gui.core.loaders.abf_loader import load_abf
-                    dataset = load_abf(filepath)
-                else:
-                    error_msg = f"Unsupported file format: {format_type}"
-                    logger.error(f"Load failed: {error_msg}")
-                    raise ValueError(error_msg)
+            if format_type == "wcp":
+                from data_analysis_gui.core.loaders.wcp_loader import load_wcp
+                dataset = load_wcp(filepath)
+            elif format_type == "abf":
+                from data_analysis_gui.core.loaders.abf_loader import load_abf
+                dataset = load_abf(filepath)
+            else:
+                error_msg = f"Unsupported file format: {format_type}"
+                logger.error(f"Load failed: {error_msg}")
+                raise ValueError(error_msg)
             
             logger.info(
                 f"Successfully loaded {dataset.sweep_count()} sweep(s), "

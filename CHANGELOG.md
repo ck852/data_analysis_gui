@@ -2,9 +2,12 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.9.2-b.7]
+## [1.0.0]
 ### Added
 - Batch background subtraction
+
+### Changed
+- Concentration/Dose Response tool removed for initial release. Still needs styling optimizations. Not needed for majority of the program's utility (bare but functional in previous versions).
 
 ### Known Issues
 - Dual Analysis range recognized as invalid if load new file with smaller time range which constrains saved cursor positions. Fixed by unchecking and re-checking the box

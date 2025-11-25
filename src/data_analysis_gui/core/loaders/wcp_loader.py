@@ -399,7 +399,7 @@ class WCPParser:
         dt = self._get_param_float(params, 'DT', 0.001)
         adc_voltage_range = self._get_param_float(params, 'AD', 5.0)
 
-        num_zero_avg = self._get_param_int(params, 'NZ', 20)  # Default = 20
+        num_zero_avg = self._get_param_int(params, 'NZ', 20)  # Default = 20 (Same as WinWCP)
         num_zero_avg = max(num_zero_avg, 1)  # Ensure at least 1
         
         channels = []
