@@ -189,14 +189,14 @@ class DynamicBatchPlotWidget(QWidget):
 
     def _create_plot_components(self) -> None:
         """
-        Create matplotlib figure, canvas, and toolbar with modern styling.
+        Create matplotlib figure, canvas, and toolbar.
         """
         # Remove empty label
         if self.empty_label:
             self.empty_label.setParent(None)
             self.empty_label = None
 
-        # Create figure with modern style
+        # Create figure and axis
         self.figure = Figure(figsize=(12, 8), facecolor="#FAFAFA")
         self.ax = self.figure.add_subplot(111)
 
@@ -264,12 +264,11 @@ class DynamicBatchPlotWidget(QWidget):
         self, results: List[FileAnalysisResult]
     ) -> Dict[str, Tuple[float, ...]]:
         """
-        Generate a color mapping for each file using the modern color palette.
+        Generate a color mapping for each file.
         """
         color_mapping = {}
 
         for idx, result in enumerate(results):
-            # Use the modern color cycle
             color_hex = COLOR_CYCLE[idx % len(COLOR_CYCLE)]
 
             # Convert hex to RGB tuple
@@ -286,7 +285,7 @@ class DynamicBatchPlotWidget(QWidget):
 
     def _create_lines_for_result(self, result: FileAnalysisResult) -> None:
         """
-        Create line objects for a given analysis result with modern styling.
+        Create line objects for a given analysis result.
         Uses voltage annotations in labels if available for dual range plots.
         """
         color = self.file_colors.get(result.base_name, (0, 0, 0))
@@ -294,7 +293,7 @@ class DynamicBatchPlotWidget(QWidget):
         # Get voltage annotations if available
         voltages = self.voltage_annotations.get(result.base_name)
 
-        # Range 1 line with modern styling
+        # Range 1 line
         if len(result.x_data) > 0 and len(result.y_data) > 0:
             # Use voltage annotation for Range 1 label if available and dual range is enabled
             if self.use_dual_range and voltages:
@@ -398,9 +397,7 @@ class DynamicBatchPlotWidget(QWidget):
         self.plot_updated.emit()
 
     def _update_plot_appearance(self) -> None:
-        """
-        Update legend and plot appearance with modern styling.
-        """
+
         # Get visible lines for legend
         visible_lines = []
         visible_labels = []
@@ -411,7 +408,7 @@ class DynamicBatchPlotWidget(QWidget):
                     visible_lines.append(line)
                     visible_labels.append(line.get_label())
 
-        # Update legend with modern styling
+        # Update legend
         if visible_lines:
             legend = self.ax.legend(
                 visible_lines,
@@ -429,7 +426,7 @@ class DynamicBatchPlotWidget(QWidget):
                 handlelength=2,
             )
 
-            # Make legend draggable for better user experience
+            # Make legend draggable
             if legend:
                 legend.set_draggable(True)
         else:
@@ -456,7 +453,6 @@ class DynamicBatchPlotWidget(QWidget):
         Export the current figure to a file with high quality.
         """
         if self.figure:
-            # Ensure the figure looks good when exported
             self.figure.savefig(
                 filepath,
                 dpi=dpi,

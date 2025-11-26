@@ -81,7 +81,6 @@ class BackgroundSubtractionDialog(QDialog):
         self._connect_signals()
         self._update_plot()
         
-        # Apply modern theme
         apply_modern_theme(self)
         
     def _init_ui(self):

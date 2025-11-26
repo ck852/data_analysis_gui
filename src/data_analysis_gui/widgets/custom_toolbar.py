@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 class StreamlinedNavigationToolbar(NavigationToolbar):
     """
-    StreamlinedNavigationToolbar provides a modern, minimal navigation toolbar
-    for matplotlib plots in Qt GUIs. Only essential navigation tools are included,
-    with custom icons and styling to match the application's appearance.
+    StreamlinedNavigationToolbar provides a minimal navigation toolbar
+    for matplotlib plots in Batch Analysis and Current Density dialogs. Only essential navigation 
+    tools are included, with custom icons and styling to match the application's appearance.
 
     Signals:
         mode_changed (str): Emitted when the zoom/pan mode changes ('zoom', 'pan', or 'none').
@@ -250,7 +250,7 @@ class StreamlinedNavigationToolbar(NavigationToolbar):
 
     def _create_icon(self, icon_type: str) -> QIcon:
         """
-        Programmatically create simple, modern icons for toolbar actions.
+        Programmatically create icons for toolbar actions.
 
         Args:
             icon_type (str): The type of icon to create ('home', 'back', 'forward', 'pan', 'zoom', 'save').

@@ -5,7 +5,7 @@ This module is foundational for all data operations within the entire program! I
 container for electrophysiology data. Whether the input file is ABF, WCP, or another supported format, the 
 ElectrophysiologyDataset object contains arrays of a single Voltage channel and a single Current channel, as well as the 
 time array, for each sweep. This enables all downstream operations to proceed without concern for file format and 
-facilitates expansion to additional formats in the future. Works in conjunction with DataExtractor to retrieve meaningful
+facilitates expansion to additional formats in the future. Works in conjunction with DataExtractor to retrieve 
 electrophysiology data from raw input files.
 
 Author: Charles Kissell, Northeastern University
@@ -332,10 +332,6 @@ class DatasetLoader:
         Load an electrophysiology file into a dataset object.
         
         Detects format from extension and delegates to the appropriate loader.
-        
-        Raises:
-            ValueError: If file format is unsupported
-            Exception: If loader fails (logged with full traceback)
         """
         logger.info(f"Loading dataset from: {Path(filepath).name}")
         

@@ -4,8 +4,7 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
 Custom exceptions for the analysis pipeline. These provide semantic error types
-that ApplicationController catches and routes to the GUI. Using built-in exceptions
-would work fine, but these make catch blocks more readable.
+that ApplicationController catches and routes to the GUI. 
 """
 
 

@@ -80,7 +80,6 @@ class BatchSweepExtractorDialog(QDialog):
         
         self._init_ui()
         
-        # Apply modern theme
         apply_modern_theme(self)
         
     def _init_ui(self):

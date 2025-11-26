@@ -122,7 +122,6 @@ class CurrentDensityResultsWindow(QMainWindow):
 
         self.init_ui()
 
-        # Apply centralized styling from themes.py
         apply_modern_theme(self)
 
 

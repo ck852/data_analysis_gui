@@ -393,7 +393,7 @@ class PlotManager(QObject):
             self.axis_zoom_controller.create_buttons(self._on_axis_zoom)
 
         self.redraw()
-        logger.debug("Updated range lines with modern styling.")
+        logger.debug("Updated range lines.")
 
     def center_nearest_cursor(self) -> Tuple[Optional[str], Optional[float]]:
         """
