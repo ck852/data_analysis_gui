@@ -11,7 +11,6 @@ License: MIT (see LICENSE file for details)
 import logging
 from typing import Dict, List, Tuple, Set, Optional
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
-from data_analysis_gui.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 

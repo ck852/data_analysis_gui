@@ -27,14 +27,11 @@ class FileDialogService:
     """
 
     def __init__(self):
-
-        # Dictionary to track last used directories by dialog type
         self._last_directories: Dict[str, str] = {}
         logger.debug("FileDialogService initialized")
 
     def set_last_directories(self, directories: Dict[str, str]) -> None:
         """Load directory memory from session settings, validating paths exist."""
-        # Only set directories that actually exist
         self._last_directories = {}
         valid_count = 0
         invalid_count = 0
@@ -50,35 +47,24 @@ class FileDialogService:
         logger.info(f"Loaded directory memory: {valid_count} valid, {invalid_count} invalid")
 
     def get_last_directories(self) -> Dict[str, str]:
-        """Return current directory memory for persisting to session settings."""
         logger.debug(f"Retrieved {len(self._last_directories)} stored directories")
         return self._last_directories.copy()
 
     def _get_fallback_for_dialog_type(self, dialog_type: str) -> Optional[str]:
-        """
-        Return intelligent fallback directory based on dialog type relationships.
-        
-        Currently only batch_import falls back to import_data location, allowing
-        batch operations to start near currently active data files.
-        """
+        """Return fallback directory based on dialog type relationships."""
         if dialog_type == "batch_import":
-            # Batch imports start near where you last opened a file in MainWindow
             if "import_data" in self._last_directories:
                 import_dir = self._last_directories["import_data"]
                 if os.path.isdir(import_dir):
                     logger.debug(f"batch_import falling back to import_data: {import_dir}")
                     return import_dir
-        
         return None
 
     def _get_default_directory(
         self, dialog_type: str, fallback: Optional[str] = None
     ) -> Optional[str]:
-        """
-        Resolve default directory using stored memory, explicit fallback, type-specific
-        fallback, or Qt defaults in that priority order.
-        """
-        # 1. First try the stored directory for this dialog type
+        """Resolve default directory using stored memory, fallback, or Qt defaults."""
+        # Stored directory for this type
         if dialog_type in self._last_directories:
             stored_dir = self._last_directories[dialog_type]
             if os.path.isdir(stored_dir):
@@ -87,17 +73,16 @@ class FileDialogService:
             else:
                 logger.warning(f"Stored directory no longer exists for {dialog_type}: {stored_dir}")
 
-        # 2. Then try explicit fallback parameter
+        # Explicit fallback
         if fallback and os.path.isdir(fallback):
             logger.debug(f"Using explicit fallback for {dialog_type}: {fallback}")
             return fallback
 
-        # 3. Try intelligent dialog-type-specific fallback
+        # Type-specific fallback
         type_fallback = self._get_fallback_for_dialog_type(dialog_type)
         if type_fallback:
             return type_fallback
 
-        # 4. No valid directory found, let Qt use OS default
         logger.debug(f"No valid directory found for {dialog_type}, using Qt default")
         return None
 
@@ -119,29 +104,21 @@ class FileDialogService:
         file_types: str = "CSV files (*.csv);;All files (*.*)",
         dialog_type: str = "export",
     ) -> Optional[str]:
-        """
-        Show save file dialog with suggested filename.
-        
-        Returns selected path or None if cancelled. Updates directory memory on success.
-        """
+        """Show save dialog with suggested filename. Updates directory memory."""
         logger.debug(f"Opening export dialog: type={dialog_type}, suggested={suggested_name}")
 
-        # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
-        # Construct the suggested full path
         if start_dir:
             suggested_path = os.path.join(start_dir, suggested_name)
         else:
             suggested_path = suggested_name
             logger.debug("No start directory available, using suggested name only")
 
-        # Show the dialog
         file_path, _ = QFileDialog.getSaveFileName(
             parent, "Export File", suggested_path, file_types
         )
 
-        # Remember the directory if a file was selected
         if file_path:
             self._remember_directory(dialog_type, file_path)
             logger.info(f"Export path selected: {Path(file_path).name}")
@@ -158,21 +135,15 @@ class FileDialogService:
         file_types: str = "All files (*.*)",
         dialog_type: str = "import_data",
     ) -> Optional[str]:
-        """
-        Show single-file selection dialog.
-        
-        Returns selected path or None if cancelled. Updates directory memory on success.
-        """
+        """Show single-file selection dialog."""
         logger.debug(f"Opening import dialog: type={dialog_type}, title='{title}'")
 
-        # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
         file_path, _ = QFileDialog.getOpenFileName(
             parent, title, start_dir or "", file_types
         )
 
-        # Remember the directory if a file was selected
         if file_path:
             self._remember_directory(dialog_type, file_path)
             logger.info(f"Import file selected: {Path(file_path).name}")
@@ -189,22 +160,15 @@ class FileDialogService:
         file_types: str = "All files (*.*)",
         dialog_type: str = "batch_import",
     ) -> List[str]:
-        """
-        Show multi-file selection dialog.
-        
-        Returns list of selected paths (empty if cancelled). Updates directory memory
-        from first selected file.
-        """
+        """Show multi-file selection dialog. Returns empty list if cancelled."""
         logger.debug(f"Opening multi-file import dialog: type={dialog_type}, title='{title}'")
 
-        # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
         file_paths, _ = QFileDialog.getOpenFileNames(
             parent, title, start_dir or "", file_types
         )
 
-        # Remember the directory if files were selected
         if file_paths:
             self._remember_directory(dialog_type, file_paths[0])
             logger.info(f"Selected {len(file_paths)} files for import")
@@ -220,14 +184,9 @@ class FileDialogService:
         default_directory: Optional[str] = None,
         dialog_type: str = "export",
     ) -> Optional[str]:
-        """
-        Show directory selection dialog.
-        
-        Returns selected directory or None if cancelled. Updates directory memory on success.
-        """
+        """Show directory selection dialog."""
         logger.debug(f"Opening directory selection dialog: type={dialog_type}, title='{title}'")
 
-        # Determine the default directory
         start_dir = self._get_default_directory(dialog_type, default_directory)
 
         directory = QFileDialog.getExistingDirectory(
@@ -237,7 +196,6 @@ class FileDialogService:
             QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks,
         )
 
-        # Remember the directory if one was selected
         if directory:
             self._last_directories[dialog_type] = directory
             logger.info(f"Directory selected: {Path(directory).name}")

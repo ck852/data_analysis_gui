@@ -113,7 +113,7 @@ def apply_modern_theme(widget: QWidget) -> None:
 
 
 def style_button(button: QPushButton, style_type: str = "secondary") -> None:
-    """Style button with specified type (primary, secondary, accent, danger, warning)."""
+
     styles = {
         "primary": {
             "bg": MODERN_COLORS["primary"],
@@ -169,7 +169,7 @@ def style_button(button: QPushButton, style_type: str = "secondary") -> None:
 
 
 def style_input_field(widget: QWidget, invalid: bool = False) -> None:
-    """Style input fields with optional invalid state (red border/background)."""
+
     bg_color = "#ffcccc" if invalid else MODERN_COLORS["background"]
     border_color = MODERN_COLORS["danger"] if invalid else MODERN_COLORS["border"]
 
@@ -215,7 +215,7 @@ def style_input_field(widget: QWidget, invalid: bool = False) -> None:
 
 
 def style_combo_box(widget: QComboBox) -> None:
-    """Style combo box with dropdown and item view."""
+
     widget.setStyleSheet(
         f"""
         QComboBox {{
@@ -259,7 +259,7 @@ def style_combo_box(widget: QComboBox) -> None:
 
 
 def style_label(widget: QLabel, style_type: str = "normal") -> None:
-    """Style label with type (normal, heading, subheading, muted, caption, info, success, warning, error)."""
+    
     styles = {
         "normal": {
             "color": MODERN_COLORS["text"],
@@ -325,7 +325,7 @@ def style_label(widget: QLabel, style_type: str = "normal") -> None:
 
 
 def style_table_widget(widget: QTableWidget) -> None:
-    """Style table with alternating row colors and modern header."""
+
     widget.setAlternatingRowColors(True)
     widget.setStyleSheet(
         f"""
@@ -357,7 +357,6 @@ def style_table_widget(widget: QTableWidget) -> None:
 
 
 def style_list_widget(widget: QListWidget) -> None:
-    """Style list widget with hover and selection states."""
     widget.setStyleSheet(
         f"""
         QListWidget {{
@@ -383,7 +382,7 @@ def style_list_widget(widget: QListWidget) -> None:
 
 
 def style_progress_bar(widget: QProgressBar) -> None:
-    """Style progress bar."""
+
     widget.setStyleSheet(
         f"""
         QProgressBar {{
@@ -405,7 +404,7 @@ def style_progress_bar(widget: QProgressBar) -> None:
 
 
 def style_group_box(widget: QGroupBox) -> None:
-    """Style group box with title and border."""
+
     widget.setStyleSheet(
         f"""
         QGroupBox {{
@@ -428,7 +427,7 @@ def style_group_box(widget: QGroupBox) -> None:
 
 
 def style_checkbox(widget: QCheckBox) -> None:
-    """Style checkbox with indicator and hover states."""
+
     widget.setStyleSheet(
         f"""
         QCheckBox {{
@@ -459,7 +458,6 @@ def style_checkbox(widget: QCheckBox) -> None:
 
 
 def apply_compact_layout(widget: QWidget, spacing: int = 8, margin: int = 10) -> None:
-    """Apply compact spacing and margins to widget's layout."""
     if widget.layout():
         widget.layout().setSpacing(spacing)
         widget.layout().setContentsMargins(margin, margin, margin, margin)
@@ -477,7 +475,6 @@ def create_styled_button(
 
 
 def _get_base_stylesheet() -> str:
-    """Return base stylesheet for dialogs and main windows."""
     return f"""
         QDialog, QMainWindow {{
             background-color: {MODERN_COLORS['background']};
@@ -527,7 +524,6 @@ def _get_base_stylesheet() -> str:
 
 
 def _apply_palette(widget: QWidget) -> None:
-    """Apply color palette to widget or application."""
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(MODERN_COLORS["background"]))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(MODERN_COLORS["text"]))
@@ -546,7 +542,6 @@ def _apply_palette(widget: QWidget) -> None:
 
 
 def apply_theme_to_application(app: QApplication) -> None:
-    """Apply theme to entire application."""
     app.setStyle("Fusion")
     _apply_palette(app)
     app.setStyleSheet(_get_base_stylesheet())
@@ -555,7 +550,6 @@ def apply_theme_to_application(app: QApplication) -> None:
 # --- Color Helpers ---
 
 def get_file_count_color(count: int, max_count: int = 10) -> str:
-    """Return color based on file count relative to max_count."""
     return (
         MODERN_COLORS["success"]
         if count >= max_count // 2
@@ -564,7 +558,6 @@ def get_file_count_color(count: int, max_count: int = 10) -> str:
 
 
 def get_status_color(status: str) -> str:
-    """Return color for status (success, warning, error, info, muted)."""
     status_map = {
         "success": MODERN_COLORS["success"],
         "warning": MODERN_COLORS["warning"],
@@ -576,7 +569,6 @@ def get_status_color(status: str) -> str:
 
 
 def get_selection_summary_color(selected: int, total: int) -> str:
-    """Return color for selection summary based on counts."""
     if selected == 0:
         return MODERN_COLORS["warning"]
     elif selected == total:

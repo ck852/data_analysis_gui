@@ -43,7 +43,7 @@ class LeakSubtractionService:
     
     # Algorithm constants
     VLIMIT = 0.001  # Minimum voltage step for valid scaling (V)
-    NAVG = 20       # Number of samples for cursor averaging
+    NAVG = 20       # Number of samples for cursor averaging (WinWCP uses 20)
     
     def __init__(self):
         """Initialize the service."""
