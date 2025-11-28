@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class SelectAllLineEdit(QLineEdit):
-    """QLineEdit that auto-selects text on focus for faster data entry."""
+    """QLineEdit that auto-selects text on focus."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

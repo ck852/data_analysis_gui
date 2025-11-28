@@ -83,7 +83,6 @@ class BatchSweepExtractorDialog(QDialog):
         apply_modern_theme(self)
         
     def _init_ui(self):
-        """Initialize the user interface."""
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -194,7 +193,7 @@ class BatchSweepExtractorDialog(QDialog):
         layout.addWidget(param_group)
         
     def _create_status_section(self, layout):
-        """Create status message section."""
+
         status_group = QGroupBox("Status")
         style_group_box(status_group)
         status_layout = QVBoxLayout(status_group)
@@ -207,7 +206,6 @@ class BatchSweepExtractorDialog(QDialog):
         layout.addWidget(status_group)
         
     def _create_action_buttons(self, layout):
-        """Create action buttons."""
         button_layout = QHBoxLayout()
         
         # Perform extraction (primary action)
@@ -246,7 +244,6 @@ class BatchSweepExtractorDialog(QDialog):
 
         
     def _update_file_list(self):
-        """Update the file list display."""
         self.file_list.clear()
         for file_path in self.file_paths:
             self.file_list.addItem(Path(file_path).name)
@@ -264,7 +261,6 @@ class BatchSweepExtractorDialog(QDialog):
             self.extract_btn.setEnabled(count > 0)
         
     def _add_files(self):
-        """Add files to the batch list."""
         file_types = (
             "WCP files (*.wcp);;"
             "ABF files (*.abf);;"
@@ -302,7 +298,6 @@ class BatchSweepExtractorDialog(QDialog):
                 logger.warning(f"Failed to auto-save settings: {e}")
                 
     def _remove_selected(self):
-        """Remove selected files from the list."""
         selected_items = self.file_list.selectedItems()
         if not selected_items:
             return
@@ -402,9 +397,7 @@ class BatchSweepExtractorDialog(QDialog):
             self.status_label.setText(f"Extraction failed: {str(e)}")
             
     def _extract_reference_time(self, dataset) -> np.ndarray:
-        """
-        Extract reference time array from the first valid sweep.
-        """
+
         start_ms, end_ms = self.time_range
         
         for sweep_idx in self.sweep_indices:
@@ -427,9 +420,7 @@ class BatchSweepExtractorDialog(QDialog):
         
     def _extract_file_sweeps(self, dataset, file_path: str, 
                             reference_time: np.ndarray) -> Dict:
-        """
-        Extract all requested sweeps from a single file.
-        """
+
         start_ms, end_ms = self.time_range
         base_name = self._clean_filename(file_path)
         
@@ -482,9 +473,7 @@ class BatchSweepExtractorDialog(QDialog):
         return file_data
         
     def _create_nan_file_data(self, file_path: str, reference_time: np.ndarray) -> Dict:
-        """
-        Create NaN placeholder data for a file that failed to load.
-        """
+
         base_name = self._clean_filename(file_path)
         
         file_data = {
@@ -502,9 +491,7 @@ class BatchSweepExtractorDialog(QDialog):
         return file_data
         
     def _pad_or_truncate(self, array: np.ndarray, target_length: int) -> np.ndarray:
-        """
-        Pad array with NaN or truncate to match target length.
-        """
+
         if len(array) < target_length:
             # Pad with NaN
             return np.pad(array, (0, target_length - len(array)), 
@@ -518,9 +505,7 @@ class BatchSweepExtractorDialog(QDialog):
     def _build_output_structure(self, all_data: List[Dict], 
                                 reference_time: np.ndarray,
                                 reference_units: Dict) -> Dict:
-        """
-        Build the final output structure for export.
-        """
+
         headers = ["Time (ms)"]
         columns = [reference_time]
         
@@ -557,9 +542,7 @@ class BatchSweepExtractorDialog(QDialog):
         }
         
     def _update_status_after_extraction(self, num_files: int, all_data: List[Dict]):
-        """
-        Update status label after extraction completes.
-        """
+
         total_sweeps = sum(len(fd['sweeps']) for fd in all_data)
         
         # Build status message
@@ -592,7 +575,7 @@ class BatchSweepExtractorDialog(QDialog):
         self.copy_filenames_btn.setEnabled(True)
         
     def _export_to_csv(self):
-        """Export extracted data to CSV."""
+
         if not self.extraction_result:
             return
         
@@ -637,7 +620,7 @@ class BatchSweepExtractorDialog(QDialog):
             self.status_label.setText(f"Export failed: {str(e)}")
             
     def _copy_to_clipboard(self):
-        """Copy extracted data to clipboard."""
+
         if not self.extraction_result:
             return
         
@@ -700,9 +683,7 @@ class BatchSweepExtractorDialog(QDialog):
             self.status_label.setText(f"Copy failed: {str(e)}")         
 
     def _sort_files(self, file_paths: List[str]) -> List[str]:
-        """
-        Sort file paths using numeric ordering.
-        """
+        """Sort file paths using numeric ordering."""
         def extract_number(file_path):
             file_name = Path(file_path).stem
             # Try to extract numbers on both sides of underscore
@@ -721,9 +702,8 @@ class BatchSweepExtractorDialog(QDialog):
         
     @staticmethod
     def _clean_filename(file_path: str) -> str:
-        """
-        Clean a filename for display by removing extension and bracketed content.
-        """
+        """Clean a filename for display by removing extension and bracketed content (primarily useful
+        for ABF exports from WinWCP. May not be desirable by all users)."""
         stem = Path(file_path).stem
         cleaned = re.sub(r"\[.*?\]", "", stem).strip()
         return cleaned

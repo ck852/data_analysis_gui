@@ -32,9 +32,7 @@ class AxisConfig:
 
 @dataclass(frozen=True)
 class ConductanceConfig:
-    """
-    Configuration for conductance calculation: G = I / (V - Vrev).
-    """
+    """Configuration for conductance calculation: G = I / (V - Vrev)."""
     
     i_measure: str  # "Average" or "Peak"
     v_measure: str  # "Average" or "Peak"

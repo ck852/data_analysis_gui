@@ -25,16 +25,8 @@ DEFAULT_SETTINGS = {
     "window_geometry": (100, 100, 1400, 900),
 }
 """
-dict: Default application settings for PatchBatch.
-
-Keys:
-    range1_start (int): Start index for analysis range 1.
-    range1_end (int): End index for analysis range 1.
-    range2_start (int): Start index for analysis range 2.
-    range2_end (int): End index for analysis range 2.
-    cslow_default (float): Default Cslow value in pF.
-    plot_figsize (tuple): Default figure size for plots (width, height).
-    window_geometry (tuple): Default main window geometry (x, y, width, height).
+Default application settings including analysis range indices, Cslow value,
+plot dimensions, and window geometry (x, y, width, height).
 """
 
 
@@ -49,16 +41,9 @@ ANALYSIS_CONSTANTS = {
     },
 }
 """
-dict: Analysis-related constants for PatchBatch.
-
-Keys:
-    hold_timer_interval (int): Interval for hold timer in ms.
-    zoom_scale_factor (float): Factor for zooming in/out in plots.
-    pan_cursor (Qt.CursorShape): Cursor shape for panning.
-    line_picker_tolerance (int): Pixel tolerance for line picking.
-    range_colors (dict): Colors for analysis and background ranges.
-        analysis (dict): Line and fill color for analysis range.
-        background (dict): Line and fill color for background range.
+Constants for plot interactions and visual styling. Includes timer intervals,
+zoom/pan behavior, line picking tolerance, and color schemes for analysis and
+background ranges.
 """
 
 
@@ -66,17 +51,11 @@ FILE_PATTERNS = {
     "csv_files": "CSV files (*.csv)",
     "png_files": "PNG files (*.png)",
 }
-"""
-dict: File dialog patterns and extensions for supported file types.
-
-Keys:
-    csv_files (str): Pattern for CSV files.
-    png_files (str): Pattern for PNG image files.
-"""
+"""File dialog filter patterns for CSV exports and PNG image saves."""
 
 
 TABLE_HEADERS = {
-    "ranges": ["✖", "Name", "Start", "End", "Analysis", "BG", "Paired BG"],
+    "ranges": ["✗", "Name", "Start", "End", "Analysis", "BG", "Paired BG"],
     "results": [
         "File",
         "Data Trace",
@@ -87,11 +66,4 @@ TABLE_HEADERS = {
     ],
     "current_density_iv": ["File", "Include", "Cslow (pF)"],
 }
-"""
-dict: Table column headers for various PatchBatch tables.
-
-Keys:
-    ranges (list): Headers for range selection table.
-    results (list): Headers for results table.
-    current_density_iv (list): Headers for current density IV table.
-"""
+"""Column headers for the range selection table, results table, and current density IV table."""

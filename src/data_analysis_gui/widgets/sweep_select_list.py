@@ -19,9 +19,7 @@ from PySide6.QtWidgets import (
 from data_analysis_gui.widgets.custom_inputs import RangeInputLineEdit
 
 class SweepSelectionWidget(QWidget):
-    """
-    Widget for selecting which sweeps to analyze.
-    """
+    """Widget for selecting which sweeps to analyze."""
     
     def __init__(self, sweep_names: List[str], parent=None):
         super().__init__(parent)
@@ -99,15 +97,11 @@ class SweepSelectionWidget(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(i, 1, item)
         
-        # Removed setMaximumHeight to allow table to expand vertically
-        
         # Connect signal to make entire row clickable
         self.table.cellClicked.connect(self._on_cell_clicked)
     
     def eventFilter(self, obj, event):
-        """
-        Event filter to auto-select range mode when clicking in range input.
-        """
+        """Event filter to auto-select range mode when clicking in range input."""
         from PySide6.QtCore import QEvent
         
         if obj is self.range_input and event.type() == QEvent.Type.FocusIn:
@@ -137,9 +131,7 @@ class SweepSelectionWidget(QWidget):
                 checkbox.setChecked(checked)
                 
     def get_selected_sweeps(self) -> Tuple[List[str], List[str]]:
-        """
-        Get list of selected sweep names based on current mode.
-        """
+        """Get list of selected sweep names based on current mode."""
         if self.table_mode_radio.isChecked():
             # Table mode - return checked sweeps, no invalid numbers
             selected = []
@@ -157,10 +149,7 @@ class SweepSelectionWidget(QWidget):
         """
         Parse range input like '1,3-15,20,21' and return matching sweep names.
         
-        Supports:
-        - Single numbers: 1,2,3
-        - Ranges: 3-15
-        - Combined: 1,3-15,20,21-25
+        Supports single numbers (1,2,3), ranges (3-15), or a combination (1,3-15,20,21-25). Agnostic to commas.
         """
         range_text = self.range_input.text().strip()
         if not range_text:

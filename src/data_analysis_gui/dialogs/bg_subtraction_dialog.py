@@ -84,7 +84,7 @@ class BackgroundSubtractionDialog(QDialog):
         apply_modern_theme(self)
         
     def _init_ui(self):
-        """Initialize the user interface."""
+
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -156,12 +156,10 @@ class BackgroundSubtractionDialog(QDialog):
         layout.addLayout(button_layout)
 
     def _create_plot(self):
-        """Create the matplotlib plot widget with centralized styling."""
+        """Create the matplotlib plot widget."""
         self.figure = Figure(figsize=(7, 3.5), facecolor=self.colors["light"])
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        
-        # Basic axis setup will be handled by style_axis() in _update_plot()
         
     def _connect_signals(self):
         """Connect UI signals to their handlers."""

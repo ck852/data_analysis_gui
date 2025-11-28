@@ -168,14 +168,9 @@ class ElectrophysiologyDataset:
         self, keep_sweeps: Iterable[str], reset_time: bool = False
     ) -> "ElectrophysiologyDataset":
         """
-        Create a new dataset with only the specified sweeps.
-        
-        Primary use: removing rejected sweeps. Original dataset remains unchanged.
+        For removing rejected sweeps. Original dataset remains unchanged.
         If reset_time=True, sweep_times metadata is offset so the first kept sweep starts at t=0.
         Within-sweep time arrays are always preserved unchanged.
-        
-        Raises:
-            ValueError: If keep_sweeps is empty or contains invalid sweep indices
         """
         logger.info(f"Creating filtered dataset copy with {len(list(keep_sweeps))} sweeps")
         

@@ -2,13 +2,12 @@
 PatchBatch Electrophysiology Data Analysis Tool - Cursor Manager
 
 Manages interactive cursor lines and their text labels for plot analysis ranges.
-Extracted from PlotManager to provide focused cursor/text management without
-Qt dependencies. Returns values rather than emitting signals - the coordinator
+Returns values rather than emitting signals - the coordinator
 (PlotManager) handles signal emission.
 
-Functions are well documented for clarity (bidirectional signaling between spinboxes and cursors is complex! Effective 
-state management and avoiding feedback loops is critical). Stable now, consider migrating to PyQtGraph in the future if
-further optimizations/improvements are desired.
+Functions are commented in detail to help with debugging and future maintenance. Effective 
+state management and avoiding feedback loops in matplotlib interactivity is non-trivial. Stable now, 
+consider migrating to PyQtGraph in the future if further optimizations/improvements are desired.
 
 CursorManager handles cursor positioning and snap-to-data behavior independently. PlotManager coordinates cursor movements with
 control panel spinboxes via MainRangeCoordinator - CursorManager returns values rather
@@ -34,7 +33,11 @@ class CursorManager:
     Manages interactive vertical cursor lines and text labels for matplotlib plots.
     
     Handles cursor creation, positioning with snap-to-data, text label updates,
-    and mouse interaction tracking. Does not emit Qt signals - returns values
+    and mouse interaction tracking. Snap-to-data means that cursors will automatically 
+    adjust along the x axis to the nearest real data point in the presently 
+    loaded file. 
+    
+    Does not emit Qt signals - returns values
     for PlotManager to handle. Cursors automatically snap to nearest time point
     in loaded data when dragged or positioned programmatically.
     """

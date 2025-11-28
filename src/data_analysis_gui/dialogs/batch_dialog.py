@@ -221,9 +221,7 @@ class BatchAnalysisDialog(QDialog):
 
 
     def add_files(self):
-        """
-        Add files to the batch list via file dialog.
-        """
+
         file_types = (
             "WCP files (*.wcp);;"
             "ABF files (*.abf);;"
@@ -257,9 +255,7 @@ class BatchAnalysisDialog(QDialog):
                     logger.warning(f"Failed to auto-save settings from batch dialog: {e}")
 
     def remove_selected(self):
-        """
-        Remove selected files from the batch list.
-        """
+
         selected_items = self.file_list.selectedItems()
         if not selected_items:
             return
@@ -273,18 +269,14 @@ class BatchAnalysisDialog(QDialog):
         self.update_button_states()
 
     def clear_files(self):
-        """
-        Clear all files from the batch list.
-        """
+
         self.file_list.clear()
         self.file_paths.clear()
         self.update_file_count()
         self.update_button_states()
 
     def update_file_count(self):
-        """
-        Update the file count label and color based on number of files selected.
-        """
+
         count = len(self.file_paths)
         self.file_count_label.setText(
             f"{count} file{'s' if count != 1 else ''} selected"
@@ -294,9 +286,7 @@ class BatchAnalysisDialog(QDialog):
         self.file_count_label.setStyleSheet(f"color: {color};")
 
     def update_button_states(self):
-        """
-        Update enabled/disabled state of action buttons based on current state.
-        """
+
         has_files = len(self.file_paths) > 0
         is_running = self.worker is not None and self.worker.isRunning()
 
@@ -307,9 +297,7 @@ class BatchAnalysisDialog(QDialog):
         self.cancel_btn.setEnabled(is_running)
 
     def start_analysis(self):
-        """
-        Start the batch analysis process in a worker thread.
-        """
+
         if not self.file_paths:
             QMessageBox.warning(self, "No Files", "Please add files to analyze.")
             return
@@ -342,9 +330,7 @@ class BatchAnalysisDialog(QDialog):
         logger.info(f"Started batch analysis{bg_info} of {len(self.file_paths)} files")
 
     def cancel_analysis(self):
-        """
-        Cancel the running batch analysis.
-        """
+
         if self.worker and self.worker.isRunning():
             self.worker.quit()
             self.worker.wait()

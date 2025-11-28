@@ -313,8 +313,8 @@ class DynamicBatchPlotWidget(QWidget):
         visible_lines = []
         visible_labels = []
 
-        for filename, lines_dict in self.line_objects.items():
-            for range_key, line in lines_dict.items():
+        for lines_dict in self.line_objects.values():
+            for line in lines_dict.values():
                 if line.get_visible():
                     visible_lines.append(line)
                     visible_labels.append(line.get_label())
@@ -372,7 +372,7 @@ class DynamicBatchPlotWidget(QWidget):
         all_y_data = []
         all_x_data = []
 
-        for filename, lines_dict in self.line_objects.items():
+        for lines_dict in self.line_objects.values():
             for line in lines_dict.values():
                 if line.get_visible():
                     y_data = line.get_ydata()
@@ -399,6 +399,7 @@ class DynamicBatchPlotWidget(QWidget):
 
         self.canvas.draw_idle()
 
+
     def auto_scale_to_data(self):
         """
         Public rescaling method for use after Cslow edits in current density dialog.
@@ -412,7 +413,7 @@ class DynamicBatchPlotWidget(QWidget):
         all_y_data = []
         all_x_data = []
 
-        for filename, lines_dict in self.line_objects.items():
+        for lines_dict in self.line_objects.values():
             for line in lines_dict.values():
                 if line.get_visible():
                     y_data = line.get_ydata()
