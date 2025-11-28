@@ -1,10 +1,11 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
+
+Data structures for the analysis pipeline. Validates inputs at construction
+to catch errors before analysis runs.
+
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
-
-Data structures for the analysis pipeline. These classes validate inputs at
-construction time to identify errors before analysis.
 """
 
 from dataclasses import dataclass, field
@@ -16,25 +17,16 @@ from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
 
-# ==============================================================================
-# Validation Errors
-# ==============================================================================
-
 
 class ModelValidationError(ValueError):
     """Raised when model validation fails."""
     pass
 
 
-# ==============================================================================
-# Core Analysis Models
-# ==============================================================================
-
-
 @dataclass
 class AnalysisResult:
     """
-    Analysis output ready for plotting or export.
+    Analysis output for plotting or export.
     
     Contains primary data arrays and optional dual-range data for comparative
     measurements at different voltage steps.
@@ -56,30 +48,24 @@ class AnalysisResult:
     use_dual_range: bool = False
 
     def __post_init__(self):
-        # Ensure numpy arrays
         self.x_data = np.asarray(self.x_data)
         self.y_data = np.asarray(self.y_data)
 
         if len(self.x_data) != len(self.y_data):
             raise ModelValidationError(
-                f"x_data and y_data length mismatch: "
-                f"{len(self.x_data)} != {len(self.y_data)}"
+                f"x_data and y_data length mismatch: {len(self.x_data)} != {len(self.y_data)}"
             )
 
-        # Validate dual range if enabled
         if self.use_dual_range:
             if self.x_data2 is None or self.y_data2 is None:
-                raise ModelValidationError(
-                    "x_data2 and y_data2 required when use_dual_range=True"
-                )
+                raise ModelValidationError("x_data2 and y_data2 required when use_dual_range=True")
 
             self.x_data2 = np.asarray(self.x_data2)
             self.y_data2 = np.asarray(self.y_data2)
 
             if len(self.x_data2) != len(self.y_data2):
                 raise ModelValidationError(
-                    f"x_data2 and y_data2 length mismatch: "
-                    f"{len(self.x_data2)} != {len(self.y_data2)}"
+                    f"x_data2 and y_data2 length mismatch: {len(self.x_data2)} != {len(self.y_data2)}"
                 )
             
             logger.debug(
@@ -93,18 +79,12 @@ class AnalysisResult:
 
     @property
     def has_data(self) -> bool:
-        """Check if result contains valid data."""
         return len(self.x_data) > 0 and len(self.y_data) > 0
 
 
 @dataclass
 class PlotData:
-    """
-    Single sweep data formatted for plotting.
-    
-    Wraps time series with channel metadata so plot manager knows what
-    it's displaying.
-    """
+    """Single sweep data formatted for plotting."""
 
     time_ms: np.ndarray
     data_matrix: np.ndarray
@@ -117,9 +97,7 @@ class PlotData:
         self.data_matrix = np.asarray(self.data_matrix)
 
         if self.data_matrix.ndim != 2:
-            raise ModelValidationError(
-                f"data_matrix must be 2D, got shape {self.data_matrix.shape}"
-            )
+            raise ModelValidationError(f"data_matrix must be 2D, got shape {self.data_matrix.shape}")
 
         if len(self.time_ms) != self.data_matrix.shape[0]:
             raise ModelValidationError(
@@ -129,14 +107,11 @@ class PlotData:
 
         if self.channel_id >= self.data_matrix.shape[1]:
             raise ModelValidationError(
-                f"channel_id {self.channel_id} out of bounds for "
-                f"{self.data_matrix.shape[1]} channels"
+                f"channel_id {self.channel_id} out of bounds for {self.data_matrix.shape[1]} channels"
             )
 
         if self.channel_type not in ["Voltage", "Current"]:
-            raise ModelValidationError(
-                f"channel_type must be 'Voltage' or 'Current', got '{self.channel_type}'"
-            )
+            raise ModelValidationError(f"channel_type must be 'Voltage' or 'Current', got '{self.channel_type}'")
         
         logger.debug(
             f"Created PlotData for sweep {self.sweep_index}: "
@@ -146,12 +121,7 @@ class PlotData:
 
 @dataclass
 class PeakAnalysisResult:
-    """
-    Peak analysis across multiple detection modes.
-    
-    Each peak type (Absolute, Positive, Negative, Peak-Peak) gets its own
-    data array for comparison.
-    """
+    """Peak analysis across multiple detection modes (Absolute, Positive, Negative, Peak-Peak)."""
 
     peak_data: Dict[str, Any]
     x_data: np.ndarray
@@ -164,29 +134,19 @@ class PeakAnalysisResult:
         if not self.peak_data:
             raise ModelValidationError("peak_data cannot be empty")
 
-        # Ensure all peak arrays match x_data length
         data_length = len(self.x_data)
         for peak_type, data in self.peak_data.items():
             if "data" in data:
                 data["data"] = np.asarray(data["data"])
                 if len(data["data"]) != data_length:
-                    raise ModelValidationError(
-                        f"Peak data for '{peak_type}' has inconsistent length"
-                    )
+                    raise ModelValidationError(f"Peak data for '{peak_type}' has inconsistent length")
         
-        logger.debug(
-            f"Created PeakAnalysisResult: {len(self.peak_data)} peak types, "
-            f"{data_length} points"
-        )
+        logger.debug(f"Created PeakAnalysisResult: {len(self.peak_data)} peak types, {data_length} points")
 
 
 @dataclass
 class FileInfo:
-    """
-    Metadata about a loaded data file.
-    
-    Used by GUI to populate sweep selectors and configure time range controls.
-    """
+    """Metadata about a loaded data file. Used by GUI to populate controls."""
 
     name: str
     path: str
@@ -206,8 +166,7 @@ class FileInfo:
 
         if len(self.sweep_names) != self.sweep_count:
             raise ModelValidationError(
-                f"sweep_names length ({len(self.sweep_names)}) doesn't match "
-                f"sweep_count ({self.sweep_count})"
+                f"sweep_names length ({len(self.sweep_names)}) doesn't match sweep_count ({self.sweep_count})"
             )
 
         if self.max_sweep_time is not None and self.max_sweep_time <= 0:
@@ -221,11 +180,7 @@ class FileInfo:
 
 @dataclass
 class AnalysisPlotData:
-    """
-    Plot-ready analysis data with optional dual-range support.
-    
-    Simpler than AnalysisResult - focused on what matplotlib needs.
-    """
+    """Plot-ready analysis data with optional dual-range support."""
 
     x_data: np.ndarray
     y_data: np.ndarray
@@ -241,8 +196,7 @@ class AnalysisPlotData:
 
         if len(self.x_data) != len(self.y_data):
             raise ModelValidationError(
-                f"x_data and y_data length mismatch: "
-                f"{len(self.x_data)} != {len(self.y_data)}"
+                f"x_data and y_data length mismatch: {len(self.x_data)} != {len(self.y_data)}"
             )
 
         if self.use_dual_range:
@@ -253,28 +207,17 @@ class AnalysisPlotData:
             
             if len(self.y_data2) != len(self.x_data):
                 raise ModelValidationError(
-                    f"y_data2 length ({len(self.y_data2)}) doesn't match "
-                    f"x_data length ({len(self.x_data)})"
+                    f"y_data2 length ({len(self.y_data2)}) doesn't match x_data length ({len(self.x_data)})"
                 )
             
-            logger.debug(
-                f"Created AnalysisPlotData with dual ranges: "
-                f"{len(self.sweep_indices)} sweeps"
-            )
+            logger.debug(f"Created AnalysisPlotData with dual ranges: {len(self.sweep_indices)} sweeps")
         else:
-            logger.debug(
-                f"Created AnalysisPlotData: {len(self.sweep_indices)} sweeps, "
-                f"{len(self.x_data)} points"
-            )
+            logger.debug(f"Created AnalysisPlotData: {len(self.sweep_indices)} sweeps, {len(self.x_data)} points")
 
 
 @dataclass
 class FileAnalysisResult:
-    """
-    Outcome of analyzing a single file in batch mode.
-    
-    Tracks success/failure and timing for progress reporting.
-    """
+    """Outcome of analyzing a single file in batch mode."""
 
     file_path: str
     base_name: str
@@ -289,23 +232,17 @@ class FileAnalysisResult:
 
     def __post_init__(self):
         if self.success:
-            logger.debug(
-                f"FileAnalysisResult: {self.base_name} succeeded "
-                f"in {self.processing_time:.3f}s"
-            )
+            logger.debug(f"FileAnalysisResult: {self.base_name} succeeded in {self.processing_time:.3f}s")
         else:
-            logger.warning(
-                f"FileAnalysisResult: {self.base_name} failed - {self.error_message}"
-            )
+            logger.warning(f"FileAnalysisResult: {self.base_name} failed - {self.error_message}")
 
 
 @dataclass
 class BatchAnalysisResult:
     """
-    Complete batch analysis results with file selection state.
+    Complete batch analysis results.
     
-    Tracks which files succeeded, which failed, and which files are selected
-    for export in the batch results dialog.
+    Tracks successful/failed files and which are selected for export.
     """
 
     successful_results: List[FileAnalysisResult]
@@ -317,7 +254,6 @@ class BatchAnalysisResult:
     is_ramp_iv: bool = False
 
     def __post_init__(self):
-        # Initialize selection with all successful files if not provided
         if self.selected_files is None:
             self.selected_files = {r.base_name for r in self.successful_results}
         
@@ -378,10 +314,7 @@ class ExportResult:
             if self.error_message:
                 raise ModelValidationError("Successful export should not have error_message")
             
-            logger.debug(
-                f"Exported {self.records_exported} records to "
-                f"{Path(self.file_path).name}"
-            )
+            logger.debug(f"Exported {self.records_exported} records to {Path(self.file_path).name}")
         else:
             if not self.error_message:
                 raise ModelValidationError("Failed export must have error_message")

@@ -1,8 +1,7 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-Widget for controlling displayed sweep in MainWindow plot. Can be expanded/optimized
-for user convenience. Slider adds quick navigation through sweeps.
+Widget for controlling displayed sweep in MainWindow plot. Slider adds quick navigation through sweeps.
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
@@ -25,23 +24,16 @@ logger = get_logger(__name__)
 
 class SweepNavigationPanel(QWidget):
     """
-    A comprehensive sweep navigation widget with synchronized controls.
-    
-    Provides three methods of sweep selection:
-    1. Dropdown combo box for direct selection
-    2. Arrow buttons for sequential navigation (with click-and-hold support)
-    3. Horizontal slider for quick browsing
-    
-    Features:
-    - Synchronized controls prevent signal loops
-    - Rate-limited slider dragging for performance
-    - Click-and-hold arrow buttons for continuous scrolling
-    - Sweep timing display from dataset metadata
-    - Consistent theming with application style
+    Widget for navigating through data sweeps using synchronized controls.
+
+    Users can select sweeps via a dropdown, sequential arrow buttons with click-and-hold scrolling, 
+    or a horizontal slider for quick browsing. The slider includes rate-limiting to maintain 
+    performance during rapid dragging, and all inputs are synchronized to prevent signal loops. 
+    Displays sweep timing metadata when available.
     """
     
     # Signal emitted when sweep selection changes
-    sweep_changed = Signal(str)  # Emits sweep index as string
+    sweep_changed = Signal(str)  # Emits the selected sweep index as a string
     
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -86,12 +78,12 @@ class SweepNavigationPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         
-        # ===== Top Row: Labels, Buttons, and Combo =====
+        # Top Row
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.setSpacing(0)  # No spacing between widgets
         
-        # Sweep count label - on the left
+        # Sweep count label
         self.count_label = QLabel("1/1")
         self.count_label.setMinimumWidth(35)
         self.count_label.setMaximumWidth(45)
@@ -207,10 +199,7 @@ class SweepNavigationPanel(QWidget):
         self.next_btn.released.connect(self._on_next_released)
     
     def _on_combo_changed(self, index: int):
-        """
-        Handle combo box selection change.
-        Syncs slider position and emits sweep_changed signal.
-        """
+        """Syncs slider position and emits sweep_changed signal."""
         if index < 0:
             return
         
@@ -230,10 +219,7 @@ class SweepNavigationPanel(QWidget):
                 logger.debug(f"Sweep changed via combo: {sweep_text}")
     
     def _on_slider_changed(self, value: int):
-        """
-        Handle slider value change.
-        Syncs combo box and implements rate limiting during drag.
-        """
+        """Syncs combo box and implements rate limiting during drag."""
         if value < 0 or value >= self.sweep_combo.count():
             return
         
@@ -290,7 +276,7 @@ class SweepNavigationPanel(QWidget):
         current_idx = self.sweep_combo.currentIndex()
         total = self.sweep_combo.count()
         
-        # Update count label (1-indexed for user display)
+        # Update count label
         if total > 0:
             self.count_label.setText(f"{current_idx + 1}/{total}")
         else:
@@ -402,17 +388,13 @@ class SweepNavigationPanel(QWidget):
         logger.debug(f"Loaded {count} sweeps into navigation panel")
     
     def set_sweep_times(self, sweep_times: Dict[str, float]):
-        """
-        Set the sweep timing data for display.
-        """
+        """Set the sweep timing data for display."""
         self.sweep_times = sweep_times
         self._update_labels()
         logger.debug(f"Set sweep times for {len(sweep_times)} sweeps")
     
     def set_enabled(self, enabled: bool):
-        """
-        Enable or disable all navigation controls.
-        """
+        """Enable or disable all navigation controls."""
         self.prev_btn.setEnabled(enabled)
         self.next_btn.setEnabled(enabled)
         self.sweep_combo.setEnabled(enabled)

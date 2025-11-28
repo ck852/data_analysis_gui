@@ -1,5 +1,3 @@
-Go to https://github.com/ck852/patchbatch?tab=readme-ov-file#patchbatch---electrophysiology-data-analysis-tool for the most up-to-date README
-
 [![Tests](https://github.com/ck852/patchbatch/actions/workflows/test.yml/badge.svg)](https://github.com/ck852/patchbatch/actions/workflows/test.yml)
 [![PyPI version](https://badge.fury.io/py/patchbatch.svg)](https://badge.fury.io/py/patchbatch)
 [![Python Version](https://img.shields.io/pypi/pyversions/patchbatch)](https://pypi.org/project/patchbatch/)

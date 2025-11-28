@@ -30,18 +30,12 @@ class RejectSweepsDialog(QDialog):
     1. Skip from beginning/end (specify counts)
     2. Keep sweep range (specify first and last sweep to keep)
     
-    All sweep numbers are 1-indexed for user display.
+    All sweep numbers are 1-indexed for consistency with MainWindow display and user expectations
+    ("sweep 0" is not common parlance in electrophysiology).
     """
     
     def __init__(self, parent, file_name: str, total_sweeps: int):
-        """
-        Initialize the reject sweeps dialog.
-        
-        Args:
-            parent: Parent widget
-            file_name: Name of the loaded data file
-            total_sweeps: Total number of sweeps in the file
-        """
+
         super().__init__(parent)
         
         self.file_name = file_name
@@ -88,7 +82,6 @@ class RejectSweepsDialog(QDialog):
         return focus_handler
         
     def _init_ui(self):
-        """Initialize the user interface."""
         layout = QVBoxLayout(self)
         
         # File info
@@ -314,7 +307,7 @@ class RejectSweepsDialog(QDialog):
         
         # Valid configuration - display 1-indexed sweep numbers
         first_kept = skip_first + 1  # Convert to 1-indexed
-        last_kept = self.total_sweeps - skip_last  # Already correct for 1-indexed
+        last_kept = self.total_sweeps - skip_last
         
         preview_text = (
             f"<b>Will analyze:</b> Sweeps {int(first_kept)}–{int(last_kept)} "
@@ -334,11 +327,7 @@ class RejectSweepsDialog(QDialog):
             self.warning_label.setVisible(False)
     
     def get_rejection_params(self):
-        """
-        Get the rejection parameters from the dialog.
-        
-        Returns skip counts (as integers) regardless of which mode was used.
-        """
+        """Returns skip counts and reset time option."""
         # Check which mode is active and get the appropriate values
         if self.skip_mode_radio.isChecked():
             # Use skip mode values directly
