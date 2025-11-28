@@ -10,7 +10,8 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Concentration/Dose Response tool removed for initial release. Still needs styling optimizations. Not needed for majority of the program's utility (bare but functional in previous versions).
 
 ### Known Issues
-- Dual Analysis range recognized as invalid if load new file with smaller time range which constrains saved cursor positions. Fixed by unchecking and re-checking the box
+- Dual Analysis range recognized as invalid if load new file with smaller time range which constrains saved cursor positions. Fixed by unchecking and re-checking the box - low priority fix as it does not impact functionality but creates a small hiccup in edge case scenarios.
+
 
 ## [0.9.2-b.6] 2025-11-09
 ### Added
@@ -27,6 +28,9 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Auto-open file dialog on batch analysis open
 - Per-file unit retrieval in batch analysis
 - Voltage units always extracted from wcp files
+
+### Known Issues
+- Font size inconsistency (smaller in mac) remains
 
 
 ## [0.9.2-b.5] 2025-11-03

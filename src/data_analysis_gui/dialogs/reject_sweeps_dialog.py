@@ -8,11 +8,12 @@ Dialog for rejecting sweeps from beginning/end of recording.
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, 
-    QCheckBox, QGroupBox, QPushButton
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+    QCheckBox, QGroupBox, QRadioButton
 )
-from PySide6.QtCore import Qt
 
+
+from data_analysis_gui.widgets.custom_inputs import SelectAllSpinBox
 from data_analysis_gui.config.themes import (
     create_styled_button, style_group_box, style_label
 )
@@ -25,7 +26,11 @@ class RejectSweepsDialog(QDialog):
     """
     Dialog for rejecting sweeps from beginning and/or end of recording.
     
-    Provides a simple interface to skip unwanted sweeps with optional time axis recalibration.
+    Provides two input modes:
+    1. Skip from beginning/end (specify counts)
+    2. Keep sweep range (specify first and last sweep to keep)
+    
+    All sweep numbers are 1-indexed for user display.
     """
     
     def __init__(self, parent, file_name: str, total_sweeps: int):
@@ -51,6 +56,36 @@ class RejectSweepsDialog(QDialog):
         # Connect signals
         self.skip_first_spin.valueChanged.connect(self._update_preview)
         self.skip_last_spin.valueChanged.connect(self._update_preview)
+        self.from_sweep_spin.valueChanged.connect(self._update_preview)
+        self.to_sweep_spin.valueChanged.connect(self._update_preview)
+        
+        self.skip_mode_radio.toggled.connect(self._on_mode_changed)
+        
+        # Connect widget focus to radio button activation
+        self.skip_first_spin.focusInEvent = self._create_focus_handler(
+            self.skip_first_spin, self.skip_mode_radio
+        )
+        self.skip_last_spin.focusInEvent = self._create_focus_handler(
+            self.skip_last_spin, self.skip_mode_radio
+        )
+        self.from_sweep_spin.focusInEvent = self._create_focus_handler(
+            self.from_sweep_spin, self.range_mode_radio
+        )
+        self.to_sweep_spin.focusInEvent = self._create_focus_handler(
+            self.to_sweep_spin, self.range_mode_radio
+        )
+        
+    def _create_focus_handler(self, widget, radio_button):
+        """Create a focus event handler that activates the corresponding radio button."""
+        original_focus_in = widget.focusInEvent
+        
+        def focus_handler(event):
+            # Activate the radio button when widget gets focus
+            radio_button.setChecked(True)
+            # Call the original focus handler
+            original_focus_in(event)
+        
+        return focus_handler
         
     def _init_ui(self):
         """Initialize the user interface."""
@@ -72,33 +107,89 @@ class RejectSweepsDialog(QDialog):
         style_group_box(rejection_group)
         rejection_layout = QVBoxLayout(rejection_group)
         
+        # ===== Mode 1: Skip from beginning/end =====
+        self.skip_mode_radio = QRadioButton("Skip from beginning/end")
+        self.skip_mode_radio.setChecked(True)  # Default mode
+        rejection_layout.addWidget(self.skip_mode_radio)
+        
+        skip_controls_layout = QVBoxLayout()
+        skip_controls_layout.setContentsMargins(20, 0, 0, 0)  # Indent
+        
         # Skip first
-        first_layout = QHBoxLayout()
-        first_label = QLabel("Skip first:")
-        first_label.setMinimumWidth(80)
-        self.skip_first_spin = QSpinBox()
+        skip_first_row = QHBoxLayout()
+        skip_first_label = QLabel("Skip first")
+        skip_first_label.setMinimumWidth(70)
+        self.skip_first_spin = SelectAllSpinBox()
+        self.skip_first_spin.setDecimals(0)  # Integer only
         self.skip_first_spin.setMinimum(0)
         self.skip_first_spin.setMaximum(max(0, self.total_sweeps - 1))
         self.skip_first_spin.setValue(0)
-        self.skip_first_spin.setSuffix(" sweeps")
-        first_layout.addWidget(first_label)
-        first_layout.addWidget(self.skip_first_spin)
-        first_layout.addStretch()
-        rejection_layout.addLayout(first_layout)
+        self.skip_first_spin.setMaximumWidth(80)
+        skip_first_suffix = QLabel("sweeps")
+        
+        skip_first_row.addWidget(skip_first_label)
+        skip_first_row.addWidget(self.skip_first_spin)
+        skip_first_row.addWidget(skip_first_suffix)
+        skip_first_row.addStretch()
+        skip_controls_layout.addLayout(skip_first_row)
         
         # Skip last
-        last_layout = QHBoxLayout()
-        last_label = QLabel("Skip last:")
-        last_label.setMinimumWidth(80)
-        self.skip_last_spin = QSpinBox()
+        skip_last_row = QHBoxLayout()
+        skip_last_label = QLabel("Skip last")
+        skip_last_label.setMinimumWidth(70)
+        self.skip_last_spin = SelectAllSpinBox()
+        self.skip_last_spin.setDecimals(0)  # Integer only
         self.skip_last_spin.setMinimum(0)
         self.skip_last_spin.setMaximum(max(0, self.total_sweeps - 1))
         self.skip_last_spin.setValue(0)
-        self.skip_last_spin.setSuffix(" sweeps")
-        last_layout.addWidget(last_label)
-        last_layout.addWidget(self.skip_last_spin)
-        last_layout.addStretch()
-        rejection_layout.addLayout(last_layout)
+        self.skip_last_spin.setMaximumWidth(80)
+        skip_last_suffix = QLabel("sweeps")
+        
+        skip_last_row.addWidget(skip_last_label)
+        skip_last_row.addWidget(self.skip_last_spin)
+        skip_last_row.addWidget(skip_last_suffix)
+        skip_last_row.addStretch()
+        skip_controls_layout.addLayout(skip_last_row)
+        
+        rejection_layout.addLayout(skip_controls_layout)
+        rejection_layout.addSpacing(10)
+        
+        # ===== Mode 2: Keep sweep range =====
+        self.range_mode_radio = QRadioButton("Keep sweep range")
+        rejection_layout.addWidget(self.range_mode_radio)
+        
+        range_controls_layout = QHBoxLayout()
+        range_controls_layout.setContentsMargins(20, 0, 0, 0)  # Indent
+        
+        # From sweep
+        from_sweep_label = QLabel("From sweep")
+        from_sweep_label.setMinimumWidth(90)
+        self.from_sweep_spin = SelectAllSpinBox()
+        self.from_sweep_spin.setDecimals(0)  # Integer only
+        self.from_sweep_spin.setMinimum(1)
+        self.from_sweep_spin.setMaximum(self.total_sweeps)
+        self.from_sweep_spin.setValue(1)
+        self.from_sweep_spin.setMaximumWidth(80)
+        
+        range_controls_layout.addWidget(from_sweep_label)
+        range_controls_layout.addWidget(self.from_sweep_spin)
+        range_controls_layout.addSpacing(20)
+        
+        # To sweep
+        to_sweep_label = QLabel("To sweep")
+        to_sweep_label.setMinimumWidth(70)
+        self.to_sweep_spin = SelectAllSpinBox()
+        self.to_sweep_spin.setDecimals(0)  # Integer only
+        self.to_sweep_spin.setMinimum(1)
+        self.to_sweep_spin.setMaximum(self.total_sweeps)
+        self.to_sweep_spin.setValue(self.total_sweeps)
+        self.to_sweep_spin.setMaximumWidth(80)
+        
+        range_controls_layout.addWidget(to_sweep_label)
+        range_controls_layout.addWidget(self.to_sweep_spin)
+        range_controls_layout.addStretch()
+        
+        rejection_layout.addLayout(range_controls_layout)
         
         layout.addWidget(rejection_group)
         
@@ -142,16 +233,73 @@ class RejectSweepsDialog(QDialog):
         
         layout.addLayout(button_layout)
         
-        # Let Qt auto-size based on content instead of forcing a size
+        # Let Qt auto-size based on content
         self.adjustSize()
-        self.setMinimumWidth(450)
+        self.setMinimumWidth(500)
+    
+    def _on_mode_changed(self, checked: bool):
+        """Handle switching between skip and range modes."""
+        if checked:  # Skip mode activated
+            # Sync range mode to skip mode
+            self._sync_range_to_skip()
+        else:  # Range mode activated
+            # Sync skip mode to range mode
+            self._sync_skip_to_range()
+        
+        self._update_preview()
+    
+    def _sync_range_to_skip(self):
+        """Update range spinboxes based on current skip values."""
+        skip_first = int(self.skip_first_spin.value())
+        skip_last = int(self.skip_last_spin.value())
+        
+        # Calculate 1-indexed range
+        from_sweep = skip_first + 1
+        to_sweep = self.total_sweeps - skip_last
+        
+        # Update range spinboxes (block signals to prevent loops)
+        self.from_sweep_spin.blockSignals(True)
+        self.to_sweep_spin.blockSignals(True)
+        
+        self.from_sweep_spin.setValue(int(from_sweep))
+        self.to_sweep_spin.setValue(int(to_sweep))
+        
+        self.from_sweep_spin.blockSignals(False)
+        self.to_sweep_spin.blockSignals(False)
+    
+    def _sync_skip_to_range(self):
+        """Update skip spinboxes based on current range values."""
+        from_sweep = int(self.from_sweep_spin.value())
+        to_sweep = int(self.to_sweep_spin.value())
+        
+        # Calculate skip counts (1-indexed to counts)
+        skip_first = from_sweep - 1
+        skip_last = self.total_sweeps - to_sweep
+        
+        # Update skip spinboxes (block signals to prevent loops)
+        self.skip_first_spin.blockSignals(True)
+        self.skip_last_spin.blockSignals(True)
+        
+        self.skip_first_spin.setValue(int(skip_first))
+        self.skip_last_spin.setValue(int(skip_last))
+        
+        self.skip_first_spin.blockSignals(False)
+        self.skip_last_spin.blockSignals(False)
     
     def _update_preview(self):
         """Update the preview text showing which sweeps will be kept."""
-        skip_first = self.skip_first_spin.value()
-        skip_last = self.skip_last_spin.value()
+        # Get current values based on active mode (no auto-sync)
+        if self.skip_mode_radio.isChecked():
+            skip_first = int(self.skip_first_spin.value())
+            skip_last = int(self.skip_last_spin.value())
+        else:
+            # Use range mode, convert to skip counts
+            from_sweep = int(self.from_sweep_spin.value())
+            to_sweep = int(self.to_sweep_spin.value())
+            skip_first = from_sweep - 1
+            skip_last = self.total_sweeps - to_sweep
         
-        # Calculate resulting sweeps
+        # Calculate resulting sweeps (1-indexed for display)
         remaining = self.total_sweeps - skip_first - skip_last
         
         if remaining <= 0:
@@ -164,13 +312,13 @@ class RejectSweepsDialog(QDialog):
             self.warning_label.setVisible(False)
             return
         
-        # Valid configuration
-        first_kept = skip_first
-        last_kept = self.total_sweeps - skip_last - 1
+        # Valid configuration - display 1-indexed sweep numbers
+        first_kept = skip_first + 1  # Convert to 1-indexed
+        last_kept = self.total_sweeps - skip_last  # Already correct for 1-indexed
         
         preview_text = (
-            f"<b>Resulting analysis:</b> Sweeps {first_kept}-{last_kept} "
-            f"({remaining} total)"
+            f"<b>Will analyze:</b> Sweeps {int(first_kept)}–{int(last_kept)} "
+            f"({int(remaining)} total)"
         )
         self.preview_label.setText(preview_text)
         self.apply_btn.setEnabled(True)
@@ -188,9 +336,23 @@ class RejectSweepsDialog(QDialog):
     def get_rejection_params(self):
         """
         Get the rejection parameters from the dialog.
+        
+        Returns skip counts (as integers) regardless of which mode was used.
         """
+        # Check which mode is active and get the appropriate values
+        if self.skip_mode_radio.isChecked():
+            # Use skip mode values directly
+            skip_first = int(self.skip_first_spin.value())
+            skip_last = int(self.skip_last_spin.value())
+        else:
+            # Convert range mode to skip counts
+            from_sweep = int(self.from_sweep_spin.value())
+            to_sweep = int(self.to_sweep_spin.value())
+            skip_first = from_sweep - 1
+            skip_last = self.total_sweeps - to_sweep
+        
         return (
-            self.skip_first_spin.value(),
-            self.skip_last_spin.value(),
+            skip_first,
+            skip_last,
             self.reset_time_cb.isChecked()
         )
