@@ -20,13 +20,10 @@ range settings) before returning plot-ready data to MainWindow for display throu
 pathway can also be used by BatchProcessor for multi-file operations, displaying results in a new batch analysis
 results dialog.
 
-Key design principles (during initial development; these are negotiable as the project evolves):
+Design princniples that have kept the MainWindow relatively clean and easy to adjust:
 - Core controls remain active at all times, regardless of file load state (analysis functions/dialogs
  are disabled until file loaded anyway)
-- Settings auto-save on change, not analysis action. Change if performance suffers.
-- Separation of concerns: UI logic here, analysis logic in /core and /services modules (important!)
 - No plotting logic here, all in PlotManager and tuned by PlotFormatter
-- Signal/slot pattern for loose coupling between components
 """
 
 from pathlib import Path
@@ -67,16 +64,15 @@ from data_analysis_gui.dialogs.batch_dialog import BatchAnalysisDialog
 from data_analysis_gui.dialogs.bg_subtraction_dialog import BackgroundSubtractionDialog
 from data_analysis_gui.dialogs.ramp_iv_dialog import RampIVDialog
 from data_analysis_gui.dialogs.reject_sweeps_dialog import RejectSweepsDialog
+from data_analysis_gui.dialogs.leak_subtraction_dialog import LeakSubtractionDialog
 
 # Service imports
 from data_analysis_gui.gui_services import FileDialogService
 from data_analysis_gui.gui_services.main_range_coordinator import MainRangeCoordinator 
 from data_analysis_gui.gui_services.clipboard_service import ClipboardService
 from data_analysis_gui.services.sweep_extraction_service import SweepExtractionService
-
-# leak subtraction imports
-from data_analysis_gui.dialogs.leak_subtraction_dialog import LeakSubtractionDialog
 from data_analysis_gui.services.leak_subtraction_utils import is_leak_subtraction_available
+
 
 logger = get_logger(__name__)
 
@@ -838,9 +834,6 @@ class MainWindow(QMainWindow):
         # Clear rejected sweeps for new file
         self.rejected_sweeps.clear()
         
-        # Check for channel configuration warnings
-        self._check_channel_warnings()
-        
         # Update file labels with proper theme styling
         self.file_label.setText(f"File: {file_info.name}")
         style_label(self.file_label, "normal")
@@ -877,43 +870,6 @@ class MainWindow(QMainWindow):
         # Show first sweep
         if file_info.sweep_names:
             self.sweep_nav_panel.set_current_sweep(file_info.sweep_names[0])
-
-    def _check_channel_warnings(self):
-        """
-        Alert user to channel detection issues immediately after file load.
-        
-        Displays warnings for multiple channels detected or missing voltage/current
-        channels based on metadata from file reader.
-        """
-
-        if not self.controller.has_data():
-            return
-        
-        dataset = self.controller.current_dataset
-        channel_config = dataset.metadata.get("channel_config")
-        
-        if not channel_config:
-            return
-        
-        warning_level = channel_config.get("warning_level", "none")
-        
-        if warning_level == "none":
-            return
-        
-        message = channel_config.get("message", "Unknown channel configuration issue")
-        
-        if warning_level == "info":
-            QMessageBox.information(
-                self,
-                "Channel Configuration",
-                message
-            )
-        elif warning_level == "error":
-            QMessageBox.warning(
-                self,
-                "Channel Detection Issue",
-                message
-            )
 
     # Consider deleting - overshadwed by reject sweep dialog
     def _on_reject_sweep_toggled(self, state):

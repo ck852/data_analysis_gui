@@ -1,10 +1,10 @@
 """
-WCP (WinWCP) File Loader for PatchBatch
+PatchBatch WCP File Loader
 
 Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 
-This module provides functionality to load WCP (WinWCP) files into the
+This module provides functionality to load .wcp (WinWCP) files into the
 standardized ElectrophysiologyDataset format used throughout the application.
 
 Parsing logic based on analysis of WCPFileUnit.pas from WinWCP V5.7.9 source code
@@ -17,24 +17,17 @@ from pathlib import Path
 from typing import Optional, Any, Union, Dict, Tuple, List
 import numpy as np
 
-# Set up module logger
 logger = logging.getLogger(__name__)
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 
 
-# =============================================================================
-# Channel Auto-Detection
-# =============================================================================
-
 def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
     """
-    Analyze WCP channel info and determine voltage/current channel assignments.
+    Identify which channel is voltage and which is current based on units.
     
-    I and V channels are identified based on units in channel metadata. The codebase has 
-    been written for input files with one voltage and one current channel. This script includes
-    fallbacks for input files with multiple or missing channels. User will be informed via 
-    _check_channel_warnings() in MainWindow if their input file does not match expected format.
+    Raises ValueError if the file doesn't have exactly one of each - there's no
+    unambiguous way to map channels in that case.
     """
     voltage_channels = []
     current_channels = []
@@ -42,102 +35,38 @@ def _detect_channel_configuration_wcp(channels: List[Any]) -> Dict[str, Any]:
     for i, ch in enumerate(channels):
         units_lower = ch.units.lower()
         
-        # Identify voltage channels
         if 'mv' in units_lower or units_lower == 'v':
             voltage_channels.append({
                 'index': i,
                 'name': ch.name,
-                'units': ch.units,
-                'signal_type': 'voltage'
+                'units': ch.units
             })
-        # Identify current channels
         elif any(u in units_lower for u in ['pa', 'na', 'µa', 'ua', 'ma', 'a']):
             current_channels.append({
                 'index': i,
                 'name': ch.name,
-                'units': ch.units,
-                'signal_type': 'current'
+                'units': ch.units
             })
     
-    # Case 1: Expected 1 V channel and 1 I channel
-    if len(voltage_channels) == 1 and len(current_channels) == 1:
-        return {
-            'voltage_channel': voltage_channels[0]['index'],
-            'current_channel': current_channels[0]['index'],
-            'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
-            'valid': True,
-            'warning_level': 'none',
-            'message': f"Auto-detected: Ch.{voltage_channels[0]['index']} (voltage, {voltage_channels[0]['units']}), "
-                      f"Ch.{current_channels[0]['index']} (current, {current_channels[0]['units']})"
-        }
-    
-    # Case 2: Multiple voltage or current channels - use first of each
-    if len(voltage_channels) >= 1 and len(current_channels) >= 1:
-        logger.warning(
-            f"Multiple channels detected: {len(voltage_channels)} voltage, {len(current_channels)} current. "
-            f"Using first of each."
+    if len(voltage_channels) != 1 or len(current_channels) != 1:
+        raise ValueError(
+            f"Cannot identify channels: found {len(voltage_channels)} voltage, "
+            f"{len(current_channels)} current (need exactly 1 of each)"
         )
-        return {
-            'voltage_channel': voltage_channels[0]['index'],
-            'current_channel': current_channels[0]['index'],
-            'voltage_units': voltage_channels[0]['units'],
-            'current_units': current_channels[0]['units'].replace('uA', 'μA').replace('ua', 'μA'),
-            'valid': True,
-            'warning_level': 'info',
-            'message': f"Multiple channels detected:\n"
-                      f"• {len(voltage_channels)} voltage channel(s)\n"
-                      f"• {len(current_channels)} current channel(s)\n\n"
-                      f"Using Ch.{voltage_channels[0]['index']} (voltage) and "
-                      f"Ch.{current_channels[0]['index']} (current).",
-            'user_message': f"Multiple channels detected. Using Ch.{voltage_channels[0]['index']} (voltage) "
-                           f"and Ch.{current_channels[0]['index']} (current)."
-        }
     
-    # Case 3: Missing voltage or current channel
-    if len(voltage_channels) == 0:
-        logger.error("No voltage channel detected in WCP file")
-        return {
-            'voltage_channel': 0,
-            'current_channel': 1,
-            'voltage_units': 'mV',
-            'current_units': 'pA',
-            'valid': False,
-            'warning_level': 'error',
-            'message': "No voltage channel detected in file.\n\n"
-                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
-                      "Analysis results may be incorrect.",
-            'user_message': "No voltage channel detected. Using default configuration."
-        }
+    v_ch = voltage_channels[0]
+    i_ch = current_channels[0]
     
-    if len(current_channels) == 0:
-        logger.error("No current channel detected in WCP file")
-        return {
-            'voltage_channel': 0,
-            'current_channel': 1,
-            'voltage_units': 'mV',
-            'current_units': 'pA',
-            'valid': False,
-            'warning_level': 'error',
-            'message': "No current channel detected in file.\n\n"
-                      "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
-                      "Analysis results may be incorrect.",
-            'user_message': "No current channel detected. Using default configuration."
-        }
+    logger.info(
+        f"Mapped channels: Ch.{v_ch['index']} ({v_ch['units']}) → voltage, "
+        f"Ch.{i_ch['index']} ({i_ch['units']}) → current"
+    )
     
-    # Fallback - should not reach here
-    logger.error("Unexpected channel configuration")
     return {
-        'voltage_channel': 0,
-        'current_channel': 1,
-        'voltage_units': 'mV',
-        'current_units': 'pA',
-        'valid': False,
-        'warning_level': 'error',
-        'message': "Unexpected channel configuration encountered.\n\n"
-                  "Using default configuration (Ch.0 = voltage, Ch.1 = current).\n"
-                  "Analysis results may be incorrect.",
-        'user_message': "Channel detection failed. Using default configuration."
+        'voltage_channel': v_ch['index'],
+        'current_channel': i_ch['index'],
+        'voltage_units': v_ch['units'],
+        'current_units': i_ch['units'].replace('uA', 'μA').replace('ua', 'μA')
     }
 
 
@@ -146,93 +75,58 @@ def load_wcp(
     validate_data: bool = True,
 ) -> "ElectrophysiologyDataset":
     """
-    Load a WCP (WinWCP) file into a standardized dataset with auto-detected channel configuration.
-
-    This function reads WCP files and converts them to the ElectrophysiologyDataset
-    format used throughout the application. WCP files contain actual sweep times 
-    which are extracted and stored. Channel configuration is automatically detected
-    from file metadata.
+    Load a WCP file into the standard dataset format.
     
-    Also extracts RecType, Group Number, and Status for leak subtraction.
-
-    Args:
-        file_path: Path to the WCP file
-        validate_data: If True, check for NaN/Inf values and warn about anomalies
-
-    Returns:
-        ElectrophysiologyDataset containing all sweeps from the WCP file with
-        auto-detected channel configuration stored in metadata['channel_config']
-        and sweep classification stored in metadata['sweep_info']
-
-    Raises:
-        FileNotFoundError: If the specified file doesn't exist
-        IOError: If file cannot be read or is corrupted
-        ValueError: If file structure is invalid or contains no data
+    The file must have exactly one voltage and one current channel. The loader
+    identifies which is which automatically based on units, so channel ordering
+    doesn't matter. Also extracts sweep timing and classification metadata (RecType,
+    Group Number, Status) used for leak subtraction.
     """
-
     file_path = Path(file_path)
 
-    # Validate file exists
     if not file_path.exists():
         raise FileNotFoundError(f"WCP file not found: {file_path}")
 
-    # Load WCP file
     logger.info(f"Loading WCP file: {file_path.name}")
     
     try:
         with WCPParser(str(file_path)) as wcp:
-            # Auto-detect channel configuration
+            # Identify voltage and current channels
             channel_config = _detect_channel_configuration_wcp(wcp.file_header.channels)
-            logger.info(channel_config['message'])
             
             # Create dataset
             dataset = ElectrophysiologyDataset()
             
-            # Extract and store metadata
+            # Store metadata
             dataset.metadata["format"] = "wcp"
             dataset.metadata["source_file"] = str(file_path)
             dataset.metadata["sampling_rate_hz"] = 1000.0 / wcp.file_header.dt if wcp.file_header.dt > 0 else None
             dataset.metadata["wcp_version"] = wcp.file_header.version
             dataset.metadata["channel_count"] = wcp.file_header.num_channels
             dataset.metadata["sweep_count"] = wcp.file_header.num_records
-            
-            # Store channel information
-            channel_labels = [ch.name for ch in wcp.file_header.channels]
-            channel_units = [ch.units for ch in wcp.file_header.channels]
-            dataset.metadata["channel_labels"] = channel_labels
-            dataset.metadata["channel_units"] = channel_units
-            
-            # Store auto-detected channel configuration
+            dataset.metadata["channel_labels"] = [ch.name for ch in wcp.file_header.channels]
+            dataset.metadata["channel_units"] = [ch.units for ch in wcp.file_header.channels]
             dataset.metadata["channel_config"] = channel_config
-            
-            # Initialize sweep_times and sweep_info dictionaries
             dataset.metadata["sweep_times"] = {}
-            dataset.metadata["sweep_info"] = {}  # Per-sweep metadata
+            dataset.metadata["sweep_info"] = {}
             
-            # Load all sweeps
-            logger.debug(f"Loading {wcp.file_header.num_records} sweeps with {wcp.file_header.num_channels} channel(s)")
+            # Load sweeps
+            logger.debug(f"Loading {wcp.file_header.num_records} sweeps")
             
             for record_num in range(1, wcp.file_header.num_records + 1):
                 try:
-                    # Read sweep data and header
                     header, data = wcp.read_record(record_num, calibrated=True)
-                    
-                    # Get time axis in milliseconds
                     time_ms = wcp.get_time_axis() * 1000.0
                     
-                    # Store actual sweep time (in seconds)
                     sweep_index = str(record_num)
                     dataset.metadata["sweep_times"][sweep_index] = float(header.time)
-                    
-                    # Store sweep classification metadata
                     dataset.metadata["sweep_info"][sweep_index] = {
                         "time": float(header.time),
-                        "rec_type": header.rec_type,  # e.g., "LEAK", "TEST", ""
-                        "group": int(header.number),  # Group number (RH.Number)
-                        "status": header.status       # e.g., "ACCEPTED", "REJECTED"
+                        "rec_type": header.rec_type,
+                        "group": int(header.number),
+                        "status": header.status
                     }
                     
-                    # Validate data if requested
                     if validate_data:
                         if np.any(np.isnan(time_ms)):
                             raise ValueError(f"Sweep {record_num} contains NaN time values")
@@ -241,7 +135,6 @@ def load_wcp(
                         if np.any(np.isinf(data)):
                             logger.warning(f"Sweep {record_num} contains infinite data values")
                     
-                    # Add to dataset with 1-based indexing
                     dataset.add_sweep(sweep_index, time_ms, data)
                     
                 except Exception as e:
@@ -249,10 +142,9 @@ def load_wcp(
                     if validate_data:
                         raise
                     else:
-                        logger.warning(f"Skipped corrupted sweep {record_num}: {e}")
+                        logger.warning(f"Skipped corrupted sweep {record_num}")
                         continue
             
-            # Verify at least some sweeps were loaded
             if dataset.is_empty():
                 raise ValueError("No valid sweeps could be loaded from WCP file")
             
@@ -265,20 +157,19 @@ def load_wcp(
             if rec_types:
                 logger.info(f"Sweep classification: {rec_types}")
             
-            logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps from {file_path.name}")
-            
+            logger.info(f"Successfully loaded {dataset.sweep_count()} sweeps")
             return dataset
             
     except Exception as e:
         logger.error(f"Failed to load WCP file: {e}")
-        raise IOError(f"Failed to load WCP file: {e}")
+        raise
+
 
 # =============================================================================
-# WCP Parser Classes (unchanged from original)
+# WCP Parser Classes
 # =============================================================================
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -299,7 +190,7 @@ class WCPRecordHeader:
     status: str
     rec_type: str
     number: float
-    time: float  # Time in seconds
+    time: float
     dt: float
     adc_voltage_range: List[float]
     ident: str
@@ -325,7 +216,7 @@ class WCPFileHeader:
 
 
 class WCPParser:
-    """Parser for WCP electrophysiology data files"""
+    """Internal parser used by load_wcp() to read WCP files."""
     
     def __init__(self, filepath: str):
         self.filepath = Path(filepath)
@@ -355,21 +246,18 @@ class WCPParser:
         return params
     
     def _get_param_float(self, params: Dict[str, str], key: str, default: float = 0.0) -> float:
-        """Extract float parameter"""
         try:
             return float(params.get(key, default))
         except (ValueError, TypeError):
             return default
     
     def _get_param_int(self, params: Dict[str, str], key: str, default: int = 0) -> int:
-        """Extract integer parameter"""
         try:
             return int(params.get(key, default))
         except (ValueError, TypeError):
             return default
     
     def _parse_file_header(self) -> WCPFileHeader:
-        """Parse the file header"""
         self._file.seek(0)
         initial_header = self._file.read(1024)
         params = self._parse_key_value_header(initial_header)
@@ -398,9 +286,7 @@ class WCPParser:
         num_records = self._get_param_int(params, 'NR', 0)
         dt = self._get_param_float(params, 'DT', 0.001)
         adc_voltage_range = self._get_param_float(params, 'AD', 5.0)
-
-        num_zero_avg = self._get_param_int(params, 'NZ', 20)  # Default = 20 (Same as WinWCP)
-        num_zero_avg = max(num_zero_avg, 1)  # Ensure at least 1
+        num_zero_avg = max(self._get_param_int(params, 'NZ', 20), 1)
         
         channels = []
         for ch in range(num_channels):
@@ -440,7 +326,6 @@ class WCPParser:
         )
     
     def _parse_record_header(self, record_num: int) -> WCPRecordHeader:
-        """Parse record header for a specific record"""
         fh = self.file_header
         
         record_offset = fh.num_bytes_in_header + (record_num - 1) * fh.num_bytes_per_record
@@ -448,9 +333,8 @@ class WCPParser:
         
         status = self._file.read(8).decode('ascii', errors='ignore').strip('\x00').strip()
         rec_type = self._file.read(4).decode('ascii', errors='ignore').strip('\x00').strip()
-        
         number = struct.unpack('<f', self._file.read(4))[0]
-        time = struct.unpack('<f', self._file.read(4))[0]  # KEY: Actual sweep time in seconds
+        time = struct.unpack('<f', self._file.read(4))[0]
         dt = struct.unpack('<f', self._file.read(4))[0]
         
         adc_voltage_range = []
@@ -472,27 +356,14 @@ class WCPParser:
     
     def read_record(self, record_num: int, calibrated: bool = True) -> Tuple[WCPRecordHeader, np.ndarray]:
         """
-        Read a single record (sweep)
+        Read a single sweep with header metadata.
         
-        Parameters:
-        -----------
-        record_num : int
-            Record number (1-indexed)
-        calibrated : bool
-            If True, return calibrated values; if False, return raw ADC values
-            
-        Returns:
-        --------
-        header : WCPRecordHeader
-            Record metadata
-        data : np.ndarray
-            Shape (num_samples, num_channels) with data for each channel
+        Returns calibrated physical units by default. Set calibrated=False for raw ADC values.
         """
         if not (1 <= record_num <= self.file_header.num_records):
             raise ValueError(f"Record number must be between 1 and {self.file_header.num_records}")
         
         fh = self.file_header
-        
         header = self._parse_record_header(record_num)
         
         # Read raw data
@@ -512,11 +383,9 @@ class WCPParser:
         if calibrated:
             data = data.astype(np.float64)
             
-            # Calculate dynamic zero levels (if applicable) and apply calibration
             for ch_idx, channel in enumerate(fh.channels):
-                # Determine the zero level for this channel in this sweep
+                # Dynamic zero calculation if baseline region specified
                 if channel.adc_zero_at >= 0:
-                    # Calculate zero from baseline region in THIS sweep
                     zero_level = self._calculate_dynamic_zero(
                         data[:, ch_idx], 
                         channel.adc_zero_at, 
@@ -524,14 +393,11 @@ class WCPParser:
                         fh.num_samples
                     )
                 else:
-                    # Use fixed zero from file header
                     zero_level = channel.adc_zero
                 
-                # Calculate scale factor (same as before)
                 adc_scale = (abs(header.adc_voltage_range[ch_idx]) / 
                         (channel.calibration_factor * (fh.max_adc_value + 1)))
                 
-                # Apply calibration: Physical = (Raw - Zero) * Scale
                 data[:, ch_idx] = (data[:, ch_idx] - zero_level) * adc_scale
         
         return header, data
@@ -544,40 +410,14 @@ class WCPParser:
         num_samples: int
     ) -> float:
         """
-        Calculate dynamic zero level from baseline region in sweep.
+        Calculate baseline from a specified region in the sweep.
         
-        This matches WinWCP's logic exactly:
-        - Average num_zero_avg samples starting at adc_zero_at
-        - Ensure indices are within valid bounds
-        - Return the mean of raw ADC values
-        
-        Parameters:
-        -----------
-        raw_channel_data : np.ndarray
-            Raw ADC values for single channel (BEFORE calibration)
-        adc_zero_at : int
-            Starting sample index for baseline region
-        num_zero_avg : int
-            Number of samples to average
-        num_samples : int
-            Total number of samples in sweep
-            
-        Returns:
-        --------
-        zero_level : float
-            Calculated baseline (mean of raw ADC values)
+        Matches WinWCP's baseline calculation - averages num_zero_avg samples
+        starting at adc_zero_at. This handles per-sweep baseline drift.
         """
-        # Bound the start index
         i0 = max(0, min(adc_zero_at, num_samples - 1))
-        
-        # Bound the end index
-        i1 = i0 + num_zero_avg - 1
-        i1 = max(0, min(i1, num_samples - 1))
-        
-        # Calculate mean of baseline region (raw ADC values)
-        zero_level = np.mean(raw_channel_data[i0:i1+1])
-        
-        return zero_level
+        i1 = max(0, min(i0 + num_zero_avg - 1, num_samples - 1))
+        return np.mean(raw_channel_data[i0:i1+1])
     
     def get_time_axis(self) -> np.ndarray:
         """Get time axis for a record in seconds"""

@@ -11,9 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 import numpy as np
 
-from data_analysis_gui.core.exceptions import (
-    DataError,
-)
+from data_analysis_gui.core.exceptions import DataError
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)

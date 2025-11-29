@@ -158,7 +158,6 @@ class ApplicationController:
     def load_file(self, file_path: str) -> FileLoadResult:
         """
         Load dataset from file and update application state.
-        
         Channel configuration is auto-detected from file metadata.
         """
         try:
@@ -191,6 +190,25 @@ class ApplicationController:
             logger.info(f"Successfully loaded {file_info.name}")
 
             return FileLoadResult(success=True, file_info=file_info)
+
+        except ValueError as e:
+            # Handle channel configuration errors from loaders
+            error_msg = str(e)
+            if "Cannot identify channels" in error_msg:
+                user_message = (
+                    "This file does not contain exactly one voltage channel and one current channel.\n\n"
+                    "PatchBatch requires files with this configuration."
+                )
+                logger.error(f"Invalid channel configuration: {error_msg}")
+                if self.on_error:
+                    self.on_error(user_message)
+                return FileLoadResult(False, None, user_message, "ValueError")
+            else:
+                # Other ValueError - pass through
+                logger.error(f"Failed to load file - value error: {e}")
+                if self.on_error:
+                    self.on_error(f"Failed to load file: {str(e)}")
+                return FileLoadResult(False, None, str(e), "ValueError")
 
         except ValidationError as e:
             logger.error(f"Failed to load file - validation error: {e}")
