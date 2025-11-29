@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 from data_analysis_gui.main_window import MainWindow
-from data_analysis_gui.core.session_settings import (
+from data_analysis_gui.config.session_settings import (
     load_session_settings, 
     apply_settings_to_main_window
 )

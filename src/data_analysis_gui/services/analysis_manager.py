@@ -20,7 +20,7 @@ from data_analysis_gui.core.models import (
     PeakAnalysisResult,
     ExportResult,
 )
-from data_analysis_gui.core.exceptions import ValidationError, DataError
+from data_analysis_gui.config.exceptions import ValidationError, DataError
 from data_analysis_gui.config.logging import get_logger
 from data_analysis_gui.services.data_manager import DataManager
 

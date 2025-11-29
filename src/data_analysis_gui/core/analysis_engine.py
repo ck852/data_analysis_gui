@@ -16,7 +16,7 @@ from data_analysis_gui.core.metrics_calculator import MetricsCalculator, SweepMe
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.core.plot_formatter import PlotFormatter
 
-from data_analysis_gui.core.exceptions import ValidationError, DataError
+from data_analysis_gui.config.exceptions import ValidationError, DataError
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)

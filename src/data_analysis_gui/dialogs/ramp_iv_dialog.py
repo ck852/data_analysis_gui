@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 
 def _get_ramp_iv_settings_file():
     """Return path to the JSON file storing user's last voltage input."""
-    from data_analysis_gui.core.session_settings import get_settings_dir
+    from data_analysis_gui.config.session_settings import get_settings_dir
     return get_settings_dir() / "ramp_iv_settings.json"
 
 def _load_ramp_iv_voltages():

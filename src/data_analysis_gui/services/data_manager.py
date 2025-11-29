@@ -22,7 +22,7 @@ import numpy as np
 
 from data_analysis_gui.core.dataset import DatasetLoader, ElectrophysiologyDataset
 from data_analysis_gui.core.models import ExportResult
-from data_analysis_gui.core.exceptions import ValidationError, FileError, DataError
+from data_analysis_gui.config.exceptions import ValidationError, FileError, DataError
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 from data_analysis_gui.core.data_extractor import DataExtractor
-from data_analysis_gui.core.exceptions import DataError, ValidationError
+from data_analysis_gui.config.exceptions import DataError, ValidationError
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)

@@ -14,7 +14,7 @@ import numpy as np
 
 from data_analysis_gui.core.dataset import ElectrophysiologyDataset
 
-from data_analysis_gui.core.exceptions import DataError, ValidationError
+from data_analysis_gui.config.exceptions import DataError, ValidationError
 
 from data_analysis_gui.config.logging import get_logger
 

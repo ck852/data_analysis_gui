@@ -24,7 +24,7 @@ from data_analysis_gui.core.models import (
     BatchAnalysisResult,
     BatchExportResult,
 )
-from data_analysis_gui.core.exceptions import DataError, FileError, ValidationError
+from data_analysis_gui.config.exceptions import DataError, FileError, ValidationError
 
 # Services
 from data_analysis_gui.services.data_manager import DataManager

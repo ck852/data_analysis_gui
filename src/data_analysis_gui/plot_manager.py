@@ -36,7 +36,7 @@ from data_analysis_gui.config.plot_style import (
     get_line_styles,
 )
 from data_analysis_gui.widgets.custom_toolbar import StreamlinedNavigationToolbar
-from data_analysis_gui.core.view_state_manager import ViewStateManager
+from data_analysis_gui.gui_services.view_state_manager import ViewStateManager
 from data_analysis_gui.widgets.cursor_manager import CursorManager
 from data_analysis_gui.widgets.axis_zoom_controller import AxisZoomController
 

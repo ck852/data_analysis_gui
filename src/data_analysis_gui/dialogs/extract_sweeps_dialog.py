@@ -29,7 +29,7 @@ from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
 from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 
-from data_analysis_gui.core.session_settings import save_extract_sweeps_settings, load_extract_sweeps_settings
+from data_analysis_gui.config.session_settings import save_extract_sweeps_settings, load_extract_sweeps_settings
 
 from data_analysis_gui.config.logging import get_logger
 

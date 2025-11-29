@@ -40,7 +40,7 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                             style_label, style_checkbox
                                 )
 
-from data_analysis_gui.core.session_settings import (extract_settings_from_main_window,
+from data_analysis_gui.config.session_settings import (extract_settings_from_main_window,
                                                     save_session_settings
 )
 

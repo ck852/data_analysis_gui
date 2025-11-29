@@ -31,7 +31,7 @@ from data_analysis_gui.core.models import (
     BatchExportResult,
 )
 from data_analysis_gui.config.logging import get_logger
-from data_analysis_gui.core.exceptions import ValidationError
+from data_analysis_gui.config.exceptions import ValidationError
 
 # Direct imports of managers
 from data_analysis_gui.services.data_manager import DataManager
