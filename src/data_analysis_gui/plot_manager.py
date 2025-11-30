@@ -47,9 +47,9 @@ class PlotManager(QObject):
     """
     Interactive plot manager for sweep data with draggable cursors and per-channel view memory.
     
-    Handles mouse events for cursor dragging, manages cursor lifecycle, and preserves axis 
-    limits separately for each channel type (Voltage/Current). Auto-fits once per channel 
-    on first view, then remembers zoom/pan state when switching between channels.
+    Mouse events trigger CursorManager methods that return values; PlotManager emits Qt signals
+    with these values for MainRangeCoordinator to handle spinbox synchronization. Auto-fits once 
+    per channel on first view, then remembers zoom/pan state when switching between channels.
     """
 
     # Actions: 'dragged', 'added', 'removed', 'centered', 'released'

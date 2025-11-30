@@ -1,15 +1,14 @@
 """
 PatchBatch Electrophysiology Data Analysis Tool
 
-Author: Charles Kissell, Northeastern University
-License: MIT (see LICENSE file for details)
-
 Manages axis-specific zoom buttons for matplotlib plots. Provides independent
 zoom controls for X and Y axes without direct Qt dependencies.
 
-Follows the same coordinator pattern as CursorManager and ViewStateManager:
-calculates zoom transformations but returns new limits rather than applying
-them directly.
+Returns calculated limits rather than applying them directly, allowing PlotManager
+to coordinate zoom with view state management and cursor text updates.
+
+Author: Charles Kissell, Northeastern University
+License: MIT (see LICENSE file for details)
 """
 
 import logging
@@ -26,12 +25,12 @@ class AxisZoomController:
     """
     Manages X+/X-/Y+/Y- zoom buttons on matplotlib figures.
     
-    Buttons are matplotlib widgets that need to be recreated when clearing axes.
-    Zoom is 20% in, 25% out (symmetric).
+    Buttons are matplotlib widgets recreated when clearing axes. Zoom factors
+    are 20% in, 25% out for symmetric behavior (1/0.8 = 1.25).
     """
     
-    ZOOM_IN_FACTOR = 0.8   # Reduce range by 20%
-    ZOOM_OUT_FACTOR = 1.25  # Increase by 25% (1 / 0.8 for symmetry)
+    ZOOM_IN_FACTOR = 0.8
+    ZOOM_OUT_FACTOR = 1.25
     
     def __init__(self, figure: Figure, ax: Axes):
         self._figure = figure
@@ -41,16 +40,11 @@ class AxisZoomController:
     
     def create_buttons(self, on_zoom_callback: Callable[[str, str], None]) -> None:
         """
-        Create axis zoom buttons and add them to the figure.
+        Create axis zoom buttons and add to figure. Call after tight_layout()
+        to avoid layout conflicts.
         
-        Call AFTER tight_layout() to avoid layout conflicts.
-        
-        Layout:
-        - X buttons: Horizontal pair at bottom-left (X- left, X+ right)
-        - Y buttons: Vertical pair to the left of X buttons (Y- bottom, Y+ top)
-        
-        Callback receives (axis, direction) where axis is 'x'/'y' and 
-        direction is 'in'/'out'.
+        Callback receives (axis, direction) where axis is 'x'/'y' and direction
+        is 'in'/'out'.
         """
         self.clear_buttons()
         self._on_zoom_callback = on_zoom_callback
@@ -60,7 +54,7 @@ class AxisZoomController:
             'hovercolor': '#E0E0E0',
         }
         
-        # X-axis buttons (bottom-left corner, horizontal)
+        # X buttons (bottom-left, horizontal)
         x_button_width = 0.035
         x_button_height = 0.055
         x_left_position = 0.04
@@ -91,7 +85,7 @@ class AxisZoomController:
         btn_xplus.on_clicked(lambda event: self._handle_button_click('x', 'in'))
         self._buttons.append(btn_xplus)
         
-        # Y-axis buttons (bottom-left corner, vertical)
+        # Y buttons (left side, vertical)
         y_button_width = 0.035
         y_button_height = 0.055
         y_x_position = 0.005
@@ -126,10 +120,8 @@ class AxisZoomController:
     
     def clear_buttons(self) -> None:
         """
-        Clean up buttons by disconnecting event handlers before removing axes.
-        
-        Prevents "Other artist currently being used" errors when matplotlib
-        tries to handle events for removed axes. Call before ax.clear().
+        Disconnect event handlers and remove button axes. Must be called before
+        ax.clear() to prevent matplotlib event handling errors.
         """
         for button in self._buttons:
             try:
@@ -152,10 +144,8 @@ class AxisZoomController:
         max_bounds: Optional[Tuple[float, float]] = None
     ) -> Tuple[float, float]:
         """
-        Calculate new axis limits for zoom operation, optionally clamped to bounds.
-        
-        Zoom is centered on the current view's midpoint. Returns limits without
-        applying them - coordinator handles application.
+        Calculate new axis limits centered on current view midpoint. Optionally
+        clamp to max_bounds. Returns limits without applying them.
         """
         if axis not in ('x', 'y'):
             raise ValueError(f"Invalid axis: {axis}. Must be 'x' or 'y'.")
@@ -183,7 +173,6 @@ class AxisZoomController:
             if new_max > bounds_max:
                 new_max = bounds_max
             
-            # Ensure valid range after clamping
             if new_max <= new_min:
                 new_min, new_max = bounds_min, bounds_max
                 logger.debug(f"Zoom clamped to data bounds: [{new_min:.2f}, {new_max:.2f}]")
@@ -197,7 +186,7 @@ class AxisZoomController:
         return (new_min, new_max)
     
     def _handle_button_click(self, axis: str, direction: str) -> None:
-        """Route button clicks to coordinator's callback."""
+        """Route button clicks to coordinator callback."""
         if self._on_zoom_callback:
             self._on_zoom_callback(axis, direction)
         else:
