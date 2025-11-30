@@ -59,6 +59,9 @@ patchbatch = "data_analysis_gui.main:run"
 where = ["src"]
 include = ["data_analysis_gui*"]
 
+[tool.setuptools.package-data]
+data_analysis_gui = ["logo/*"]
+
 [project.urls]
 Homepage = "https://github.com/ck852/patchbatch"
 Repository = "https://github.com/ck852/patchbatch"
