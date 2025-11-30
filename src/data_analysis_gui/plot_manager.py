@@ -86,7 +86,7 @@ class PlotManager(QObject):
         self.cursor_manager = CursorManager(self.ax)
         self.axis_zoom_controller = AxisZoomController(self.figure, self.ax)
 
-        # 3. Initialize range lines (but don't add to axes yet)
+        # Initialize range lines (but don't add to axes yet)
         self._initialize_range_lines()
         self._connect_events()
         self._style_axes()
@@ -213,7 +213,7 @@ class PlotManager(QObject):
         # Clear zoom buttons BEFORE clearing axes
         self.axis_zoom_controller.clear_buttons()
 
-        # 1. Clear axes
+        # Clear axes
         self.ax.clear()
 
         # Plot with styling
