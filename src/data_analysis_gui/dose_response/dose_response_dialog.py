@@ -27,10 +27,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from data_analysis_gui.core.session_settings import (
-    save_conc_resp_settings,
-    load_conc_resp_settings
-)
+from data_analysis_gui.config.session_settings import save_conc_resp_settings
 
 from data_analysis_gui.dose_response.compact_themes import (
     MODERN_COLORS,

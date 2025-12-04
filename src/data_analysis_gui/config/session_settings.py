@@ -185,3 +185,49 @@ def load_extract_sweeps_settings() -> Optional[dict]:
     except Exception as e:
         print(f"Failed to load extract sweeps settings: {e}")
         return None
+    
+def save_conc_resp_settings(settings: dict) -> bool:
+    """
+    Saves concentration response dialog settings independently.
+    """
+    try:
+        settings_file = get_settings_dir() / "session_settings.json"
+        
+        existing_data = {}
+        if settings_file.exists():
+            with open(settings_file, "r") as f:
+                existing_data = json.load(f)
+        
+        if "version" not in existing_data:
+            existing_data = {"version": SETTINGS_VERSION, "settings": {}}
+        
+        existing_data["conc_resp"] = settings
+        
+        with open(settings_file, "w") as f:
+            json.dump(existing_data, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Failed to save conc_resp settings: {e}")
+        return False
+
+
+def load_conc_resp_settings() -> Optional[dict]:
+    """
+    Loads concentration response dialog settings independently.
+    """
+    try:
+        settings_file = get_settings_dir() / "session_settings.json"
+        if not settings_file.exists():
+            return None
+        
+        with open(settings_file, "r") as f:
+            data = json.load(f)
+        
+        if isinstance(data, dict):
+            if "conc_resp" in data:
+                return data["conc_resp"]
+        
+        return None
+    except Exception as e:
+        print(f"Failed to load conc_resp settings: {e}")
+        return None
