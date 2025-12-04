@@ -87,9 +87,6 @@ Found a bug or want to contribute? Please open an issue at:
 https://github.com/ck852/patchbatch/issues
 
 
-**Note that this software is currently in beta. There may be bugs and irregularities that were not seen in development. You are encouraged to validate your initial results against a trusted data analysis program such as WinWCP to ensure that all data processing modules are functioning as expected. See the Validation section at the end of this README for more information.**
-
-
 ## Introduction
 
 Welcome to PatchBatch! The purpose of this program is to streamline electrophysiology data analysis workflows by enabling batch-analysis of data files that share the same analysis parameters. I developed this after growing impatient with the long, tedious workflows that require defining the same parameters repeatedly for every file, followed by further rote transformations that could be defined algorithmically. This is typically a repetitive process that, while not technically complicated, requires extended periods of focus to do reproducibly without errors. I developed this program because I wanted to conserve this cognitive effort for data interpretation and further experiments. 
@@ -106,7 +103,7 @@ Start by clicking "Open" in the top left corner. Select a single file to analyze
  If you'd like to preview the output plot, click "Generate Analysis Plot". From there, you can export a CSV file with the analyzed data. If you only want the data without seeing the plot first, just click "Export Analysis Data" at the bottom of the window. 
 
 
-This program makes it possible to analyze several electrophysiology files with the same analysis parameters. To use this feature, start by setting all of the desired parameters as you would do for a single file. It is optional to open a single file in the main window first - if you know all of your parameters, you can skip loading the single file and go straight to batch analysis. The "Batch Analyze" button is under the "Analysis" menu at the top. A new window will appear which will prompt you to select files for analysis. Click "Start Analysis", then "View Results". A new window will appear that plots the analysis results. From this window, you can export individual CSV files for each analyzed file. These can be directly imported into Graphpad Prism. 
+This program makes it possible to analyze several electrophysiology files with the same analysis parameters. To use this feature, start by setting all of the desired parameters as you would do for a single file. The "Batch Analyze" button is under the "Analysis" menu at the top. A new window will appear which will prompt you to select files for analysis. Click "Start Analysis", then "View Results". A new window will appear that plots the analysis results. From this window, you can export individual CSV files for each analyzed file. These can be directly imported into Graphpad Prism. 
 
 
 <img src="images/batch_analysis.PNG" alt="batch_analysis" width="300"/>
@@ -202,11 +199,11 @@ To validate the data processing modules of this program, analyses were performed
 
 ### IV Analysis
 
-This program's data processing methods have been validated by comparing PatchBatch outputs to those of WinWCP. Both analyses used the same dataset of 12 patch-clamp recordings. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. The input abf files are available in the file repository. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049694 pA. Similarly, the distinction in the measured voltage was 0.011475 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible for the intended applications of this program. These results are summarized as follows:
+This program's data processing methods have been validated by comparing PatchBatch outputs to those of WinWCP. Both analyses used the same dataset of 12 patch-clamp recordings. Each analysis used an analysis range of 150.1 ms - 649.2 ms, with the X-axis plotting Average Voltage and the Y-axis plotting Average Current. The comparison found excellent agreement between both analysis methods. Each recording contained 11 sweeps, thus 132 data points were compared. The maximum discrepancy in the analyzed current values was 0.049694 pA. Similarly, the distinction in the measured voltage was 0.011475 mV. The distinction is due to differences in floating point arithmetic in data averaging operations in WinWCP (written in Pascal) versus Python. WinWCP uses 32-bit floating-point precision (~7 significant digits), while PatchBatch uses Python formulas with 64-bit precision (~15-16 significant digits). Because the raw data is stored as integers before being scaled to practical units, the only real difference is that 64-bit precision actually produces more accurate calculations at the expense of increased computation time, which is negligible for the intended applications of this program. These results are summarized as follows:
 
 <img src="images/wcp_data_comparison.png" alt="data_comparison"/>
 
-To assess the ABF functionality, the same WCP files were converted to ABF. File format conversions were performed in WinWCP. The ABF dataset was analyzed with the same parameters as the WCP dataset. The results were nearly identical to those of the WCP dataset.
+To assess the ABF functionality, the same WCP files were converted to ABF. File format conversions were performed in WinWCP. The ABF dataset was analyzed with the same parameters as the WCP dataset. The results were functionally identical to those of the WCP dataset.
 
 
 <img src="images/discrepancy.png" alt="discrepancy"/>

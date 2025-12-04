@@ -147,7 +147,8 @@ class MainWindow(QMainWindow):
         apply_modern_theme(self)
 
         # Set window title
-        self.setWindowTitle("PatchBatch v1.0")
+        version = QApplication.applicationVersion()
+        self.setWindowTitle(f"PatchBatch v{version}")
 
     def _init_ui(self):
         """Build the main UI layout with control panel, plot area, toolbar, and menus."""
