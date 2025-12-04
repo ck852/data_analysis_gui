@@ -30,7 +30,6 @@ from PySide6.QtGui import QColor
 from data_analysis_gui.config.session_settings import save_conc_resp_settings
 
 from data_analysis_gui.dose_response.compact_themes import (
-    MODERN_COLORS,
     COMPACT_HEIGHT,
     apply_compact_theme,
     style_table,
@@ -40,9 +39,8 @@ from data_analysis_gui.dose_response.compact_themes import (
 )
 
 from data_analysis_gui.dose_response.collapsible_group_box import CollapsibleGroupBox
-from data_analysis_gui.config.plot_style import COLOR_CYCLE, COLORS as PLOT_COLORS
+
 from data_analysis_gui.dose_response.pyqtgraph_style import (
-    style_plot_widget,
     style_plot_item_text,
     add_zero_axis_lines,
     get_data_line_pen,
