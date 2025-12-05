@@ -133,7 +133,7 @@ class GeneralizedSummaryExporter:
         
         if not filtered_results:
             logger.warning("No results to export after filtering")
-            return {"headers": [], "data": np.array([]), "format_spec": "%.6f"}
+            return {"headers": [], "data": np.array([]), "format_spec": "%s"}
         
         # Sort filenames for consistent ordering
         sorted_files = sorted(filtered_results.keys())
@@ -243,5 +243,5 @@ class GeneralizedSummaryExporter:
         return {
             "headers": headers,
             "data": data_array,
-            "format_spec": "%.6f"
+            "format_spec": "%s"  # Changed from "%.6f" to handle object array with mixed types
         }
