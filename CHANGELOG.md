@@ -2,7 +2,7 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [1.0.3] DATE
+## [1.0.3] 2026-01-24
 - Reorganized config scripts
 - Expanded ARCHITECTURE.md
 

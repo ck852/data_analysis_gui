@@ -73,9 +73,6 @@ from data_analysis_gui.gui_services.clipboard_service import ClipboardService
 from data_analysis_gui.services.sweep_extraction_service import SweepExtractionService
 from data_analysis_gui.services.leak_subtraction_utils import is_leak_subtraction_available
 
-# Dose-response imports
-from data_analysis_gui.dose_response import ConcentrationResponseDialog
-
 
 logger = get_logger(__name__)
 
@@ -275,18 +272,18 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about_dialog)
         menubar.addAction(about_action)
 
-    def _open_concentration_response(self):
-        """Launch concentration-response curve analysis dialog."""
-        from data_analysis_gui.config.session_settings import load_conc_resp_settings
-        dialog = ConcentrationResponseDialog(self)
-        dialog.showMaximized()
+    # def _open_concentration_response(self):
+    #     """Launch concentration-response curve analysis dialog."""
+    #     from data_analysis_gui.config.session_settings import load_conc_resp_settings
+    #     dialog = ConcentrationResponseDialog(self)
+    #     dialog.showMaximized()
         
-        # Apply saved settings after window is maximized
-        saved_settings = load_conc_resp_settings()
-        if saved_settings:
-            QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
+    #     # Apply saved settings after window is maximized
+    #     saved_settings = load_conc_resp_settings()
+    #     if saved_settings:
+    #         QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
         
-        dialog.show() # non-modal
+    #     dialog.show() # non-modal
 
 
     def _background_subtraction(self):
