@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] DATE
+- Reorganized config scripts
+- Expanded ARCHITECTURE.md
+
 ## [1.0.2] 2025-11-30
 - Adjust logo location for PyPI
 

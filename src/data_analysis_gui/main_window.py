@@ -260,12 +260,14 @@ class MainWindow(QMainWindow):
         analysis_menu.addAction(self.leak_sub_action)
 
         # ------- Dose Response -------
-        # Tools menu
-        tools_menu = menubar.addMenu("&Tools")
+        # For future expansion 
 
-        # Concentration Response Analysis
-        conc_resp_action = tools_menu.addAction("&Concentration Response...")
-        conc_resp_action.triggered.connect(self._open_concentration_response)
+        # # Tools menu
+        # tools_menu = menubar.addMenu("&Tools")
+
+        # # Concentration Response Analysis
+        # conc_resp_action = tools_menu.addAction("&Concentration Response...")
+        # conc_resp_action.triggered.connect(self._open_concentration_response)
         # -----------------------------
 
         # About button (no submenu)

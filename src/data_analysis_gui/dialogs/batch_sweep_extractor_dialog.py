@@ -17,9 +17,8 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
-    QListWidget, QMessageBox, QAbstractItemView, QWidget, QFormLayout
+    QListWidget, QMessageBox, QAbstractItemView, QFormLayout
 )
-from PySide6.QtCore import Qt
 
 import numpy as np
 
