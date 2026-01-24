@@ -239,6 +239,8 @@ To validate the functionality of time course analyses, three WCP files were anal
 
 <img src="images/time_diff_plot.png" alt="time_diff_plot_time-course" width="750"/>
 
+Users performing time course analyses of ABF files are encouraged to ensure that accurate sweep times are returned. Some discrepancies in the sweep time array were observed during testing in .abf files that were converted from .wcp via WinWCP; this is believed to be related to the file conversion and not an inherent issue with this program's data processing or pyABF, based on similar observations of the same files loaded in pClamp. Users with .wcp files are discouraged from converting them to .abf for use in this program.
+
 ### Peak Analysis
 
 The four peak analysis modes (absolute, positive, negative, and peak-peak) were validated using one of the same WCP files from the time course validation. The analysis range was 50.2 - 164.9 ms. The analysis plotted Peak Voltage versus Peak Current. A similar maximum discrepancy of 0.00497 pA and 0.000485 mV was found across all four peak modes (n = 1278). The discrepancies of the peak current values for all four peak modes are summarized in the following figure.

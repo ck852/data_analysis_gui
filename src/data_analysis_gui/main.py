@@ -138,10 +138,20 @@ def main():
     app = QApplication(sys.argv)
     
     # Set icon on both app and window
-    icon_path = project_root / "images" / "logo.ico"
-    if not icon_path.exists():
-        icon_path = project_root / "images" / "logo.png"
-    
+    try:
+        # For Python 3.9+ installed packages
+        from importlib.resources import files
+        logo_dir = files('data_analysis_gui').joinpath('logo')
+        icon_path = logo_dir / ('logo.ico' if sys.platform == 'win32' else 'logo.icns')
+        if not Path(icon_path).exists():
+            # Fallback to .ico for all platforms if .icns not found
+            icon_path = logo_dir / 'logo.ico'
+    except (ImportError, TypeError, FileNotFoundError):
+        # Fallback for development environment or Python < 3.9
+        icon_path = project_root / "images" / "logo.ico"
+        if not icon_path.exists():
+            icon_path = project_root / "images" / "logo.png"
+
     app_icon = QIcon(str(icon_path))
     app.setWindowIcon(app_icon)
 
