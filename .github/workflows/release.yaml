@@ -7,54 +7,32 @@ on:
 
 jobs:
   build-macos:
-    strategy:
-      matrix:
-        include:
-          - runner: macos-13  # Intel runner
-            arch: x86_64
-            display_name: Intel
-          - runner: macos-14  # Apple Silicon runner
-            arch: arm64
-            display_name: AppleSilicon
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-14
     steps:
-    - uses: actions/checkout@v4
-      with:
-        lfs: true
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-        brew install create-dmg || true
-    
-    - name: Verify architecture
-      run: |
-        echo "Expected arch: ${{ matrix.arch }}"
-        echo "Actual arch: $(uname -m)"
-        if [ "$(uname -m)" != "${{ matrix.arch }}" ]; then
-          echo "ERROR: Architecture mismatch!"
-          exit 1
-        fi
-    
-    - name: Build Mac app
-      run: python build_macos.py
-    
-    - name: Rename DMG to include architecture
-      run: |
-        mv dist/PatchBatch-macOS.dmg "dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg"
-    
-    - name: Upload DMG artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-dmg-${{ matrix.arch }}
-        path: dist/PatchBatch-macOS-${{ matrix.display_name }}.dmg
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          brew install create-dmg || true
+      
+      - name: Build Mac app
+        run: python build_macos.py
+      
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/PatchBatch-macOS.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -133,18 +111,14 @@ jobs:
     - name: Arrange files for release
       run: |
         ls -R
-        # Copy macOS DMGs with user-friendly names
-        cp macos-dmg-arm64/PatchBatch-macOS-AppleSilicon.dmg PatchBatch-macOS-AppleSilicon.dmg
-        cp macos-dmg-x86_64/PatchBatch-macOS-Intel.dmg PatchBatch-macOS-Intel.dmg
-        # Copy Windows zip
+        cp macos-dmg/PatchBatch-macOS.dmg PatchBatch-macOS.dmg
         cp windows-zip/PatchBatch-Windows.zip PatchBatch-Windows.zip
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          PatchBatch-macOS-AppleSilicon.dmg
-          PatchBatch-macOS-Intel.dmg
+          PatchBatch-macOS.dmg
           PatchBatch-Windows.zip
         draft: false
         prerelease: false
@@ -153,9 +127,7 @@ jobs:
           ## Installation
           
           ### macOS
-          **Choose the correct version for your Mac:**
           - **Apple Silicon (M1/M2/M3/M4):** Download `PatchBatch-macOS-AppleSilicon.dmg`
-          - **Intel Macs:** Download `PatchBatch-macOS-Intel.dmg`
           
           After downloading:
           1. Double-click the DMG to mount it

@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.  
 This project follows [Semantic Versioning](https://semver.org/).
 
+# [1.0.4] 2026-01-24
+- Removed deprecated Mac Intel build
+
 ## [1.0.3] 2026-01-24
 - Reorganized config scripts
 - Expanded ARCHITECTURE.md
