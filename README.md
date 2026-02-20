@@ -1,3 +1,4 @@
+[![status](https://joss.theoj.org/papers/e456b4cec403cd1c5b6642bf459789b8/status.svg)](https://joss.theoj.org/papers/e456b4cec403cd1c5b6642bf459789b8)
 [![Tests](https://github.com/ck852/patchbatch/actions/workflows/test.yml/badge.svg)](https://github.com/ck852/patchbatch/actions/workflows/test.yml)
 [![PyPI version](https://badge.fury.io/py/patchbatch.svg)](https://badge.fury.io/py/patchbatch)
 [![Python Version](https://img.shields.io/pypi/pyversions/patchbatch)](https://pypi.org/project/patchbatch/)
