@@ -1,0 +1,54 @@
+name: Build Paper PDF
+on:
+  push:
+    paths:
+      - paper.md
+      - paper.bib
+      - images/**
+      - scholarly-metadata.lua
+      - .github/workflows/build-paper.yml
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Generic PDF
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Pandoc and LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-latex-extra texlive-fonts-recommended \
+            texlive-xetex texlive-science latexmk librsvg2-bin
+
+      - name: Build PDF
+        run: |
+          FILTER_ARG=""
+          if [ -f scholarly-metadata.lua ]; then
+            FILTER_ARG="--lua-filter=scholarly-metadata.lua"
+          fi
+
+          pandoc paper.md \
+            --from=markdown+yaml_metadata_block \
+            --to=pdf \
+            --pdf-engine=xelatex \
+            --citeproc \
+            --bibliography=paper.bib \
+            $FILTER_ARG \
+            --number-sections \
+            -V geometry:margin=1in \
+            -V fontsize=11pt \
+            -V linkcolor=blue \
+            -V urlcolor=blue \
+            -V citecolor=blue \
+            -V documentclass=article \
+            -o paper.pdf
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper.pdf
