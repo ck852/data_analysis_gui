@@ -45,6 +45,7 @@ jobs:
             -V urlcolor=blue \
             -V citecolor=blue \
             -V documentclass=article \
+            -V header-includes='\usepackage{float}\floatplacement{figure}{H}' \
             -o paper.pdf
 
       - name: Upload PDF artifact
