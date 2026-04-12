@@ -13,10 +13,10 @@ authors:
     affiliation: 1
     corresponding: true
 affiliations:
-  - name: Northeastern University, United States
+  - name: Department of Pharmaceutical Sciences, Northeastern University, Boston, Massachusetts, United States
     index: 1
     ror: 04t5xt781
-date: 20 February 2026
+date: 12 April 2026
 bibliography: paper.bib
 ---
 
