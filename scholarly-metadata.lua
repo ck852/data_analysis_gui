@@ -1,6 +1,7 @@
 -- scholarly-metadata.lua
 -- Converts JOSS-style authors/affiliations YAML into Pandoc MetaInlines
--- so that the default LaTeX template renders them properly.
+-- so that the default LaTeX article template renders them properly.
+-- Affiliations are placed directly below the author names in the title block.
 
 function Meta(meta)
   -- Build affiliation lookup: index -> name
@@ -32,25 +33,29 @@ function Meta(meta)
       table.insert(author_entries, entry)
     end
 
-    -- Set meta.author as a single RawInline block with all authors
+    -- Build author line
     local author_str = table.concat(author_entries, ", ")
-    meta.author = { pandoc.MetaInlines({ pandoc.RawInline("latex", author_str) }) }
 
-    -- Build affiliation footnote block
+    -- Build affiliation lines to append below author names
     local affil_lines = {}
-    for _, a in ipairs(meta.affiliations) do
-      local idx = pandoc.utils.stringify(a.index)
-      local name = pandoc.utils.stringify(a.name)
-      table.insert(affil_lines, "\\textsuperscript{" .. idx .. "}" .. name)
+    if meta.affiliations then
+      for _, a in ipairs(meta.affiliations) do
+        local idx = pandoc.utils.stringify(a.index)
+        local name = pandoc.utils.stringify(a.name)
+        table.insert(affil_lines, "\\textsuperscript{" .. idx .. "}" .. name)
+      end
     end
-    if #affil_lines > 0 then
-      local affil_block = table.concat(affil_lines, " \\\\\n")
-      affil_block = affil_block .. " \\\\\n\\textsuperscript{*}Corresponding author"
 
-      -- Inject as institute or subtitle depending on template
-      -- Using the 'institute' variable which many LaTeX templates support
-      meta.institute = { pandoc.MetaInlines({ pandoc.RawInline("latex", affil_block) }) }
+    -- Combine author + affiliations + corresponding note into one block
+    local full_block = author_str
+    if #affil_lines > 0 then
+      full_block = full_block .. " \\\\\n"
+        .. "\\vspace{0.3em}\\small " .. table.concat(affil_lines, " \\\\\n\\small ")
+      full_block = full_block .. " \\\\\n\\small \\textsuperscript{*}Corresponding author"
     end
+
+    -- Set meta.author so the default Pandoc article template renders it
+    meta.author = { pandoc.MetaInlines({ pandoc.RawInline("latex", full_block) }) }
   end
 
   return meta
