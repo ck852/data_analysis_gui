@@ -16,7 +16,7 @@ affiliations:
   - name: Department of Pharmaceutical Sciences, Northeastern University, Boston, Massachusetts, United States
     index: 1
     ror: 04t5xt781
-date: 12 April 2026
+date: 27 April 2026
 bibliography: paper.bib
 ---
 
@@ -41,12 +41,6 @@ The program is designed to be intuitive to electrophysiologists. In the program'
 # Research Impact Statement
 
 For one scientist, a day's patch clamp data can take an hour or more to process into a meaningful form. Semi-automating the data analysis process can reduce analysis time to minutes rather than hours. The underlying data processing operations are functionally equivalent to WinWCP; this program simply provides a way to apply the same analysis settings to multiple data files and process them all at once. To my knowledge, no open-source program currently streamlines this process. Additionally, purpose-built features such as batch raw sweep extraction expedite related data processing protocols that are often of interest in electrophysiology. Much like the core analysis process, raw sweep extraction necessitates repetitive identical manual data extraction steps to compare, for example, individual Current sweeps from different recordings, which can be important for characterizing specific types of electrophysiological properties with disease relevance. Labs have traditionally accommodated these inconveniences in data analysis through in-house Python scripts, Excel strategies, or simply through brute force. The batch analysis and related features have saved considerable time for myself and lab mates who have adopted the program. The ability to convert a full day's worth of raw data (12 files) into a plot-ready summary Current-Voltage graph in 2-3 minutes reduces time spent on data analysis by approximately 90% compared to the manual method, which takes 20-30 minutes for the same number of files. Thus, PatchBatch has the potential to markedly reduce time lost to rote data analysis while limiting the chances for user input error during repeated analysis steps.
-
-# AI Usage Disclosure
-
-This software was developed with the aid of large language model (LLM) tools. ChatGPT-4o and Gemini 2.5 were used during early development to produce a basic working prototype. Claude Sonnet 4.0–4.5 and Opus 4.0–4.5 (Anthropic) were used in later development to generate code and refactor the prototype into a user-friendly, fully functional software. All user-facing design decisions were made by the author based on domain expertise in electrophysiology. LLMs aided in the design of the data processing architecture, fine-tuning of the desired analysis modes and GUI features, and troubleshooting coding errors. All code outputs were reviewed and refined by the author for data operations integrity and overall functionality. All analysis scripts were extensively validated by the author by comparing analysis outputs against known reference values (Figure 3). 
-
-LLMs were used to develop pytest scripts to validate all data workflows. Pytests were validated for accurate functionality by the author. Likewise, LLMs were used to script Continuous Integration to run all pytests, and later cross-platform builds, upon each push to GitHub. All build scripts (build_windows.py, build_macos.py, and pyproject.toml) were developed with LLM assistance. Boilerplate documentation (BUILD-INSTRUCTIONS.md, CITATION.cff, CODE_OF_CONDUCT.md, LICENSE.md) were generated with LLM assistance with light refinement by the author. The design principles of ARCHITECTURE.md were written by the author, while the service layer overview was guided by LLM assistance to comprehensively describe the architecture that performs the core analysis workflow. All text of the present document and the vast majority of README.md was written by ther author and formatted with LLM assistance. 
 
 # Figures
 
