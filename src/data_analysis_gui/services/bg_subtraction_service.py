@@ -100,7 +100,7 @@ class BackgroundSubtractionService:
             f"from {len(valid_data)} data points in range [{start_ms}, {end_ms}] ms"
         )
         
-        return float(background_avg)
+        return float(abs(background_avg))   #abs value is oriented for positive current data, revise as needed
 
     @staticmethod
     def apply_background_subtraction(

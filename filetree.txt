@@ -1,0 +1,286 @@
+patchbatch/
+|-- .github/
+|   `-- workflows/
+|       |-- build-paper.yml
+|       |-- draft-pdf.yml
+|       |-- release.yaml
+|       `-- test.yml
+|-- images/
+|   |-- abf_data_comparison.png
+|   |-- ba_results.PNG
+|   |-- batch_analysis.PNG
+|   |-- bg_sub_dialog.PNG
+|   |-- ca_dose_response.png
+|   |-- cd_cslow.PNG
+|   |-- cd_results.PNG
+|   |-- discrepancy.png
+|   |-- dose_response_main.PNG
+|   |-- dual_analysis_main.PNG
+|   |-- dual_analysis_plot.PNG
+|   |-- dual_range_comparison.png
+|   |-- logo.icns
+|   |-- logo.ico
+|   |-- mainwindow.PNG
+|   |-- peak_validation.png
+|   |-- prism_cd_summary.PNG
+|   |-- prism_import.PNG
+|   |-- ramp_analysis.PNG
+|   |-- ramp_iv_setup.PNG
+|   |-- summary_export.PNG
+|   |-- time_course_validation.png
+|   |-- time_diff_plot.png
+|   `-- wcp_data_comparison.png
+|-- LICENSES/
+|   |-- LICENSE-LGPLv3.txt
+|   `-- THIRD-PARTY-NOTICES.txt
+|-- src/
+|   `-- data_analysis_gui/
+|       |-- config/
+|       |   |-- __init__.py
+|       |   |-- exceptions.py
+|       |   |-- logging.py
+|       |   |-- plot_style.py
+|       |   |-- session_settings.py
+|       |   |-- settings.py
+|       |   `-- themes.py
+|       |-- core/
+|       |   |-- loaders/
+|       |   |   |-- __init__.py
+|       |   |   |-- abf_loader.py
+|       |   |   `-- wcp_loader.py
+|       |   |-- __init__.py
+|       |   |-- analysis_engine.py
+|       |   |-- analysis_plot.py
+|       |   |-- app_controller.py
+|       |   |-- data_extractor.py
+|       |   |-- dataset.py
+|       |   |-- iv_analysis.py
+|       |   |-- metrics_calculator.py
+|       |   |-- models.py
+|       |   |-- params.py
+|       |   `-- plot_formatter.py
+|       |-- dialogs/
+|       |   |-- __init__.py
+|       |   |-- analysis_plot_dialog.py
+|       |   |-- batch_dialog.py
+|       |   |-- batch_results_window.py
+|       |   |-- batch_sweep_extractor_dialog.py
+|       |   |-- bg_subtraction_dialog.py
+|       |   |-- current_density_dialog.py
+|       |   |-- current_density_results_window.py
+|       |   |-- extract_sweeps_dialog.py
+|       |   |-- kinetics_dialog.py
+|       |   |-- leak_subtraction_dialog.py
+|       |   |-- ramp_iv_batch_sweep_dialog.py
+|       |   |-- ramp_iv_dialog.py
+|       |   `-- reject_sweeps_dialog.py
+|       |-- dose_response/
+|       |   |-- __init__.py
+|       |   |-- collapsible_group_box.py
+|       |   |-- compact_themes.py
+|       |   |-- concentration_range_table.py
+|       |   |-- cursor_pyqtgraph.py
+|       |   |-- dose_response_dialog.py
+|       |   |-- dose_response_exporter.py
+|       |   |-- dose_response_models.py
+|       |   |-- dose_response_service.py
+|       |   |-- interactive_range_creator.py
+|       |   |-- pyqtgraph_style.py
+|       |   |-- range_calculator_service.py
+|       |   `-- range_calculator_widget.py
+|       |-- gui_services/
+|       |   |-- __init__.py
+|       |   |-- clipboard_service.py
+|       |   |-- file_dialog_service.py
+|       |   |-- main_range_coordinator.py
+|       |   `-- view_state_manager.py
+|       |-- logo/
+|       |   |-- logo.icns
+|       |   `-- logo.ico
+|       |-- services/
+|       |   |-- __init__.py
+|       |   |-- analysis_manager.py
+|       |   |-- batch_processor.py
+|       |   |-- bg_subtraction_service.py
+|       |   |-- conductance_calculator.py
+|       |   |-- current_density_service.py
+|       |   |-- data_manager.py
+|       |   |-- kinetics_service.py
+|       |   |-- leak_subtraction_service.py
+|       |   |-- leak_subtraction_utils.py
+|       |   |-- ramp_iv_batch_processor.py
+|       |   |-- ramp_iv_service.py
+|       |   |-- summary_export.py
+|       |   `-- sweep_extraction_service.py
+|       |-- widgets/
+|       |   |-- __init__.py
+|       |   |-- axis_zoom_controller.py
+|       |   |-- control_panel.py
+|       |   |-- cursor_manager.py
+|       |   |-- cursor_spinbox.py
+|       |   |-- custom_inputs.py
+|       |   |-- custom_toolbar.py
+|       |   |-- shared_widgets.py
+|       |   |-- sweep_navigation_panel.py
+|       |   `-- sweep_select_list.py
+|       |-- __init__.py
+|       |-- main.py
+|       |-- main_window.py
+|       `-- plot_manager.py
+|-- tests/
+|   |-- fixtures/
+|   |   |-- golden_data/
+|   |   |   |-- golden_CD/
+|   |   |   |   |-- abf/
+|   |   |   |   |   |-- 250514_001_CD.csv
+|   |   |   |   |   |-- 250514_002_CD.csv
+|   |   |   |   |   |-- 250514_003_CD.csv
+|   |   |   |   |   |-- 250514_004_CD.csv
+|   |   |   |   |   |-- 250514_005_CD.csv
+|   |   |   |   |   |-- 250514_006_CD.csv
+|   |   |   |   |   |-- 250514_007_CD.csv
+|   |   |   |   |   |-- 250514_008_CD.csv
+|   |   |   |   |   |-- 250514_009_CD.csv
+|   |   |   |   |   |-- 250514_010_CD.csv
+|   |   |   |   |   |-- 250514_011_CD.csv
+|   |   |   |   |   |-- 250514_012_CD.csv
+|   |   |   |   |   `-- Current_Density_Summary.csv
+|   |   |   |   `-- wcp/
+|   |   |   |       |-- 250514_001_CD.csv
+|   |   |   |       |-- 250514_002_CD.csv
+|   |   |   |       |-- 250514_003_CD.csv
+|   |   |   |       |-- 250514_004_CD.csv
+|   |   |   |       |-- 250514_005_CD.csv
+|   |   |   |       |-- 250514_006_CD.csv
+|   |   |   |       |-- 250514_007_CD.csv
+|   |   |   |       |-- 250514_008_CD.csv
+|   |   |   |       |-- 250514_009_CD.csv
+|   |   |   |       |-- 250514_010_CD.csv
+|   |   |   |       |-- 250514_011_CD.csv
+|   |   |   |       |-- 250514_012_CD.csv
+|   |   |   |       `-- Current_Density_Summary.csv
+|   |   |   |-- golden_conductance/
+|   |   |   |   `-- 220811_001.csv
+|   |   |   |-- golden_dual_range/
+|   |   |   |   `-- wcp/
+|   |   |   |       |-- 250202_007.csv
+|   |   |   |       |-- 250202_010.csv
+|   |   |   |       `-- 250202_011.csv
+|   |   |   |-- golden_IV/
+|   |   |   |   |-- abf/
+|   |   |   |   |   |-- 250514_001.csv
+|   |   |   |   |   |-- 250514_002.csv
+|   |   |   |   |   |-- 250514_003.csv
+|   |   |   |   |   |-- 250514_004.csv
+|   |   |   |   |   |-- 250514_005.csv
+|   |   |   |   |   |-- 250514_006.csv
+|   |   |   |   |   |-- 250514_007.csv
+|   |   |   |   |   |-- 250514_008.csv
+|   |   |   |   |   |-- 250514_009.csv
+|   |   |   |   |   |-- 250514_010.csv
+|   |   |   |   |   |-- 250514_011.csv
+|   |   |   |   |   |-- 250514_012.csv
+|   |   |   |   |   `-- IV_Summary.csv
+|   |   |   |   `-- wcp/
+|   |   |   |       |-- 250514_001.csv
+|   |   |   |       |-- 250514_002.csv
+|   |   |   |       |-- 250514_003.csv
+|   |   |   |       |-- 250514_004.csv
+|   |   |   |       |-- 250514_005.csv
+|   |   |   |       |-- 250514_006.csv
+|   |   |   |       |-- 250514_007.csv
+|   |   |   |       |-- 250514_008.csv
+|   |   |   |       |-- 250514_009.csv
+|   |   |   |       |-- 250514_010.csv
+|   |   |   |       |-- 250514_011.csv
+|   |   |   |       |-- 250514_012.csv
+|   |   |   |       `-- IV_Summary.csv
+|   |   |   `-- golden_peaks/
+|   |   |       |-- abf/
+|   |   |       |   |-- 250514_012_absolute.csv
+|   |   |       |   |-- 250514_012_negative.csv
+|   |   |       |   |-- 250514_012_peak-peak.csv
+|   |   |       |   `-- 250514_012_positive.csv
+|   |   |       `-- wcp/
+|   |   |           |-- 250514_012_absolute.csv
+|   |   |           |-- 250514_012_negative.csv
+|   |   |           |-- 250514_012_peak-peak.csv
+|   |   |           `-- 250514_012_positive.csv
+|   |   `-- sample_data/
+|   |       |-- conductance/
+|   |       |   `-- 220811_001.wcp
+|   |       |-- dual_range/
+|   |       |   |-- abf/
+|   |       |   |   |-- 250202_007[1-234].abf
+|   |       |   |   |-- 250202_010[1-209].abf
+|   |       |   |   `-- 250202_011[1-196].abf
+|   |       |   `-- wcp/
+|   |       |       |-- 250202_007.wcp
+|   |       |       |-- 250202_010.wcp
+|   |       |       `-- 250202_011.wcp
+|   |       |-- IV+CD/
+|   |       |   |-- abf/
+|   |       |   |   |-- 250514_001[1-11].abf
+|   |       |   |   |-- 250514_002[1-11].abf
+|   |       |   |   |-- 250514_003[1-11].abf
+|   |       |   |   |-- 250514_004[1-11].abf
+|   |       |   |   |-- 250514_005[1-11].abf
+|   |       |   |   |-- 250514_006[1-11].abf
+|   |       |   |   |-- 250514_007[1-11].abf
+|   |       |   |   |-- 250514_008[1-11].abf
+|   |       |   |   |-- 250514_009[1-11].abf
+|   |       |   |   |-- 250514_010[1-11].abf
+|   |       |   |   |-- 250514_011[1-11].abf
+|   |       |   |   `-- 250514_012[1-11].abf
+|   |       |   `-- wcp/
+|   |       |       |-- 250514_001.wcp
+|   |       |       |-- 250514_002.wcp
+|   |       |       |-- 250514_003.wcp
+|   |       |       |-- 250514_004.wcp
+|   |       |       |-- 250514_005.wcp
+|   |       |       |-- 250514_006.wcp
+|   |       |       |-- 250514_007.wcp
+|   |       |       |-- 250514_008.wcp
+|   |       |       |-- 250514_009.wcp
+|   |       |       |-- 250514_010.wcp
+|   |       |       |-- 250514_011.wcp
+|   |       |       `-- 250514_012.wcp
+|   |       |-- peak_modes/
+|   |       |   |-- 250514_012.wcp
+|   |       |   `-- 250514_012[1-11].abf
+|   |       `-- swapped/
+|   |           |-- abf/
+|   |           |   |-- 240809_001[1-12].abf
+|   |           |   |-- 240809_002[1-12].abf
+|   |           |   `-- 240809_003[1-12].abf
+|   |           `-- mat/
+|   |               |-- 240809_001[1-12].mat
+|   |               |-- 240809_002[1-12].mat
+|   |               `-- 240809_003[1-12].mat
+|   |-- test_batch_analysis.py
+|   |-- test_conductance.py
+|   |-- test_current_density.py
+|   |-- test_dual_batch.py
+|   |-- test_dual_range.py
+|   `-- test_peak.py
+|-- ARCHITECTURE.md
+|-- BUILD-INSTRUCTIONS.md
+|-- build-paper.sh
+|-- build_macos.py
+|-- build_windows.py
+|-- CHANGELOG.md
+|-- CITATION.cff
+|-- CODE_OF_CONDUCT.md
+|-- CONTRIBUTING.md
+|-- filetree.txt
+|-- filetree_full.py
+|-- LICENSE.md
+|-- paper.bib
+|-- paper.md
+|-- paper.pdf
+|-- PatchBatch-windows.spec
+|-- pyproject.toml
+|-- pytest.ini
+|-- README.md
+|-- requirements.txt
+`-- scholarly-metadata.lua
