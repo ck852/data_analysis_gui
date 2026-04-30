@@ -54,6 +54,9 @@ class RejectSweepsDialog(QDialog):
         self.to_sweep_spin.valueChanged.connect(self._update_preview)
         
         self.skip_mode_radio.toggled.connect(self._on_mode_changed)
+
+        # Enable/disable the reset value spinbox along with the checkbox
+        self.reset_time_cb.toggled.connect(self.reset_time_spin.setEnabled)
         
         # Connect widget focus to radio button activation
         self.skip_first_spin.focusInEvent = self._create_focus_handler(
@@ -198,12 +201,29 @@ class RejectSweepsDialog(QDialog):
         
         layout.addWidget(preview_group)
         
-        # Time reset option
-        self.reset_time_cb = QCheckBox("Reset time axis to start at 0")
+        # Time reset option (checkbox + value spinbox + unit label)
+        reset_time_layout = QHBoxLayout()
+        
+        self.reset_time_cb = QCheckBox("Reset time axis to start at")
         self.reset_time_cb.setToolTip(
-            "Recalibrate sweep times so the first kept sweep becomes t=0"
+            "Recalibrate sweep times so the first kept sweep becomes the specified value"
         )
-        layout.addWidget(self.reset_time_cb)
+        reset_time_layout.addWidget(self.reset_time_cb)
+        
+        self.reset_time_spin = SelectAllSpinBox()
+        self.reset_time_spin.setDecimals(3)
+        self.reset_time_spin.setMinimum(-1e6)
+        self.reset_time_spin.setMaximum(1e6)
+        self.reset_time_spin.setValue(0.0)
+        self.reset_time_spin.setMaximumWidth(100)
+        self.reset_time_spin.setEnabled(False)  # Enabled only when checkbox is checked
+        reset_time_layout.addWidget(self.reset_time_spin)
+        
+        reset_time_unit = QLabel("s")
+        reset_time_layout.addWidget(reset_time_unit)
+        reset_time_layout.addStretch()
+        
+        layout.addLayout(reset_time_layout)
         
         # Warning label
         self.warning_label = QLabel()
@@ -327,7 +347,7 @@ class RejectSweepsDialog(QDialog):
             self.warning_label.setVisible(False)
     
     def get_rejection_params(self):
-        """Returns skip counts and reset time option."""
+        """Returns skip counts, reset time flag, and reset time value (seconds)."""
         # Check which mode is active and get the appropriate values
         if self.skip_mode_radio.isChecked():
             # Use skip mode values directly
@@ -343,5 +363,6 @@ class RejectSweepsDialog(QDialog):
         return (
             skip_first,
             skip_last,
-            self.reset_time_cb.isChecked()
+            self.reset_time_cb.isChecked(),
+            float(self.reset_time_spin.value()),
         )
