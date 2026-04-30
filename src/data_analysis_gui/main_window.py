@@ -72,7 +72,11 @@ from data_analysis_gui.gui_services.main_range_coordinator import MainRangeCoord
 from data_analysis_gui.gui_services.clipboard_service import ClipboardService
 from data_analysis_gui.services.sweep_extraction_service import SweepExtractionService
 from data_analysis_gui.services.leak_subtraction_utils import is_leak_subtraction_available
+from data_analysis_gui.dose_response.dose_response_dialog import ConcentrationResponseDialog
 
+# Kinetics module
+from data_analysis_gui.dialogs.kinetics_dialog import KineticsDialog
+from data_analysis_gui.services.kinetics_service import fit_kinetics
 
 logger = get_logger(__name__)
 
@@ -259,31 +263,134 @@ class MainWindow(QMainWindow):
         # ------- Dose Response -------
         # For future expansion 
 
-        # # Tools menu
-        # tools_menu = menubar.addMenu("&Tools")
+        # Tools menu
+        tools_menu = menubar.addMenu("&Tools")
 
-        # # Concentration Response Analysis
-        # conc_resp_action = tools_menu.addAction("&Concentration Response...")
-        # conc_resp_action.triggered.connect(self._open_concentration_response)
+        # Concentration Response Analysis
+        conc_resp_action = tools_menu.addAction("&Concentration Response...")
+        conc_resp_action.triggered.connect(self._open_concentration_response)
         # -----------------------------
+
+        # Kinetics (Tau) Analysis
+        kinetics_action = tools_menu.addAction("Calculate &Kinetics...")
+        kinetics_action.triggered.connect(self._open_kinetics_analysis)
 
         # About button (no submenu)
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
         menubar.addAction(about_action)
 
-    # def _open_concentration_response(self):
-    #     """Launch concentration-response curve analysis dialog."""
-    #     from data_analysis_gui.config.session_settings import load_conc_resp_settings
-    #     dialog = ConcentrationResponseDialog(self)
-    #     dialog.showMaximized()
+    def _open_concentration_response(self):
+        """Launch concentration-response curve analysis dialog."""
+        from data_analysis_gui.config.session_settings import load_conc_resp_settings
+        dialog = ConcentrationResponseDialog(self)
+        dialog.showMaximized()
         
-    #     # Apply saved settings after window is maximized
-    #     saved_settings = load_conc_resp_settings()
-    #     if saved_settings:
-    #         QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
+        # Apply saved settings after window is maximized
+        saved_settings = load_conc_resp_settings()
+        if saved_settings:
+            QTimer.singleShot(0, lambda: dialog._apply_settings_dict(saved_settings))
         
-    #     dialog.show() # non-modal
+        dialog.show() # non-modal
+
+    def _run_kinetics_fit(self, auto_detect_region: bool = False):
+        """
+        Gather current MainWindow state and run a kinetics fit on the displayed sweep.
+    
+        Used both for the initial Kinetics analysis and for the dialog's Reanalyze
+        button. The `auto_detect_region` flag is forwarded to the kinetics service;
+        when True, the service narrows the fit to a peak/trough-anchored sub-region
+        inside Range 1.
+    
+        Returns (KineticsResult, file_path, sweep_index, current_units) on success,
+        or None if preconditions fail (a warning dialog will already have been shown).
+        """
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return None
+    
+        is_valid, error_msg = self.control_panel.validate_ranges()
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Analysis Range", error_msg)
+            return None
+    
+        sweep = self.sweep_nav_panel.get_current_sweep()
+        if not sweep:
+            QMessageBox.warning(self, "No Sweep", "No sweep is currently displayed.")
+            return None
+    
+        range_values = self.control_panel.get_range_values()
+        range_start = range_values["range1_start"]
+        range_end = range_values["range1_end"]
+    
+        dataset = self.controller.current_dataset
+        channel_config = dataset.metadata.get("channel_config") or {}
+        current_units = channel_config.get("current_units", "pA")
+    
+        try:
+            from data_analysis_gui.core.data_extractor import DataExtractor
+            extractor = DataExtractor()
+            sweep_data = extractor.extract_sweep_data(dataset, sweep)
+            time_ms = sweep_data["time_ms"]
+            current = sweep_data["current"]
+        except Exception as e:
+            logger.error(f"Failed to extract sweep data for kinetics: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Data Extraction Failed",
+                f"Could not extract sweep data:\n{str(e)}"
+            )
+            return None
+    
+        try:
+            result = fit_kinetics(
+                time_ms,
+                current,
+                range_start,
+                range_end,
+                auto_detect_region=auto_detect_region,
+            )
+        except Exception as e:
+            logger.error(f"Kinetics fitting raised exception: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Kinetics Analysis Failed",
+                f"An unexpected error occurred during fitting:\n{str(e)}"
+            )
+            return None
+    
+        return (result, self.current_file_path, sweep, current_units)
+    
+    
+    def _open_kinetics_analysis(self):
+        """
+        Fit mono- and bi-exponential models to the current sweep's current trace
+        over Range 1, then display results in a non-modal KineticsDialog.
+    
+        The initial fit uses the full Range 1 (auto-detect off). The dialog's
+        Reanalyze button then invokes _run_kinetics_fit with the checkbox state,
+        allowing the user to toggle auto-detection on or off without reopening.
+        """
+        # Initial fit: auto-detect off per spec (checkbox unchecked on first open)
+        fit_data = self._run_kinetics_fit(auto_detect_region=False)
+        if fit_data is None:
+            return
+    
+        result, file_path, sweep_index, current_units = fit_data
+    
+        dialog = KineticsDialog(
+            result=result,
+            file_path=file_path,
+            sweep_index=sweep_index,
+            current_units=current_units,
+            reanalyze_callback=self._run_kinetics_fit,
+            parent=self,
+        )
+        dialog.show()
+    
+        self.status_bar.showMessage(
+            f"Kinetics analysis complete (sweep {sweep_index}, direction: {result.direction})"
+            if result.success else "Kinetics analysis failed — see dialog for details.",
+            5000
+        )
 
 
     def _background_subtraction(self):
