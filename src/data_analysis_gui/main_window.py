@@ -439,10 +439,12 @@ class MainWindow(QMainWindow):
         dialog = RejectSweepsDialog(self, file_name, total_sweeps)
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            skip_first, skip_last, reset_time = dialog.get_rejection_params()
+            skip_first, skip_last, reset_time, reset_time_value = dialog.get_rejection_params()
             
             # Apply the filter
-            self._apply_sweep_rejection_filter(skip_first, skip_last, reset_time)
+            self._apply_sweep_rejection_filter(
+                skip_first, skip_last, reset_time, reset_time_value
+            )
 
     def _open_leak_subtraction(self):
         """
@@ -500,12 +502,19 @@ class MainWindow(QMainWindow):
             )
 
 
-    def _apply_sweep_rejection_filter(self, skip_first: int, skip_last: int, reset_time: bool):
+    def _apply_sweep_rejection_filter(
+        self,
+        skip_first: int,
+        skip_last: int,
+        reset_time: bool,
+        reset_time_value: float = 0.0,
+    ):
         """
         Create filtered dataset excluding specified sweeps.
         
         Generates new dataset copy with only the kept sweeps. Optionally resets
-        time axis to start from zero. Updates UI to reflect new sweep list.
+        time axis so the first kept sweep starts at reset_time_value seconds
+        (default 0). Updates UI to reflect new sweep list.
         """
 
         if not self.controller.has_data():
@@ -539,13 +548,15 @@ class MainWindow(QMainWindow):
         try:
             logger.info(
                 f"Applying sweep rejection: skip_first={skip_first}, "
-                f"skip_last={skip_last}, reset_time={reset_time}"
+                f"skip_last={skip_last}, reset_time={reset_time}, "
+                f"reset_time_value={reset_time_value}"
             )
             
             # Create filtered dataset
             filtered_dataset = dataset.create_filtered_copy(
                 keep_sweeps=keep_sweeps,
-                reset_time=reset_time
+                reset_time=reset_time,
+                reset_time_value=reset_time_value,
             )
             
             # Replace current dataset

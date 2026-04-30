@@ -165,38 +165,48 @@ class ElectrophysiologyDataset:
         return max_duration
 
     def create_filtered_copy(
-        self, keep_sweeps: Iterable[str], reset_time: bool = False
+        self,
+        keep_sweeps: Iterable[str],
+        reset_time: bool = False,
+        reset_time_value: float = 0.0,
     ) -> "ElectrophysiologyDataset":
         """
         For removing rejected sweeps. Original dataset remains unchanged.
-        If reset_time=True, sweep_times metadata is offset so the first kept sweep starts at t=0.
-        Within-sweep time arrays are always preserved unchanged.
+        If reset_time=True, sweep_times metadata is offset so the first kept sweep starts
+        at reset_time_value seconds (default 0). Within-sweep time arrays are always
+        preserved unchanged.
         """
         logger.info(f"Creating filtered dataset copy with {len(list(keep_sweeps))} sweeps")
-        
+
         # Convert to list to allow multiple iterations
         keep_sweeps_list = list(keep_sweeps)
-        
+
         if not keep_sweeps_list:
             raise ValueError("keep_sweeps cannot be empty")
-        
+
         # Validate all sweeps exist
         for sweep_idx in keep_sweeps_list:
             if sweep_idx not in self._sweeps:
                 raise ValueError(f"Sweep '{sweep_idx}' not found in dataset")
-        
+
         # Create new dataset
         new_dataset = ElectrophysiologyDataset()
-        
-        # Calculate time offset for sweep_times if resetting
+
+        # Calculate time offset for sweep_times if resetting.
+        # When reset_time_value=0 this collapses to the original behavior
+        # (first kept sweep lands at t=0). Otherwise the first kept sweep
+        # lands at t=reset_time_value.
         time_offset_sec = 0.0
         if reset_time:
             sweep_times = self.metadata.get('sweep_times', {})
             if sweep_times and keep_sweeps_list:
                 first_sweep_time = sweep_times.get(keep_sweeps_list[0], 0.0)
-                time_offset_sec = first_sweep_time
-                logger.info(f"Time reset enabled: offsetting by {time_offset_sec:.3f} seconds")
-        
+                time_offset_sec = first_sweep_time - reset_time_value
+                logger.info(
+                    f"Time reset enabled: offsetting by {time_offset_sec:.3f} seconds "
+                    f"(first sweep -> {reset_time_value:.3f}s)"
+                )
+
         # Copy sweeps to new dataset
         for sweep_idx in keep_sweeps_list:
             time_ms, data = self.get_sweep(sweep_idx)
@@ -205,7 +215,7 @@ class ElectrophysiologyDataset:
                 continue
             # Add sweep with original time array (within-sweep timing unchanged)
             new_dataset.add_sweep(sweep_idx, time_ms.copy(), data.copy())
-        
+
         # Copy metadata (deep copy for mutable nested structures)
         new_dataset.metadata = {
             'channel_labels': self.metadata.get('channel_labels', []).copy(),
@@ -216,11 +226,11 @@ class ElectrophysiologyDataset:
             'channel_count': self.metadata.get('channel_count', 0),
             'sweep_count': len(keep_sweeps_list),
         }
-        
+
         # Copy channel_config if present
         if 'channel_config' in self.metadata:
             new_dataset.metadata['channel_config'] = self.metadata['channel_config'].copy()
-        
+
         # Handle sweep_times with optional offset
         old_sweep_times = self.metadata.get('sweep_times', {})
         if old_sweep_times:
@@ -231,12 +241,12 @@ class ElectrophysiologyDataset:
                     # Apply offset if resetting time
                     new_sweep_times[sweep_idx] = old_time - time_offset_sec
             new_dataset.metadata['sweep_times'] = new_sweep_times
-        
+
         logger.info(
             f"Created filtered dataset: {new_dataset.sweep_count()} sweeps, "
             f"time_offset={time_offset_sec:.3f}s"
         )
-        
+
         return new_dataset
 
     def get_sampling_rate(self, sweep_index: Optional[str] = None) -> Optional[float]:
