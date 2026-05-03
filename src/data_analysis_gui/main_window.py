@@ -275,6 +275,10 @@ class MainWindow(QMainWindow):
         kinetics_action = tools_menu.addAction("Calculate &Kinetics...")
         kinetics_action.triggered.connect(self._open_kinetics_analysis)
 
+        # Kinetics Batch Export
+        kinetics_batch_action = tools_menu.addAction("Kinetics &Batch Export...")
+        kinetics_batch_action.triggered.connect(self._open_kinetics_batch_export)
+
         # About button (no submenu)
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
@@ -392,6 +396,39 @@ class MainWindow(QMainWindow):
             5000
         )
 
+    def _open_kinetics_batch_export(self):
+        """
+        Launch dialog for batch kinetics fitting + CSV export across every sweep
+        in the currently loaded file. Uses Range 1 as the fit window; auto-detect
+        is opt-in inside the dialog.
+        """
+        if not self.controller.has_data():
+            self._show_no_data_warning()
+            return
+
+        is_valid, error_msg = self.control_panel.validate_ranges()
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Analysis Range", error_msg)
+            return
+
+        range_values = self.control_panel.get_range_values()
+        dataset = self.controller.current_dataset
+        channel_config = dataset.metadata.get("channel_config") or {}
+        current_units = channel_config.get("current_units", "pA")
+
+        from data_analysis_gui.dialogs.kinetics_batch_dialog import (
+            KineticsBatchExportDialog,
+        )
+        dialog = KineticsBatchExportDialog(
+            dataset=dataset,
+            file_path=self.current_file_path,
+            range_start_ms=range_values["range1_start"],
+            range_end_ms=range_values["range1_end"],
+            current_units=current_units,
+            file_dialog_service=self.file_dialog_service,
+            parent=self,
+        )
+        dialog.show()
 
     def _background_subtraction(self):
         """
