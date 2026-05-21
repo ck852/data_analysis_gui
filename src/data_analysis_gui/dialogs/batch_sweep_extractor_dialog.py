@@ -17,18 +17,21 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
-    QListWidget, QMessageBox, QAbstractItemView, QFormLayout
+    QListWidget, QMessageBox, QAbstractItemView, QFormLayout,
+    QRadioButton, QCheckBox, QWidget, QApplication
 )
 
 import numpy as np
 
 from data_analysis_gui.config.themes import (
-    apply_modern_theme, create_styled_button, style_group_box,
+    apply_modern_theme, create_styled_button, style_button, style_group_box,
     style_list_widget, style_label, get_file_count_color
 )
 from data_analysis_gui.services.data_manager import DataManager
 from data_analysis_gui.core.data_extractor import DataExtractor
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
+from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
+from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,14 +46,20 @@ class BatchSweepExtractorDialog(QDialog):
     """
     
     def __init__(self, parent, initial_files: List[str], sweep_indices: List[str],
-                channel_mode: str, time_range: Tuple[float, float]):
+                channel_mode: str, time_range: Tuple[float, float],
+                sweep_names: List[str], max_time: float):
 
         super().__init__(parent)
         
-        # Store extraction parameters
-        self.sweep_indices = sweep_indices
-        self.channel_mode = channel_mode
-        self.time_range = time_range
+        # Initial extraction parameters (used to populate editable widgets;
+        # the live values come from the widgets at extraction time)
+        self.initial_sweep_indices = sweep_indices
+        self.initial_channel_mode = channel_mode
+        self.initial_time_range = time_range
+        
+        # Reference data from the parent's loaded file
+        self.sweep_names = sweep_names
+        self.max_time = max_time
         
         # Initialize file list
         self.file_paths = list(initial_files)
@@ -75,7 +84,10 @@ class BatchSweepExtractorDialog(QDialog):
         
         self.setWindowTitle("Batch Sweep Extraction")
         self.setModal(True)
-        self.resize(500, 600)
+        
+        screen = self.screen() or QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        self.resize(int(900), int(avail.height() * 0.7))
         
         self._init_ui()
         
@@ -86,17 +98,28 @@ class BatchSweepExtractorDialog(QDialog):
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # File list section
-        self._create_file_list_section(layout)
+        # Top section: file list and sweep selection side-by-side
+        top_section = QHBoxLayout()
+        top_section.setSpacing(15)
+        self._create_file_list_section(top_section)
+        self._create_sweep_selection_section(top_section)
+        layout.addLayout(top_section)
         
-        # Extraction parameters display (read-only)
-        self._create_parameters_display(layout)
+        # Middle section: channel mode and time range side-by-side
+        params_section = QHBoxLayout()
+        params_section.setSpacing(15)
+        self._create_channel_selection_section(params_section)
+        self._create_time_range_section(params_section)
+        layout.addLayout(params_section)
         
         # Status section
         self._create_status_section(layout)
         
         # Action buttons
         self._create_action_buttons(layout)
+        
+        # Wire up signals to mark parameters as stale after extraction
+        self._connect_stale_signals()
 
     def _initialize_batch_directory(self):
         """
@@ -156,40 +179,166 @@ class BatchSweepExtractorDialog(QDialog):
         self.remove_selected_btn.clicked.connect(self._remove_selected)
         self.clear_all_btn.clicked.connect(self._clear_files)
         
-    def _create_parameters_display(self, layout):
-        """Create read-only display of extraction parameters."""
-        param_group = QGroupBox("Extraction Parameters")
-        style_group_box(param_group)
-        param_layout = QFormLayout(param_group)
-        param_layout.setSpacing(8)
+    def _create_sweep_selection_section(self, layout):
+        """Editable sweep selection, pre-populated from the parent dialog's choices."""
+        sweep_group = QGroupBox("Select Sweeps to Extract")
+        style_group_box(sweep_group)
+        sweep_layout = QVBoxLayout(sweep_group)
         
-        # Sweeps
-        sweep_text = ", ".join(str(s) for s in self.sweep_indices)
-        if len(sweep_text) > 50:
-            sweep_text = sweep_text[:47] + "..."
-        sweeps_label = QLabel(sweep_text)
-        style_label(sweeps_label, "normal")
-        param_layout.addRow("Sweeps:", sweeps_label)
+        self.sweep_selection = SweepSelectionWidget(self.sweep_names)
+        sweep_layout.addWidget(self.sweep_selection)
+        
+        # Apply initial selection: uncheck all, then check only the incoming sweeps
+        initial_set = set(self.initial_sweep_indices)
+        self.sweep_selection.select_all(False)
+        for i, sweep_name in enumerate(self.sweep_selection.sweep_names):
+            if sweep_name in initial_set:
+                cb = self.sweep_selection.table.cellWidget(i, 0)
+                if cb:
+                    cb.setChecked(True)
+        
+        button_row = QHBoxLayout()
+        select_all_btn = create_styled_button("Select All", "secondary")
+        select_none_btn = create_styled_button("Select None", "secondary")
+        select_all_btn.clicked.connect(lambda: self.sweep_selection.select_all(True))
+        select_none_btn.clicked.connect(lambda: self.sweep_selection.select_all(False))
+        button_row.addWidget(select_all_btn)
+        button_row.addWidget(select_none_btn)
+        button_row.addStretch()
+        sweep_layout.addLayout(button_row)
+        
+        layout.addWidget(sweep_group)
+    
+    def _create_channel_selection_section(self, layout):
+        """Editable channel mode (voltage / current / both)."""
+        channel_group = QGroupBox("Channel to Extract")
+        style_group_box(channel_group)
+        channel_layout = QVBoxLayout(channel_group)
+        
+        self.voltage_radio = QRadioButton("Voltage")
+        self.current_radio = QRadioButton("Current")
+        self.both_radio = QRadioButton("Both Channels")
+        
+        if self.initial_channel_mode == 'voltage':
+            self.voltage_radio.setChecked(True)
+        elif self.initial_channel_mode == 'current':
+            self.current_radio.setChecked(True)
+        else:
+            self.both_radio.setChecked(True)
+        
+        channel_layout.addWidget(self.voltage_radio)
+        channel_layout.addWidget(self.current_radio)
+        channel_layout.addWidget(self.both_radio)
+        
+        layout.addWidget(channel_group)
+    
+    def _create_time_range_section(self, layout):
+        """Editable time range with 'use full trace' checkbox."""
+        time_group = QGroupBox("Analysis Time Range")
+        style_group_box(time_group)
+        time_layout = QVBoxLayout(time_group)
+        
+        start_ms, end_ms = self.initial_time_range
+        # Detect whether the incoming range covers the full trace
+        is_full_trace = (start_ms == 0.0 and abs(end_ms - self.max_time) < 1e-9)
+        
+        self.full_trace_checkbox = QCheckBox("Use full trace")
+        self.full_trace_checkbox.setChecked(is_full_trace)
+        time_layout.addWidget(self.full_trace_checkbox)
+        
+        range_widget = QWidget()
+        range_layout = QFormLayout(range_widget)
+        range_layout.setSpacing(8)
+        
+        self.start_spinbox = NumericLineEdit()
+        self.start_spinbox.setRange(0.0, self.max_time)
+        self.start_spinbox.setDecimals(2)
+        self.start_spinbox.setValue(start_ms)
+        self.start_spinbox.setMinimumWidth(80)
+        self.start_spinbox.setMaximumWidth(100)
+        
+        self.end_spinbox = NumericLineEdit()
+        self.end_spinbox.setRange(0.0, self.max_time)
+        self.end_spinbox.setDecimals(2)
+        self.end_spinbox.setValue(end_ms)
+        self.end_spinbox.setMinimumWidth(80)
+        self.end_spinbox.setMaximumWidth(100)
+        
+        range_layout.addRow("Start (ms):", self.start_spinbox)
+        range_layout.addRow("End (ms):", self.end_spinbox)
+        time_layout.addWidget(range_widget)
+        
+        # Disable spinboxes if full trace is checked
+        self.start_spinbox.setEnabled(not is_full_trace)
+        self.end_spinbox.setEnabled(not is_full_trace)
+        
+        # Toggle spinbox enable state with checkbox
+        self.full_trace_checkbox.toggled.connect(self._on_full_trace_toggled)
+        # Auto-uncheck full trace if user edits spinboxes
+        self.start_spinbox.valueChanged.connect(self._on_spinbox_changed)
+        self.end_spinbox.valueChanged.connect(self._on_spinbox_changed)
+        
+        layout.addWidget(time_group)
+    
+    def _on_full_trace_toggled(self, checked: bool):
+        """Enable/disable time range spinboxes based on checkbox state."""
+        self.start_spinbox.setEnabled(not checked)
+        self.end_spinbox.setEnabled(not checked)
+    
+    def _on_spinbox_changed(self):
+        """Auto-uncheck 'use full trace' when user edits time range directly."""
+        if self.full_trace_checkbox.isChecked():
+            self.full_trace_checkbox.blockSignals(True)
+            self.full_trace_checkbox.setChecked(False)
+            self.full_trace_checkbox.blockSignals(False)
+            self.start_spinbox.setEnabled(True)
+            self.end_spinbox.setEnabled(True)
+    
+    def _connect_stale_signals(self):
+        """
+        Connect every editable parameter widget to _mark_parameters_stale.
+        
+        After a successful extraction, any subsequent edit will turn the Extract
+        button red to signal that the held extraction_result is out of date.
+        """
+        # Sweep selection: connect each checkbox in the table
+        for i in range(self.sweep_selection.table.rowCount()):
+            cb = self.sweep_selection.table.cellWidget(i, 0)
+            if cb:
+                cb.stateChanged.connect(self._mark_parameters_stale)
+        # Sweep selection: range input text changes + mode radios
+        self.sweep_selection.range_input.textChanged.connect(self._mark_parameters_stale)
+        self.sweep_selection.table_mode_radio.toggled.connect(self._mark_parameters_stale)
+        self.sweep_selection.range_mode_radio.toggled.connect(self._mark_parameters_stale)
         
         # Channel mode
-        channel_text = self.channel_mode.capitalize()
-        channel_label = QLabel(channel_text)
-        style_label(channel_label, "normal")
-        param_layout.addRow("Channel:", channel_label)
+        self.voltage_radio.toggled.connect(self._mark_parameters_stale)
+        self.current_radio.toggled.connect(self._mark_parameters_stale)
+        self.both_radio.toggled.connect(self._mark_parameters_stale)
         
         # Time range
-        start_ms, end_ms = self.time_range
-        range_text = f"{start_ms:.1f} - {end_ms:.1f} ms"
-        range_label = QLabel(range_text)
-        style_label(range_label, "normal")
-        param_layout.addRow("Time Range:", range_label)
+        self.full_trace_checkbox.toggled.connect(self._mark_parameters_stale)
+        self.start_spinbox.valueChanged.connect(self._mark_parameters_stale)
+        self.end_spinbox.valueChanged.connect(self._mark_parameters_stale)
+    
+    def _mark_parameters_stale(self):
+        """
+        Mark the held extraction as stale by recoloring the Extract button red.
         
-        # Info message
-        info_label = QLabel("These settings will apply to all files")
-        style_label(info_label, "muted")
-        param_layout.addRow("", info_label)
-        
-        layout.addWidget(param_group)
+        Only applies if at least one extraction has succeeded; otherwise the
+        button stays primary (blue).
+        """
+        if self.extraction_result is not None:
+            style_button(self.extract_btn, "danger")
+    
+    def _get_selected_channel_mode(self) -> str:
+        """Return 'voltage', 'current', or 'both' based on radio selection."""
+        if self.voltage_radio.isChecked():
+            return 'voltage'
+        elif self.current_radio.isChecked():
+            return 'current'
+        else:
+            return 'both'
         
     def _create_status_section(self, layout):
 
@@ -333,6 +482,38 @@ class BatchSweepExtractorDialog(QDialog):
             QMessageBox.warning(self, "No Files", "Please add files to extract.")
             return
         
+        # Refresh parameters from the editable widgets
+        selected_sweeps, invalid_sweeps = self.sweep_selection.get_selected_sweeps()
+        if invalid_sweeps:
+            QMessageBox.warning(
+                self, "Invalid Sweeps",
+                f"Sweep(s) {', '.join(invalid_sweeps)} not present in the reference file.\n"
+                f"Proceeding with valid sweeps only."
+            )
+        if not selected_sweeps:
+            QMessageBox.warning(
+                self, "No Sweeps Selected",
+                "Please select at least one sweep to extract."
+            )
+            return
+        
+        if self.full_trace_checkbox.isChecked():
+            start_time = 0.0
+            end_time = self.max_time
+        else:
+            start_time = self.start_spinbox.value()
+            end_time = self.end_spinbox.value()
+            if start_time >= end_time:
+                QMessageBox.warning(
+                    self, "Invalid Time Range",
+                    "Start time must be less than end time."
+                )
+                return
+        
+        self.sweep_indices = selected_sweeps
+        self.channel_mode = self._get_selected_channel_mode()
+        self.time_range = (start_time, end_time)
+        
         # Reset state
         self.extraction_result = None
         self.had_missing_data = False
@@ -389,6 +570,9 @@ class BatchSweepExtractorDialog(QDialog):
             # Update UI
             self._update_status_after_extraction(len(sorted_files), all_data)
             self._enable_export_buttons()
+            
+            # Reset extract button to primary (extraction now reflects current params)
+            style_button(self.extract_btn, "primary")
             
         except Exception as e:
             logger.error(f"Batch extraction failed: {e}", exc_info=True)
