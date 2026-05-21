@@ -5,6 +5,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 # [1.0.5]
 - Added dose response module
 - Custom reset time axis when rejecting sweeps
+- Eased batch sweep extraction process when changing parameters between extractions
 
 # [1.0.4] 2026-01-24
 - Removed deprecated Mac Intel build

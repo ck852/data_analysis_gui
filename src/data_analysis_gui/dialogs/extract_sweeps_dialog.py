@@ -525,7 +525,9 @@ class SweepExtractorDialog(QDialog):
             initial_files=file_paths,
             sweep_indices=selected_sweeps,
             channel_mode=channel_mode,
-            time_range=time_range
+            time_range=time_range,
+            sweep_names=self.sweep_names,
+            max_time=self.dataset.get_max_sweep_time()
         )
         dialog.exec()
             
