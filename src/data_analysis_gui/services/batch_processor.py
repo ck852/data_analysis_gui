@@ -20,7 +20,6 @@ License: MIT (see LICENSE file for details)
 """
 
 import time
-import re
 from pathlib import Path
 from typing import List, Callable, Optional
 
@@ -31,6 +30,8 @@ from data_analysis_gui.core.models import (
     BatchExportResult,
 )
 from data_analysis_gui.config.logging import get_logger
+
+from data_analysis_gui.core.file_sort import clean_filename
 
 # Direct imports of managers
 from data_analysis_gui.services.data_manager import DataManager
@@ -109,7 +110,7 @@ class BatchProcessor:
         self, file_path: str, params: AnalysisParameters, bg_subtraction_range=None
     ) -> FileAnalysisResult:
 
-        base_name = self._clean_filename(file_path)
+        base_name = clean_filename(file_path)
         start_time = time.time()
 
         try:
@@ -218,14 +219,3 @@ class BatchProcessor:
             output_directory=output_dir,
             total_records=total_records,
         )
-
-    @staticmethod
-    def _clean_filename(file_path: str) -> str:
-        """
-        Clean a filename for display or export by removing extension and bracketed content.
-        Initially removed bracketed content for abf exports that had bracketed metadata in names. 
-        """
-        stem = Path(file_path).stem
-        # Remove bracketed content
-        cleaned = re.sub(r"\[.*?\]", "", stem).strip()
-        return cleaned

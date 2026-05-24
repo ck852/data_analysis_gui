@@ -11,7 +11,6 @@ License: MIT (see LICENSE file for details)
 """
 
 import time
-import re
 from pathlib import Path
 from typing import List, Callable, Optional
 import numpy as np
@@ -21,6 +20,9 @@ from data_analysis_gui.core.models import (
     BatchAnalysisResult,
     BatchExportResult,
 )
+
+from data_analysis_gui.core.file_sort import clean_filename
+
 from data_analysis_gui.config.logging import get_logger
 from data_analysis_gui.services.data_manager import DataManager
 from data_analysis_gui.services.ramp_iv_service import RampIVService, RampIVResult
@@ -129,7 +131,7 @@ class RampIVBatchProcessor:
         selected_sweeps: Optional[List[str]],
     ) -> FileAnalysisResult:
 
-        base_name = self._clean_filename(file_path)
+        base_name = clean_filename(file_path)
         start_time = time.time()
 
         try:
@@ -292,13 +294,3 @@ class RampIVBatchProcessor:
             output_directory=output_dir,
             total_records=total_records,
         )
-
-    @staticmethod
-    def _clean_filename(file_path: str) -> str:
-        """
-        Clean a filename for display by removing extension and bracketed content.
-        """
-        stem = Path(file_path).stem
-        # Remove bracketed content
-        cleaned = re.sub(r"\[.*?\]", "", stem).strip()
-        return cleaned

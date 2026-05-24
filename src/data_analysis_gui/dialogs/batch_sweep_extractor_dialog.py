@@ -11,7 +11,6 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 """
 
-import re
 from typing import List, Tuple, Dict, Optional
 from pathlib import Path
 
@@ -33,6 +32,7 @@ from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.widgets.custom_inputs import NumericLineEdit
 from data_analysis_gui.widgets.sweep_select_list import SweepSelectionWidget
 from data_analysis_gui.config.logging import get_logger
+from data_analysis_gui.core.file_sort import filename_sort_key, clean_filename
 
 logger = get_logger(__name__)
 
@@ -605,7 +605,7 @@ class BatchSweepExtractorDialog(QDialog):
                             reference_time: np.ndarray) -> Dict:
 
         start_ms, end_ms = self.time_range
-        base_name = self._clean_filename(file_path)
+        base_name = clean_filename(file_path)
         
         file_data = {
             'file_path': file_path,
@@ -657,7 +657,7 @@ class BatchSweepExtractorDialog(QDialog):
         
     def _create_nan_file_data(self, file_path: str, reference_time: np.ndarray) -> Dict:
 
-        base_name = self._clean_filename(file_path)
+        base_name = clean_filename(file_path)
         
         file_data = {
             'file_path': file_path,
@@ -838,7 +838,7 @@ class BatchSweepExtractorDialog(QDialog):
             sorted_files = self._sort_files(self.file_paths)
             
             # Extract and clean file names
-            file_names = [self._clean_filename(file_path) for file_path in sorted_files]
+            file_names = [clean_filename(file_path) for file_path in sorted_files]
             
             # Join with newlines to create a column
             text = "\n".join(file_names)
@@ -864,29 +864,7 @@ class BatchSweepExtractorDialog(QDialog):
             QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
             style_label(self.status_label, "error")
             self.status_label.setText(f"Copy failed: {str(e)}")         
-
+        
     def _sort_files(self, file_paths: List[str]) -> List[str]:
-        """Sort file paths using numeric ordering."""
-        def extract_number(file_path):
-            file_name = Path(file_path).stem
-            # Try to extract numbers on both sides of underscore
-            match = re.search(r"(\d+)_(\d+)", file_name)
-            if match:
-                return (int(match.group(1)), int(match.group(2)))
-            
-            # Fallback: extract all numbers
-            numbers = re.findall(r"\d+", file_name)
-            if numbers:
-                return tuple(int(n) for n in numbers)
-            
-            return (0,)
-        
-        return sorted(file_paths, key=extract_number)
-        
-    @staticmethod
-    def _clean_filename(file_path: str) -> str:
-        """Clean a filename for display by removing extension and bracketed content (primarily useful
-        for ABF exports from WinWCP. May not be desirable by all users)."""
-        stem = Path(file_path).stem
-        cleaned = re.sub(r"\[.*?\]", "", stem).strip()
-        return cleaned
+        """Sort file paths in series-aware order (base files before their decimal sub-versions)."""
+        return sorted(file_paths, key=lambda p: filename_sort_key(Path(p).stem))
