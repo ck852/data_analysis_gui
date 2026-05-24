@@ -10,7 +10,6 @@ after being called from BatchAnalysisWindow after an IV batch analysis. Consider
 support for GV batch analysis (conductance density) in the future (if such a thing is even useful).
 """
 
-import re
 import numpy as np
 from copy import deepcopy
 from dataclasses import replace
@@ -28,6 +27,7 @@ from data_analysis_gui.core.models import BatchAnalysisResult
 from data_analysis_gui.gui_services import FileDialogService, ClipboardService
 from data_analysis_gui.services.current_density_service import CurrentDensityService
 from data_analysis_gui.widgets.shared_widgets import BatchFileListWidget, DynamicBatchPlotWidget, FileSelectionState
+from data_analysis_gui.core.file_sort import filename_sort_key
 
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
 from data_analysis_gui.core.plot_formatter import PlotFormatter
@@ -333,26 +333,8 @@ class CurrentDensityResultsWindow(QMainWindow):
             QMessageBox.critical(self, "Copy Error", f"Copy failed: {str(e)}")
 
     def _sort_results(self, results):
-        """
-        Sort analysis results numerically based on filename.
-        """
-
-        def extract_number(file_name):
-            # Try to extract numbers on both sides of underscore (e.g., "250923_001")
-            # Returns tuple (date, experiment_num) for proper hierarchical sorting
-            match = re.search(r"(\d+)_(\d+)", file_name)
-            if match:
-                return (int(match.group(1)), int(match.group(2)))
-            
-            # Fallback: extract all numbers and return as tuple for multi-level sorting
-            numbers = re.findall(r"\d+", file_name)
-            if numbers:
-                return tuple(int(n) for n in numbers)
-            
-            # No numbers found
-            return (0,)
-
-        return sorted(results, key=lambda r: extract_number(r.base_name))
+        """Sort results in series-aware order (base files before their decimal sub-versions)."""
+        return sorted(results, key=lambda r: filename_sort_key(r.base_name))
 
     def _populate_file_list(self):
         """

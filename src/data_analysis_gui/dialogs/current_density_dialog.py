@@ -6,7 +6,6 @@ Author: Charles Kissell, Northeastern University
 License: MIT (see LICENSE file for details)
 """
 
-import re
 from typing import Dict
 
 from PySide6.QtCore import Qt
@@ -16,6 +15,8 @@ from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLay
                                 )
 
 from data_analysis_gui.config.logging import get_logger
+
+from data_analysis_gui.core.file_sort import filename_sort_key
 
 from data_analysis_gui.config.themes import (MODERN_COLORS, apply_compact_layout, style_button, apply_modern_theme, style_input_field,
                                              style_table_widget)
@@ -166,7 +167,7 @@ class CurrentDensityDialog(QDialog):
         """
         results = sorted(
             self.batch_result.successful_results,
-            key=lambda r: self._extract_number(r.base_name),
+            key=lambda r: filename_sort_key(r.base_name),
         )
         self.table.setRowCount(len(results))
 
@@ -196,27 +197,6 @@ class CurrentDensityDialog(QDialog):
             status_item = QTableWidgetItem("")
             status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row, 2, status_item)
-
-    def _extract_number(self, filename: str) -> tuple:
-        """
-        Extract numeric identifiers from the filename for sorting.
-        
-        Handles formats like 'date_exp' (e.g., 250923_001) by sorting first by date,
-        then by experiment number within each date.
-        """
-        # Try to extract numbers on both sides of underscore (e.g., "250923_001")
-        # Returns tuple (date, experiment_num) for proper hierarchical sorting
-        match = re.search(r"(\d+)_(\d+)", filename)
-        if match:
-            return (int(match.group(1)), int(match.group(2)))
-        
-        # Fallback: extract all numbers and return as tuple for multi-level sorting
-        numbers = re.findall(r"\d+", filename)
-        if numbers:
-            return tuple(int(n) for n in numbers)
-        
-        # No numbers found
-        return (0,)
 
     def _update_status(self, row: int):
         """

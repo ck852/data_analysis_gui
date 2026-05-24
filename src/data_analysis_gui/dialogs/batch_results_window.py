@@ -27,6 +27,8 @@ from data_analysis_gui.config.themes import (apply_modern_theme, create_styled_b
                                             style_label,
                                             )
 
+from data_analysis_gui.core.file_sort import filename_sort_key
+
 from data_analysis_gui.config.plot_style import add_zero_axis_lines
 
 from data_analysis_gui.services.summary_export import GeneralizedSummaryExporter
@@ -184,23 +186,8 @@ class BatchResultsWindow(QMainWindow):
         return panel
 
     def _sort_results(self, results):
-
-        def extract_number(file_name):
-            # Try to extract numbers on both sides of underscore (e.g., "250923_001")
-            # Returns tuple (date, experiment_num) for proper hierarchical sorting
-            match = re.search(r"(\d+)_(\d+)", file_name)
-            if match:
-                return (int(match.group(1)), int(match.group(2)))
-            
-            # Fallback: extract all numbers and return as tuple for multi-level sorting
-            numbers = re.findall(r"\d+", file_name)
-            if numbers:
-                return tuple(int(n) for n in numbers)
-            
-            # No numbers found
-            return (0,)
-
-        return sorted(results, key=lambda r: extract_number(r.base_name))
+        """Sort results in series-aware order (base files before their decimal sub-versions)."""
+        return sorted(results, key=lambda r: filename_sort_key(r.base_name))
 
     def _populate_file_list(self):
 

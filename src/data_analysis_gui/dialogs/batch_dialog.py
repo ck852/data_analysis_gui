@@ -22,6 +22,8 @@ from data_analysis_gui.config.logging import get_logger
 from data_analysis_gui.config.themes import (apply_modern_theme, apply_compact_layout, style_list_widget, style_progress_bar, style_group_box,
                                             style_label, get_file_count_color, create_styled_button)
 
+from data_analysis_gui.core.file_sort import filename_sort_key
+
 logger = get_logger(__name__)
 
 
@@ -242,7 +244,14 @@ class BatchAnalysisDialog(QDialog):
             for file_path in file_paths:
                 if file_path not in self.file_paths:
                     self.file_paths.append(file_path)
-                    self.file_list.addItem(Path(file_path).name)
+
+            # Sort so base files precede their decimal sub-versions, then rebuild
+            # the visible list to match. This determines both the displayed order
+            # and the processing order in the batch service.
+            self.file_paths.sort(key=lambda p: filename_sort_key(Path(p).stem))
+            self.file_list.clear()
+            for file_path in self.file_paths:
+                self.file_list.addItem(Path(file_path).name)
 
             self.update_file_count()
             self.update_button_states()

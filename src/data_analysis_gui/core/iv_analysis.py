@@ -10,6 +10,7 @@ considered equal if they are within 0.1 mV of each other (rounded to nearest ten
 
 from typing import Dict, Any, Tuple, Optional
 from data_analysis_gui.core.params import AnalysisParameters
+from data_analysis_gui.core.file_sort import filename_sort_key
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,8 +58,13 @@ class IVAnalysisService:
 
         logger.debug(f"Valid IV analysis configuration detected")
 
-        # Process sorted batch results
-        for idx, (base_name, data) in enumerate(sorted(batch_results.items())):
+        # Process batch results in series-aware sorted order. Sorting by the
+        # filename key (rather than alphabetically) ensures that base files
+        # like "260522_001" precede their decimal sub-versions ("260522_001.1",
+        # ...) so the downstream Recording N numbering and IV summary column
+        # order both follow the user-facing series order.
+        sorted_items = sorted(batch_results.items(), key=lambda kv: filename_sort_key(kv[0]))
+        for idx, (base_name, data) in enumerate(sorted_items):
             logger.debug(f"Processing file {idx + 1}/{len(batch_results)}: {base_name}")
             
             # Process Range 1 data with its own x_values
@@ -158,7 +164,9 @@ class IVSummaryExporter:
         headers = ["Voltage (mV)"]  # Voltage header already includes units
         data_columns = [voltages]
 
-        # Sort recordings
+        # Sort recordings by the integer suffix of "Recording N". This integer
+        # was assigned upstream in prepare_iv_data using filename_sort_key, so
+        # this sort simply preserves that series-aware order.
         sorted_recordings = sorted(
             iv_file_mapping.keys(), key=lambda x: int(x.split()[-1])
         )
@@ -207,4 +215,3 @@ class IVSummaryExporter:
         logger.debug(f"Export array shape: {data_array.shape}")
 
         return {"headers": headers, "data": data_array, "format_spec": "%.6f"}
-    

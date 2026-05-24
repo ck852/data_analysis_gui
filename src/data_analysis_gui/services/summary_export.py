@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 
 from data_analysis_gui.core.params import AnalysisParameters, AxisConfig
+from data_analysis_gui.core.file_sort import filename_sort_key
 from data_analysis_gui.config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -135,8 +136,9 @@ class GeneralizedSummaryExporter:
             logger.warning("No results to export after filtering")
             return {"headers": [], "data": np.array([]), "format_spec": "%s"}
         
-        # Sort filenames for consistent ordering
-        sorted_files = sorted(filtered_results.keys())
+        # Sort filenames using shared series-aware sort so base files (e.g.
+        # "260522_001") come before their decimal sub-versions ("260522_001.1").
+        sorted_files = sorted(filtered_results.keys(), key=filename_sort_key)
         logger.debug(f"Processing {len(sorted_files)} files in sorted order")
         
         # Generate X-axis label
