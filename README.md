@@ -3,6 +3,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/patchbatch)](https://pypi.org/project/patchbatch/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub release](https://img.shields.io/github/v/release/ck852/patchbatch)](https://github.com/ck852/patchbatch/releases)
+[![DOI](https://zenodo.org/badge/1038809324.svg)](https://doi.org/10.5281/zenodo.21540126)
 
 # PatchBatch - Electrophysiology Data Analysis Tool
 
