@@ -54,6 +54,7 @@ patchbatch/
 |       |   |-- app_controller.py
 |       |   |-- data_extractor.py
 |       |   |-- dataset.py
+|       |   |-- file_sort.py
 |       |   |-- iv_analysis.py
 |       |   |-- metrics_calculator.py
 |       |   |-- models.py
@@ -69,6 +70,7 @@ patchbatch/
 |       |   |-- current_density_dialog.py
 |       |   |-- current_density_results_window.py
 |       |   |-- extract_sweeps_dialog.py
+|       |   |-- kinetics_batch_dialog.py
 |       |   |-- kinetics_dialog.py
 |       |   |-- leak_subtraction_dialog.py
 |       |   |-- ramp_iv_batch_sweep_dialog.py

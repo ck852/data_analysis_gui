@@ -7,6 +7,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Custom reset time axis when rejecting sweeps
 - Eased batch sweep extraction process when changing parameters between extractions
 - Fixed sorting of filenames when they include decimal
+- Streamlined dual channel batch sweep extraction
 
 # [1.0.4] 2026-01-24
 - Removed deprecated Mac Intel build

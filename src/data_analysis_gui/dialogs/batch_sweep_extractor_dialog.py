@@ -81,6 +81,7 @@ class BatchSweepExtractorDialog(QDialog):
         self.extraction_result: Optional[Dict] = None
         self.had_missing_data = False
         self.had_time_mismatch = False
+        self.voltage_mismatch_files: List[str] = []
         
         self.setWindowTitle("Batch Sweep Extraction")
         self.setModal(True)
@@ -230,6 +231,21 @@ class BatchSweepExtractorDialog(QDialog):
         channel_layout.addWidget(self.current_radio)
         channel_layout.addWidget(self.both_radio)
         
+        # Optional: collapse voltage columns to first file only when "Both Channels" is selected
+        self.single_voltage_checkbox = QCheckBox("Only include voltage from first file")
+        self.single_voltage_checkbox.setToolTip(
+            "When extracting both channels, include voltage columns only for the first file.\n"
+            "Voltage protocols across all files are checked for equivalence; if any file's\n"
+            "voltage differs from the reference, all voltage columns are exported and a\n"
+            "warning is shown."
+        )
+        self.single_voltage_checkbox.setChecked(False)
+        self.single_voltage_checkbox.setEnabled(self.both_radio.isChecked())
+        channel_layout.addWidget(self.single_voltage_checkbox)
+        
+        # Enable the checkbox only when "Both Channels" is selected
+        self.both_radio.toggled.connect(self.single_voltage_checkbox.setEnabled)
+        
         layout.addWidget(channel_group)
     
     def _create_time_range_section(self, layout):
@@ -315,6 +331,7 @@ class BatchSweepExtractorDialog(QDialog):
         self.voltage_radio.toggled.connect(self._mark_parameters_stale)
         self.current_radio.toggled.connect(self._mark_parameters_stale)
         self.both_radio.toggled.connect(self._mark_parameters_stale)
+        self.single_voltage_checkbox.toggled.connect(self._mark_parameters_stale)
         
         # Time range
         self.full_trace_checkbox.toggled.connect(self._mark_parameters_stale)
@@ -518,6 +535,7 @@ class BatchSweepExtractorDialog(QDialog):
         self.extraction_result = None
         self.had_missing_data = False
         self.had_time_mismatch = False
+        self.voltage_mismatch_files = []
         
         # Update status
         style_label(self.status_label, "info")
@@ -562,9 +580,18 @@ class BatchSweepExtractorDialog(QDialog):
             if reference_time is None or len(reference_time) == 0:
                 raise ValueError("No valid data extracted from any file")
             
+            # Determine whether to collapse voltage to first file only.
+            # Only relevant when "Both Channels" is selected and the checkbox is on.
+            simplified_voltage = False
+            if (self.channel_mode == 'both' 
+                    and self.single_voltage_checkbox.isChecked()):
+                self.voltage_mismatch_files = self._check_voltage_consistency(all_data)
+                simplified_voltage = (len(self.voltage_mismatch_files) == 0)
+            
             # Build final output structure
             self.extraction_result = self._build_output_structure(
-                all_data, reference_time, reference_units
+                all_data, reference_time, reference_units,
+                simplified_voltage=simplified_voltage
             )
             
             # Update UI
@@ -685,14 +712,105 @@ class BatchSweepExtractorDialog(QDialog):
         else:
             return array
             
+    def _check_voltage_consistency(self, all_data: List[Dict]) -> List[str]:
+        """
+        Compare voltage arrays across files against the first file's voltage.
+        
+        Iterates over each sweep in each file and compares its voltage array to
+        the reference (first file's voltage for that sweep). Files whose voltage
+        is entirely NaN (failed extraction) are skipped — they're already flagged
+        by had_missing_data and shouldn't be reported as voltage mismatches.
+        
+        Returns a list of base_name strings for files that differ from the
+        reference. Empty list means all voltages match (or there's only one file
+        with valid data, in which case there's nothing to disagree with).
+        """
+        if len(all_data) < 2:
+            return []
+        
+        reference_file = all_data[0]
+        reference_sweeps = reference_file.get('sweeps', {})
+        
+        mismatched = []
+        for file_data in all_data[1:]:
+            base_name = file_data['base_name']
+            file_sweeps = file_data.get('sweeps', {})
+            
+            # Skip files where every sweep's voltage is all-NaN (failed extraction)
+            all_nan = all(
+                np.all(np.isnan(file_sweeps.get(sw, {}).get('voltage', 
+                                                            np.array([np.nan]))))
+                for sw in self.sweep_indices
+            )
+            if all_nan:
+                continue
+            
+            for sweep_idx in self.sweep_indices:
+                ref_voltage = reference_sweeps.get(sweep_idx, {}).get('voltage')
+                this_voltage = file_sweeps.get(sweep_idx, {}).get('voltage')
+                
+                if ref_voltage is None or this_voltage is None:
+                    continue
+                if len(ref_voltage) != len(this_voltage):
+                    mismatched.append(base_name)
+                    break
+                # equal_nan=True so files with matching NaN positions still pass
+                if not np.allclose(ref_voltage, this_voltage, 
+                                   atol=1e-6, equal_nan=True):
+                    mismatched.append(base_name)
+                    break
+        
+        if mismatched:
+            logger.info(f"Voltage mismatch detected in {len(mismatched)} file(s): "
+                       f"{', '.join(mismatched)}")
+        
+        return mismatched
+
     def _build_output_structure(self, all_data: List[Dict], 
                                 reference_time: np.ndarray,
-                                reference_units: Dict) -> Dict:
-
+                                reference_units: Dict,
+                                simplified_voltage: bool = False) -> Dict:
+        """
+        Assemble headers and data columns for the combined CSV output.
+        
+        When simplified_voltage is True (only valid for channel_mode='both'),
+        voltage columns are emitted only once using the first file's data;
+        current columns are then emitted for every file. The voltage headers
+        retain the first file's base_name so the data's origin is clear.
+        """
         headers = ["Time (ms)"]
         columns = [reference_time]
         
-        # Process each file
+        # Simplified voltage path: emit voltage columns once from file 1, then
+        # all current columns for every file.
+        if simplified_voltage and self.channel_mode == 'both' and all_data:
+            ref_file = all_data[0]
+            ref_base_name = ref_file['base_name']
+            
+            # Voltage columns (from first file only)
+            for sweep_idx in self.sweep_indices:
+                sweep_data = ref_file['sweeps'].get(sweep_idx, {})
+                voltage = sweep_data.get('voltage', np.full(len(reference_time), np.nan))
+                headers.append(
+                    f"{ref_base_name} Sweep {sweep_idx} Voltage ({reference_units['voltage']})"
+                )
+                columns.append(voltage)
+            
+            # Current columns for every file
+            for file_data in all_data:
+                base_name = file_data['base_name']
+                for sweep_idx in self.sweep_indices:
+                    sweep_data = file_data['sweeps'].get(sweep_idx, {})
+                    current = sweep_data.get('current', np.full(len(reference_time), np.nan))
+                    headers.append(
+                        f"{base_name} Sweep {sweep_idx} Current ({reference_units['current']})"
+                    )
+                    columns.append(current)
+            
+            data_array = np.column_stack(columns)
+            return {'headers': headers, 'data': data_array}
+        
+        # Standard path: per-file voltage then current columns as configured.
         for file_data in all_data:
             base_name = file_data['base_name']
             
@@ -741,10 +859,18 @@ class BatchSweepExtractorDialog(QDialog):
                 "Note: Some files had different time arrays than the reference file"
             )
         
+        if self.voltage_mismatch_files:
+            file_list_str = ", ".join(self.voltage_mismatch_files)
+            status_parts.append(
+                f"Voltage mismatch: {file_list_str} differ from reference — "
+                f"exporting all voltage columns."
+            )
+        
         status_text = "\n".join(status_parts)
         
         # Set style based on warnings
-        if self.had_missing_data or self.had_time_mismatch:
+        if (self.had_missing_data or self.had_time_mismatch 
+                or self.voltage_mismatch_files):
             style_label(self.status_label, "warning")
         else:
             style_label(self.status_label, "success")
