@@ -1,11 +1,7 @@
 -- scholarly-metadata.lua
 -- Converts JOSS-style authors/affiliations YAML into Pandoc MetaInlines
-<<<<<<< HEAD
 -- so that the default LaTeX article template renders them properly.
 -- Affiliations are placed directly below the author names in the title block.
-=======
--- so that the default LaTeX template renders them properly.
->>>>>>> e127cd5 (work in progress)
 
 function Meta(meta)
   -- Build affiliation lookup: index -> name
@@ -37,7 +33,6 @@ function Meta(meta)
       table.insert(author_entries, entry)
     end
 
-<<<<<<< HEAD
     -- Build author line
     local author_str = table.concat(author_entries, ", ")
 
@@ -61,27 +56,6 @@ function Meta(meta)
 
     -- Set meta.author so the default Pandoc article template renders it
     meta.author = { pandoc.MetaInlines({ pandoc.RawInline("latex", full_block) }) }
-=======
-    -- Set meta.author as a single RawInline block with all authors
-    local author_str = table.concat(author_entries, ", ")
-    meta.author = { pandoc.MetaInlines({ pandoc.RawInline("latex", author_str) }) }
-
-    -- Build affiliation footnote block
-    local affil_lines = {}
-    for _, a in ipairs(meta.affiliations) do
-      local idx = pandoc.utils.stringify(a.index)
-      local name = pandoc.utils.stringify(a.name)
-      table.insert(affil_lines, "\\textsuperscript{" .. idx .. "}" .. name)
-    end
-    if #affil_lines > 0 then
-      local affil_block = table.concat(affil_lines, " \\\\\n")
-      affil_block = affil_block .. " \\\\\n\\textsuperscript{*}Corresponding author"
-
-      -- Inject as institute or subtitle depending on template
-      -- Using the 'institute' variable which many LaTeX templates support
-      meta.institute = { pandoc.MetaInlines({ pandoc.RawInline("latex", affil_block) }) }
-    end
->>>>>>> e127cd5 (work in progress)
   end
 
   return meta
